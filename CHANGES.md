@@ -1,5 +1,25 @@
 # Changes
 
+- 2026-08-15: Four review rounds over the redesign (4 parallel reviewers: DRY / dead code /
+  boilerplate / adversarial-vs-baseline, then three adversarial verification rounds; converged).
+  Correctness fixes, each with a regression test: the modification applier is never skipped by a
+  vendor column named like its outputs (static rule fact, not frame sniffing); key-phase
+  optional_select skips survive into the post-pivot materialization (reconstructed from raw
+  SOURCE presence) and skipped names never reach the output projection; missing [modifications]
+  and required packed-fragment columns fail construction as IncompatibleSourceError (contract);
+  absent optional packed columns drop so their layer is skipped like the non-fragment path.
+  New model validators: obs computes are value-combinators with declared inputs;
+  ProformaSequence pins modifications.output_column; fragments are long-only; the packed label
+  column cannot double as a select source. Consolidations: group_names/modification_outputs/
+  declared_source_columns each have one home; one merge shape (_merge_blocks); one delimiter
+  table; one atomic write (output.write_atomically); appliers split into TokenRegexApplier |
+  SiteListApplier; packaged_documents() public and used by the sweeping tests; exploder trim
+  deleted (the read plan already projects); defensive frame copies dropped (linear ownership).
+  Recorded decision: typed-column validation covers rows that reach the output axes, not rows
+  dropped by key dedup. Accepted low: ragged packed-list errors keep pandas' message.
+  Final: 19 modules / ~3.1k LOC outside vendor packages (from 41 / 3.6k), 66 passed / 4 skipped
+  incl. parity, pyright strict 0, contracts 2/2, CLI smoke green.
+
 - 2026-08-15: Full runtime redesign per [TODO_apb2.md](../TODO/TODO_apb2.md) items 1–8, committed
   on top of the initial apb2 baseline commit. **parse_strategy.py is the core**: `Parser`
   (protocols + run loop) and `make_parse_strategy/-ies` in one file. **Conversion runs first**:

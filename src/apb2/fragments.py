@@ -169,6 +169,11 @@ def exploder_for(rule: LongRule | WideRule, header: list[str]) -> FragmentExplod
             f"{rule.software_name!r} level {rule.quantification_level!r}"
         )
     value_columns = tuple(column for column in fragments.value_columns if column in header_set)
+    if not value_columns:
+        raise IncompatibleSourceError(
+            f"input carries none of the packed fragment columns {list(fragments.value_columns)} "
+            f"declared by {rule.software_name!r} level {rule.quantification_level!r}"
+        )
     if isinstance(fragments, ColumnLabeledFragments):
         return ColumnLabeledExplode(fragments, value_columns)
     return PositionalExplode(fragments, value_columns)

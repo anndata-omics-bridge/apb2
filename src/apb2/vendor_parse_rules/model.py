@@ -100,6 +100,28 @@ class _RuleCore(ModelBase):
             raise ValueError("[fragments] is only valid for quantification_level='fragment'.")
         return self
 
+    @model_validator(mode="after")
+    def _fragment_label_column_is_not_a_source(self) -> _RuleCore:
+        if not isinstance(self.fragments, ColumnLabeledFragments):
+            return self
+        label = self.fragments.label_column
+        groups = [self.columns.var] if isinstance(self, WideRule) else []
+        if isinstance(self, LongRule):
+            groups = [self.columns.obs, self.columns.var]
+        offenders = sorted(
+            name
+            for group in groups
+            for name, source in {**group.select, **group.optional_select}.items()
+            if source == label
+        )
+        if offenders:
+            raise ValueError(
+                f"columns must not select the packed fragment label column {label!r} "
+                f"(the explode consumes it; read {self.fragments.label_output!r} instead): "
+                f"{offenders}"
+            )
+        return self
+
 
 class LongRule(_RuleCore):
     """One row per (observation, feature): every source is an exact column name."""
@@ -125,6 +147,15 @@ class WideRule(_RuleCore):
 
     shape: Literal["wide"]
     columns: WideColumns
+
+    @model_validator(mode="after")
+    def _no_fragments_on_wide(self) -> WideRule:
+        if self.fragments is not None:
+            raise ValueError(
+                "[fragments] requires a long rule: exact-name value_columns cannot "
+                "express per-sample packed columns."
+            )
+        return self
 
     @model_validator(mode="after")
     def _column_consistency(self) -> WideRule:
