@@ -99,7 +99,8 @@ def test_every_packaged_selector_value_constructs_its_strategy(
     rule = compose_rule(load_document(document), level)
     recognition = recognition_for(rule)
     applier_for(rule)
-    exploder_for(rule)
+    packed_header = list(rule.fragments.value_columns) if rule.fragments is not None else []
+    exploder_for(rule, packed_header)
     conversion = conversion_for(rule, strict=False)
     assert isinstance(conversion, LongConversion | WideConversion)
     for layer in rule.layers:

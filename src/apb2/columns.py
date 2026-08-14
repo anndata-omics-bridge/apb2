@@ -339,7 +339,7 @@ class _GroupMaterialization:
         if self.rest_needs_modifications and not modifications_applied:
             applier.apply(frame)
         self._materialize(frame, self.rest_select, self.rest_optional, self.rest_computers, skipped)
-        present = [name for name in self.declared if name in frame.columns]
+        present = [name for name in self.declared if name in frame.columns and name not in skipped]
         return frame[present]
 
 

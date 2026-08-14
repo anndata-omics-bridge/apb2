@@ -301,3 +301,80 @@ def test_strict_promotes_an_empty_auxiliary_layer_to_an_error(tmp_path: Path) ->
 
     with pytest.raises(LayerContractError, match="'Score' is effectively empty"):
         make_parse_strategy(_two_layer_rule(), SingleFile(report), strict=True).parse()
+
+
+def _fragment_rule() -> LongRule | WideRule:
+    return validate_rule(
+        {
+            "schema_version": "0.2",
+            "file_version": "1",
+            "software_name": "V2Test",
+            "software_version_pattern": "^1$",
+            "shape": "long",
+            "quantification_level": "fragment",
+            "axis": {"obs_keys": ["sample"], "var_keys": ["feature"], "x_layer": "Abundance"},
+            "columns": {
+                "obs": {"select": {"sample": "Run"}},
+                "var": {
+                    "select": {"precursor": "Precursor"},
+                    "computed": [
+                        {
+                            "how": "join_nonempty",
+                            "name": "feature",
+                            "inputs": ["precursor", "fragment_label"],
+                            "separator": "/",
+                        }
+                    ],
+                },
+            },
+            "layers": [
+                {"name": "Abundance", "source": "Frag.Quant"},
+                {"name": "Correlation", "source": "Frag.Corr"},
+            ],
+            "fragments": {
+                "label_strategy": "positional",
+                "value_columns": ["Frag.Quant", "Frag.Corr"],
+            },
+        }
+    )
+
+
+def test_missing_optional_packed_fragment_column_skips_its_layer(tmp_path: Path) -> None:
+    """An absent packed column backing an optional layer must not kill the parse."""
+    report = tmp_path / "report.tsv"
+    report.write_text(
+        "Run\tPrecursor\tFrag.Quant\ns1\tp1\t1.5;2.5\n",
+        encoding="utf-8",
+    )
+
+    parsed = make_parse_strategy(_fragment_rule(), SingleFile(report)).parse()
+
+    assert set(parsed.layers) == {"Abundance"}
+    assert list(parsed.var.index) == ["p1/frag_0", "p1/frag_1"]
+
+
+def test_missing_required_packed_fragment_column_fails_construction(tmp_path: Path) -> None:
+    report = tmp_path / "report.tsv"
+    report.write_text(
+        "Run\tPrecursor\tFrag.Corr\ns1\tp1\t0.9;0.8\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(IncompatibleSourceError):
+        make_parse_strategy(_fragment_rule(), SingleFile(report))
+
+
+def test_vendor_column_named_like_a_skipped_optional_never_reaches_the_output(
+    tmp_path: Path,
+) -> None:
+    """A raw column bearing a skipped optional's declared name must stay excluded."""
+    report = tmp_path / "report.tsv"
+    report.write_text(
+        "Run\tPeptide\topt\tIntensity\ns1\tAAA\tJUNK\t1.5\n",
+        encoding="utf-8",
+    )
+
+    parsed = make_parse_strategy(_optional_shared_rule(), SingleFile(report)).parse()
+
+    assert "opt" not in parsed.var.columns
+    assert list(parsed.var["anno"]) == ["AAA"]

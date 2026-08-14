@@ -527,10 +527,25 @@ def _check_computed_columns(rule: _RuleCore, var: ColumnGroup) -> None:
         available.add(column.name)
 
 
+def _check_derived_sequence_column(
+    rule: _RuleCore, column: StrippedSequence | ProformaSequence
+) -> None:
+    if rule.modifications is None:
+        raise ValueError(f"how={column.how!r} requires a [modifications] block.")
+    if (
+        isinstance(column, ProformaSequence)
+        and rule.modifications.output_column != "proforma_sequence"
+    ):
+        raise ValueError(
+            "how='proforma_sequence' reads the 'proforma_sequence' column; "
+            f"modifications.output_column={rule.modifications.output_column!r} would "
+            "never be read"
+        )
+
+
 def _check_computed_column(rule: _RuleCore, column: ComputedColumn, var: ColumnGroup) -> None:
     if isinstance(column, StrippedSequence | ProformaSequence):
-        if rule.modifications is None:
-            raise ValueError(f"how={column.how!r} requires a [modifications] block.")
+        _check_derived_sequence_column(rule, column)
         return
     if isinstance(column, ProformaIon):
         # At fragment level ProForma_ion is an intermediate for ProForma_fragment.

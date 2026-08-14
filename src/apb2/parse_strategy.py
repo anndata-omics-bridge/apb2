@@ -130,7 +130,7 @@ def make_parse_strategy(
             f"{binding.path} lacks the [modifications] source column(s) {missing} required "
             f"by {rule.software_name!r} level {rule.quantification_level!r}"
         )
-    fragments = exploder_for(rule)
+    fragments = exploder_for(rule, header)
     plan = compile_read_plan(
         recognition, header, applier.source_columns(), fragments.packed_columns()
     )
