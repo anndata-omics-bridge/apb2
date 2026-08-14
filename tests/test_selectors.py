@@ -7,7 +7,6 @@ selector value with no class behind it must fail here, not partway through a con
 
 from __future__ import annotations
 
-from importlib import resources
 from pathlib import Path
 from typing import get_args
 
@@ -31,6 +30,7 @@ from apb2.layers import (
     coercion_for,
 )
 from apb2.modifications.pipeline import applier_for
+from apb2.vendor_parse_rules.documents.select import packaged_documents
 from apb2.vendor_parse_rules.model import (
     Coalesce,
     DuplicateMode,
@@ -49,12 +49,10 @@ from apb2.vendor_parse_rules.model import (
 )
 from apb2.vendor_parse_rules.runtime import recognition_for
 
-_TREE = Path(str(resources.files("apb2.vendor_parse_rules.documents")))
-_DOCUMENTS = sorted(set(_TREE.glob("*/rules.json")) | set(_TREE.glob("*/v*/rules.json")))
 _RULES = [
-    pytest.param(document, level, id=f"{document.parent.name}/{level}")
-    for document in _DOCUMENTS
-    for level in load_document(document).levels
+    pytest.param(document.path, level, id=f"{document.path.parent.name}/{level}")
+    for document in packaged_documents()
+    for level in document.levels
 ]
 
 
@@ -100,8 +98,8 @@ def test_every_packaged_selector_value_constructs_its_strategy(
     """Sweep the packaged tree: every selector in every rule builds a runtime object."""
     rule = compose_rule(load_document(document), level)
     recognition = recognition_for(rule)
-    applier = applier_for(rule)
-    exploder_for(rule, recognition, applier.source_columns())
+    applier_for(rule)
+    exploder_for(rule)
     conversion = conversion_for(rule, strict=False)
     assert isinstance(conversion, LongConversion | WideConversion)
     for layer in rule.layers:

@@ -41,7 +41,7 @@ def guess_software(headers: Iterable[str]) -> str | None:
     header_set = frozenset(headers)
     slugs = {
         software_slug(document.software_name)
-        for document in _packaged_documents()
+        for document in packaged_documents()
         if any(
             recognition_for(compose_rule(document, level)).matches(header_set)
             for level in document.levels
@@ -63,7 +63,7 @@ class DetectedSoftware:
         """Detect the document; fails when the evidence does not name exactly one file."""
         header_set = frozenset(headers)
         matches: list[tuple[Document, str | None]] = []
-        for document in _packaged_documents():
+        for document in packaged_documents():
             slug = software_slug(document.software_name)
             version = _version_for(parameters, slug)
             if version is not None and not _pattern_admits(
@@ -91,7 +91,7 @@ class DetectedSoftware:
         return self._path
 
 
-def _packaged_documents() -> tuple[Document, ...]:
+def packaged_documents() -> tuple[Document, ...]:
     """Load every packaged document in stable path order."""
     root = Path(str(resources.files("apb2.vendor_parse_rules.documents")))
     paths = sorted(set(root.glob("*/rules.json")) | set(root.glob("*/v*/rules.json")))

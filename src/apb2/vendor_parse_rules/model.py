@@ -113,6 +113,7 @@ class LongRule(_RuleCore):
         _check_axis_keys(self.axis.var_keys, self.columns.var, "var")
         _check_column_roles(self.column_roles, self.columns.var)
         _check_computed_columns(self, self.columns.var)
+        _check_obs_computed_columns(self, self.columns.obs)
         _check_derived_not_selected(self.modifications, (self.columns.obs, self.columns.var))
         return self
 
@@ -483,6 +484,31 @@ def _check_derived_not_selected(
             "apb2-derived modification columns must be declared in "
             f"columns.var.computed, not select: {sorted(selected)}"
         )
+
+
+def _check_obs_computed_columns(rule: _RuleCore, obs: ColumnGroup) -> None:
+    """Obs computes combine values only; sequence-derived columns are var-only.
+
+    A per-sample sequence is semantically meaningless, and the runtime carries the
+    modification outputs onto the var frame alone — reject the combination at rule
+    validation instead of failing mid-parse.
+    """
+    sequence_derived = [
+        column.name for column in obs.computed if not isinstance(column, Coalesce | JoinNonempty)
+    ]
+    if sequence_derived:
+        raise ValueError(
+            f"sequence-derived computed columns are var-only; columns.obs declares "
+            f"{sequence_derived}"
+        )
+    available = set(obs.select) | set(obs.optional_select)
+    for column in obs.computed:
+        missing = [source for source in column.inputs if source not in available]
+        if missing:
+            raise ValueError(
+                f"computed column {column.name!r} references undeclared obs column(s): {missing}"
+            )
+        available.add(column.name)
 
 
 def _check_computed_columns(rule: _RuleCore, var: ColumnGroup) -> None:

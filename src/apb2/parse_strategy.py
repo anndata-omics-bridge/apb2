@@ -126,10 +126,14 @@ def make_parse_strategy(
     applier = applier_for(rule)
     missing = [column for column in applier.sources if column not in set(header)]
     if missing:
-        raise KeyError(f"[modifications] needs column(s) {missing} not found in {binding.path}")
-    sources = applier.source_columns()
-    fragments = exploder_for(rule, recognition, sources)
-    plan = compile_read_plan(recognition, header, sources, fragments.packed_columns())
+        raise IncompatibleSourceError(
+            f"{binding.path} lacks the [modifications] source column(s) {missing} required "
+            f"by {rule.software_name!r} level {rule.quantification_level!r}"
+        )
+    fragments = exploder_for(rule)
+    plan = compile_read_plan(
+        recognition, header, applier.source_columns(), fragments.packed_columns()
+    )
     return Parser(
         level=rule.quantification_level,
         input=binding.make_reader(plan),

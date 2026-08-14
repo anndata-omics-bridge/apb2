@@ -201,7 +201,11 @@ class WideConversion:
         self.duplicates: DuplicatePolicy = policy_for(rule.axis.duplicates)
         self.obs_outputs = tuple(rule.axis.obs_keys)
         self.software_name = rule.software_name
-        self.excluded = _non_sample_columns(rule)
+        # Everything the frame can hold besides vendor sample columns: the carry set plus
+        # the synthesized modification columns. A rule whose sample pattern cannot anchor
+        # on a suffix (AlphaDIA's run columns are bare run names) must not match any of
+        # them as extra samples.
+        self.excluded = frozenset(self.var_carry) | {"stripped_sequence", "unknown_mod_tokens"}
         self.strict = strict
 
     def parse(self, df: pd.DataFrame) -> ParsedData:
@@ -298,19 +302,6 @@ def _matching_columns(headers: list[str], pattern: str) -> list[tuple[str, str]]
             continue
         out.append((header, match.group("sample")))
     return out
-
-
-def _non_sample_columns(rule: WideRule) -> frozenset[str]:
-    """Every column a wide rule accounts for by name, so none can be a sample column.
-
-    Exactly the var carry set — the declared names, their raw sources, the modification
-    columns, the fragment label — because that is what the frame can hold besides vendor
-    sample columns. A rule whose sample pattern cannot anchor on a suffix (AlphaDIA's run
-    columns are bare run names) must not match any of them as extra samples.
-    """
-    return frozenset(
-        _carry_columns(list(rule.axis.var_keys), rule.columns.var, _var_extras(rule))
-    ) | {"stripped_sequence", "unknown_mod_tokens"}
 
 
 type Conversion = LongConversion | WideConversion

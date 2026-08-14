@@ -32,8 +32,9 @@ from apb2.vendor_parse_rules.model import (
     ProformaSequence,
     StrippedSequence,
     WideRule,
+    group_names,
 )
-from apb2.vendor_parse_rules.runtime import Recognition, group_names
+from apb2.vendor_parse_rules.runtime import Recognition
 
 # ------------------------------------------------------------- logical axis-column typing
 
@@ -330,11 +331,11 @@ class _GroupMaterialization:
     ) -> pd.DataFrame:
         """Materialize every remaining declared column on the deduplicated axis frame.
 
-        Key-phase optional skips are reconstructed from the frame: a skipped optional is
-        exactly one absent from the carried axis frame, since every materialized key
-        optional is carried with the declared columns.
+        Key-phase optional skips are reconstructed from raw SOURCE presence — sources are
+        always carried, so source-in-frame is exactly source-was-in-input. Declared-name
+        presence would be defeated by a vendor column bearing the declared name.
         """
-        skipped = {name for name, _source in self.key_optional if name not in frame.columns}
+        skipped = {name for name, source in self.key_optional if source not in frame.columns}
         if self.rest_needs_modifications and not modifications_applied:
             applier.apply(frame)
         self._materialize(frame, self.rest_select, self.rest_optional, self.rest_computers, skipped)

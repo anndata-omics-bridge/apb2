@@ -6,8 +6,9 @@ the same fixture must produce the same ``.h5ad``, key for key.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from anndata import AnnData
 
@@ -64,7 +65,16 @@ def as_anndata(parsed: ParsedData) -> AnnData:
 
 def to_anndata(parsed: ParsedData, target: Path) -> None:
     """Write ``parsed`` to ``target`` atomically as ``.h5ad``."""
-    adata = as_anndata(parsed)
-    scratch = target.with_name(target.name + ".tmp")
-    adata.write_h5ad(scratch)
-    scratch.replace(target)
+    write_atomically(target, as_anndata(parsed).write_h5ad)
+
+
+def write_atomically(target: Path, writer: Callable[[Path], None]) -> None:
+    """Write beside the destination and replace it only after a complete write.
+
+    The scratch directory cleans itself up on failure, so an interrupted write never
+    leaves a partial file beside the target.
+    """
+    with TemporaryDirectory(dir=target.parent, prefix=f".{target.name}.") as folder:
+        scratch = Path(folder) / target.name
+        writer(scratch)
+        scratch.replace(target)

@@ -21,7 +21,6 @@ from apb2.vendor_parse_rules.model import (
     PositionalFragments,
     WideRule,
 )
-from apb2.vendor_parse_rules.runtime import Recognition, declared_source_columns
 
 
 def _split_packed(value: object, delimiter: str) -> list[str]:
@@ -47,40 +46,23 @@ def _positions(tokens: list[str]) -> list[int]:
     return list(range(len(tokens)))
 
 
-def _columns_read_by(
-    rule: LongRule | WideRule,
-    recognition: Recognition,
-    modification_sources: frozenset[str],
-) -> set[str]:
-    """Every raw column the rule reads: the only ones worth multiplying ~12x."""
-    needed = set(modification_sources) | declared_source_columns(recognition)
-    needed.update(layer.source for layer in rule.layers)
-    return needed
-
-
 class _PackedExplode:
     """Shared mechanics of both exploders: trim, split, explode, coerce."""
 
-    def __init__(
-        self,
-        fragments: PositionalFragments | ColumnLabeledFragments,
-        rule: LongRule | WideRule,
-        recognition: Recognition,
-        modification_sources: frozenset[str],
-    ) -> None:
+    def __init__(self, fragments: PositionalFragments | ColumnLabeledFragments) -> None:
         self.value_columns = tuple(fragments.value_columns)
         self.delimiter = fragments.delimiter
         self.label_output = fragments.label_output
-        self._needed = frozenset(_columns_read_by(rule, recognition, modification_sources)) | set(
-            self.packed_columns()
-        )
 
     def packed_columns(self) -> tuple[str, ...]:
         return self.value_columns
 
     def _split(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Trim to the read set and split each packed column into token lists."""
-        keep = [column for column in df.columns if column in self._needed]
+        """Split each packed column into token lists.
+
+        No trim: the read plan already projected the frame to exactly the columns the
+        rule reads, so everything present survives the explode.
+        """
         packed = self.packed_columns()
         missing = [column for column in packed if column not in df.columns]
         if missing:
@@ -88,7 +70,7 @@ class _PackedExplode:
                 f"[fragments] references column(s) missing from the input: {missing}; "
                 f"available: {list(df.columns)[:10]}…"
             )
-        work = df[keep].copy()
+        work = df.copy()
         for column in packed:
             work[column] = work[column].map(lambda value: _split_packed(value, self.delimiter))
         return work
@@ -118,15 +100,9 @@ class PositionalExplode(_PackedExplode):
 class ColumnLabeledExplode(_PackedExplode):
     """Fan packed fragment values out, taking each label from a packed label column."""
 
-    def __init__(
-        self,
-        fragments: ColumnLabeledFragments,
-        rule: LongRule | WideRule,
-        recognition: Recognition,
-        modification_sources: frozenset[str],
-    ) -> None:
+    def __init__(self, fragments: ColumnLabeledFragments) -> None:
         self.label_column = fragments.label_column
-        super().__init__(fragments, rule, recognition, modification_sources)
+        super().__init__(fragments)
 
     @override
     def packed_columns(self) -> tuple[str, ...]:
@@ -158,15 +134,11 @@ class NoFragments:
 type FragmentExploder = PositionalExplode | ColumnLabeledExplode | NoFragments
 
 
-def exploder_for(
-    rule: LongRule | WideRule,
-    recognition: Recognition,
-    modification_sources: frozenset[str],
-) -> FragmentExploder:
+def exploder_for(rule: LongRule | WideRule) -> FragmentExploder:
     """Read the rule's ``label_strategy`` once, and return the exploder it names."""
     fragments: Fragments | None = rule.fragments
     if fragments is None:
         return NoFragments()
     if isinstance(fragments, ColumnLabeledFragments):
-        return ColumnLabeledExplode(fragments, rule, recognition, modification_sources)
-    return PositionalExplode(fragments, rule, recognition, modification_sources)
+        return ColumnLabeledExplode(fragments)
+    return PositionalExplode(fragments)

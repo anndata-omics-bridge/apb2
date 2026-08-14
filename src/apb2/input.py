@@ -35,7 +35,6 @@ from apb2.vendor_parse_rules.runtime import Recognition, declared_source_columns
 
 # ------------------------------------------------------------------- tabular file formats
 
-_TEXT_SUFFIX = ".txt"
 _PARQUET_SUFFIX = ".parquet"
 _TEXT_DELIMITERS = ",\t"
 _COMMA_DECIMAL_RE = re.compile(r"^-?\d+,(\d+)$")

@@ -9,10 +9,8 @@ from __future__ import annotations
 
 import json
 import sys
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import Annotated, Literal
 
 from cyclopts import App, Parameter
@@ -20,7 +18,7 @@ from loguru import logger
 
 from apb2.errors import IncompatibleSourceError
 from apb2.input import format_for
-from apb2.output import as_anndata, update_namespace
+from apb2.output import as_anndata, update_namespace, write_atomically
 from apb2.parse_strategy import make_parse_strategy
 from apb2.sources import SingleFile
 from apb2.vendor_params.model import Parameters
@@ -189,17 +187,9 @@ def _execute(
                 "search_parameters": json.dumps(parameters.model_dump(mode="json")),
             },
         )
-    _write_atomically(output, adata.write_h5ad)
+    write_atomically(output, adata.write_h5ad)
     logger.info(f"wrote {output}  shape={adata.shape}  layers={list(parsed.layers)}")
     return 0
-
-
-def _write_atomically(output: Path, writer: Callable[[Path], None]) -> None:
-    """Write beside the destination and replace it only after a complete write."""
-    with TemporaryDirectory(dir=output.parent, prefix=f".{output.name}.") as folder:
-        temporary = Path(folder) / output.name
-        writer(temporary)
-        temporary.replace(output)
 
 
 @app.command(name="export-schema")

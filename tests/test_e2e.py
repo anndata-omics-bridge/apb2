@@ -9,8 +9,6 @@ misroute.
 from __future__ import annotations
 
 import json
-import re
-from importlib import resources
 from pathlib import Path
 
 import numpy as np
@@ -31,6 +29,7 @@ from apb2.parse_strategy import make_parse_strategy
 from apb2.sources import SingleFile
 from apb2.vendor_params.model import Parameters
 from apb2.vendor_params.registry import parse_params
+from apb2.vendor_parse_rules.documents.select import packaged_documents, software_slug
 from apb2.vendor_parse_rules.model import (
     LongRule,
     QuantificationLevel,
@@ -40,10 +39,7 @@ from apb2.vendor_parse_rules.model import (
 )
 from apb2.vendor_parse_rules.runtime import available_for
 
-_APB2_TREE = Path(str(resources.files("apb2.vendor_parse_rules.documents")))
-_APB2_DOCUMENT_PATHS = sorted(
-    set(_APB2_TREE.glob("*/rules.json")) | set(_APB2_TREE.glob("*/v*/rules.json"))
-)
+_APB2_DOCUMENT_PATHS = [document.path for document in packaged_documents()]
 
 
 def _document_key(path: Path) -> tuple[str, ...]:
@@ -69,7 +65,7 @@ def _cached_parameters(rule: LongRule | WideRule, data_file: Path) -> Parameters
     param_paths = sorted(data_file.parent.glob("param_0.*"))
     if not param_paths:
         return None
-    slug = re.sub(r"[^a-z0-9]", "", rule.software_name.lower())
+    slug = software_slug(rule.software_name)
     return parse_params(param_paths[0], software=slug)
 
 
