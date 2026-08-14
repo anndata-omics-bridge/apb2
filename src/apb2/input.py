@@ -31,17 +31,19 @@ from apb2.sources import (
     UngroupedNumbers,
 )
 from apb2.vendor_parse_rules.model import LongRule, WideRule
-from apb2.vendor_parse_rules.runtime import Recognition, recognition_for
+from apb2.vendor_parse_rules.runtime import Recognition, declared_source_columns
 
 # ------------------------------------------------------------------- tabular file formats
 
-_FIXED_DELIMITERS = {".csv": ",", ".tsv": "\t"}
 _TEXT_SUFFIX = ".txt"
 _PARQUET_SUFFIX = ".parquet"
 _TEXT_DELIMITERS = ",\t"
 _COMMA_DECIMAL_RE = re.compile(r"^-?\d+,(\d+)$")
 _THOUSANDS_GROUP_WIDTH = 3
 _DECIMAL_SAMPLE_LINES = 500
+# The one extension table: a single candidate is the extension's fixed delimiter; the
+# multi-candidate ``.txt`` entry is resolved by sniffing (format_for) or by trying each
+# candidate against the rule's required header (_bind_single_file).
 _DELIMITER_CANDIDATES: dict[str, tuple[str, ...]] = {
     ".csv": (",",),
     ".tsv": ("\t",),
@@ -100,6 +102,13 @@ class Parquet:
         """Read only the column names from the physical schema."""
         return list(pq.read_schema(self.path).names)
 
+    def header(self) -> list[str]:
+        """The bound-table view of ``columns``: parquet needs no dialect resolution."""
+        return self.columns()
+
+    def make_reader(self, plan: ReadPlan) -> ParquetTableReader:
+        return ParquetTableReader(self.path, plan)
+
 
 type TabularFile = DelimitedText | Parquet
 
@@ -112,13 +121,17 @@ def format_for(path: Path) -> TabularFile:
     suffix = path.suffix.lower()
     if suffix == _PARQUET_SUFFIX:
         return Parquet(path)
-    fixed = _FIXED_DELIMITERS.get(suffix)
-    if fixed is not None:
-        return DelimitedText(path, fixed)
-    if suffix == _TEXT_SUFFIX:
-        return DelimitedText(path, _sniff_text_delimiter(path))
-    known = sorted((*_FIXED_DELIMITERS, _TEXT_SUFFIX, _PARQUET_SUFFIX))
-    raise UnknownFormat(f"unsupported extension {path.suffix!r} for {path}; known: {known}")
+    candidates = _DELIMITER_CANDIDATES.get(suffix)
+    if candidates is None:
+        raise _unknown_format(path)
+    if len(candidates) == 1:
+        return DelimitedText(path, candidates[0])
+    return DelimitedText(path, _sniff_text_delimiter(path))
+
+
+def _unknown_format(path: Path) -> UnknownFormat:
+    known = sorted((_PARQUET_SUFFIX, *_DELIMITER_CANDIDATES))
+    return UnknownFormat(f"unsupported extension {path.suffix!r} for {path}; known: {known}")
 
 
 def _sniff_text_delimiter(path: Path) -> str:
@@ -145,7 +158,6 @@ class ReadPlan:
 
 def compile_read_plan(
     recognition: Recognition,
-    rule: LongRule | WideRule,
     header: Sequence[str],
     modification_sources: Iterable[str],
     packed_columns: Iterable[str],
@@ -158,33 +170,27 @@ def compile_read_plan(
     (exact for long rules, regex-expanded for wide ones), modification sources, and
     packed fragment columns.
     """
-    needed: set[str] = set(modification_sources) | set(packed_columns)
-    for _axis, group in recognition.column_groups():
-        needed.update(group.select.values())
-        needed.update(group.optional_select.values())
-        for column in group.computed:
-            needed.update(column.inputs)
+    needed = set(modification_sources) | set(packed_columns) | declared_source_columns(recognition)
     needed.update(recognition.layer_source_columns(list(header)))
     columns = tuple(name for name in header if name in needed)
-    strings = string_sources_for_rules([rule]) & set(columns)
+    strings = string_sources_for(recognition) & set(columns)
     return ReadPlan(columns=columns, string_sources=frozenset(strings))
 
 
-def string_sources_for_rules(rules: Iterable[LongRule | WideRule]) -> frozenset[str]:
+def string_sources_for(recognition: Recognition) -> frozenset[str]:
     """Return real vendor sources whose exact textual tokens must survive reading."""
     source_types: dict[str, str] = {}
-    for rule in rules:
-        for _axis, group in recognition_for(rule).column_groups():
-            selected = {**group.select, **group.optional_select}
-            for output_name, source_name in selected.items():
-                logical_type = group.types.get(output_name, "string")
-                if source_name in source_types and source_types[source_name] != logical_type:
-                    raise ValueError(
-                        "conflicting logical types for vendor source "
-                        f"{source_name!r}: {source_types[source_name]!r} and "
-                        f"{logical_type!r}"
-                    )
-                source_types[source_name] = logical_type
+    for _axis, group in recognition.column_groups():
+        selected = {**group.select, **group.optional_select}
+        for output_name, source_name in selected.items():
+            logical_type = group.types.get(output_name, "string")
+            if source_name in source_types and source_types[source_name] != logical_type:
+                raise ValueError(
+                    "conflicting logical types for vendor source "
+                    f"{source_name!r}: {source_types[source_name]!r} and "
+                    f"{logical_type!r}"
+                )
+            source_types[source_name] = logical_type
     return frozenset(
         source for source, logical_type in source_types.items() if logical_type == "string"
     )
@@ -241,20 +247,7 @@ class BoundDelimited:
         return DelimitedTableReader(self.path, self.dialect, plan)
 
 
-class BoundParquet:
-    """One Parquet file; its physical schema replaces textual dialect resolution."""
-
-    def __init__(self, path: Path) -> None:
-        self.path = path
-
-    def header(self) -> list[str]:
-        return Parquet(self.path).columns()
-
-    def make_reader(self, plan: ReadPlan) -> ParquetTableReader:
-        return ParquetTableReader(self.path, plan)
-
-
-type BoundTable = BoundDelimited | BoundParquet
+type BoundTable = BoundDelimited | Parquet
 
 
 def bind_source(
@@ -283,11 +276,10 @@ def _bind_single_file(
 ) -> BoundTable:
     suffix = path.suffix.lower()
     if suffix == _PARQUET_SUFFIX:
-        return BoundParquet(path)
+        return Parquet(path)
     candidates = _DELIMITER_CANDIDATES.get(suffix)
     if candidates is None:
-        known = sorted((_PARQUET_SUFFIX, *_DELIMITER_CANDIDATES))
-        raise UnknownFormat(f"unsupported extension {path.suffix!r} for {path}; known: {known}")
+        raise _unknown_format(path)
     viable = [
         delimiter
         for delimiter in candidates

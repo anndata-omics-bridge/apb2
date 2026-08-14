@@ -435,14 +435,51 @@ def _resolve_tokens(
         if isinstance(matched, MatchedMapEntry):
             occurrences.append(tok.location.occurrence(matched.entry, tok.raw_token))
             continue
-        if rule.unknown_policy == "error":
-            raise ValueError(f"unknown modification token: {tok.raw_token!r}")
-        if rule.unknown_policy == "drop":
-            continue
-        unknown_list.append(tok.raw_token)
-        tok.location.record_unknown_token(unknown_tokens, tok.raw_token, len(stripped))
+        _apply_unknown_policy(
+            rule.unknown_policy,
+            tok.raw_token,
+            tok.location,
+            len(stripped),
+            unknown_tokens,
+            unknown_list,
+        )
 
     return occurrences, unknown_tokens, unknown_list
+
+
+def _apply_unknown_policy(
+    unknown_policy: str,
+    raw_token: str,
+    location: ModificationLocation,
+    stripped_length: int,
+    unknown_tokens: dict[int, str],
+    unknown_list: list[str],
+) -> None:
+    """Apply one rule's unknown-token policy to one unmatched token."""
+    if unknown_policy == "error":
+        raise ValueError(f"unknown modification token: {raw_token!r}")
+    if unknown_policy == "drop":
+        return
+    unknown_list.append(raw_token)
+    location.record_unknown_token(unknown_tokens, raw_token, stripped_length)
+
+
+def _modified_sequence(
+    stripped: str,
+    occurrences: list[ModificationOccurrence],
+    unknown_tokens: dict[int, str],
+    unknown_list: list[str],
+    source_sequence: str,
+) -> ModifiedSequence:
+    """Render the ProForma string and assemble the one result both parsers return."""
+    proforma = render_proforma(stripped, occurrences, unknown_tokens=unknown_tokens)
+    return ModifiedSequence(
+        stripped_sequence=stripped,
+        proforma_sequence=proforma,
+        occurrences=occurrences,
+        source_sequence=source_sequence,
+        unknown_tokens=unknown_list,
+    )
 
 
 def apply_rule(modified_sequence: str, rule: ModificationRule) -> ModifiedSequence:
@@ -452,13 +489,8 @@ def apply_rule(modified_sequence: str, rule: ModificationRule) -> ModifiedSequen
     stripped_chars, pending = _tokenize(seq, pattern, rule.token_position)
     stripped = "".join(stripped_chars)
     occurrences, unknown_tokens, unknown_list = _resolve_tokens(pending, rule, stripped)
-    proforma = render_proforma(stripped, occurrences, unknown_tokens=unknown_tokens)
-    return ModifiedSequence(
-        stripped_sequence=stripped,
-        proforma_sequence=proforma,
-        occurrences=occurrences,
-        source_sequence=modified_sequence,
-        unknown_tokens=unknown_list,
+    return _modified_sequence(
+        stripped, occurrences, unknown_tokens, unknown_list, modified_sequence
     )
 
 
@@ -517,18 +549,8 @@ def apply_site_list(
         if token_key in by_token:
             occurrences.append(location.occurrence(by_token[token_key], raw_token))
             continue
-        if rule.unknown_policy == "error":
-            raise ValueError(f"unknown modification token: {raw_token!r}")
-        if rule.unknown_policy == "drop":
-            continue
-        unknown_list.append(raw_token)
-        location.record_unknown_token(unknown_tokens, raw_token, len(stripped))
+        _apply_unknown_policy(
+            rule.unknown_policy, raw_token, location, len(stripped), unknown_tokens, unknown_list
+        )
 
-    proforma = render_proforma(stripped, occurrences, unknown_tokens=unknown_tokens)
-    return ModifiedSequence(
-        stripped_sequence=stripped,
-        proforma_sequence=proforma,
-        occurrences=occurrences,
-        source_sequence=sequence,
-        unknown_tokens=unknown_list,
-    )
+    return _modified_sequence(stripped, occurrences, unknown_tokens, unknown_list, sequence)

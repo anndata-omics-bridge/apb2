@@ -1,5 +1,21 @@
 # Changes
 
+- 2026-08-15: Full runtime redesign per [TODO_apb2.md](../TODO/TODO_apb2.md) items 1–8, committed
+  on top of the initial apb2 baseline commit. **parse_strategy.py is the core**: `Parser`
+  (protocols + run loop) and `make_parse_strategy/-ies` in one file. **Conversion runs first**:
+  read → fragments.explode → `columns.prepare_keys` (axis-key closure only; modifications
+  memoized on unique source values) → `conversion.parse` (pivot; raw axis frames) →
+  `columns.finish` (every remaining declared column materialized on the deduplicated obs/var
+  frames — nrObs/nrVars rows instead of nrObs×nrVars). **One module per rules.json block**:
+  input.py, duplicates.py, layers.py, columns.py, fragments.py, conversion.py, output.py,
+  sources.py. **No behaviour on pydantic models**: `vendor_parse_rules/runtime.py` carries
+  recognition + gates; `Document.rule` → `compose_rule`. **Real constructors**: strategy classes
+  take `(rule, …)` and derive their own fields; every `make_*` wrapper deleted; only selector
+  factories remain. `ConversionPieces` deleted (one `ParsedData`); scipy dropped (layers are
+  dense end to end). New `tests/test_selectors.py` pins selector literals to runtime classes.
+  Modules 41 → 20, LOC 3629 → 3133 outside the vendor packages. Gates: ruff clean, pyright
+  strict 0, deptry clean, contracts 2/2, 59 passed / 4 skipped incl. full parity, CLI smoke.
+
 - 2026-08-14: Rules-side line-count reduction, three passes, 900 → 764 (−15%). Pass 1:
   `documents/load.py` deleted — the document shell is now a pydantic `Document` in `model.py`
   (`extra="forbid"` replaces the hand-rolled key/level checks; `load_document` is 5 lines; the

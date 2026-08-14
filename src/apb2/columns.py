@@ -290,40 +290,54 @@ class _GroupMaterialization:
     def _type_of(self, name: str) -> AxisColumnType:
         return self.group.types.get(name, "string")
 
-    def materialize_keys(self, table: pd.DataFrame, applier: ModificationApplier) -> set[str]:
-        """Materialize the key closure on the flat frame; return skipped optional names."""
-        for name, source in self.key_select:
-            if source not in table.columns:
-                raise ValueError(f"cannot select column {name!r}; source {source!r} is missing")
-            table[name] = _coerce_axis_column(table[source], self._type_of(name), name, source)
-        skipped: set[str] = set()
-        for name, source in self.key_optional:
-            if source in table.columns:
-                table[name] = _coerce_axis_column(table[source], self._type_of(name), name, source)
-            else:
-                skipped.add(name)
-        if self.keys_need_modifications:
-            applier.apply(table)
-        for computer in self.key_computers:
-            table[computer.name] = computer.compute(table, frozenset(skipped)).astype("string")
-        return skipped
-
-    def finish(self, frame: pd.DataFrame, applier: ModificationApplier) -> pd.DataFrame:
-        """Materialize every remaining declared column on the deduplicated axis frame."""
-        skipped: set[str] = set()
-        for name, source in self.rest_select:
+    def _materialize(
+        self,
+        frame: pd.DataFrame,
+        select: list[tuple[str, str]],
+        optional: list[tuple[str, str]],
+        computers: list[ColumnComputer],
+        skipped: set[str],
+    ) -> None:
+        """One materialization pass: required selects, optional selects, computed columns."""
+        for name, source in select:
             if source not in frame.columns:
                 raise ValueError(f"cannot select column {name!r}; source {source!r} is missing")
             frame[name] = _coerce_axis_column(frame[source], self._type_of(name), name, source)
-        for name, source in self.rest_optional:
+        for name, source in optional:
             if source in frame.columns:
                 frame[name] = _coerce_axis_column(frame[source], self._type_of(name), name, source)
             else:
                 skipped.add(name)
-        if self.rest_needs_modifications and "stripped_sequence" not in frame.columns:
-            applier.apply(frame)
-        for computer in self.rest_computers:
+        for computer in computers:
             frame[computer.name] = computer.compute(frame, frozenset(skipped)).astype("string")
+
+    def materialize_keys(self, table: pd.DataFrame, applier: ModificationApplier) -> None:
+        """Materialize the key closure on the flat frame, before the pivot.
+
+        The applier runs first when a key is computed from a modification output; it
+        reads only raw vendor columns, so the order against the selects is free.
+        """
+        if self.keys_need_modifications:
+            applier.apply(table)
+        self._materialize(table, self.key_select, self.key_optional, self.key_computers, set())
+
+    def finish(
+        self,
+        frame: pd.DataFrame,
+        applier: ModificationApplier,
+        *,
+        modifications_applied: bool,
+    ) -> pd.DataFrame:
+        """Materialize every remaining declared column on the deduplicated axis frame.
+
+        Key-phase optional skips are reconstructed from the frame: a skipped optional is
+        exactly one absent from the carried axis frame, since every materialized key
+        optional is carried with the declared columns.
+        """
+        skipped = {name for name, _source in self.key_optional if name not in frame.columns}
+        if self.rest_needs_modifications and not modifications_applied:
+            applier.apply(frame)
+        self._materialize(frame, self.rest_select, self.rest_optional, self.rest_computers, skipped)
         present = [name for name in self.declared if name in frame.columns]
         return frame[present]
 
@@ -343,19 +357,34 @@ class ColumnMaterialization:
             axis: _GroupMaterialization(group, keys_by_axis[axis])
             for axis, group in recognition.column_groups()
         }
+        # A static fact of the rule, never sniffed from frame columns: a vendor file that
+        # itself carries a column named like a modification output must not skip the run.
+        self.modifications_applied_in_prepare = any(
+            group.keys_need_modifications for group in self.groups.values()
+        )
 
     def prepare_keys(self, table: pd.DataFrame) -> pd.DataFrame:
-        """Materialize every axis-key closure on the flat frame, before the pivot."""
-        out = table.copy()
+        """Materialize every axis-key closure on the flat frame, before the pivot.
+
+        Mutates and returns ``table``: the pipeline is linear and the reader/exploder
+        hand over ownership of the frame.
+        """
         for group in self.groups.values():
-            group.materialize_keys(out, self.applier)
-        return out
+            group.materialize_keys(table, self.applier)
+        return table
 
     def finish(self, result: ParsedData) -> ParsedData:
-        """Materialize every remaining declared column on the small axis frames."""
+        """Materialize every remaining declared column on the small axis frames.
+
+        Mutates the axis frames in place; the conversion built them fresh.
+        """
         frames = {"obs": result.obs, "var": result.var}
         finished = {
-            axis: group.finish(frames[axis].copy(), self.applier)
+            axis: group.finish(
+                frames[axis],
+                self.applier,
+                modifications_applied=self.modifications_applied_in_prepare,
+            )
             for axis, group in self.groups.items()
         }
         return replace(

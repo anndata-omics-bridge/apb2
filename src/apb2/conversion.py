@@ -25,8 +25,13 @@ from apb2.duplicates import DuplicatePolicy, policy_for
 from apb2.layers import LayerPlan, warn_if_all_missing
 from apb2.modifications.pipeline import modification_sources
 from apb2.result import ParsedData
-from apb2.vendor_parse_rules.model import ColumnGroup, LongRule, WideRule
-from apb2.vendor_parse_rules.runtime import group_names
+from apb2.vendor_parse_rules.model import (
+    ColumnGroup,
+    LongRule,
+    WideRule,
+    group_names,
+    modification_outputs,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,13 +63,12 @@ def _build_axis_frame(df: pd.DataFrame, keys: list[str], carry: list[str]) -> pd
 
     ``carry`` names the prepared keys plus every raw source the axis's declared columns
     are materialized from later; sources this export does not carry (skipped
-    ``optional_select``) are simply absent and drop out here.
+    ``optional_select``) are simply absent and drop out here. Keys head the carry list,
+    so the frame is one column-projection plus one dedup — nothing else to copy.
     """
     present = [column for column in carry if column in df.columns]
-    needed = list(dict.fromkeys([*keys, *present]))
-    block = df[needed].drop_duplicates(subset=keys).copy()
-    out = block[present].copy()
-    out.index = pd.Index(_build_index(block, keys), name=KEY_SEPARATOR.join(keys))
+    out = df[present].drop_duplicates(subset=keys)
+    out.index = pd.Index(_build_index(out, keys), name=KEY_SEPARATOR.join(keys))
     return out
 
 
@@ -93,7 +97,7 @@ def _var_extras(rule: LongRule | WideRule) -> tuple[str, ...]:
     extras: list[str] = []
     if rule.modifications is not None:
         extras.extend(modification_sources(rule.modifications))
-        extras.extend((rule.modifications.output_column, "stripped_sequence"))
+        extras.extend(sorted(modification_outputs(rule.modifications)))
     if rule.fragments is not None:
         extras.append(rule.fragments.label_output)
     return tuple(extras)
@@ -115,9 +119,7 @@ def _check_layer_occupancy(
         for name, matrix in layers.items()
     }
     populated = [name for name, ratio in ratios.items() if ratio >= _POPULATED_RATIO]
-    suspects = [
-        name for name, ratio in ratios.items() if ratio < _EMPTY_RATIO and populated != [name]
-    ]
+    suspects = [name for name, ratio in ratios.items() if ratio < _EMPTY_RATIO]
     if not suspects or not populated:
         return
     reference = ", ".join(populated[:3])
@@ -301,24 +303,14 @@ def _matching_columns(headers: list[str], pattern: str) -> list[tuple[str, str]]
 def _non_sample_columns(rule: WideRule) -> frozenset[str]:
     """Every column a wide rule accounts for by name, so none can be a sample column.
 
-    The frame reaching the conversion carries raw vendor sources, the prepared axis-key
-    columns, and (for key-feeding rules) the modification outputs; a rule whose sample
-    pattern cannot anchor on a suffix — AlphaDIA's run columns are bare run names — must
-    not match any of them as extra samples.
+    Exactly the var carry set — the declared names, their raw sources, the modification
+    columns, the fragment label — because that is what the frame can hold besides vendor
+    sample columns. A rule whose sample pattern cannot anchor on a suffix (AlphaDIA's run
+    columns are bare run names) must not match any of them as extra samples.
     """
-    out: set[str] = {"unknown_mod_tokens", "stripped_sequence"}
-    if rule.modifications is not None:
-        out.add(rule.modifications.output_column)
-        out.update(modification_sources(rule.modifications))
-    var = rule.columns.var
-    out.update(var.select)
-    out.update(var.optional_select)
-    out.update(column.name for column in var.computed)
-    out.update(var.select.values())
-    out.update(var.optional_select.values())
-    if rule.fragments is not None:
-        out.add(rule.fragments.label_output)
-    return frozenset(out)
+    return frozenset(
+        _carry_columns(list(rule.axis.var_keys), rule.columns.var, _var_extras(rule))
+    ) | {"stripped_sequence", "unknown_mod_tokens"}
 
 
 type Conversion = LongConversion | WideConversion

@@ -158,3 +158,146 @@ def test_to_anndata_writes_one_file_with_the_apb_namespace(tmp_path: Path) -> No
     assert adata.shape == (2, 2)
     assert adata.uns["anndata_proteomics"]["software_name"] == "V2Test"
     assert "Abundance" in adata.layers
+
+
+def _modification_rule(
+    *, extra_computed: list[dict[str, object]] | None = None
+) -> LongRule | WideRule:
+    return validate_rule(
+        {
+            "schema_version": "0.2",
+            "file_version": "1",
+            "software_name": "V2Test",
+            "software_version_pattern": "^1$",
+            "shape": "long",
+            "quantification_level": "ion",
+            "axis": {"obs_keys": ["sample"], "var_keys": ["feature"], "x_layer": "Abundance"},
+            "columns": {
+                "obs": {"select": {"sample": "Run"}},
+                "var": {
+                    "select": {"feature": "Precursor", "modified": "Modified"},
+                    "computed": [
+                        {
+                            "how": "stripped_sequence",
+                            "name": "ProForma_peptide",
+                            "inputs": ["modified"],
+                        },
+                        *(extra_computed or []),
+                    ],
+                },
+            },
+            "layers": [{"name": "Abundance", "source": "Intensity"}],
+            "modifications": {
+                "parser": "token_regex",
+                "source_column": "Modified",
+                "token_pattern": r"\(([^)]+)\)",
+                "map": [{"token": "ox", "accession": "UNIMOD:35"}],
+            },
+        }
+    )
+
+
+def test_vendor_column_named_like_a_modification_output_does_not_skip_the_applier(
+    tmp_path: Path,
+) -> None:
+    """A raw `stripped_sequence` column must not defeat the mods run (review round 1)."""
+    report = tmp_path / "report.tsv"
+    report.write_text(
+        "Run\tPrecursor\tModified\tstripped_sequence\tIntensity\n"
+        "s1\tp1\tPEP(ox)TIDE\tVENDORJUNK\t1.5\n",
+        encoding="utf-8",
+    )
+
+    parsed = make_parse_strategy(_modification_rule(), SingleFile(report)).parse()
+
+    assert list(parsed.var["ProForma_peptide"]) == ["PEPTIDE"]
+
+
+def _optional_shared_rule() -> LongRule | WideRule:
+    return validate_rule(
+        {
+            "schema_version": "0.2",
+            "file_version": "1",
+            "software_name": "V2Test",
+            "software_version_pattern": "^1$",
+            "shape": "long",
+            "quantification_level": "ion",
+            "axis": {"obs_keys": ["sample"], "var_keys": ["vkey"], "x_layer": "Abundance"},
+            "columns": {
+                "obs": {"select": {"sample": "Run"}},
+                "var": {
+                    "select": {"pep": "Peptide"},
+                    "optional_select": {"opt": "Opt"},
+                    "computed": [
+                        {"how": "coalesce", "name": "vkey", "inputs": ["opt", "pep"]},
+                        {"how": "coalesce", "name": "anno", "inputs": ["opt", "pep"]},
+                    ],
+                },
+            },
+            "layers": [{"name": "Abundance", "source": "Intensity"}],
+        }
+    )
+
+
+def test_optional_skipped_in_key_phase_stays_skipped_for_rest_computes(tmp_path: Path) -> None:
+    """An absent optional feeding both a key and an annotation compute must not raise."""
+    report = tmp_path / "report.tsv"
+    report.write_text(
+        "Run\tPeptide\tIntensity\ns1\tAAA\t1.5\ns1\tBBB\t2.5\n",
+        encoding="utf-8",
+    )
+
+    parsed = make_parse_strategy(_optional_shared_rule(), SingleFile(report)).parse()
+
+    assert list(parsed.var["anno"]) == ["AAA", "BBB"]
+    assert list(parsed.var.index) == ["AAA", "BBB"]
+
+
+def _two_layer_rule() -> LongRule | WideRule:
+    return validate_rule(
+        {
+            "schema_version": "0.2",
+            "file_version": "1",
+            "software_name": "V2Test",
+            "software_version_pattern": "^1$",
+            "shape": "long",
+            "quantification_level": "ion",
+            "axis": {"obs_keys": ["sample"], "var_keys": ["feature"], "x_layer": "Abundance"},
+            "columns": {
+                "obs": {"select": {"sample": "Run"}},
+                "var": {"select": {"feature": "Precursor"}},
+            },
+            "layers": [
+                {"name": "Abundance", "source": "Intensity"},
+                {"name": "Score", "source": "Score"},
+            ],
+        }
+    )
+
+
+def test_empty_x_layer_beside_a_populated_sibling_is_a_contract_error(tmp_path: Path) -> None:
+    from apb2.conversion import LayerContractError
+
+    report = tmp_path / "report.tsv"
+    report.write_text(
+        "Run\tPrecursor\tIntensity\tScore\ns1\tp1\tjunk\t0.9\ns1\tp2\tjunk\t0.8\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(LayerContractError, match="'Abundance' is effectively empty"):
+        make_parse_strategy(_two_layer_rule(), SingleFile(report)).parse()
+
+
+def test_strict_promotes_an_empty_auxiliary_layer_to_an_error(tmp_path: Path) -> None:
+    from apb2.conversion import LayerContractError
+
+    report = tmp_path / "report.tsv"
+    report.write_text(
+        "Run\tPrecursor\tIntensity\tScore\ns1\tp1\t1.5\tjunk\ns1\tp2\t2.5\tjunk\n",
+        encoding="utf-8",
+    )
+
+    make_parse_strategy(_two_layer_rule(), SingleFile(report)).parse()  # warning only
+
+    with pytest.raises(LayerContractError, match="'Score' is effectively empty"):
+        make_parse_strategy(_two_layer_rule(), SingleFile(report), strict=True).parse()

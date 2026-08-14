@@ -34,6 +34,7 @@ from apb2.vendor_parse_rules.documents.select import (
     software_slug,
 )
 from apb2.vendor_parse_rules.model import (
+    Document,
     LongRule,
     QuantificationLevel,
     WideRule,
@@ -84,10 +85,9 @@ def convert(
         )
         return 2
     output = data.with_suffix(".h5ad") if options.output is None else Path(f"{options.output}.h5ad")
-    headers = tuple(format_for(data).columns())
     if options.rule_config is not None:
         return _convert_from_rule_config(data, level, output, options, options.rule_config)
-    return _convert_from_packaged_rules(data, level, headers, output, options)
+    return _convert_from_packaged_rules(data, level, output, options)
 
 
 def _convert_from_rule_config(
@@ -99,23 +99,23 @@ def _convert_from_rule_config(
 ) -> int:
     """Compose one level of an explicit rule document and execute it."""
     document = load_document(rule_config)
-    if level not in document.levels:
-        logger.error(f"{rule_config} has no level {level!r}; available: {list(document.levels)}")
+    rule = _composed_rule(document, level)
+    if rule is None:
         return 1
-    rule = compose_rule(document, level)
-    if options.params is not None:
-        parameters = parse_params(
+    parameters = (
+        parse_params(
             options.params,
             software=options.params_software or software_slug(document.software_name),
         )
-        return _execute(data, output, rule, "rule_config", parameters, options.params, options)
-    return _execute(data, output, rule, "rule_config", None, None, options)
+        if options.params is not None
+        else None
+    )
+    return _execute(data, output, rule, "rule_config", parameters, options.params, options)
 
 
 def _convert_from_packaged_rules(
     data: Path,
     level: QuantificationLevel,
-    headers: tuple[str, ...],
     output: Path,
     options: ConvertCliOptions,
 ) -> int:
@@ -123,6 +123,7 @@ def _convert_from_packaged_rules(
     if options.params is None:
         logger.error("pass --params (it gives the software version) or --rule-config PATH")
         return 1
+    headers = tuple(format_for(data).columns())
     parser_slug = options.params_software or options.software or guess_software(headers)
     if parser_slug is None:
         logger.error(
@@ -144,12 +145,19 @@ def _convert_from_packaged_rules(
         return 1
     logger.info("vendor={} software_version={}", detected.software, detected.version or "missing")
     document = load_document(detected.get_rule_path())
-    if level not in document.levels:
-        logger.error(f"{document.path} has no level {level!r}; available: {list(document.levels)}")
+    rule = _composed_rule(document, level)
+    if rule is None:
         return 1
-    rule = compose_rule(document, level)
     method: _SelectionMethod = "software_version" if detected.version is not None else "columns"
     return _execute(data, output, rule, method, parameters, options.params, options)
+
+
+def _composed_rule(document: Document, level: QuantificationLevel) -> LongRule | WideRule | None:
+    """Compose one level, or log the available levels when the document lacks it."""
+    if level not in document.levels:
+        logger.error(f"{document.path} has no level {level!r}; available: {list(document.levels)}")
+        return None
+    return compose_rule(document, level)
 
 
 def _execute(

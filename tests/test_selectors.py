@@ -101,7 +101,7 @@ def test_every_packaged_selector_value_constructs_its_strategy(
     rule = compose_rule(load_document(document), level)
     recognition = recognition_for(rule)
     applier = applier_for(rule)
-    exploder_for(rule, frozenset(applier.source_columns()))
+    exploder_for(rule, recognition, applier.source_columns())
     conversion = conversion_for(rule, strict=False)
     assert isinstance(conversion, LongConversion | WideConversion)
     for layer in rule.layers:

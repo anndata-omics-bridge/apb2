@@ -22,18 +22,28 @@ from apb2.vendor_parse_rules.model import (
     Layer,
     LongRule,
     WideRule,
+    group_names,
+    modification_outputs,
     validate_rule,
 )
+
+__all__ = [
+    "AxisName",
+    "LongRecognition",
+    "Recognition",
+    "WideRecognition",
+    "available_for",
+    "declared_source_columns",
+    "group_names",
+    "layer_required",
+    "recognition_for",
+    "resolved_for",
+    "synthesized_columns",
+]
 
 _SYNTHESIZED = frozenset({"stripped_sequence"})
 
 type AxisName = str  # "obs" | "var"
-
-
-def group_names(group: ColumnGroup) -> list[str]:
-    """Every column the group declares, in declaration order, deduplicated."""
-    computed = (column.name for column in group.computed)
-    return list(dict.fromkeys([*group.select, *group.optional_select, *computed]))
 
 
 def layer_required(rule: LongRule | WideRule, layer: Layer) -> bool:
@@ -45,7 +55,18 @@ def synthesized_columns(rule: LongRule | WideRule) -> frozenset[str]:
     """Columns apb2 creates itself, which must never be required of the input."""
     if rule.modifications is None:
         return _SYNTHESIZED
-    return _SYNTHESIZED | {rule.modifications.output_column}
+    return _SYNTHESIZED | modification_outputs(rule.modifications)
+
+
+def declared_source_columns(recognition: Recognition) -> set[str]:
+    """Every raw source the rule's column groups read: selected, optional, computed inputs."""
+    needed: set[str] = set()
+    for _axis, group in recognition.column_groups():
+        needed.update(group.select.values())
+        needed.update(group.optional_select.values())
+        for column in group.computed:
+            needed.update(column.inputs)
+    return needed
 
 
 def available_for(rule: LongRule | WideRule, parameters: Parameters | None) -> bool:

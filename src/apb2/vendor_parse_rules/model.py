@@ -45,9 +45,6 @@ UnknownPolicy = Literal["preserve", "drop", "error"]
 LEVELS: tuple[QuantificationLevel, ...] = get_args(QuantificationLevel)
 """Quantification levels in canonical order."""
 
-PEPTIDE_LEVELS: frozenset[QuantificationLevel] = frozenset(LEVELS) - {"protein"}
-"""Quantification levels whose features carry a peptide sequence."""
-
 _SAMPLE_GROUP = "sample"
 
 ConditionValue = str | int | float | bool | None
@@ -439,14 +436,20 @@ type Modifications = Annotated[
 # --------------------------------------------------- whole-rule checks shared by both shapes
 
 
-def _group_names(group: ColumnGroup) -> list[str]:
+def group_names(group: ColumnGroup) -> list[str]:
+    """Every column the group declares, in declaration order, deduplicated."""
     computed = (column.name for column in group.computed)
     return list(dict.fromkeys([*group.select, *group.optional_select, *computed]))
 
 
+def modification_outputs(modifications: Modifications) -> frozenset[str]:
+    """The columns modification normalization synthesizes onto a frame."""
+    return frozenset({modifications.output_column, "stripped_sequence", "unknown_mod_tokens"})
+
+
 def _check_axis_keys(keys: list[str], group: ColumnGroup, axis_name: str) -> None:
     """Axis keys must be declared, and never best-effort: an index cannot be optional."""
-    declared = set(_group_names(group))
+    declared = set(group_names(group))
     missing = [key for key in keys if key not in declared]
     if missing:
         raise ValueError(
@@ -458,7 +461,7 @@ def _check_axis_keys(keys: list[str], group: ColumnGroup, axis_name: str) -> Non
 
 
 def _check_column_roles(roles: ColumnRoles, var: ColumnGroup) -> None:
-    declared_columns = set(_group_names(var))
+    declared_columns = set(group_names(var))
     for role, column in ((n, c) for n, c in roles if c is not None):
         if column not in declared_columns:
             raise ValueError(f"column_roles.{role} must name a declared var column; got {column!r}")
@@ -474,7 +477,7 @@ def _check_derived_not_selected(
         source
         for group in groups
         for source in (*group.select.values(), *group.optional_select.values())
-    } & {modifications.output_column, "stripped_sequence"}
+    } & modification_outputs(modifications)
     if selected:
         raise ValueError(
             "apb2-derived modification columns must be declared in "
@@ -599,38 +602,39 @@ def _merge_fragments(base: JsonDict, level: JsonDict) -> JsonDict:
     ``_CONCAT_BLOCKS`` concatenate. Keys outside the known blocks ride through unchanged
     so that ``validate_rule``'s ``extra="forbid"`` rejects them with a field path.
     """
-    merged: JsonDict = {**base, **level}
-    for key in _FIELDWISE_BLOCKS:
-        block = {**_mapping(base, key), **_mapping(level, key)}
-        if block:
-            merged[key] = block
+    merged = _merge_blocks(base, level, mappings=_FIELDWISE_BLOCKS, sequences=_CONCAT_BLOCKS)
     columns: JsonDict = {}
     for part in ("obs", "var"):
-        group = _merge_group(
+        group = _merge_blocks(
             _mapping(_mapping(base, "columns"), part),
             _mapping(_mapping(level, "columns"), part),
+            mappings=("select", "optional_select", "types"),
+            sequences=("computed",),
         )
         if group:
             columns[part] = group
     if columns:
         merged["columns"] = columns
-    for key in _CONCAT_BLOCKS:
-        entries = [*_sequence(base, key), *_sequence(level, key)]
-        if entries:
-            merged[key] = entries
     return merged
 
 
-def _merge_group(base_group: JsonDict, level_group: JsonDict) -> JsonDict:
-    """Merge one column group: mappings union key-wise, ``computed`` concatenates."""
-    merged: JsonDict = {**base_group, **level_group}
-    for key in ("select", "optional_select", "types"):
-        mapping = {**_mapping(base_group, key), **_mapping(level_group, key)}
-        if mapping:
-            merged[key] = mapping
-    computed = [*_sequence(base_group, "computed"), *_sequence(level_group, "computed")]
-    if computed:
-        merged["computed"] = computed
+def _merge_blocks(
+    base: JsonDict,
+    level: JsonDict,
+    *,
+    mappings: tuple[str, ...],
+    sequences: tuple[str, ...],
+) -> JsonDict:
+    """One merge shape: named mappings union key-wise, named sequences concatenate."""
+    merged: JsonDict = {**base, **level}
+    for key in mappings:
+        block = {**_mapping(base, key), **_mapping(level, key)}
+        if block:
+            merged[key] = block
+    for key in sequences:
+        entries = [*_sequence(base, key), *_sequence(level, key)]
+        if entries:
+            merged[key] = entries
     return merged
 
 

@@ -19,6 +19,16 @@ type CategoryCodes = NDArray[np.intp]
 type ValidKeyMask = NDArray[np.bool_]
 
 
+def _first_across_columns(columns: pd.DataFrame) -> pd.Series:
+    """Row-wise first non-null across several columns claiming one sample."""
+    return columns.bfill(axis=1).iloc[:, 0]
+
+
+def _first_by_index(series: pd.Series) -> pd.Series:
+    """First non-null value per repeated feature-index entry, in row order."""
+    return series.groupby(level=0, sort=False).first()
+
+
 def _scatter_first(
     obs_codes: CategoryCodes,
     var_codes: CategoryCodes,
@@ -68,10 +78,10 @@ class ErrorOnDuplicates:
         )
 
     def combine_columns(self, columns: pd.DataFrame) -> pd.Series:
-        return columns.bfill(axis=1).iloc[:, 0]
+        return _first_across_columns(columns)
 
     def combine_by_index(self, series: pd.Series) -> pd.Series:
-        return series.groupby(level=0, sort=False).first()
+        return _first_by_index(series)
 
     def scatter(
         self,
@@ -95,10 +105,10 @@ class KeepFirstDuplicate:
         return
 
     def combine_columns(self, columns: pd.DataFrame) -> pd.Series:
-        return columns.bfill(axis=1).iloc[:, 0]
+        return _first_across_columns(columns)
 
     def combine_by_index(self, series: pd.Series) -> pd.Series:
-        return series.groupby(level=0, sort=False).first()
+        return _first_by_index(series)
 
     def scatter(
         self,
