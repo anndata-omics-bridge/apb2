@@ -1,0 +1,1100 @@
+{
+  "$defs": {
+    "Axis": {
+      "additionalProperties": false,
+      "description": "Which declared columns index observations and features, and which layer is X.",
+      "properties": {
+        "obs_keys": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Obs Keys",
+          "type": "array"
+        },
+        "var_keys": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Var Keys",
+          "type": "array"
+        },
+        "x_layer": {
+          "title": "X Layer",
+          "type": "string"
+        },
+        "duplicates": {
+          "$ref": "#/$defs/Duplicates"
+        }
+      },
+      "required": [
+        "obs_keys",
+        "var_keys",
+        "x_layer"
+      ],
+      "title": "Axis",
+      "type": "object"
+    },
+    "Coalesce": {
+      "additionalProperties": false,
+      "description": "Take the first non-null input value in declaration order.",
+      "properties": {
+        "how": {
+          "const": "coalesce",
+          "title": "How",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "inputs": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 2,
+          "title": "Inputs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "how",
+        "name",
+        "inputs"
+      ],
+      "title": "Coalesce",
+      "type": "object"
+    },
+    "ColumnGroup": {
+      "additionalProperties": false,
+      "description": "Declared axis columns: ``select`` sources must be present and gate recognition;\n``optional_select`` sources are captured when present and silently skipped when absent.",
+      "properties": {
+        "select": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Select",
+          "type": "object"
+        },
+        "optional_select": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Optional Select",
+          "type": "object"
+        },
+        "types": {
+          "additionalProperties": {
+            "enum": [
+              "string",
+              "integer",
+              "number",
+              "boolean"
+            ],
+            "type": "string"
+          },
+          "title": "Types",
+          "type": "object"
+        },
+        "computed": {
+          "items": {
+            "$ref": "#/$defs/ComputedColumn"
+          },
+          "title": "Computed",
+          "type": "array"
+        }
+      },
+      "title": "ColumnGroup",
+      "type": "object"
+    },
+    "ColumnLabeledFragments": {
+      "additionalProperties": false,
+      "description": "Fragment identities packed in ``label_column`` (DIA-NN ``Fragment.Info``, tokens\nlike ``b4-unknown^1/327.16``): ``label_output`` is the token before ``/``.",
+      "properties": {
+        "label_strategy": {
+          "const": "column",
+          "title": "Label Strategy",
+          "type": "string"
+        },
+        "value_columns": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Value Columns",
+          "type": "array"
+        },
+        "label_column": {
+          "title": "Label Column",
+          "type": "string"
+        },
+        "delimiter": {
+          "default": ";",
+          "title": "Delimiter",
+          "type": "string"
+        },
+        "label_output": {
+          "default": "fragment_label",
+          "title": "Label Output",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label_strategy",
+        "value_columns",
+        "label_column"
+      ],
+      "title": "ColumnLabeledFragments",
+      "type": "object"
+    },
+    "ColumnRoles": {
+      "additionalProperties": false,
+      "description": "Semantic locations needed by downstream canonical-data consumers.",
+      "properties": {
+        "protein_assignment": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Protein Assignment"
+        },
+        "fasta_accessions": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fasta Accessions"
+        }
+      },
+      "title": "ColumnRoles",
+      "type": "object"
+    },
+    "ComputedColumn": {
+      "discriminator": {
+        "mapping": {
+          "coalesce": "#/$defs/Coalesce",
+          "join_nonempty": "#/$defs/JoinNonempty",
+          "proforma_fragment": "#/$defs/ProformaFragment",
+          "proforma_ion": "#/$defs/ProformaIon",
+          "proforma_sequence": "#/$defs/ProformaSequence",
+          "stripped_sequence": "#/$defs/StrippedSequence"
+        },
+        "propertyName": "how"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Coalesce"
+        },
+        {
+          "$ref": "#/$defs/JoinNonempty"
+        },
+        {
+          "$ref": "#/$defs/StrippedSequence"
+        },
+        {
+          "$ref": "#/$defs/ProformaSequence"
+        },
+        {
+          "$ref": "#/$defs/ProformaIon"
+        },
+        {
+          "$ref": "#/$defs/ProformaFragment"
+        }
+      ]
+    },
+    "Duplicates": {
+      "additionalProperties": false,
+      "description": "What to do when several rows land on one (observation, feature) cell.",
+      "properties": {
+        "mode": {
+          "default": "error",
+          "enum": [
+            "error",
+            "aggregate",
+            "keep_first",
+            "keep_all_as_raw_table"
+          ],
+          "title": "Mode",
+          "type": "string"
+        }
+      },
+      "title": "Duplicates",
+      "type": "object"
+    },
+    "FactorLayer": {
+      "additionalProperties": false,
+      "description": "A categorical layer whose cells are encoded through a declared category map.",
+      "properties": {
+        "encoding_mode": {
+          "const": "factor",
+          "title": "Encoding Mode",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "categories": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "minProperties": 1,
+          "title": "Categories",
+          "type": "object"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "encoding_mode",
+        "name",
+        "source",
+        "categories"
+      ],
+      "title": "FactorLayer",
+      "type": "object"
+    },
+    "Fragments": {
+      "discriminator": {
+        "mapping": {
+          "column": "#/$defs/ColumnLabeledFragments",
+          "positional": "#/$defs/PositionalFragments"
+        },
+        "propertyName": "label_strategy"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/PositionalFragments"
+        },
+        {
+          "$ref": "#/$defs/ColumnLabeledFragments"
+        }
+      ]
+    },
+    "JoinNonempty": {
+      "additionalProperties": false,
+      "description": "Join the non-empty input values with a separator.",
+      "properties": {
+        "how": {
+          "const": "join_nonempty",
+          "title": "How",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "inputs": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 2,
+          "title": "Inputs",
+          "type": "array"
+        },
+        "separator": {
+          "minLength": 1,
+          "title": "Separator",
+          "type": "string"
+        }
+      },
+      "required": [
+        "how",
+        "name",
+        "inputs",
+        "separator"
+      ],
+      "title": "JoinNonempty",
+      "type": "object"
+    },
+    "Layer": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/NumericLayer"
+        },
+        {
+          "$ref": "#/$defs/FactorLayer"
+        }
+      ]
+    },
+    "LongColumns": {
+      "additionalProperties": false,
+      "properties": {
+        "obs": {
+          "$ref": "#/$defs/ColumnGroup"
+        },
+        "var": {
+          "$ref": "#/$defs/ColumnGroup"
+        }
+      },
+      "required": [
+        "obs",
+        "var"
+      ],
+      "title": "LongColumns",
+      "type": "object"
+    },
+    "LongRule": {
+      "additionalProperties": false,
+      "description": "One row per (observation, feature): every source is an exact column name.",
+      "properties": {
+        "schema_version": {
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "file_version": {
+          "title": "File Version",
+          "type": "string"
+        },
+        "software_name": {
+          "title": "Software Name",
+          "type": "string"
+        },
+        "software_version_pattern": {
+          "title": "Software Version Pattern",
+          "type": "string"
+        },
+        "quantification_level": {
+          "enum": [
+            "ion",
+            "peptidoform",
+            "peptide",
+            "protein",
+            "fragment"
+          ],
+          "title": "Quantification Level",
+          "type": "string"
+        },
+        "axis": {
+          "$ref": "#/$defs/Axis"
+        },
+        "column_roles": {
+          "$ref": "#/$defs/ColumnRoles"
+        },
+        "layers": {
+          "items": {
+            "$ref": "#/$defs/Layer"
+          },
+          "minItems": 1,
+          "title": "Layers",
+          "type": "array"
+        },
+        "modifications": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Modifications"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "fragments": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Fragments"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "requires_search_parameters": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Requires Search Parameters",
+          "type": "object"
+        },
+        "search_parameter_overrides": {
+          "items": {
+            "$ref": "#/$defs/SearchParameterOverride"
+          },
+          "title": "Search Parameter Overrides",
+          "type": "array"
+        },
+        "shape": {
+          "const": "long",
+          "title": "Shape",
+          "type": "string"
+        },
+        "columns": {
+          "$ref": "#/$defs/LongColumns"
+        }
+      },
+      "required": [
+        "schema_version",
+        "file_version",
+        "software_name",
+        "software_version_pattern",
+        "quantification_level",
+        "axis",
+        "layers",
+        "shape",
+        "columns"
+      ],
+      "title": "LongRule",
+      "type": "object"
+    },
+    "ModificationMapEntry": {
+      "additionalProperties": false,
+      "description": "A vendor token plus the Unimod accession it means (resolved via\n``unimod_registry.toml`` so all tools agree on what e.g. ``UNIMOD:35`` means).",
+      "properties": {
+        "token": {
+          "title": "Token",
+          "type": "string"
+        },
+        "accession": {
+          "title": "Accession",
+          "type": "string"
+        }
+      },
+      "required": [
+        "token",
+        "accession"
+      ],
+      "title": "ModificationMapEntry",
+      "type": "object"
+    },
+    "Modifications": {
+      "discriminator": {
+        "mapping": {
+          "site_list": "#/$defs/SiteListModifications",
+          "token_regex": "#/$defs/TokenRegexModifications"
+        },
+        "propertyName": "parser"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TokenRegexModifications"
+        },
+        {
+          "$ref": "#/$defs/SiteListModifications"
+        }
+      ]
+    },
+    "NoValuePattern": {
+      "additionalProperties": false,
+      "description": "A numeric layer contains directly parseable scalar values.",
+      "properties": {
+        "mode": {
+          "const": "none",
+          "default": "none",
+          "title": "Mode",
+          "type": "string"
+        }
+      },
+      "title": "NoValuePattern",
+      "type": "object"
+    },
+    "NumericLayer": {
+      "additionalProperties": false,
+      "description": "A quantitative layer whose cells become floats.\n\n``source`` is an exact column name in a ``LongRule``, a ``(?P<sample>...)`` header\nregex in a ``WideRule``. Layers are optional unless ``required`` or named as\n``axis.x_layer``; a regex ``value_pattern`` extracts the numeric part of structured\ncells (PEAKS ``AScore`` is ``site:modification:score``).",
+      "properties": {
+        "encoding_mode": {
+          "const": "numeric",
+          "default": "numeric",
+          "title": "Encoding Mode",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "missing_values": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Missing Values",
+          "type": "array"
+        },
+        "value_pattern": {
+          "$ref": "#/$defs/ValuePattern"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "source"
+      ],
+      "title": "NumericLayer",
+      "type": "object"
+    },
+    "PositionalFragments": {
+      "additionalProperties": false,
+      "description": "No per-fragment label column (older DIA-NN): labels are synthesised positionally\n(``frag_0``, ``frag_1``, ...) by index within the precursor.",
+      "properties": {
+        "label_strategy": {
+          "const": "positional",
+          "title": "Label Strategy",
+          "type": "string"
+        },
+        "value_columns": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Value Columns",
+          "type": "array"
+        },
+        "delimiter": {
+          "default": ";",
+          "title": "Delimiter",
+          "type": "string"
+        },
+        "label_output": {
+          "default": "fragment_label",
+          "title": "Label Output",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label_strategy",
+        "value_columns"
+      ],
+      "title": "PositionalFragments",
+      "type": "object"
+    },
+    "ProformaFragment": {
+      "additionalProperties": false,
+      "description": "Combine a ProForma ion and a fragment label into a ProForma fragment.",
+      "properties": {
+        "how": {
+          "const": "proforma_fragment",
+          "title": "How",
+          "type": "string"
+        },
+        "name": {
+          "const": "ProForma_fragment",
+          "default": "ProForma_fragment",
+          "title": "Name",
+          "type": "string"
+        },
+        "inputs": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "title": "Inputs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "how",
+        "inputs"
+      ],
+      "title": "ProformaFragment",
+      "type": "object"
+    },
+    "ProformaIon": {
+      "additionalProperties": false,
+      "description": "Combine a peptidoform and a charge column into a ProForma ion.",
+      "properties": {
+        "how": {
+          "const": "proforma_ion",
+          "title": "How",
+          "type": "string"
+        },
+        "name": {
+          "const": "ProForma_ion",
+          "default": "ProForma_ion",
+          "title": "Name",
+          "type": "string"
+        },
+        "inputs": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "title": "Inputs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "how",
+        "inputs"
+      ],
+      "title": "ProformaIon",
+      "type": "object"
+    },
+    "ProformaSequence": {
+      "additionalProperties": false,
+      "description": "Expose the ProForma peptidoform derived from one input column.",
+      "properties": {
+        "how": {
+          "const": "proforma_sequence",
+          "title": "How",
+          "type": "string"
+        },
+        "name": {
+          "const": "ProForma_peptidoform",
+          "default": "ProForma_peptidoform",
+          "title": "Name",
+          "type": "string"
+        },
+        "inputs": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 1,
+          "minItems": 1,
+          "title": "Inputs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "how",
+        "inputs"
+      ],
+      "title": "ProformaSequence",
+      "type": "object"
+    },
+    "RegexValuePattern": {
+      "additionalProperties": false,
+      "description": "Extract one numeric capture group from each structured layer value.",
+      "properties": {
+        "mode": {
+          "const": "regex",
+          "default": "regex",
+          "title": "Mode",
+          "type": "string"
+        },
+        "pattern": {
+          "minLength": 1,
+          "title": "Pattern",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pattern"
+      ],
+      "title": "RegexValuePattern",
+      "type": "object"
+    },
+    "SearchParameterOverride": {
+      "additionalProperties": false,
+      "description": "Swap the X layer when the parsed search parameters satisfy a condition.",
+      "properties": {
+        "when_search_parameters": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "minProperties": 1,
+          "title": "When Search Parameters",
+          "type": "object"
+        },
+        "x_layer": {
+          "title": "X Layer",
+          "type": "string"
+        }
+      },
+      "required": [
+        "when_search_parameters",
+        "x_layer"
+      ],
+      "title": "SearchParameterOverride",
+      "type": "object"
+    },
+    "SiteListModifications": {
+      "additionalProperties": false,
+      "description": "Parallel name/site columns beside a bare sequence (alphabase layout, AlphaDIA):\nnames and sites are ``delimiter``-joined and paired index-wise; sites are\n``site_base``-indexed and site ``0`` is the N-terminus regardless of ``site_base``.",
+      "properties": {
+        "parser": {
+          "const": "site_list",
+          "title": "Parser",
+          "type": "string"
+        },
+        "sequence_column": {
+          "title": "Sequence Column",
+          "type": "string"
+        },
+        "modification_column": {
+          "title": "Modification Column",
+          "type": "string"
+        },
+        "site_column": {
+          "title": "Site Column",
+          "type": "string"
+        },
+        "delimiter": {
+          "default": ";",
+          "title": "Delimiter",
+          "type": "string"
+        },
+        "site_base": {
+          "default": 1,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Site Base",
+          "type": "integer"
+        },
+        "case_sensitive": {
+          "default": false,
+          "title": "Case Sensitive",
+          "type": "boolean"
+        },
+        "unknown_policy": {
+          "default": "preserve",
+          "enum": [
+            "preserve",
+            "drop",
+            "error"
+          ],
+          "title": "Unknown Policy",
+          "type": "string"
+        },
+        "output_column": {
+          "default": "proforma_sequence",
+          "title": "Output Column",
+          "type": "string"
+        },
+        "map": {
+          "items": {
+            "$ref": "#/$defs/ModificationMapEntry"
+          },
+          "minItems": 1,
+          "title": "Map",
+          "type": "array"
+        }
+      },
+      "required": [
+        "parser",
+        "sequence_column",
+        "modification_column",
+        "site_column",
+        "map"
+      ],
+      "title": "SiteListModifications",
+      "type": "object"
+    },
+    "StrippedSequence": {
+      "additionalProperties": false,
+      "description": "Expose the modification-stripped peptide derived from one input column.",
+      "properties": {
+        "how": {
+          "const": "stripped_sequence",
+          "title": "How",
+          "type": "string"
+        },
+        "name": {
+          "const": "ProForma_peptide",
+          "default": "ProForma_peptide",
+          "title": "Name",
+          "type": "string"
+        },
+        "inputs": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 1,
+          "minItems": 1,
+          "title": "Inputs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "how",
+        "inputs"
+      ],
+      "title": "StrippedSequence",
+      "type": "object"
+    },
+    "TokenRegexModifications": {
+      "additionalProperties": false,
+      "description": "Extract inline modification tokens with a regex and map them to Unimod\n(``\"PEPM[15.9949]TIDE\"``, ``\"_(ac)PEPTIDEM(ox)_\"``).",
+      "properties": {
+        "parser": {
+          "const": "token_regex",
+          "title": "Parser",
+          "type": "string"
+        },
+        "source_column": {
+          "title": "Source Column",
+          "type": "string"
+        },
+        "token_pattern": {
+          "title": "Token Pattern",
+          "type": "string"
+        },
+        "token_position": {
+          "default": "after_residue",
+          "enum": [
+            "before_residue",
+            "after_residue",
+            "n_term",
+            "c_term",
+            "embedded",
+            "unknown"
+          ],
+          "title": "Token Position",
+          "type": "string"
+        },
+        "case_sensitive": {
+          "default": false,
+          "title": "Case Sensitive",
+          "type": "boolean"
+        },
+        "unknown_policy": {
+          "default": "preserve",
+          "enum": [
+            "preserve",
+            "drop",
+            "error"
+          ],
+          "title": "Unknown Policy",
+          "type": "string"
+        },
+        "output_column": {
+          "default": "proforma_sequence",
+          "title": "Output Column",
+          "type": "string"
+        },
+        "map": {
+          "items": {
+            "$ref": "#/$defs/ModificationMapEntry"
+          },
+          "minItems": 1,
+          "title": "Map",
+          "type": "array"
+        }
+      },
+      "required": [
+        "parser",
+        "source_column",
+        "token_pattern",
+        "map"
+      ],
+      "title": "TokenRegexModifications",
+      "type": "object"
+    },
+    "ValuePattern": {
+      "discriminator": {
+        "mapping": {
+          "none": "#/$defs/NoValuePattern",
+          "regex": "#/$defs/RegexValuePattern"
+        },
+        "propertyName": "mode"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/NoValuePattern"
+        },
+        {
+          "$ref": "#/$defs/RegexValuePattern"
+        }
+      ]
+    },
+    "WideColumns": {
+      "additionalProperties": false,
+      "properties": {
+        "var": {
+          "$ref": "#/$defs/ColumnGroup"
+        }
+      },
+      "required": [
+        "var"
+      ],
+      "title": "WideColumns",
+      "type": "object"
+    },
+    "WideRule": {
+      "additionalProperties": false,
+      "description": "One row per feature; the observation axis comes from the ``(?P<sample>...)``\nnamed group every layer ``source`` regex must carry \u2014 there is no obs column group.",
+      "properties": {
+        "schema_version": {
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "file_version": {
+          "title": "File Version",
+          "type": "string"
+        },
+        "software_name": {
+          "title": "Software Name",
+          "type": "string"
+        },
+        "software_version_pattern": {
+          "title": "Software Version Pattern",
+          "type": "string"
+        },
+        "quantification_level": {
+          "enum": [
+            "ion",
+            "peptidoform",
+            "peptide",
+            "protein",
+            "fragment"
+          ],
+          "title": "Quantification Level",
+          "type": "string"
+        },
+        "axis": {
+          "$ref": "#/$defs/Axis"
+        },
+        "column_roles": {
+          "$ref": "#/$defs/ColumnRoles"
+        },
+        "layers": {
+          "items": {
+            "$ref": "#/$defs/Layer"
+          },
+          "minItems": 1,
+          "title": "Layers",
+          "type": "array"
+        },
+        "modifications": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Modifications"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "fragments": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Fragments"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "requires_search_parameters": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Requires Search Parameters",
+          "type": "object"
+        },
+        "search_parameter_overrides": {
+          "items": {
+            "$ref": "#/$defs/SearchParameterOverride"
+          },
+          "title": "Search Parameter Overrides",
+          "type": "array"
+        },
+        "shape": {
+          "const": "wide",
+          "title": "Shape",
+          "type": "string"
+        },
+        "columns": {
+          "$ref": "#/$defs/WideColumns"
+        }
+      },
+      "required": [
+        "schema_version",
+        "file_version",
+        "software_name",
+        "software_version_pattern",
+        "quantification_level",
+        "axis",
+        "layers",
+        "shape",
+        "columns"
+      ],
+      "title": "WideRule",
+      "type": "object"
+    }
+  },
+  "discriminator": {
+    "mapping": {
+      "long": "#/$defs/LongRule",
+      "wide": "#/$defs/WideRule"
+    },
+    "propertyName": "shape"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/LongRule"
+    },
+    {
+      "$ref": "#/$defs/WideRule"
+    }
+  ]
+}

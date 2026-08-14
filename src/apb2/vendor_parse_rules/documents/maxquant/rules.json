@@ -1,0 +1,152 @@
+{
+  "schema_version": "0.2",
+  "file_version": "2",
+  "software_name": "MaxQuant",
+  "software_version_pattern": "^(1\\.5|1\\.6|2\\.)",
+  "input": {
+    "shape": "long"
+  },
+  "base": {
+    "axis": {
+      "obs_keys": [
+        "Raw_File"
+      ],
+      "duplicates": {
+        "mode": "aggregate"
+      }
+    },
+    "columns": {
+      "obs": {
+        "select": {
+          "Raw_File": "Raw file"
+        },
+        "optional_select": {
+          "Experiment": "Experiment",
+          "Fraction": "Fraction"
+        }
+      }
+    },
+    "modifications": {
+      "source_column": "Modified sequence",
+      "parser": "token_regex",
+      "token_pattern": "\\(([^()]*(?:\\([^()]*\\)[^()]*)*)\\)",
+      "token_position": "after_residue",
+      "case_sensitive": false,
+      "unknown_policy": "preserve",
+      "output_column": "proforma_sequence",
+      "map": [
+        {
+          "token": "ac",
+          "accession": "UNIMOD:1"
+        },
+        {
+          "token": "ox",
+          "accession": "UNIMOD:35"
+        },
+        {
+          "token": "Acetyl (Protein N-term)",
+          "accession": "UNIMOD:1"
+        },
+        {
+          "token": "Oxidation (M)",
+          "accession": "UNIMOD:35"
+        },
+        {
+          "token": "Carbamidomethyl (C)",
+          "accession": "UNIMOD:4"
+        }
+      ]
+    }
+  },
+  "levels": {
+    "ion": {
+      "axis": {
+        "var_keys": [
+          "ProForma_ion"
+        ],
+        "x_layer": "Intensity"
+      },
+      "columns": {
+        "var": {
+          "select": {
+            "Sequence": "Sequence",
+            "Modified_Sequence": "Modified sequence",
+            "Modifications": "Modifications",
+            "Charge": "Charge",
+            "Mass": "Mass",
+            "Proteins": "Proteins"
+          },
+          "optional_select": {
+            "Leading_Proteins": "Leading proteins",
+            "Leading_Razor_Protein": "Leading razor protein",
+            "Leading_Proteins_Legacy": "Leading Proteins",
+            "Leading_Razor_Protein_Legacy": "Leading Razor Protein"
+          },
+          "types": {
+            "Charge": "integer",
+            "Mass": "number"
+          },
+          "computed": [
+            {
+              "name": "Proteins",
+              "inputs": [
+                "Proteins",
+                "Leading_Proteins",
+                "Leading_Proteins_Legacy"
+              ],
+              "how": "coalesce"
+            },
+            {
+              "name": "ProForma_peptidoform",
+              "inputs": [
+                "Modified_Sequence"
+              ],
+              "how": "proforma_sequence"
+            },
+            {
+              "name": "ProForma_peptide",
+              "inputs": [
+                "Modified_Sequence"
+              ],
+              "how": "stripped_sequence"
+            },
+            {
+              "name": "ProForma_ion",
+              "inputs": [
+                "ProForma_peptidoform",
+                "Charge"
+              ],
+              "how": "proforma_ion"
+            }
+          ]
+        }
+      },
+      "column_roles": {
+        "protein_assignment": "Proteins",
+        "fasta_accessions": "Proteins"
+      },
+      "layers": [
+        {
+          "name": "Intensity",
+          "source": "Intensity"
+        },
+        {
+          "name": "MS_MS_Count",
+          "source": "MS/MS count"
+        },
+        {
+          "name": "Retention_Time",
+          "source": "Retention time"
+        },
+        {
+          "name": "Score",
+          "source": "Score"
+        },
+        {
+          "name": "PEP",
+          "source": "PEP"
+        }
+      ]
+    }
+  }
+}

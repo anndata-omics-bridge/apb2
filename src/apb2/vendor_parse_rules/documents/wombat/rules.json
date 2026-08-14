@@ -1,0 +1,125 @@
+{
+  "schema_version": "0.2",
+  "file_version": "3",
+  "software_name": "WOMBAT",
+  "software_version_pattern": "^0\\.9\\.11$",
+  "input": {
+    "shape": "wide"
+  },
+  "base": {
+    "axis": {
+      "obs_keys": [
+        "sample"
+      ],
+      "duplicates": {
+        "mode": "error"
+      }
+    },
+    "columns": {
+      "var": {
+        "select": {
+          "modified_peptide": "modified_peptide",
+          "protein_group": "protein_group"
+        },
+        "computed": [
+          {
+            "name": "ProForma_peptidoform",
+            "inputs": [
+              "modified_peptide"
+            ],
+            "how": "proforma_sequence"
+          },
+          {
+            "name": "ProForma_peptide",
+            "inputs": [
+              "modified_peptide"
+            ],
+            "how": "stripped_sequence"
+          }
+        ]
+      }
+    },
+    "column_roles": {
+      "protein_assignment": "protein_group",
+      "fasta_accessions": "protein_group"
+    },
+    "modifications": {
+      "source_column": "modified_peptide",
+      "parser": "token_regex",
+      "token_pattern": "\\[([^\\[\\]]+)\\]",
+      "token_position": "after_residue",
+      "case_sensitive": false,
+      "unknown_policy": "preserve",
+      "output_column": "proforma_sequence",
+      "map": [
+        {
+          "token": "Acetyl",
+          "accession": "UNIMOD:1"
+        },
+        {
+          "token": "Oxidation",
+          "accession": "UNIMOD:35"
+        },
+        {
+          "token": "Carbamidomethyl",
+          "accession": "UNIMOD:4"
+        }
+      ]
+    }
+  },
+  "levels": {
+    "ion": {
+      "axis": {
+        "var_keys": [
+          "ProForma_ion"
+        ],
+        "x_layer": "Abundance"
+      },
+      "columns": {
+        "var": {
+          "select": {
+            "charge": "charge"
+          },
+          "types": {
+            "charge": "integer"
+          },
+          "computed": [
+            {
+              "name": "ProForma_ion",
+              "inputs": [
+                "ProForma_peptidoform",
+                "charge"
+              ],
+              "how": "proforma_ion"
+            }
+          ]
+        }
+      },
+      "layers": [
+        {
+          "name": "Abundance",
+          "source": "^abundance_(?P<sample>.+)$"
+        }
+      ]
+    },
+    "peptidoform": {
+      "axis": {
+        "var_keys": [
+          "ProForma_peptidoform"
+        ],
+        "x_layer": "Abundance"
+      },
+      "layers": [
+        {
+          "name": "Abundance",
+          "source": "^abundance_(?P<sample>.+)$"
+        },
+        {
+          "name": "Number_Of_Psms",
+          "source": "^number_of_psms_(?P<sample>.+)$",
+          "required": true
+        }
+      ]
+    }
+  }
+}

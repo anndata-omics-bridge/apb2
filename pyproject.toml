@@ -1,0 +1,105 @@
+[build-system]
+requires = ["uv_build>=0.9.26,<0.10.0"]
+build-backend = "uv_build"
+
+[project]
+name = "apb2"
+version = "0.1.0"
+description = "Convert proteomics software output to AnnData (rules-driven parser, second generation)"
+readme = "README.md"
+requires-python = ">=3.13"
+license = "MIT"
+authors = [
+    { name = "Witold Wolski", email = "wew@fgcz.ethz.ch" },
+]
+dependencies = [
+    "anndata>=0.11",
+    "cyclopts>=3",
+    "loguru>=0.7",
+    "numpy>=2",
+    "packaging>=24",
+    "pandas>=2.2",
+    "pyarrow>=18",
+    "pydantic>=2.10",
+    "pyyaml>=6",
+    "scipy>=1.14",
+]
+
+[project.scripts]
+apb2 = "apb2.cli:main"
+
+[tool.uv.sources]
+anndata-proteomics = { path = "../apb", editable = true }
+
+[dependency-groups]
+dev = [
+    "anndata-proteomics",
+    "build>=1.3,<2",
+    "deptry>=0.24,<1",
+    "import-linter>=2,<3",
+    "pandas-stubs>=3.0.5.260730",
+    "pre-commit>=4,<5",
+    "pyright>=1.1.400,<2",
+    "pytest>=9,<10",
+    "ruff>=0.15,<1",
+    "scipy-stubs>=1.18.0.1",
+    "twine>=6,<7",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "ANN",
+    "B",
+    "C4",
+    "C90",
+    "E4",
+    "E7",
+    "E9",
+    "F",
+    "I",
+    "PGH",
+    "PIE",
+    "RUF",
+    "SIM",
+    "UP",
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.pyright]
+include = ["src", "tests"]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.13"
+typeCheckingMode = "strict"
+reportImportCycles = "error"
+reportMissingTypeStubs = "none"
+reportUnnecessaryTypeIgnoreComment = "error"
+reportImplicitOverride = "error"
+enableTypeIgnoreComments = false
+# Third-party scientific libraries expose incomplete types even with their
+# canonical stub packages (same rationale and settings as apb). Keep strict
+# first-party checks while suppressing diagnostics whose only signal is a
+# propagated Unknown.
+reportUnknownMemberType = "none"
+reportUnknownVariableType = "none"
+reportUnknownArgumentType = "none"
+reportUnknownParameterType = "none"
+reportUnknownLambdaType = "none"
+
+[tool.pytest.ini_options]
+addopts = ["--strict-config", "--strict-markers", "-ra"]
+testpaths = ["tests"]
+xfail_strict = true
+
+[tool.deptry]
+known_first_party = ["apb2"]

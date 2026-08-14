@@ -1,0 +1,31 @@
+[importlinter]
+root_packages =
+    apb2
+    anndata_proteomics
+include_external_packages = True
+
+[importlinter:contract:declarative-side-stays-declarative]
+name = models and documents never touch the computational stack or the legacy package
+type = forbidden
+source_modules =
+    apb2.vendor_parse_rules.model
+    apb2.vendor_parse_rules.documents
+forbidden_modules =
+    pandas
+    numpy
+    anndata
+    anndata_proteomics
+
+[importlinter:contract:no-legacy-parser-coupling]
+name = apb2 never imports apb's parser machinery
+type = forbidden
+allow_indirect_imports = True
+source_modules =
+    apb2
+forbidden_modules =
+    anndata_proteomics.converters
+    anndata_proteomics.vendor_quant_rules
+    anndata_proteomics.modifications
+    anndata_proteomics.workflows
+    anndata_proteomics.adapters
+    anndata_proteomics.scripts

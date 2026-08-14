@@ -1,0 +1,11 @@
+# This file is managed by Copier. Do not edit it manually.
+_src_path: .
+author_email: wew@fgcz.ethz.ch
+author_name: Witold Wolski
+description: Convert proteomics software output to AnnData (rules-driven parser, second
+    generation)
+distribution_name: apb2
+license_spdx: MIT
+package_name: apb2
+project_name: apb2
+python_min: '3.13'
