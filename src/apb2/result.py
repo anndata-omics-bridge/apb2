@@ -19,7 +19,7 @@ class ParsedData:
     """One AnnData-shaped conversion result, independent of any storage backend.
 
     ``uns`` carries the complete, JSON-typed output provenance, so persisting this value
-    is a pure function of the value itself (see ``parser_v2/output/``, plan stage 6).
+    is a pure function of the value itself (see ``output.py``).
     """
 
     X: DenseLayerMatrix

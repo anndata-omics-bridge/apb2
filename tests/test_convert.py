@@ -8,16 +8,15 @@ import anndata
 import numpy as np
 import pytest
 
-from apb2.construction import make_parse_strategies, make_parse_strategy
-from apb2.dialect import DelimitedDialect, GroupedNumbers
 from apb2.errors import (
     AmbiguousDialectError,
     IncompatibleSourceError,
     NoCompatibleLevelError,
 )
-from apb2.input.tabular import UnknownFormat
-from apb2.output.write import to_anndata
-from apb2.sources import DelimitedFile, Folder, SingleFile
+from apb2.input import UnknownFormat
+from apb2.output import to_anndata
+from apb2.parse_strategy import make_parse_strategies, make_parse_strategy
+from apb2.sources import DelimitedDialect, DelimitedFile, Folder, GroupedNumbers, SingleFile
 from apb2.vendor_parse_rules.model import LongRule, WideRule, validate_rule
 
 

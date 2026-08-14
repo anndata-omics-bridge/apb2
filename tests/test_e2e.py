@@ -27,11 +27,18 @@ from anndata_proteomics.vendor_quant_rules.registry import (
     iter_packaged_rules as iter_legacy_rules,
 )
 
-from apb2.construction import make_parse_strategy
+from apb2.parse_strategy import make_parse_strategy
 from apb2.sources import SingleFile
 from apb2.vendor_params.model import Parameters
 from apb2.vendor_params.registry import parse_params
-from apb2.vendor_parse_rules.model import LongRule, QuantificationLevel, WideRule, load_document
+from apb2.vendor_parse_rules.model import (
+    LongRule,
+    QuantificationLevel,
+    WideRule,
+    compose_rule,
+    load_document,
+)
+from apb2.vendor_parse_rules.runtime import available_for
 
 _APB2_TREE = Path(str(resources.files("apb2.vendor_parse_rules.documents")))
 _APB2_DOCUMENT_PATHS = sorted(
@@ -68,7 +75,7 @@ def _cached_parameters(rule: LongRule | WideRule, data_file: Path) -> Parameters
 
 @pytest.mark.parametrize(("path", "level"), _CASES)
 def test_apb2_matches_legacy_conversion(path: Path, level: QuantificationLevel) -> None:
-    rule = load_document(path).rule(level)
+    rule = compose_rule(load_document(path), level)
     if rule.fragments is not None:
         pytest.skip("fragment level converted on a subset in legacy tests")
 
@@ -76,7 +83,7 @@ def test_apb2_matches_legacy_conversion(path: Path, level: QuantificationLevel) 
     if isinstance(data_file, VendorDataUnavailable) or not data_file.exists():
         pytest.skip(f"no test data for {rule.software_name!r} {rule.software_version_pattern!r}")
     parameters = _cached_parameters(rule, data_file)
-    if not rule.available_for(parameters):
+    if not available_for(rule, parameters):
         pytest.skip(f"cached {rule.software_name} file is not {level}-level")
 
     legacy_locator = _LEGACY_LOCATORS[(_document_key(path), level)]

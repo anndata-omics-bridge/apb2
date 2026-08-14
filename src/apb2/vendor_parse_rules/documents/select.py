@@ -15,7 +15,8 @@ from importlib import resources
 from pathlib import Path
 
 from apb2.vendor_params.model import Parameters
-from apb2.vendor_parse_rules.model import Document, load_document
+from apb2.vendor_parse_rules.model import Document, compose_rule, load_document
+from apb2.vendor_parse_rules.runtime import available_for, recognition_for, resolved_for
 
 
 class RuleUnavailableError(ValueError):
@@ -41,7 +42,10 @@ def guess_software(headers: Iterable[str]) -> str | None:
     slugs = {
         software_slug(document.software_name)
         for document in _packaged_documents()
-        if any(document.rule(level).matches_headers(header_set) for level in document.levels)
+        if any(
+            recognition_for(compose_rule(document, level)).matches(header_set)
+            for level in document.levels
+        )
     }
     return next(iter(slugs)) if len(slugs) == 1 else None
 
@@ -124,9 +128,9 @@ def _any_level_matches(
     header_set: frozenset[str],
 ) -> bool:
     for level in document.levels:
-        rule = document.rule(level)
-        if not rule.available_for(parameters):
+        rule = compose_rule(document, level)
+        if not available_for(rule, parameters):
             continue
-        if rule.resolved_for(parameters).matches_headers(header_set):
+        if recognition_for(resolved_for(rule, parameters)).matches(header_set):
             return True
     return False

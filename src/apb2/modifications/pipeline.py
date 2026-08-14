@@ -1,4 +1,11 @@
-"""Apply a [modifications] rule to a DataFrame, adding normalized columns."""
+"""The ``[modifications]`` block at runtime: normalize modified sequences on a frame.
+
+``applier_for(rule)`` decides once whether normalization runs — is a block declared,
+does any compute read its output — instead of on every table. The applier memoizes on
+unique source values: normalization is a pure function of the source columns, so a
+column with a million rows and fifty thousand distinct sequences tokenizes fifty
+thousand times, not a million.
+"""
 
 from __future__ import annotations
 
@@ -11,12 +18,27 @@ from apb2.modifications.apply_rules import (
     apply_rule,
     apply_site_list,
 )
+from apb2.modifications.model import ModifiedSequence
 from apb2.modifications.unimod_registry import resolve
 from apb2.vendor_parse_rules.model import (
+    LongRule,
     Modifications,
+    ProformaSequence,
     SiteListModifications,
-    TokenRegexModifications,
+    StrippedSequence,
+    WideRule,
 )
+
+
+def modification_sources(modifications: Modifications) -> tuple[str, ...]:
+    """The raw vendor columns one modifications declaration reads."""
+    if isinstance(modifications, SiteListModifications):
+        return (
+            modifications.sequence_column,
+            modifications.modification_column,
+            modifications.site_column,
+        )
+    return (modifications.source_column,)
 
 
 def _map_entries(mods: Modifications) -> tuple[MapEntry, ...]:
@@ -40,66 +62,106 @@ def _map_entries(mods: Modifications) -> tuple[MapEntry, ...]:
     return tuple(entries)
 
 
-def _to_runtime_rule(mods: TokenRegexModifications) -> ModificationRule:
-    """Convert the validated token_regex model into the runtime dataclass."""
-    return ModificationRule(
-        token_pattern=mods.token_pattern,
-        token_position=mods.token_position,
-        case_sensitive=mods.case_sensitive,
-        unknown_policy=mods.unknown_policy,
-        entries=_map_entries(mods),
-    )
+class ApplyModifications:
+    """Normalize a vendor modified-sequence column, memoized on unique source values.
 
-
-def _to_site_list_rule(mods: SiteListModifications) -> SiteListRule:
-    """Convert the validated site_list model into the runtime dataclass."""
-    return SiteListRule(
-        delimiter=mods.delimiter,
-        site_base=mods.site_base,
-        case_sensitive=mods.case_sensitive,
-        unknown_policy=mods.unknown_policy,
-        entries=_map_entries(mods),
-    )
-
-
-def _require_columns(df: pd.DataFrame, mods: Modifications) -> None:
-    missing = [column for column in mods.source_columns if column not in df.columns]
-    if missing:
-        raise KeyError(
-            f"[modifications] parser={mods.parser!r} needs column(s) {missing} "
-            f"not found in DataFrame; available: {list(df.columns)[:10]}…"
-        )
-
-
-def apply_modifications(df: pd.DataFrame, mods: Modifications) -> pd.DataFrame:
-    """Add normalized modification columns to ``df`` based on ``mods``.
-
-    Adds (and returns the same frame for convenience):
-    - ``mods.output_column`` (default ``"proforma_sequence"``): ProForma string
-    - ``"stripped_sequence"``: amino-acid-only sequence
-    - ``"unknown_mod_tokens"``: list of unresolved vendor tokens per row
-
-    The source columns are left untouched. Dispatches on ``mods.parser``; see
-    ``modifications.schema`` for the two parsers and ``apply_rules`` for their runtimes.
+    Adds three columns in place and returns the same frame: the rule's
+    ``output_column`` (ProForma string), ``stripped_sequence`` (amino-acid-only), and
+    ``unknown_mod_tokens`` (unresolved vendor tokens per row). Construction resolves the
+    Unimod map, so an unknown accession fails before any table is read.
     """
-    _require_columns(df, mods)
 
-    if mods.parser == "site_list":
-        rule = _to_site_list_rule(mods)
-        results = [
-            apply_site_list(sequence, modifications, sites, rule)
-            for sequence, modifications, sites in zip(
-                df[mods.sequence_column].astype(str),
-                df[mods.modification_column].fillna("").astype(str),
-                df[mods.site_column].fillna("").astype(str),
+    def __init__(self, modifications: Modifications) -> None:
+        self.output_column = modifications.output_column
+        self.sources = modification_sources(modifications)
+        entries = _map_entries(modifications)
+        if isinstance(modifications, SiteListModifications):
+            self._site_rule: SiteListRule | None = SiteListRule(
+                delimiter=modifications.delimiter,
+                site_base=modifications.site_base,
+                case_sensitive=modifications.case_sensitive,
+                unknown_policy=modifications.unknown_policy,
+                entries=entries,
+            )
+            self._token_rule: ModificationRule | None = None
+        else:
+            self._site_rule = None
+            self._token_rule = ModificationRule(
+                token_pattern=modifications.token_pattern,
+                token_position=modifications.token_position,
+                case_sensitive=modifications.case_sensitive,
+                unknown_policy=modifications.unknown_policy,
+                entries=entries,
+            )
+
+    def source_columns(self) -> frozenset[str]:
+        return frozenset({*self.sources, self.output_column, "stripped_sequence"})
+
+    def apply(self, df: pd.DataFrame) -> pd.DataFrame:
+        missing = [column for column in self.sources if column not in df.columns]
+        if missing:
+            raise KeyError(
+                f"[modifications] needs column(s) {missing} not found in DataFrame; "
+                f"available: {list(df.columns)[:10]}…"
+            )
+        results = self._results(df)
+        df[self.output_column] = [r.proforma_sequence for r in results]
+        df["stripped_sequence"] = [r.stripped_sequence for r in results]
+        df["unknown_mod_tokens"] = [r.unknown_tokens for r in results]
+        return df
+
+    def _results(self, df: pd.DataFrame) -> list[ModifiedSequence]:
+        memo: dict[object, ModifiedSequence] = {}
+        if self._site_rule is not None:
+            sequence_column, modification_column, site_column = self.sources
+            rows = zip(
+                df[sequence_column].astype(str),
+                df[modification_column].fillna("").astype(str),
+                df[site_column].fillna("").astype(str),
                 strict=True,
             )
-        ]
-    else:
-        runtime = _to_runtime_rule(mods)
-        results = [apply_rule(s, runtime) for s in df[mods.source_column].astype(str)]
+            out: list[ModifiedSequence] = []
+            for sequence, modifications, sites in rows:
+                key = (sequence, modifications, sites)
+                if key not in memo:
+                    memo[key] = apply_site_list(sequence, modifications, sites, self._site_rule)
+                out.append(memo[key])
+            return out
+        assert self._token_rule is not None
+        token_rule = self._token_rule
+        out = []
+        for sequence in df[self.sources[0]].astype(str):
+            if sequence not in memo:
+                memo[sequence] = apply_rule(sequence, token_rule)
+            out.append(memo[sequence])
+        return out
 
-    df[mods.output_column] = [r.proforma_sequence for r in results]
-    df["stripped_sequence"] = [r.stripped_sequence for r in results]
-    df["unknown_mod_tokens"] = [r.unknown_tokens for r in results]
-    return df
+
+class NoModifications:
+    """No modification normalization runs: none is declared, or none is read."""
+
+    def apply(self, df: pd.DataFrame) -> pd.DataFrame:
+        return df
+
+    def source_columns(self) -> frozenset[str]:
+        return frozenset()
+
+
+type ModificationApplier = ApplyModifications | NoModifications
+
+
+def applier_for(rule: LongRule | WideRule) -> ModificationApplier:
+    """Decide once whether modification normalization runs for this rule.
+
+    Both conditions are absence questions — is a block declared, does anything read its
+    output — asked once when the applier is built instead of on every table.
+    """
+    if rule.modifications is None:
+        return NoModifications()
+    consumed = any(
+        isinstance(column, ProformaSequence | StrippedSequence)
+        for column in rule.columns.var.computed
+    )
+    if not consumed:
+        return NoModifications()
+    return ApplyModifications(rule.modifications)

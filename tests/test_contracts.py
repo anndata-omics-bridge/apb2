@@ -1,4 +1,4 @@
-"""Contract tests for parser V2: orchestration order, ordering, identity, dialects."""
+"""Contract tests: orchestration order, level ordering, identity steps, dialects."""
 
 from __future__ import annotations
 
@@ -10,20 +10,21 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from apb2 import construction
-from apb2.dialect import (
-    DelimitedDialect,
-    GroupedNumbers,
-    UngroupedNumbers,
-)
+from apb2 import parse_strategy
 from apb2.errors import (
     IncompatibleSourceError,
     NoCompatibleLevelError,
 )
-from apb2.identity import NoFragments
-from apb2.parser import Parser
+from apb2.fragments import NoFragments
+from apb2.parse_strategy import Parser
 from apb2.result import ParsedData
-from apb2.sources import InputSource, SingleFile
+from apb2.sources import (
+    DelimitedDialect,
+    GroupedNumbers,
+    InputSource,
+    SingleFile,
+    UngroupedNumbers,
+)
 from apb2.vendor_params.model import Parameters
 from apb2.vendor_parse_rules.model import LongRule
 
@@ -46,46 +47,38 @@ def test_parse_runs_injected_strategies_in_pipeline_order() -> None:
             calls.append("read")
             return pd.DataFrame({"a": [1]})
 
-    class Modifications:
-        def apply(self, table: pd.DataFrame) -> pd.DataFrame:
-            calls.append("modifications")
-            return table
-
     class Fragments:
         def explode(self, table: pd.DataFrame) -> pd.DataFrame:
-            calls.append("fragments")
+            calls.append("explode")
             return table
 
     class Columns:
-        def materialize(self, table: pd.DataFrame) -> pd.DataFrame:
-            calls.append("columns")
+        def prepare_keys(self, table: pd.DataFrame) -> pd.DataFrame:
+            calls.append("prepare_keys")
             return table
+
+        def finish(self, result: ParsedData) -> ParsedData:
+            calls.append("finish")
+            return result
 
     class Conversion:
         def parse(self, table: pd.DataFrame) -> ParsedData:
-            calls.append("conversion")
+            calls.append("convert")
             del table
             return _empty_result()
-
-    class Metadata:
-        def attach(self, result: ParsedData) -> ParsedData:
-            calls.append("metadata")
-            del result
-            return _empty_result(uns={"apb": "provenance"})
 
     parser = Parser(
         level="ion",
         input=Reader(),
-        modifications=Modifications(),
         fragments=Fragments(),
         columns=Columns(),
         conversion=Conversion(),
-        metadata=Metadata(),
+        provenance={"apb": "provenance"},
     )
 
     result = parser.parse()
 
-    assert calls == ["read", "modifications", "fragments", "columns", "conversion", "metadata"]
+    assert calls == ["read", "explode", "prepare_keys", "convert", "finish"]
     assert result.uns == {"apb": "provenance"}
 
 
@@ -122,9 +115,9 @@ def test_make_parsers_orders_parsers_by_quantification_level(
         built.append(rule.quantification_level)
         return cast("Parser", SimpleNamespace(level=rule.quantification_level))
 
-    monkeypatch.setattr(construction, "make_parse_strategy", fake_make_parser)
+    monkeypatch.setattr(parse_strategy, "make_parse_strategy", fake_make_parser)
 
-    parsers = construction.make_parse_strategies(
+    parsers = parse_strategy.make_parse_strategies(
         [_rule("protein"), _rule("fragment"), _rule("ion")], _source()
     )
 
@@ -147,9 +140,9 @@ def test_make_parsers_skips_incompatible_rules_and_keeps_compatible_ones(
             raise IncompatibleSourceError("protein table role is not bound")
         return cast("Parser", SimpleNamespace(level=rule.quantification_level))
 
-    monkeypatch.setattr(construction, "make_parse_strategy", fake_make_parser)
+    monkeypatch.setattr(parse_strategy, "make_parse_strategy", fake_make_parser)
 
-    parsers = construction.make_parse_strategies([_rule("protein"), _rule("ion")], _source())
+    parsers = parse_strategy.make_parse_strategies([_rule("protein"), _rule("ion")], _source())
 
     assert [parser.level for parser in parsers] == ["ion"]
 
@@ -167,10 +160,10 @@ def test_make_parsers_raises_when_no_rule_is_compatible(
         del rule, source, parameters, strict
         raise IncompatibleSourceError("nothing is bound")
 
-    monkeypatch.setattr(construction, "make_parse_strategy", fake_make_parser)
+    monkeypatch.setattr(parse_strategy, "make_parse_strategy", fake_make_parser)
 
     with pytest.raises(NoCompatibleLevelError, match="ion"):
-        construction.make_parse_strategies([_rule("ion")], _source())
+        parse_strategy.make_parse_strategies([_rule("ion")], _source())
 
 
 def test_grouped_numbers_reject_equal_separators() -> None:

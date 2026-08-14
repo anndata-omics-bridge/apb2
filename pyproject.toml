@@ -22,7 +22,6 @@ dependencies = [
     "pyarrow>=18",
     "pydantic>=2.10",
     "pyyaml>=6",
-    "scipy>=1.14",
 ]
 
 [project.scripts]
@@ -42,7 +41,6 @@ dev = [
     "pyright>=1.1.400,<2",
     "pytest>=9,<10",
     "ruff>=0.15,<1",
-    "scipy-stubs>=1.18.0.1",
     "twine>=6,<7",
 ]
 

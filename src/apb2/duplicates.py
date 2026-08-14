@@ -1,31 +1,22 @@
-"""How several contributions to one observation-feature cell become one value.
+"""The ``axis.duplicates`` block: how several contributions to one cell become one value.
 
-``axis.duplicates.mode`` selects this, and before this module the selection was re-made at
-six places across the two converters: a mode-to-aggfunc translation, that aggfunc branched
-on again inside the scatter, two near-identical pre-pass rejections, and three more
-branches inside one loop in the wide converter. Each site had to agree with the others
-about what a mode meant, and one of them did not — the wide converter never checked
-``keep_all_as_raw_table`` at all, so an unimplemented mode silently behaved as keep-first.
-
-Wide and long tables mean different things by "duplicate": the wide converter finds several
-*columns* claiming one sample, the long converter finds repeated key *rows*. That is why a
-policy answers three combining questions rather than one — the two converters do not share
-a representation, which is a separate matter from the one this module settles.
+Wide and long tables mean different things by "duplicate": the wide converter finds
+several *columns* claiming one sample, the long converter finds repeated key *rows*.
+That is why a policy answers several combining questions rather than one — the two
+converters do not share a representation.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import numpy as np
 import pandas as pd
+from numpy.typing import NDArray
 
-from apb2.convert._pieces import (
-    CategoryCodes,
-    DenseLayerMatrix,
-    ValidKeyMask,
-)
 from apb2.vendor_parse_rules.model import DuplicateMode, Duplicates
+
+type DenseLayerMatrix = NDArray[np.float64]
+type CategoryCodes = NDArray[np.intp]
+type ValidKeyMask = NDArray[np.bool_]
 
 
 def _scatter_first(
@@ -46,13 +37,12 @@ def _scatter_first(
     return matrix
 
 
-@dataclass(frozen=True, slots=True)
 class ErrorOnDuplicates:
     """Repeated keys are a rule error, so combining is never permitted.
 
     Once the rejections below have passed there is at most one contribution per cell, so
-    the combining methods take it. They are reachable and correct, not dead arms: "take the
-    only one" is what keeping the first means when there is exactly one.
+    the combining methods take it. They are reachable and correct, not dead arms: "take
+    the only one" is what keeping the first means when there is exactly one.
     """
 
     def reject_duplicate_keys(self, df: pd.DataFrame, keys: list[str]) -> None:
@@ -95,7 +85,6 @@ class ErrorOnDuplicates:
         return _scatter_first(obs_codes, var_codes, values, key_ok, n_obs, n_var)
 
 
-@dataclass(frozen=True, slots=True)
 class KeepFirstDuplicate:
     """Repeated keys are permitted; the first non-null contribution wins."""
 
@@ -123,7 +112,6 @@ class KeepFirstDuplicate:
         return _scatter_first(obs_codes, var_codes, values, key_ok, n_obs, n_var)
 
 
-@dataclass(frozen=True, slots=True)
 class SumDuplicates:
     """Repeated keys are permitted; their non-null contributions are summed."""
 
@@ -150,8 +138,8 @@ class SumDuplicates:
     ) -> DenseLayerMatrix:
         """Sum non-null values.
 
-        Mirrors ``GroupBy.sum``: a cell that has rows but only null values is 0.0, while a
-        cell with no rows at all stays NaN.
+        Mirrors ``GroupBy.sum``: a cell that has rows but only null values is 0.0, while
+        a cell with no rows at all stays NaN.
         """
         matrix = np.full((n_obs, n_var), np.nan, dtype="float64")
         finite = key_ok & ~np.isnan(values)
@@ -165,7 +153,7 @@ class SumDuplicates:
 
 type DuplicatePolicy = ErrorOnDuplicates | KeepFirstDuplicate | SumDuplicates
 
-_BY_MODE: dict[DuplicateMode, DuplicatePolicy] = {
+POLICY_BY_MODE: dict[DuplicateMode, DuplicatePolicy] = {
     "error": ErrorOnDuplicates(),
     "keep_first": KeepFirstDuplicate(),
     "aggregate": SumDuplicates(),
@@ -180,7 +168,7 @@ def policy_for(duplicates: Duplicates) -> DuplicatePolicy:
 
     Raises NotImplementedError for a mode the schema permits but no policy implements.
     """
-    policy = _BY_MODE.get(duplicates.mode)
+    policy = POLICY_BY_MODE.get(duplicates.mode)
     if policy is None:
         raise NotImplementedError(f"duplicates.mode={duplicates.mode!r} is not yet supported")
     return policy

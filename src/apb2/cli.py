@@ -18,11 +18,10 @@ from typing import Annotated, Literal
 from cyclopts import App, Parameter
 from loguru import logger
 
-from apb2.construction import make_parse_strategy
 from apb2.errors import IncompatibleSourceError
-from apb2.input.tabular import format_for
-from apb2.output.namespace import update_namespace
-from apb2.output.write import as_anndata
+from apb2.input import format_for
+from apb2.output import as_anndata, update_namespace
+from apb2.parse_strategy import make_parse_strategy
 from apb2.sources import SingleFile
 from apb2.vendor_params.model import Parameters
 from apb2.vendor_params.registry import parse_params
@@ -34,7 +33,13 @@ from apb2.vendor_parse_rules.documents.select import (
     guess_software,
     software_slug,
 )
-from apb2.vendor_parse_rules.model import LongRule, QuantificationLevel, WideRule, load_document
+from apb2.vendor_parse_rules.model import (
+    LongRule,
+    QuantificationLevel,
+    WideRule,
+    compose_rule,
+    load_document,
+)
 
 app = App(name="apb2", help="apb2 CLI: rules-driven vendor-table conversion", help_on_error=True)
 
@@ -97,7 +102,7 @@ def _convert_from_rule_config(
     if level not in document.levels:
         logger.error(f"{rule_config} has no level {level!r}; available: {list(document.levels)}")
         return 1
-    rule = document.rule(level)
+    rule = compose_rule(document, level)
     if options.params is not None:
         parameters = parse_params(
             options.params,
@@ -142,7 +147,7 @@ def _convert_from_packaged_rules(
     if level not in document.levels:
         logger.error(f"{document.path} has no level {level!r}; available: {list(document.levels)}")
         return 1
-    rule = document.rule(level)
+    rule = compose_rule(document, level)
     method: _SelectionMethod = "software_version" if detected.version is not None else "columns"
     return _execute(data, output, rule, method, parameters, options.params, options)
 

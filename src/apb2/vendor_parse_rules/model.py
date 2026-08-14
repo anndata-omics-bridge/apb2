@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Iterable, Mapping
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Annotated, Literal, cast, get_args
 
@@ -49,7 +49,6 @@ PEPTIDE_LEVELS: frozenset[QuantificationLevel] = frozenset(LEVELS) - {"protein"}
 """Quantification levels whose features carry a peptide sequence."""
 
 _SAMPLE_GROUP = "sample"
-_SYNTHESIZED_COLUMNS = frozenset({"stripped_sequence"})
 
 ConditionValue = str | int | float | bool | None
 """A JSON scalar compared for equality against one parsed parameter value."""
@@ -64,12 +63,6 @@ class SearchParameterOverride(ModelBase):
 
     when_search_parameters: dict[str, ConditionValue] = Field(min_length=1)
     x_layer: str
-
-
-def _condition_matches(condition: dict[str, ConditionValue], parameters: Parameters) -> bool:
-    """Whether every declared parameter equality holds for the parsed values."""
-    observed = parameters.model_dump(mode="json", include=set(condition))
-    return observed == condition
 
 
 # ------------------------------------------------------------------------------- the rule
@@ -91,41 +84,6 @@ class _RuleCore(ModelBase):
     requires_search_parameters: dict[str, ConditionValue] = Field(default_factory=dict)
     search_parameter_overrides: list[SearchParameterOverride] = Field(default_factory=list)
 
-    def available_for(self, parameters: Parameters | None) -> bool:
-        """Whether this rule's parameter gate is satisfied.
-
-        An ungated rule is always available; a gated one (Sage: ``combine_charge_states``
-        decides the level) needs evidence, so it is unavailable when the caller has none.
-        """
-        if not self.requires_search_parameters:
-            return True
-        if parameters is None:
-            return False
-        return _condition_matches(self.requires_search_parameters, parameters)
-
-    def resolved_for(self, parameters: Parameters | None) -> LongRule | WideRule:
-        """Return this rule with every matching X-layer override applied (DIA-NN:
-        acquisition mode decides the quantitative column). No evidence or no match
-        returns the rule unchanged; matching overrides that disagree raise.
-        """
-        if parameters is None or not self.search_parameter_overrides:
-            return cast("LongRule | WideRule", self)
-        x_layers = {
-            override.x_layer
-            for override in self.search_parameter_overrides
-            if _condition_matches(override.when_search_parameters, parameters)
-        }
-        if not x_layers:
-            return cast("LongRule | WideRule", self)
-        if len(x_layers) > 1:
-            raise ValueError(
-                f"matching search-parameter overrides disagree on x_layer: {sorted(x_layers)}"
-            )
-        payload = self.model_dump(mode="python")
-        axis = cast("dict[str, object]", payload["axis"])
-        axis["x_layer"] = next(iter(x_layers))
-        return validate_rule(payload)
-
     @model_validator(mode="after")
     def _core_consistency(self) -> _RuleCore:
         conditions = [
@@ -145,43 +103,12 @@ class _RuleCore(ModelBase):
             raise ValueError("[fragments] is only valid for quantification_level='fragment'.")
         return self
 
-    def layer_required(self, layer: Layer) -> bool:
-        """A layer must be present iff it is the ``x_layer`` or explicitly ``required``."""
-        return layer.required or layer.name == self.axis.x_layer
-
-    def synthesized_columns(self) -> frozenset[str]:
-        """Columns apb2 creates itself, which must never be required of the input."""
-        if self.modifications is None:
-            return _SYNTHESIZED_COLUMNS
-        return _SYNTHESIZED_COLUMNS | {self.modifications.output_column}
-
 
 class LongRule(_RuleCore):
     """One row per (observation, feature): every source is an exact column name."""
 
     shape: Literal["long"]
     columns: LongColumns
-
-    def named_column_groups(self) -> tuple[tuple[Literal["obs", "var"], ColumnGroup], ...]:
-        return (("obs", self.columns.obs), ("var", self.columns.var))
-
-    def layer_source_columns(self, header: Iterable[str]) -> set[str]:
-        """Layer sources are exact column names in a long rule."""
-        del header
-        return {layer.source for layer in self.layers}
-
-    def matches_headers(self, headers: Iterable[str]) -> bool:
-        """Return whether raw input headers satisfy this rule's required sources."""
-        header_set = set(headers)
-        if not _fragment_label_column_present(self.fragments, header_set):
-            return False
-        return self.required_headers().issubset(header_set)
-
-    def required_headers(self) -> frozenset[str]:
-        """Return the raw vendor headers this rule cannot read without."""
-        expected = set(self.columns.obs.select.values()) | set(self.columns.var.select.values())
-        expected.update(layer.source for layer in self.layers if self.layer_required(layer))
-        return frozenset(expected - self.synthesized_columns())
 
     @model_validator(mode="after")
     def _column_consistency(self) -> LongRule:
@@ -200,30 +127,6 @@ class WideRule(_RuleCore):
 
     shape: Literal["wide"]
     columns: WideColumns
-
-    def named_column_groups(self) -> tuple[tuple[Literal["obs", "var"], ColumnGroup], ...]:
-        return (("var", self.columns.var),)
-
-    def layer_source_columns(self, header: Iterable[str]) -> set[str]:
-        """Layer sources are header regexes in a wide rule; expand them over the header."""
-        matched: set[str] = set()
-        for layer in self.layers:
-            compiled = re.compile(layer.source)
-            matched.update(name for name in header if compiled.match(name) is not None)
-        return matched
-
-    def matches_headers(self, headers: Iterable[str]) -> bool:
-        """Return whether raw input headers satisfy this rule's required sources."""
-        header_set = set(headers)
-        if not _fragment_label_column_present(self.fragments, header_set):
-            return False
-        for layer in self.layers:
-            if self.layer_required(layer) and not any(
-                re.compile(layer.source).match(header) for header in header_set
-            ):
-                return False
-        required_var = set(self.columns.var.select.values()) - self.synthesized_columns()
-        return required_var.issubset(header_set)
 
     @model_validator(mode="after")
     def _column_consistency(self) -> WideRule:
@@ -301,15 +204,6 @@ class ColumnGroup(ModelBase):
     types: dict[str, AxisColumnType] = Field(default_factory=dict)
     computed: list[ComputedColumn] = Field(default_factory=list)
 
-    def type_for(self, name: str) -> AxisColumnType:
-        """Return one selected column's declared type or the string default."""
-        return self.types.get(name, "string")
-
-    @property
-    def names(self) -> list[str]:
-        computed = (column.name for column in self.computed)
-        return list(dict.fromkeys([*self.select, *self.optional_select, *computed]))
-
     @model_validator(mode="after")
     def _consistent_declarations(self) -> ColumnGroup:
         both = sorted(set(self.select) & set(self.optional_select))
@@ -382,10 +276,6 @@ class ColumnRoles(ModelBase):
 
     protein_assignment: str | None = Field(default=None, min_length=1)
     fasta_accessions: str | None = Field(default=None, min_length=1)
-
-    def declared(self) -> dict[str, str]:
-        """Return semantic role names mapped to their declared ``var`` columns."""
-        return {name: column for name, column in self if column is not None}
 
 
 # --------------------------------------------------------------------------------- layers
@@ -521,11 +411,6 @@ class TokenRegexModifications(ModelBase):
     output_column: str = "proforma_sequence"
     map: list[ModificationMapEntry] = Field(min_length=1)
 
-    @property
-    def source_columns(self) -> tuple[str, ...]:
-        """Input columns this parser reads."""
-        return (self.source_column,)
-
 
 class SiteListModifications(ModelBase):
     """Parallel name/site columns beside a bare sequence (alphabase layout, AlphaDIA):
@@ -544,11 +429,6 @@ class SiteListModifications(ModelBase):
     output_column: str = "proforma_sequence"
     map: list[ModificationMapEntry] = Field(min_length=1)
 
-    @property
-    def source_columns(self) -> tuple[str, ...]:
-        """Input columns this parser reads."""
-        return (self.sequence_column, self.modification_column, self.site_column)
-
 
 type Modifications = Annotated[
     TokenRegexModifications | SiteListModifications,
@@ -559,9 +439,14 @@ type Modifications = Annotated[
 # --------------------------------------------------- whole-rule checks shared by both shapes
 
 
+def _group_names(group: ColumnGroup) -> list[str]:
+    computed = (column.name for column in group.computed)
+    return list(dict.fromkeys([*group.select, *group.optional_select, *computed]))
+
+
 def _check_axis_keys(keys: list[str], group: ColumnGroup, axis_name: str) -> None:
     """Axis keys must be declared, and never best-effort: an index cannot be optional."""
-    declared = set(group.names)
+    declared = set(_group_names(group))
     missing = [key for key in keys if key not in declared]
     if missing:
         raise ValueError(
@@ -573,8 +458,8 @@ def _check_axis_keys(keys: list[str], group: ColumnGroup, axis_name: str) -> Non
 
 
 def _check_column_roles(roles: ColumnRoles, var: ColumnGroup) -> None:
-    declared_columns = set(var.names)
-    for role, column in roles.declared().items():
+    declared_columns = set(_group_names(var))
+    for role, column in ((n, c) for n, c in roles if c is not None):
         if column not in declared_columns:
             raise ValueError(f"column_roles.{role} must name a declared var column; got {column!r}")
 
@@ -595,14 +480,6 @@ def _check_derived_not_selected(
             "apb2-derived modification columns must be declared in "
             f"columns.var.computed, not select: {sorted(selected)}"
         )
-
-
-def _fragment_label_column_present(fragments: Fragments | None, header_set: set[str]) -> bool:
-    if fragments is None:
-        return True
-    if isinstance(fragments, ColumnLabeledFragments):
-        return fragments.label_column in header_set
-    return True
 
 
 def _check_computed_columns(rule: _RuleCore, var: ColumnGroup) -> None:
@@ -631,7 +508,7 @@ def _check_computed_column(rule: _RuleCore, column: ComputedColumn, var: ColumnG
         if rule.quantification_level not in {"ion", "fragment"}:
             raise ValueError("how='proforma_ion' is valid only for ion or fragment rules.")
         charge_column = column.inputs[1]
-        if var.type_for(charge_column) != "integer":
+        if var.types.get(charge_column, "string") != "integer":
             raise ValueError(
                 "how='proforma_ion' requires its charge source to declare type='integer'; "
                 f"got {charge_column!r}"
@@ -683,25 +560,26 @@ class Document(ModelBase):
     base: JsonDict
     levels: dict[QuantificationLevel, JsonDict] = Field(min_length=1)
 
-    def rule(self, level: QuantificationLevel) -> LongRule | WideRule:
-        """Merge ``level`` over the base and validate the composed rule."""
-        try:
-            merged = _merge_fragments(self.base, self.levels[level])
-        except TypeError as error:
-            raise ValueError(
-                f"{self.path}: level {level!r} fragments do not merge: {error}"
-            ) from error
-        return validate_rule(
-            {
-                "schema_version": self.schema_version,
-                "file_version": self.file_version,
-                "software_name": self.software_name,
-                "software_version_pattern": self.software_version_pattern,
-                "quantification_level": level,
-                "shape": self.input.shape,
-                **merged,
-            }
-        )
+
+def compose_rule(document: Document, level: QuantificationLevel) -> LongRule | WideRule:
+    """Merge ``level`` over the document's base and validate the composed rule."""
+    try:
+        merged = _merge_fragments(document.base, document.levels[level])
+    except TypeError as error:
+        raise ValueError(
+            f"{document.path}: level {level!r} fragments do not merge: {error}"
+        ) from error
+    return validate_rule(
+        {
+            "schema_version": document.schema_version,
+            "file_version": document.file_version,
+            "software_name": document.software_name,
+            "software_version_pattern": document.software_version_pattern,
+            "quantification_level": level,
+            "shape": document.input.shape,
+            **merged,
+        }
+    )
 
 
 def load_document(path: Path) -> Document:
