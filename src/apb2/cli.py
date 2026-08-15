@@ -17,8 +17,8 @@ from cyclopts import App, Parameter
 from loguru import logger
 
 from apb2.output import as_anndata, update_namespace, write_atomically
+from apb2.parse_quant.bound_input_reader import format_for
 from apb2.parse_quant.errors import IncompatibleSourceError
-from apb2.parse_quant.input import format_for
 from apb2.parse_quant.sources import SingleFile
 from apb2.parse_strategy import make_parse_strategy
 from apb2.vendor_params.model import Parameters

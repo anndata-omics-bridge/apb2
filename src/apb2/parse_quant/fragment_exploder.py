@@ -1,4 +1,4 @@
-"""The ``[fragments]`` block: explode packed parallel-list columns, one row per fragment.
+"""``FragmentExploder``: the ``[fragments]`` block — packed lists to one row per fragment.
 
 DIA-NN-style reports pack per-fragment values as delimiter-joined lists inside each
 precursor row (``Fragment.Info`` plus parallel ``Fragment.Quant.*`` lists, aligned by

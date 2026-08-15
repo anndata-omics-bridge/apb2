@@ -1,4 +1,4 @@
-"""The shape block: convert one key-prepared flat table into matrices and axis frames.
+"""``TableConversion``: the ``shape`` block — key-prepared table to matrices and axes.
 
 ``conversion_for(rule, strict=…)`` is the single composition-root dispatch over the rule
 shape. Past it the shape does not exist: a ``LongConversion`` scatters long rows into
@@ -8,7 +8,7 @@ high-cardinality var axes; the scatter is O(nnz + obs·var) with identical seman
 
 The axis frames a conversion returns are *raw*: they carry the prepared key columns plus
 every vendor source column the declared columns will be materialized from — that
-materialization runs afterwards, on these deduplicated frames (``columns.finish``), not
+materialization runs afterwards, on these deduplicated frames (``column_plan.finish``), not
 on the flat table.
 """
 
@@ -76,7 +76,7 @@ def _carry_columns(keys: list[str], group: ColumnGroup, extras: tuple[str, ...])
     """Everything an axis frame must take off the flat table, in stable order.
 
     Declared names cover the already-prepared key-closure columns; raw sources cover
-    everything ``columns.finish`` materializes afterwards. Absent names (skipped
+    everything ``column_plan.finish`` materializes afterwards. Absent names (skipped
     optionals, columns not yet materialized) drop out at the present-filter.
     """
     return list(

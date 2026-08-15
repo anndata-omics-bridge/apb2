@@ -21,14 +21,14 @@ from typing import Protocol
 
 import pandas as pd
 
-from apb2.parse_quant.columns import ColumnMaterialization
-from apb2.parse_quant.conversion import conversion_for
+from apb2.parse_quant.bound_input_reader import bind_source, compile_read_plan
+from apb2.parse_quant.column_plan import ColumnMaterialization
 from apb2.parse_quant.errors import IncompatibleSourceError, NoCompatibleLevelError
-from apb2.parse_quant.fragments import exploder_for
-from apb2.parse_quant.input import bind_source, compile_read_plan
+from apb2.parse_quant.fragment_exploder import exploder_for
 from apb2.parse_quant.modifications import applier_for
 from apb2.parse_quant.result import ParsedData
 from apb2.parse_quant.sources import InputSource
+from apb2.parse_quant.table_conversion import conversion_for
 from apb2.serialization import JsonValue
 from apb2.vendor_params.model import Parameters
 from apb2.vendor_parse_rules.model import LEVELS, LongRule, QuantificationLevel, WideRule

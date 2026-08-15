@@ -15,7 +15,7 @@ from apb2.parse_quant.errors import (
     IncompatibleSourceError,
     NoCompatibleLevelError,
 )
-from apb2.parse_quant.fragments import NoFragments
+from apb2.parse_quant.fragment_exploder import NoFragments
 from apb2.parse_quant.result import ParsedData
 from apb2.parse_quant.sources import (
     DelimitedDialect,

@@ -1,4 +1,4 @@
-"""The input side: recognise the file's format, bind a dialect, read a projection.
+"""``BoundInputReader``: everything between a path and one assembled DataFrame.
 
 One module for everything between a path and a DataFrame. ``format_for(path)`` returns a
 path-initialized reader for header-level questions; ``bind_source`` resolves one typed

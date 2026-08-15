@@ -1,4 +1,4 @@
-"""The ``columns`` block: select, optional_select, types, and computed columns.
+"""``ColumnPlan``: the ``columns`` block — select, optional_select, types, computed.
 
 Materialization is split around the pivot, because cost lives on the flat table: the
 axis-key closure (the key columns plus everything they are computed from) is prepared on
