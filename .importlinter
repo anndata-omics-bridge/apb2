@@ -16,6 +16,23 @@ forbidden_modules =
     anndata
     anndata_proteomics
 
+[importlinter:contract:anndata-is-a-storage-adapter]
+name = the parse strategy never imports a storage backend
+type = forbidden
+source_modules =
+    apb2.parse_quant
+forbidden_modules =
+    anndata
+
+[importlinter:contract:declarations-do-not-know-the-strategy]
+name = the schema packages never import the parse strategy
+type = forbidden
+source_modules =
+    apb2.vendor_parse_rules
+    apb2.vendor_params
+forbidden_modules =
+    apb2.parse_quant
+
 [importlinter:contract:no-legacy-parser-coupling]
 name = apb2 never imports apb's parser machinery
 type = forbidden

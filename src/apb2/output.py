@@ -12,7 +12,7 @@ from tempfile import TemporaryDirectory
 
 from anndata import AnnData
 
-from apb2.result import ParsedData
+from apb2.parse_quant.result import ParsedData
 from apb2.serialization import JsonObject, JsonValue, to_json_compatible
 
 NAMESPACE = "anndata_proteomics"

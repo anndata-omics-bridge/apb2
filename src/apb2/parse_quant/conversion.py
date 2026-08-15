@@ -21,10 +21,10 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from apb2.duplicates import DuplicatePolicy, policy_for
-from apb2.layers import LayerPlan, warn_if_all_missing
-from apb2.modifications.pipeline import modification_sources
-from apb2.result import ParsedData
+from apb2.parse_quant.duplicates import DuplicatePolicy, policy_for
+from apb2.parse_quant.layers import LayerPlan, warn_if_all_missing
+from apb2.parse_quant.modifications import modification_sources
+from apb2.parse_quant.result import ParsedData
 from apb2.vendor_parse_rules.model import (
     ColumnGroup,
     LongRule,

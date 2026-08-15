@@ -18,8 +18,8 @@ from dataclasses import replace
 import numpy as np
 import pandas as pd
 
-from apb2.modifications.pipeline import ModificationApplier
-from apb2.result import ParsedData
+from apb2.parse_quant.modifications import ModificationApplier
+from apb2.parse_quant.result import ParsedData
 from apb2.vendor_parse_rules.model import (
     AxisColumnType,
     Coalesce,

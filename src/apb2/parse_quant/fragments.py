@@ -16,7 +16,7 @@ from typing import override
 
 import pandas as pd
 
-from apb2.errors import IncompatibleSourceError
+from apb2.parse_quant.errors import IncompatibleSourceError
 from apb2.vendor_parse_rules.model import (
     ColumnLabeledFragments,
     Fragments,

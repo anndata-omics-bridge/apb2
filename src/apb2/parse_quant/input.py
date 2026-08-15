@@ -20,8 +20,8 @@ from pathlib import Path
 import pandas as pd
 import pyarrow.parquet as pq
 
-from apb2.errors import AmbiguousDialectError, IncompatibleSourceError
-from apb2.sources import (
+from apb2.parse_quant.errors import AmbiguousDialectError, IncompatibleSourceError
+from apb2.parse_quant.sources import (
     DelimitedDialect,
     DelimitedFile,
     FileRoles,

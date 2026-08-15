@@ -21,15 +21,15 @@ from typing import Protocol
 
 import pandas as pd
 
-from apb2.columns import ColumnMaterialization
-from apb2.conversion import conversion_for
-from apb2.errors import IncompatibleSourceError, NoCompatibleLevelError
-from apb2.fragments import exploder_for
-from apb2.input import bind_source, compile_read_plan
-from apb2.modifications.pipeline import applier_for
-from apb2.result import ParsedData
+from apb2.parse_quant.columns import ColumnMaterialization
+from apb2.parse_quant.conversion import conversion_for
+from apb2.parse_quant.errors import IncompatibleSourceError, NoCompatibleLevelError
+from apb2.parse_quant.fragments import exploder_for
+from apb2.parse_quant.input import bind_source, compile_read_plan
+from apb2.parse_quant.modifications import applier_for
+from apb2.parse_quant.result import ParsedData
+from apb2.parse_quant.sources import InputSource
 from apb2.serialization import JsonValue
-from apb2.sources import InputSource
 from apb2.vendor_params.model import Parameters
 from apb2.vendor_parse_rules.model import LEVELS, LongRule, QuantificationLevel, WideRule
 from apb2.vendor_parse_rules.runtime import available_for, recognition_for, resolved_for

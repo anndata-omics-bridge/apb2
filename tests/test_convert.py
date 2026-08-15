@@ -8,15 +8,21 @@ import anndata
 import numpy as np
 import pytest
 
-from apb2.errors import (
+from apb2.output import to_anndata
+from apb2.parse_quant.errors import (
     AmbiguousDialectError,
     IncompatibleSourceError,
     NoCompatibleLevelError,
 )
-from apb2.input import UnknownFormat
-from apb2.output import to_anndata
-from apb2.parse_strategy import make_parse_strategies, make_parse_strategy
-from apb2.sources import DelimitedDialect, DelimitedFile, Folder, GroupedNumbers, SingleFile
+from apb2.parse_quant.input import UnknownFormat
+from apb2.parse_quant.parse_strategy import make_parse_strategies, make_parse_strategy
+from apb2.parse_quant.sources import (
+    DelimitedDialect,
+    DelimitedFile,
+    Folder,
+    GroupedNumbers,
+    SingleFile,
+)
 from apb2.vendor_parse_rules.model import LongRule, WideRule, validate_rule
 
 
@@ -276,7 +282,7 @@ def _two_layer_rule() -> LongRule | WideRule:
 
 
 def test_empty_x_layer_beside_a_populated_sibling_is_a_contract_error(tmp_path: Path) -> None:
-    from apb2.conversion import LayerContractError
+    from apb2.parse_quant.conversion import LayerContractError
 
     report = tmp_path / "report.tsv"
     report.write_text(
@@ -289,7 +295,7 @@ def test_empty_x_layer_beside_a_populated_sibling_is_a_contract_error(tmp_path: 
 
 
 def test_strict_promotes_an_empty_auxiliary_layer_to_an_error(tmp_path: Path) -> None:
-    from apb2.conversion import LayerContractError
+    from apb2.parse_quant.conversion import LayerContractError
 
     report = tmp_path / "report.tsv"
     report.write_text(

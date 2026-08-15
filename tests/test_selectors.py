@@ -12,7 +12,7 @@ from typing import get_args
 
 import pytest
 
-from apb2.columns import (
+from apb2.parse_quant.columns import (
     CoalesceColumn,
     DerivedSequenceColumn,
     JoinNonEmptyColumn,
@@ -20,16 +20,16 @@ from apb2.columns import (
     ProformaIonColumn,
     computer_for,
 )
-from apb2.conversion import LongConversion, WideConversion, conversion_for
-from apb2.duplicates import POLICY_BY_MODE, policy_for
-from apb2.fragments import exploder_for
-from apb2.layers import (
+from apb2.parse_quant.conversion import LongConversion, WideConversion, conversion_for
+from apb2.parse_quant.duplicates import POLICY_BY_MODE, policy_for
+from apb2.parse_quant.fragments import exploder_for
+from apb2.parse_quant.layers import (
     FactorCoercion,
     PlainNumericCoercion,
     RegexNumericCoercion,
     coercion_for,
 )
-from apb2.modifications.pipeline import applier_for
+from apb2.parse_quant.modifications import applier_for
 from apb2.vendor_parse_rules.documents.select import packaged_documents
 from apb2.vendor_parse_rules.model import (
     Coalesce,

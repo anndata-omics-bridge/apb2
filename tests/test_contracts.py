@@ -10,15 +10,15 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from apb2 import parse_strategy
-from apb2.errors import (
+from apb2.parse_quant import parse_strategy
+from apb2.parse_quant.errors import (
     IncompatibleSourceError,
     NoCompatibleLevelError,
 )
-from apb2.fragments import NoFragments
-from apb2.parse_strategy import Parser
-from apb2.result import ParsedData
-from apb2.sources import (
+from apb2.parse_quant.fragments import NoFragments
+from apb2.parse_quant.parse_strategy import Parser
+from apb2.parse_quant.result import ParsedData
+from apb2.parse_quant.sources import (
     DelimitedDialect,
     GroupedNumbers,
     InputSource,
