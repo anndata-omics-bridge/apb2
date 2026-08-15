@@ -10,13 +10,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from apb2.parse_quant import parse_strategy
+from apb2 import parse_strategy
 from apb2.parse_quant.errors import (
     IncompatibleSourceError,
     NoCompatibleLevelError,
 )
 from apb2.parse_quant.fragments import NoFragments
-from apb2.parse_quant.parse_strategy import Parser
 from apb2.parse_quant.result import ParsedData
 from apb2.parse_quant.sources import (
     DelimitedDialect,
@@ -25,6 +24,7 @@ from apb2.parse_quant.sources import (
     SingleFile,
     UngroupedNumbers,
 )
+from apb2.parse_strategy import Parser
 from apb2.vendor_params.model import Parameters
 from apb2.vendor_parse_rules.model import LongRule
 

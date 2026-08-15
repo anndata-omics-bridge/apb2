@@ -15,7 +15,6 @@ from apb2.parse_quant.errors import (
     NoCompatibleLevelError,
 )
 from apb2.parse_quant.input import UnknownFormat
-from apb2.parse_quant.parse_strategy import make_parse_strategies, make_parse_strategy
 from apb2.parse_quant.sources import (
     DelimitedDialect,
     DelimitedFile,
@@ -23,6 +22,7 @@ from apb2.parse_quant.sources import (
     GroupedNumbers,
     SingleFile,
 )
+from apb2.parse_strategy import make_parse_strategies, make_parse_strategy
 from apb2.vendor_parse_rules.model import LongRule, WideRule, validate_rule
 
 

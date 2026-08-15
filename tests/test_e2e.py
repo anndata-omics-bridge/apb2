@@ -25,8 +25,8 @@ from anndata_proteomics.vendor_quant_rules.registry import (
     iter_packaged_rules as iter_legacy_rules,
 )
 
-from apb2.parse_quant.parse_strategy import make_parse_strategy
 from apb2.parse_quant.sources import SingleFile
+from apb2.parse_strategy import make_parse_strategy
 from apb2.vendor_params.model import Parameters
 from apb2.vendor_params.registry import parse_params
 from apb2.vendor_parse_rules.documents.select import packaged_documents, software_slug
