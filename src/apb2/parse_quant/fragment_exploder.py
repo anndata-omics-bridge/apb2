@@ -12,7 +12,6 @@ read plan projects the frame before it reaches the exploder, so no trim happens 
 from __future__ import annotations
 
 import math
-from typing import override
 
 import pandas as pd
 
@@ -50,51 +49,56 @@ def _positions(tokens: list[str]) -> list[int]:
     return list(range(len(tokens)))
 
 
-class _PackedExplode:
-    """Shared mechanics of both exploders: trim, split, explode, coerce."""
+class PackedLists:
+    """The packed-cell mechanics both exploders hold: split into tokens, then coerce.
+
+    A collaborator, never a base class: each exploder owns one of these and calls it.
+    """
 
     def __init__(
-        self,
-        fragments: PositionalFragments | ColumnLabeledFragments,
-        value_columns: tuple[str, ...],
+        self, columns: tuple[str, ...], value_columns: tuple[str, ...], delimiter: str
     ) -> None:
+        self.columns = columns
         self.value_columns = value_columns
-        self.delimiter = fragments.delimiter
-        self.label_output = fragments.label_output
+        self.delimiter = delimiter
 
-    def packed_columns(self) -> tuple[str, ...]:
-        return self.value_columns
-
-    def _split(self, df: pd.DataFrame) -> pd.DataFrame:
+    def split(self, df: pd.DataFrame) -> pd.DataFrame:
         """Split each packed column into token lists.
 
         No trim: the read plan already projected the frame to exactly the columns the
         rule reads, so everything present survives the explode.
         """
-        packed = self.packed_columns()
-        missing = [column for column in packed if column not in df.columns]
+        missing = [column for column in self.columns if column not in df.columns]
         if missing:
             raise KeyError(
                 f"[fragments] references column(s) missing from the input: {missing}; "
                 f"available: {list(df.columns)[:10]}…"
             )
         work = df.copy()
-        for column in packed:
+        for column in self.columns:
             work[column] = work[column].map(lambda value: _split_packed(value, self.delimiter))
         return work
 
-    def _coerce_values(self, df: pd.DataFrame) -> pd.DataFrame:
+    def to_numeric(self, df: pd.DataFrame) -> pd.DataFrame:
         """Coerce exploded values to numeric so they ride the frame as float64."""
         for column in self.value_columns:
             df[column] = pd.to_numeric(df[column], errors="coerce")
         return df
 
 
-class PositionalExplode(_PackedExplode):
+class PositionalExplode:
     """Fan packed fragment values out, labelling them ``frag_0``, ``frag_1``, … by index."""
 
+    def __init__(self, fragments: PositionalFragments, value_columns: tuple[str, ...]) -> None:
+        self.value_columns = value_columns
+        self.label_output = fragments.label_output
+        self.packed = PackedLists(value_columns, value_columns, fragments.delimiter)
+
+    def packed_columns(self) -> tuple[str, ...]:
+        return self.packed.columns
+
     def explode(self, df: pd.DataFrame) -> pd.DataFrame:
-        work = self._split(df)
+        work = self.packed.split(df)
         # A parallel index list per precursor, exploded alongside the values.
         first = self.value_columns[0]
         work["_frag_pos"] = work[first].map(_positions)
@@ -102,35 +106,33 @@ class PositionalExplode(_PackedExplode):
         work = work.dropna(subset=[first]).reset_index(drop=True)
         work[self.label_output] = [f"frag_{int(pos)}" for pos in work["_frag_pos"]]
         work = work.drop(columns=["_frag_pos"])
-        return self._coerce_values(work)
+        return self.packed.to_numeric(work)
 
 
-class ColumnLabeledExplode(_PackedExplode):
+class ColumnLabeledExplode:
     """Fan packed fragment values out, taking each label from a packed label column."""
 
-    def __init__(
-        self,
-        fragments: ColumnLabeledFragments,
-        value_columns: tuple[str, ...],
-    ) -> None:
+    def __init__(self, fragments: ColumnLabeledFragments, value_columns: tuple[str, ...]) -> None:
         self.label_column = fragments.label_column
-        super().__init__(fragments, value_columns)
+        self.label_output = fragments.label_output
+        self.packed = PackedLists(
+            (fragments.label_column, *value_columns), value_columns, fragments.delimiter
+        )
 
-    @override
     def packed_columns(self) -> tuple[str, ...]:
-        return (self.label_column, *self.value_columns)
+        return self.packed.columns
 
     def explode(self, df: pd.DataFrame) -> pd.DataFrame:
-        work = self._split(df)
+        work = self.packed.split(df)
         # Multi-column explode keeps the lists aligned and raises if their lengths differ.
-        work = work.explode(list(self.packed_columns()), ignore_index=True)
+        work = work.explode(list(self.packed.columns), ignore_index=True)
         # Precursors with no fragments explode to a NaN row; drop them.
         work = work.dropna(subset=[self.label_column]).reset_index(drop=True)
         work[self.label_output] = work[self.label_column].astype(str).str.split("/").str[0]
         # Drop the packed label column so the (now ~12x longer) frame does not carry a
         # redundant long string column.
         work = work.drop(columns=[self.label_column])
-        return self._coerce_values(work)
+        return self.packed.to_numeric(work)
 
 
 class NoFragments:
