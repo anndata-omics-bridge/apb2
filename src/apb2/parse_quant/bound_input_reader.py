@@ -2,17 +2,18 @@
 
 One module for everything between a path and a DataFrame. ``format_for(path)`` returns a
 path-initialized reader for header-level questions; ``bind_source`` resolves one typed
-``InputSource`` into one concrete bound table for a rule (the single dispatch over the
-source union); ``compile_read_plan`` fixes the exact projected columns; the two table
-readers execute the plan. Detection is not an unrestricted guess: a candidate delimiter
-is viable only when the header it exposes satisfies the rule's required sources.
+``InputSource`` into one concrete bound table (the single dispatch over the source union);
+the two table readers execute a ``ReadPlan`` that ``selectors.compile_read_plan`` compiled
+from the rule. Detection is not an unrestricted guess: a candidate delimiter is viable only
+when the header it exposes is accepted, which is how the rule's required sources enter here
+— as a predicate over headers, never as a rule.
 """
 
 from __future__ import annotations
 
 import csv
 import re
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable
 from dataclasses import dataclass
 from itertools import islice
 from pathlib import Path
@@ -30,8 +31,9 @@ from apb2.parse_quant.sources import (
     SingleFile,
     UngroupedNumbers,
 )
-from apb2.vendor_parse_rules.model import LongRule, WideRule
-from apb2.vendor_parse_rules.runtime import Recognition, declared_source_columns
+
+type HeaderPredicate = Callable[[list[str]], bool]
+"""Whether one inspected header satisfies the rule being constructed for."""
 
 # ------------------------------------------------------------------- tabular file formats
 
@@ -155,46 +157,6 @@ class ReadPlan:
     string_sources: frozenset[str]
 
 
-def compile_read_plan(
-    recognition: Recognition,
-    header: Sequence[str],
-    modification_sources: Iterable[str],
-    packed_columns: Iterable[str],
-) -> ReadPlan:
-    """Compile the exact projection one rule needs from one inspected header.
-
-    Required sources are validated separately (``recognition.matches`` during
-    construction); the projection is the intersection of the header with everything the
-    rule can read: selected and optional sources, computed-column inputs, layer sources
-    (exact for long rules, regex-expanded for wide ones), modification sources, and
-    packed fragment columns.
-    """
-    needed = set(modification_sources) | set(packed_columns) | declared_source_columns(recognition)
-    needed.update(recognition.layer_source_columns(list(header)))
-    columns = tuple(name for name in header if name in needed)
-    strings = string_sources_for(recognition) & set(columns)
-    return ReadPlan(columns=columns, string_sources=frozenset(strings))
-
-
-def string_sources_for(recognition: Recognition) -> frozenset[str]:
-    """Return real vendor sources whose exact textual tokens must survive reading."""
-    source_types: dict[str, str] = {}
-    for _axis, group in recognition.column_groups():
-        selected = {**group.select, **group.optional_select}
-        for output_name, source_name in selected.items():
-            logical_type = group.types.get(output_name, "string")
-            if source_name in source_types and source_types[source_name] != logical_type:
-                raise ValueError(
-                    "conflicting logical types for vendor source "
-                    f"{source_name!r}: {source_types[source_name]!r} and "
-                    f"{logical_type!r}"
-                )
-            source_types[source_name] = logical_type
-    return frozenset(
-        source for source, logical_type in source_types.items() if logical_type == "string"
-    )
-
-
 # -------------------------------------------------------------------------- bound readers
 
 
@@ -249,30 +211,25 @@ class BoundDelimited:
 type BoundTable = BoundDelimited | Parquet
 
 
-def bind_source(
-    source: InputSource,
-    rule: LongRule | WideRule,
-    recognition: Recognition,
-) -> BoundTable:
-    """Resolve one typed source into one concrete bound table for ``rule``."""
+def bind_source(source: InputSource, *, accepts: HeaderPredicate, rule_label: str) -> BoundTable:
+    """Resolve one typed source into one concrete bound table.
+
+    ``accepts`` decides whether a candidate header satisfies the rule under construction,
+    and ``rule_label`` names that rule in the errors raised when none does.
+    """
     match source:
         case DelimitedFile(path=path, dialect=dialect):
             return BoundDelimited(path, dialect)
         case SingleFile(path=path):
-            return _bind_single_file(path, rule, recognition)
+            return _bind_single_file(path, accepts, rule_label)
         case Folder() | FileRoles():
             raise IncompatibleSourceError(
-                f"rule {rule.software_name!r} level {rule.quantification_level!r} reads one "
-                "table; folder and file-role sources need a file-set rule, and no packaged "
-                "rule declares one yet (plan stage 7)"
+                f"rule {rule_label} reads one table; folder and file-role sources need a "
+                "file-set rule, and no packaged rule declares one yet (plan stage 7)"
             )
 
 
-def _bind_single_file(
-    path: Path,
-    rule: LongRule | WideRule,
-    recognition: Recognition,
-) -> BoundTable:
+def _bind_single_file(path: Path, accepts: HeaderPredicate, rule_label: str) -> BoundTable:
     suffix = path.suffix.lower()
     if suffix == _PARQUET_SUFFIX:
         return Parquet(path)
@@ -280,19 +237,16 @@ def _bind_single_file(
     if candidates is None:
         raise _unknown_format(path)
     viable = [
-        delimiter
-        for delimiter in candidates
-        if recognition.matches(DelimitedText(path, delimiter).columns())
+        delimiter for delimiter in candidates if accepts(DelimitedText(path, delimiter).columns())
     ]
     if not viable:
         raise IncompatibleSourceError(
-            f"{path} does not expose the columns required by {rule.software_name!r} level "
-            f"{rule.quantification_level!r} under any candidate delimiter {candidates!r}"
+            f"{path} does not expose the columns required by {rule_label} under any "
+            f"candidate delimiter {candidates!r}"
         )
     if len(viable) > 1:
         raise AmbiguousDialectError(
-            f"{path} satisfies {rule.software_name!r} level "
-            f"{rule.quantification_level!r} under several delimiters {viable!r}; bind an "
+            f"{path} satisfies {rule_label} under several delimiters {viable!r}; bind an "
             "explicit DelimitedFile dialect instead"
         )
     delimiter = viable[0]

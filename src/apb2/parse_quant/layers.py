@@ -1,11 +1,10 @@
-"""The ``layers[]`` block: how one layer declaration becomes values in a matrix cell.
+"""How one layer's values become numbers in a matrix cell: the ``layers[]`` runtime.
 
-``coercion_for(layer)`` is where the ``encoding_mode`` flag is read **once** and becomes
-a type. Past this point the illegal combinations are not rejected, they are
-unrepresentable: a ``FactorCoercion`` has no ``missing_values`` field to set. Splitting
-numeric into two types rather than giving one a ``pattern: str | None`` is the same rule
-one level down: an optional field whose presence selects behaviour is a discriminator
-wearing ``| None``.
+``selectors.coercion_for`` reads the ``encoding_mode`` flag **once** and it becomes a type
+here. Past that point the illegal combinations are not rejected, they are unrepresentable:
+a ``FactorCoercion`` has no ``missing_values`` field to set. Splitting numeric into two
+types rather than giving one a ``pattern: str | None`` is the same rule one level down: an
+optional field whose presence selects behaviour is a discriminator wearing ``| None``.
 """
 
 from __future__ import annotations
@@ -16,9 +15,6 @@ from collections.abc import Mapping
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-
-from apb2.vendor_parse_rules.model import Layer, LongRule, RegexValuePattern, WideRule
-from apb2.vendor_parse_rules.runtime import layer_required
 
 logger = logging.getLogger(__name__)
 
@@ -68,16 +64,6 @@ class RegexNumericCoercion:
 type LayerCoercion = FactorCoercion | PlainNumericCoercion | RegexNumericCoercion
 
 
-def coercion_for(layer: Layer) -> LayerCoercion:
-    """Read a layer declaration's encoding flag once, and return the type it names."""
-    if layer.encoding_mode == "factor":
-        return FactorCoercion(layer.categories)
-    missing_values = tuple(layer.missing_values)
-    if isinstance(layer.value_pattern, RegexValuePattern):
-        return RegexNumericCoercion(missing_values, layer.value_pattern.pattern)
-    return PlainNumericCoercion(missing_values)
-
-
 class LayerPlan:
     """One layer's identity, its source, and how its values are read.
 
@@ -86,11 +72,11 @@ class LayerPlan:
     an absent source is a skip or an error.
     """
 
-    def __init__(self, rule: LongRule | WideRule, layer: Layer) -> None:
-        self.name = layer.name
-        self.source = layer.source
-        self.required = layer_required(rule, layer)
-        self.coercion = coercion_for(layer)
+    def __init__(self, *, name: str, source: str, required: bool, coercion: LayerCoercion) -> None:
+        self.name = name
+        self.source = source
+        self.required = required
+        self.coercion = coercion
 
     def coerce(self, series: pd.Series) -> pd.Series:
         return self.coercion.coerce(series)

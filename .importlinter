@@ -24,16 +24,16 @@ source_modules =
 forbidden_modules =
     anndata
 
-[importlinter:contract:only-the-composition-root-knows-the-evidence]
-name = search parameters reach only the composition root, never a strategy
+[importlinter:contract:strategies-never-read-the-configuration]
+name = the parse strategies import no schema package, directly or transitively
 type = forbidden
-# Direct imports only: a rule model legitimately validates its gate conditions against
-# the Parameters field set, so every strategy reaches vendor_params transitively through
-# the schema. What must not happen is a strategy reading the evidence itself.
-allow_indirect_imports = True
+# TODO item 9. Every strategy in parse_quant takes ordinary typed values, so neither the
+# rule nor the search-parameter evidence can reach it: selectors.py translates one into
+# the other, and parse_strategy.py is the only module that depends on all three sides.
 source_modules =
     apb2.parse_quant
 forbidden_modules =
+    apb2.vendor_parse_rules
     apb2.vendor_params
 
 [importlinter:contract:declarations-do-not-know-the-strategy]

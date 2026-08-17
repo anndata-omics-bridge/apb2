@@ -3,7 +3,8 @@
 Wide and long tables mean different things by "duplicate": the wide converter finds
 several *columns* claiming one sample, the long converter finds repeated key *rows*.
 That is why a policy answers several combining questions rather than one — the two
-converters do not share a representation.
+converters do not share a representation. ``selectors.policy_for`` reads the declared
+``mode`` once and hands the conversion the policy it names.
 """
 
 from __future__ import annotations
@@ -11,8 +12,6 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-
-from apb2.vendor_parse_rules.model import DuplicateMode, Duplicates
 
 type DenseLayerMatrix = NDArray[np.float64]
 type CategoryCodes = NDArray[np.intp]
@@ -162,23 +161,3 @@ class SumDuplicates:
 
 
 type DuplicatePolicy = ErrorOnDuplicates | KeepFirstDuplicate | SumDuplicates
-
-POLICY_BY_MODE: dict[DuplicateMode, DuplicatePolicy] = {
-    "error": ErrorOnDuplicates(),
-    "keep_first": KeepFirstDuplicate(),
-    "aggregate": SumDuplicates(),
-    # "keep_all_as_raw_table" is absent on purpose: the schema accepts the mode and no
-    # policy implements it, so policy_for raises once, naming it, before any conversion
-    # work starts.
-}
-
-
-def policy_for(duplicates: Duplicates) -> DuplicatePolicy:
-    """Select the policy a rule's duplicate mode names.
-
-    Raises NotImplementedError for a mode the schema permits but no policy implements.
-    """
-    policy = POLICY_BY_MODE.get(duplicates.mode)
-    if policy is None:
-        raise NotImplementedError(f"duplicates.mode={duplicates.mode!r} is not yet supported")
-    return policy

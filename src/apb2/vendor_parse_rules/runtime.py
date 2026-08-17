@@ -21,6 +21,8 @@ from apb2.vendor_parse_rules.model import (
     ConditionValue,
     Layer,
     LongRule,
+    Modifications,
+    SiteListModifications,
     WideRule,
     modification_outputs,
     validate_rule,
@@ -29,6 +31,11 @@ from apb2.vendor_parse_rules.model import (
 _SYNTHESIZED = frozenset({"stripped_sequence"})
 
 type AxisName = str  # "obs" | "var"
+
+
+def rule_label(rule: LongRule | WideRule) -> str:
+    """How one rule names itself in an error message."""
+    return f"{rule.software_name!r} level {rule.quantification_level!r}"
 
 
 def layer_required(rule: LongRule | WideRule, layer: Layer) -> bool:
@@ -41,6 +48,17 @@ def synthesized_columns(rule: LongRule | WideRule) -> frozenset[str]:
     if rule.modifications is None:
         return _SYNTHESIZED
     return _SYNTHESIZED | modification_outputs(rule.modifications)
+
+
+def modification_sources(modifications: Modifications) -> tuple[str, ...]:
+    """The raw vendor columns one modifications declaration reads."""
+    if isinstance(modifications, SiteListModifications):
+        return (
+            modifications.sequence_column,
+            modifications.modification_column,
+            modifications.site_column,
+        )
+    return (modifications.source_column,)
 
 
 def declared_source_columns(recognition: Recognition) -> set[str]:

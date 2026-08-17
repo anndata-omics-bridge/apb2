@@ -1,5 +1,12 @@
 # Changes
 
+- 2026-08-17: TODO item 9 closed — `parse_quant` imports no schema package. Every strategy
+  constructor takes ordinary typed values (`bind_source` takes a header predicate and a label
+  instead of the rule); the seven selector factories and the configuration→strategy
+  translation they perform moved into the new top-level `selectors.py`, beside
+  `parse_strategy.py`. `coercer_for` makes the axis-column `types` lookup a selector as well,
+  pinned by a new test. One import-linter contract replaces the old direct-only one and holds
+  without `allow_indirect_imports`.
 - 2026-08-17: TODO item 10 closed — no inheritance left in the strategies. `modifications.py`
   loses `_NormalizeSequences`: `TokenRegexApplier` and `SiteListApplier` each implement the
   applier surface directly, hold a `SequenceColumns` collaborator (source check + the three

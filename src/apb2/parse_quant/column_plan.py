@@ -6,8 +6,9 @@ the flat frame — the pivot cannot group without it — while every remaining d
 column is materialized afterwards on the deduplicated obs/var frames, where a column fix
 touches nrObs or nrVars rows instead of nrObs x nrVars.
 
-``computer_for(column)`` reads the ``how`` selector once; each computer is constructed
-from its own declaration variant and fails at construction when it cannot be built.
+``selectors.column_plan_for`` performs the split and reads the ``how`` and ``types``
+selectors once; what arrives here is two finished passes per axis — the columns to select,
+the computers to run, and the coercion each declared column's logical type named.
 """
 
 from __future__ import annotations
@@ -20,21 +21,6 @@ import pandas as pd
 
 from apb2.parse_quant.modifications import ModificationApplier
 from apb2.parse_quant.result import ParsedData
-from apb2.vendor_parse_rules.model import (
-    AxisColumnType,
-    Coalesce,
-    ColumnGroup,
-    ComputedColumn,
-    JoinNonempty,
-    LongRule,
-    ProformaFragment,
-    ProformaIon,
-    ProformaSequence,
-    StrippedSequence,
-    WideRule,
-    group_names,
-)
-from apb2.vendor_parse_rules.runtime import Recognition
 
 # ------------------------------------------------------------- logical axis-column typing
 
@@ -89,20 +75,15 @@ def _coerce_boolean(values: pd.Series, name: str, source: str) -> pd.Series:
     return parsed.astype("boolean")
 
 
-type _AxisCoercer = Callable[[pd.Series, str, str], pd.Series]
+type AxisCoercer = Callable[[pd.Series, str, str], pd.Series]
 
-_AXIS_COERCERS: Mapping[AxisColumnType, _AxisCoercer] = {
+AXIS_COERCERS: Mapping[str, AxisCoercer] = {
     "string": _coerce_string,
     "integer": _coerce_integer,
     "number": _coerce_number,
     "boolean": _coerce_boolean,
 }
-
-
-def _coerce_axis_column(
-    values: pd.Series, logical_type: AxisColumnType, name: str, source: str
-) -> pd.Series:
-    return _AXIS_COERCERS[logical_type](values, name, source)
+"""One coercion per logical axis-column type; ``selectors.coercer_for`` reads this table."""
 
 
 # ------------------------------------------------------------------------------ computers
@@ -138,9 +119,9 @@ def _present_sources(
 class CoalesceColumn:
     """Take the first non-null source value in declaration order."""
 
-    def __init__(self, column: Coalesce) -> None:
-        self.name = column.name
-        self.sources = tuple(column.inputs)
+    def __init__(self, *, name: str, sources: tuple[str, ...]) -> None:
+        self.name = name
+        self.sources = sources
 
     def compute(self, df: pd.DataFrame, allow_missing: frozenset[str]) -> pd.Series:
         present = _present_sources(self.name, self.sources, df, allow_missing)
@@ -153,10 +134,10 @@ class CoalesceColumn:
 class JoinNonEmptyColumn:
     """Join the non-empty source values with a separator."""
 
-    def __init__(self, column: JoinNonempty) -> None:
-        self.name = column.name
-        self.sources = tuple(column.inputs)
-        self.separator = column.separator
+    def __init__(self, *, name: str, sources: tuple[str, ...], separator: str) -> None:
+        self.name = name
+        self.sources = sources
+        self.separator = separator
 
     def compute(self, df: pd.DataFrame, allow_missing: frozenset[str]) -> pd.Series:
         present = _present_sources(self.name, self.sources, df, allow_missing)
@@ -176,9 +157,9 @@ class JoinNonEmptyColumn:
 class DerivedSequenceColumn:
     """Expose a column apb2 derived earlier in the pipeline under its declared name."""
 
-    def __init__(self, column: StrippedSequence | ProformaSequence) -> None:
-        self.name = column.name
-        self.source_key = column.how
+    def __init__(self, *, name: str, source_key: str) -> None:
+        self.name = name
+        self.source_key = source_key
 
     def compute(self, df: pd.DataFrame, allow_missing: frozenset[str]) -> pd.Series:
         del allow_missing
@@ -192,9 +173,10 @@ class DerivedSequenceColumn:
 class ProformaIonColumn:
     """Combine a string peptidoform and an already-typed positive integer charge."""
 
-    def __init__(self, column: ProformaIon) -> None:
-        self.name = column.name
-        self.sequence_key, self.charge_key = column.inputs
+    def __init__(self, *, name: str, sequence_key: str, charge_key: str) -> None:
+        self.name = name
+        self.sequence_key = sequence_key
+        self.charge_key = charge_key
 
     def compute(self, df: pd.DataFrame, allow_missing: frozenset[str]) -> pd.Series:
         del allow_missing
@@ -213,9 +195,10 @@ class ProformaIonColumn:
 class ProformaFragmentColumn:
     """Combine a ProForma ion and a fragment label."""
 
-    def __init__(self, column: ProformaFragment) -> None:
-        self.name = column.name
-        self.ion_key, self.label_key = column.inputs
+    def __init__(self, *, name: str, ion_key: str, label_key: str) -> None:
+        self.name = name
+        self.ion_key = ion_key
+        self.label_key = label_key
 
     def compute(self, df: pd.DataFrame, allow_missing: frozenset[str]) -> pd.Series:
         del allow_missing
@@ -238,79 +221,60 @@ type ColumnComputer = (
 )
 
 
-def computer_for(column: ComputedColumn) -> ColumnComputer:
-    """Read a computed-column declaration's ``how`` once; return the computer it names."""
-    if isinstance(column, Coalesce):
-        return CoalesceColumn(column)
-    if isinstance(column, JoinNonempty):
-        return JoinNonEmptyColumn(column)
-    if isinstance(column, StrippedSequence | ProformaSequence):
-        return DerivedSequenceColumn(column)
-    if isinstance(column, ProformaIon):
-        return ProformaIonColumn(column)
-    return ProformaFragmentColumn(column)
-
-
 # --------------------------------------------------------------- split materialization
 
 
-class _GroupMaterialization:
-    """One axis group's materialization, split into the key closure and the rest."""
+class MaterializationPass:
+    """One pass over one frame: required selects, optional selects, computed columns.
 
-    def __init__(self, group: ColumnGroup, keys: list[str]) -> None:
-        self.group = group
-        self.declared = group_names(group)
-        closure = self._key_closure(group, keys)
-        self.key_select = [(n, s) for n, s in group.select.items() if n in closure]
-        self.key_optional = [(n, s) for n, s in group.optional_select.items() if n in closure]
-        self.key_computers = [computer_for(c) for c in group.computed if c.name in closure]
-        self.rest_select = [(n, s) for n, s in group.select.items() if n not in closure]
-        self.rest_optional = [(n, s) for n, s in group.optional_select.items() if n not in closure]
-        self.rest_computers = [computer_for(c) for c in group.computed if c.name not in closure]
-        self.keys_need_modifications = any(
-            isinstance(c, DerivedSequenceColumn) for c in self.key_computers
-        )
-        self.rest_needs_modifications = any(
-            isinstance(c, DerivedSequenceColumn) for c in self.rest_computers
-        )
+    ``coercers`` holds the coercion each selected column's declared logical type named, so
+    a pass never asks what type a column is — it looks up what to do with it.
+    """
 
-    @staticmethod
-    def _key_closure(group: ColumnGroup, keys: list[str]) -> set[str]:
-        """Every declared column the axis keys are computed from, keys included."""
-        computed_inputs = {c.name: set(c.inputs) for c in group.computed}
-        closure = set(keys)
-        changed = True
-        while changed:
-            changed = False
-            for name, inputs in computed_inputs.items():
-                if name in closure and not inputs.issubset(closure):
-                    closure |= inputs
-                    changed = True
-        return closure
-
-    def _type_of(self, name: str) -> AxisColumnType:
-        return self.group.types.get(name, "string")
-
-    def _materialize(
+    def __init__(
         self,
-        frame: pd.DataFrame,
-        select: list[tuple[str, str]],
-        optional: list[tuple[str, str]],
-        computers: list[ColumnComputer],
-        skipped: set[str],
+        *,
+        select: tuple[tuple[str, str], ...],
+        optional: tuple[tuple[str, str], ...],
+        coercers: Mapping[str, AxisCoercer],
+        computers: tuple[ColumnComputer, ...],
     ) -> None:
-        """One materialization pass: required selects, optional selects, computed columns."""
-        for name, source in select:
+        self.select = select
+        self.optional = optional
+        self.coercers = coercers
+        self.computers = computers
+        self.needs_modifications = any(
+            isinstance(computer, DerivedSequenceColumn) for computer in computers
+        )
+
+    def run(self, frame: pd.DataFrame, skipped: set[str]) -> None:
+        """Materialize this pass's columns onto ``frame``, recording optional skips."""
+        for name, source in self.select:
             if source not in frame.columns:
                 raise ValueError(f"cannot select column {name!r}; source {source!r} is missing")
-            frame[name] = _coerce_axis_column(frame[source], self._type_of(name), name, source)
-        for name, source in optional:
+            frame[name] = self.coercers[name](frame[source], name, source)
+        for name, source in self.optional:
             if source in frame.columns:
-                frame[name] = _coerce_axis_column(frame[source], self._type_of(name), name, source)
+                frame[name] = self.coercers[name](frame[source], name, source)
             else:
                 skipped.add(name)
-        for computer in computers:
+        for computer in self.computers:
             frame[computer.name] = computer.compute(frame, frozenset(skipped)).astype("string")
+
+
+class AxisMaterialization:
+    """One axis group's materialization, split into the key closure and the rest."""
+
+    def __init__(
+        self,
+        *,
+        declared: tuple[str, ...],
+        keys: MaterializationPass,
+        rest: MaterializationPass,
+    ) -> None:
+        self.declared = declared
+        self.keys = keys
+        self.rest = rest
 
     def materialize_keys(self, table: pd.DataFrame, applier: ModificationApplier) -> None:
         """Materialize the key closure on the flat frame, before the pivot.
@@ -318,9 +282,9 @@ class _GroupMaterialization:
         The applier runs first when a key is computed from a modification output; it
         reads only raw vendor columns, so the order against the selects is free.
         """
-        if self.keys_need_modifications:
+        if self.keys.needs_modifications:
             applier.apply(table)
-        self._materialize(table, self.key_select, self.key_optional, self.key_computers, set())
+        self.keys.run(table, set())
 
     def finish(
         self,
@@ -335,10 +299,10 @@ class _GroupMaterialization:
         always carried, so source-in-frame is exactly source-was-in-input. Declared-name
         presence would be defeated by a vendor column bearing the declared name.
         """
-        skipped = {name for name, source in self.key_optional if source not in frame.columns}
-        if self.rest_needs_modifications and not modifications_applied:
+        skipped = {name for name, source in self.keys.optional if source not in frame.columns}
+        if self.rest.needs_modifications and not modifications_applied:
             applier.apply(frame)
-        self._materialize(frame, self.rest_select, self.rest_optional, self.rest_computers, skipped)
+        self.rest.run(frame, skipped)
         present = [name for name in self.declared if name in frame.columns and name not in skipped]
         return frame[present]
 
@@ -348,20 +312,16 @@ class ColumnMaterialization:
 
     def __init__(
         self,
-        rule: LongRule | WideRule,
-        recognition: Recognition,
+        *,
+        groups: Mapping[str, AxisMaterialization],
         applier: ModificationApplier,
     ) -> None:
+        self.groups = groups
         self.applier = applier
-        keys_by_axis = {"obs": rule.axis.obs_keys, "var": rule.axis.var_keys}
-        self.groups = {
-            axis: _GroupMaterialization(group, keys_by_axis[axis])
-            for axis, group in recognition.column_groups()
-        }
         # A static fact of the rule, never sniffed from frame columns: a vendor file that
         # itself carries a column named like a modification output must not skip the run.
         self.modifications_applied_in_prepare = any(
-            group.keys_need_modifications for group in self.groups.values()
+            group.keys.needs_modifications for group in groups.values()
         )
 
     def prepare_keys(self, table: pd.DataFrame) -> pd.DataFrame:

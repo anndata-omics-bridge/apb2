@@ -13,25 +13,31 @@ from typing import get_args
 import pytest
 
 from apb2.parse_quant.column_plan import (
+    AXIS_COERCERS,
     CoalesceColumn,
     DerivedSequenceColumn,
     JoinNonEmptyColumn,
     ProformaFragmentColumn,
     ProformaIonColumn,
-    computer_for,
 )
-from apb2.parse_quant.duplicates import POLICY_BY_MODE, policy_for
-from apb2.parse_quant.fragment_exploder import exploder_for
 from apb2.parse_quant.layers import (
     FactorCoercion,
     PlainNumericCoercion,
     RegexNumericCoercion,
-    coercion_for,
 )
-from apb2.parse_quant.modifications import applier_for
-from apb2.parse_quant.table_conversion import LongConversion, WideConversion, conversion_for
+from apb2.parse_quant.table_conversion import LongConversion, WideConversion
+from apb2.selectors import (
+    POLICY_BY_MODE,
+    applier_for,
+    coercion_for,
+    computer_for,
+    conversion_for,
+    exploder_for,
+    policy_for,
+)
 from apb2.vendor_parse_rules.documents.select import packaged_documents
 from apb2.vendor_parse_rules.model import (
+    AxisColumnType,
     Coalesce,
     DuplicateMode,
     Duplicates,
@@ -60,6 +66,10 @@ def test_every_duplicate_mode_has_a_policy_or_is_the_documented_exception() -> N
     assert set(get_args(DuplicateMode)) == set(POLICY_BY_MODE) | {"keep_all_as_raw_table"}
     with pytest.raises(NotImplementedError, match="keep_all_as_raw_table"):
         policy_for(Duplicates(mode="keep_all_as_raw_table"))
+
+
+def test_every_declared_column_type_has_a_coercion() -> None:
+    assert set(get_args(AxisColumnType)) == set(AXIS_COERCERS)
 
 
 def test_every_computed_how_selects_its_computer_class() -> None:

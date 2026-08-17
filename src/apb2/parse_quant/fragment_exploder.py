@@ -2,11 +2,10 @@
 
 DIA-NN-style reports pack per-fragment values as delimiter-joined lists inside each
 precursor row (``Fragment.Info`` plus parallel ``Fragment.Quant.*`` lists, aligned by
-index, often terminated by a trailing delimiter). ``exploder_for(rule, header)`` reads
-``label_strategy`` once and resolves the packed columns against the inspected header: a
-missing column backing a required layer is an ``IncompatibleSourceError`` at
-construction, a missing optional one drops out so the conversion skips its layer. The
-read plan projects the frame before it reaches the exploder, so no trim happens here.
+index, often terminated by a trailing delimiter). Which exploder runs, and which packed
+columns it receives, is decided once by ``selectors.exploder_for`` against the inspected
+header. The read plan projects the frame before it reaches the exploder, so no trim
+happens here.
 """
 
 from __future__ import annotations
@@ -14,16 +13,6 @@ from __future__ import annotations
 import math
 
 import pandas as pd
-
-from apb2.parse_quant.errors import IncompatibleSourceError
-from apb2.vendor_parse_rules.model import (
-    ColumnLabeledFragments,
-    Fragments,
-    LongRule,
-    PositionalFragments,
-    WideRule,
-)
-from apb2.vendor_parse_rules.runtime import layer_required
 
 
 def _split_packed(value: object, delimiter: str) -> list[str]:
@@ -89,10 +78,12 @@ class PackedLists:
 class PositionalExplode:
     """Fan packed fragment values out, labelling them ``frag_0``, ``frag_1``, … by index."""
 
-    def __init__(self, fragments: PositionalFragments, value_columns: tuple[str, ...]) -> None:
+    def __init__(
+        self, *, label_output: str, delimiter: str, value_columns: tuple[str, ...]
+    ) -> None:
         self.value_columns = value_columns
-        self.label_output = fragments.label_output
-        self.packed = PackedLists(value_columns, value_columns, fragments.delimiter)
+        self.label_output = label_output
+        self.packed = PackedLists(value_columns, value_columns, delimiter)
 
     def packed_columns(self) -> tuple[str, ...]:
         return self.packed.columns
@@ -112,12 +103,17 @@ class PositionalExplode:
 class ColumnLabeledExplode:
     """Fan packed fragment values out, taking each label from a packed label column."""
 
-    def __init__(self, fragments: ColumnLabeledFragments, value_columns: tuple[str, ...]) -> None:
-        self.label_column = fragments.label_column
-        self.label_output = fragments.label_output
-        self.packed = PackedLists(
-            (fragments.label_column, *value_columns), value_columns, fragments.delimiter
-        )
+    def __init__(
+        self,
+        *,
+        label_column: str,
+        label_output: str,
+        delimiter: str,
+        value_columns: tuple[str, ...],
+    ) -> None:
+        self.label_column = label_column
+        self.label_output = label_output
+        self.packed = PackedLists((label_column, *value_columns), value_columns, delimiter)
 
     def packed_columns(self) -> tuple[str, ...]:
         return self.packed.columns
@@ -146,36 +142,3 @@ class NoFragments:
 
 
 type FragmentExploder = PositionalExplode | ColumnLabeledExplode | NoFragments
-
-
-def exploder_for(rule: LongRule | WideRule, header: list[str]) -> FragmentExploder:
-    """Read the rule's ``label_strategy`` once, and return the exploder it names.
-
-    Packed columns resolve against the header here: a missing column backing a required
-    layer fails construction; a missing optional one is dropped so the conversion skips
-    its layer, exactly as it does on the non-fragment path.
-    """
-    fragments: Fragments | None = rule.fragments
-    if fragments is None:
-        return NoFragments()
-    header_set = set(header)
-    required_sources = {layer.source for layer in rule.layers if layer_required(rule, layer)}
-    missing_required = [
-        column
-        for column in fragments.value_columns
-        if column not in header_set and column in required_sources
-    ]
-    if missing_required:
-        raise IncompatibleSourceError(
-            f"input lacks the packed fragment column(s) {missing_required} required by "
-            f"{rule.software_name!r} level {rule.quantification_level!r}"
-        )
-    value_columns = tuple(column for column in fragments.value_columns if column in header_set)
-    if not value_columns:
-        raise IncompatibleSourceError(
-            f"input carries none of the packed fragment columns {list(fragments.value_columns)} "
-            f"declared by {rule.software_name!r} level {rule.quantification_level!r}"
-        )
-    if isinstance(fragments, ColumnLabeledFragments):
-        return ColumnLabeledExplode(fragments, value_columns)
-    return PositionalExplode(fragments, value_columns)

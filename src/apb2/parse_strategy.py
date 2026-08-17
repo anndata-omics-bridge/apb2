@@ -21,18 +21,26 @@ from typing import Protocol
 
 import pandas as pd
 
-from apb2.parse_quant.bound_input_reader import bind_source, compile_read_plan
-from apb2.parse_quant.column_plan import ColumnMaterialization
+from apb2.parse_quant.bound_input_reader import bind_source
 from apb2.parse_quant.errors import IncompatibleSourceError, NoCompatibleLevelError
-from apb2.parse_quant.fragment_exploder import exploder_for
-from apb2.parse_quant.modifications import applier_for
 from apb2.parse_quant.result import ParsedData
 from apb2.parse_quant.sources import InputSource
-from apb2.parse_quant.table_conversion import conversion_for
+from apb2.selectors import (
+    applier_for,
+    column_plan_for,
+    compile_read_plan,
+    conversion_for,
+    exploder_for,
+)
 from apb2.serialization import JsonValue
 from apb2.vendor_params.model import Parameters
 from apb2.vendor_parse_rules.model import LEVELS, LongRule, QuantificationLevel, WideRule
-from apb2.vendor_parse_rules.runtime import available_for, recognition_for, resolved_for
+from apb2.vendor_parse_rules.runtime import (
+    available_for,
+    recognition_for,
+    resolved_for,
+    rule_label,
+)
 
 
 class BoundInputReader(Protocol):
@@ -111,24 +119,24 @@ def make_parse_strategy(
     """
     if not available_for(rule, parameters):
         raise IncompatibleSourceError(
-            f"{rule.software_name!r} level {rule.quantification_level!r} is not available "
-            f"for the supplied search parameters (requires {rule.requires_search_parameters})"
+            f"{rule_label(rule)} is not available for the supplied search parameters "
+            f"(requires {rule.requires_search_parameters})"
         )
     rule = resolved_for(rule, parameters)
+    label = rule_label(rule)
     recognition = recognition_for(rule)
-    binding = bind_source(source, rule, recognition)
+    binding = bind_source(source, accepts=recognition.matches, rule_label=label)
     header = binding.header()
     if not recognition.matches(header):
         raise IncompatibleSourceError(
-            f"{binding.path} does not carry the columns required by "
-            f"{rule.software_name!r} level {rule.quantification_level!r}"
+            f"{binding.path} does not carry the columns required by {label}"
         )
     applier = applier_for(rule)
     missing = [column for column in applier.sources if column not in set(header)]
     if missing:
         raise IncompatibleSourceError(
             f"{binding.path} lacks the [modifications] source column(s) {missing} required "
-            f"by {rule.software_name!r} level {rule.quantification_level!r}"
+            f"by {label}"
         )
     fragments = exploder_for(rule, header)
     plan = compile_read_plan(
@@ -138,7 +146,7 @@ def make_parse_strategy(
         level=rule.quantification_level,
         input=binding.make_reader(plan),
         fragments=fragments,
-        columns=ColumnMaterialization(rule, recognition, applier),
+        columns=column_plan_for(rule, recognition, applier),
         conversion=conversion_for(rule, strict=strict),
         provenance=_provenance(rule),
     )

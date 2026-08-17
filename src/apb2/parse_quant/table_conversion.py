@@ -1,10 +1,10 @@
 """``TableConversion``: the ``shape`` block — key-prepared table to matrices and axes.
 
-``conversion_for(rule, strict=…)`` is the single composition-root dispatch over the rule
-shape. Past it the shape does not exist: a ``LongConversion`` scatters long rows into
-dense matrices via integer category codes (pivot_table materialises a huge transient for
-high-cardinality var axes; the scatter is O(nnz + obs·var) with identical semantics), a
-``WideConversion`` reads its observation axis out of the layer regex captures.
+``selectors.conversion_for`` is the single dispatch over the rule shape. Past it the shape
+does not exist: a ``LongConversion`` scatters long rows into dense matrices via integer
+category codes (pivot_table materialises a huge transient for high-cardinality var axes;
+the scatter is O(nnz + obs·var) with identical semantics), a ``WideConversion`` reads its
+observation axis out of the layer regex captures.
 
 The axis frames a conversion returns are *raw*: they carry the prepared key columns plus
 every vendor source column the declared columns will be materialized from — that
@@ -16,22 +16,15 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Sequence
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from apb2.parse_quant.duplicates import DuplicatePolicy, policy_for
+from apb2.parse_quant.duplicates import DuplicatePolicy
 from apb2.parse_quant.layers import LayerPlan, warn_if_all_missing
-from apb2.parse_quant.modifications import modification_sources
 from apb2.parse_quant.result import ParsedData
-from apb2.vendor_parse_rules.model import (
-    ColumnGroup,
-    LongRule,
-    WideRule,
-    group_names,
-    modification_outputs,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +51,7 @@ def _build_index(df: pd.DataFrame, keys: list[str]) -> pd.Series:
     return joined
 
 
-def _build_axis_frame(df: pd.DataFrame, keys: list[str], carry: list[str]) -> pd.DataFrame:
+def _build_axis_frame(df: pd.DataFrame, keys: list[str], carry: Sequence[str]) -> pd.DataFrame:
     """Take the first occurrence per key tuple, carrying the columns present in ``df``.
 
     ``carry`` names the prepared keys plus every raw source the axis's declared columns
@@ -70,37 +63,6 @@ def _build_axis_frame(df: pd.DataFrame, keys: list[str], carry: list[str]) -> pd
     out = df[present].drop_duplicates(subset=keys)
     out.index = pd.Index(_build_index(out, keys), name=KEY_SEPARATOR.join(keys))
     return out
-
-
-def _carry_columns(keys: list[str], group: ColumnGroup, extras: tuple[str, ...]) -> list[str]:
-    """Everything an axis frame must take off the flat table, in stable order.
-
-    Declared names cover the already-prepared key-closure columns; raw sources cover
-    everything ``column_plan.finish`` materializes afterwards. Absent names (skipped
-    optionals, columns not yet materialized) drop out at the present-filter.
-    """
-    return list(
-        dict.fromkeys(
-            [
-                *keys,
-                *group_names(group),
-                *group.select.values(),
-                *group.optional_select.values(),
-                *extras,
-            ]
-        )
-    )
-
-
-def _var_extras(rule: LongRule | WideRule) -> tuple[str, ...]:
-    """Raw modification sources/outputs and the fragment label the var frame may need."""
-    extras: list[str] = []
-    if rule.modifications is not None:
-        extras.extend(modification_sources(rule.modifications))
-        extras.extend(sorted(modification_outputs(rule.modifications)))
-    if rule.fragments is not None:
-        extras.append(rule.fragments.label_output)
-    return tuple(extras)
 
 
 def _check_layer_occupancy(
@@ -137,14 +99,25 @@ def _check_layer_occupancy(
 class LongConversion:
     """Convert one long table: one row per (observation, feature)."""
 
-    def __init__(self, rule: LongRule, *, strict: bool) -> None:
-        self.obs_keys = list(rule.axis.obs_keys)
-        self.var_keys = list(rule.axis.var_keys)
-        self.obs_carry = _carry_columns(self.obs_keys, rule.columns.obs, ())
-        self.var_carry = _carry_columns(self.var_keys, rule.columns.var, _var_extras(rule))
-        self.layers = tuple(LayerPlan(rule, layer) for layer in rule.layers)
-        self.x_layer = rule.axis.x_layer
-        self.duplicates: DuplicatePolicy = policy_for(rule.axis.duplicates)
+    def __init__(
+        self,
+        *,
+        obs_keys: Sequence[str],
+        var_keys: Sequence[str],
+        obs_carry: Sequence[str],
+        var_carry: Sequence[str],
+        layers: tuple[LayerPlan, ...],
+        x_layer: str,
+        duplicates: DuplicatePolicy,
+        strict: bool,
+    ) -> None:
+        self.obs_keys = list(obs_keys)
+        self.var_keys = list(var_keys)
+        self.obs_carry = obs_carry
+        self.var_carry = var_carry
+        self.layers = layers
+        self.x_layer = x_layer
+        self.duplicates = duplicates
         self.strict = strict
 
     def parse(self, df: pd.DataFrame) -> ParsedData:
@@ -193,14 +166,25 @@ class LongConversion:
 class WideConversion:
     """Convert one wide table: one row per feature, observations in matrix headers."""
 
-    def __init__(self, rule: WideRule, *, strict: bool) -> None:
-        self.var_keys = list(rule.axis.var_keys)
-        self.var_carry = _carry_columns(self.var_keys, rule.columns.var, _var_extras(rule))
-        self.layers = tuple(LayerPlan(rule, layer) for layer in rule.layers)
-        self.x_layer = rule.axis.x_layer
-        self.duplicates: DuplicatePolicy = policy_for(rule.axis.duplicates)
-        self.obs_outputs = tuple(rule.axis.obs_keys)
-        self.software_name = rule.software_name
+    def __init__(
+        self,
+        *,
+        obs_outputs: Sequence[str],
+        var_keys: Sequence[str],
+        var_carry: Sequence[str],
+        layers: tuple[LayerPlan, ...],
+        x_layer: str,
+        duplicates: DuplicatePolicy,
+        software_name: str,
+        strict: bool,
+    ) -> None:
+        self.var_keys = list(var_keys)
+        self.var_carry = var_carry
+        self.layers = layers
+        self.x_layer = x_layer
+        self.duplicates = duplicates
+        self.obs_outputs = tuple(obs_outputs)
+        self.software_name = software_name
         # Everything the frame can hold besides vendor sample columns: the carry set plus
         # the synthesized modification columns. A rule whose sample pattern cannot anchor
         # on a suffix (AlphaDIA's run columns are bare run names) must not match any of
@@ -305,10 +289,3 @@ def _matching_columns(headers: list[str], pattern: str) -> list[tuple[str, str]]
 
 
 type Conversion = LongConversion | WideConversion
-
-
-def conversion_for(rule: LongRule | WideRule, *, strict: bool) -> Conversion:
-    """Read a rule's shape once, and return the conversion it names."""
-    if isinstance(rule, LongRule):
-        return LongConversion(rule, strict=strict)
-    return WideConversion(rule, strict=strict)
