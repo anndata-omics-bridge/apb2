@@ -137,6 +137,7 @@ class LongRule(_RuleCore):
         _check_computed_columns(self, self.columns.var)
         _check_obs_computed_columns(self, self.columns.obs)
         _check_derived_not_selected(self.modifications, (self.columns.obs, self.columns.var))
+        _check_one_type_per_source((self.columns.obs, self.columns.var))
         return self
 
 
@@ -175,6 +176,7 @@ class WideRule(_RuleCore):
         _check_column_roles(self.column_roles, self.columns.var)
         _check_computed_columns(self, self.columns.var)
         _check_derived_not_selected(self.modifications, (self.columns.var,))
+        _check_one_type_per_source((self.columns.var,))
         return self
 
 
@@ -515,6 +517,23 @@ def _check_derived_not_selected(
             "apb2-derived modification columns must be declared in "
             f"columns.var.computed, not select: {sorted(selected)}"
         )
+
+
+def _check_one_type_per_source(groups: tuple[ColumnGroup, ...]) -> None:
+    """One vendor source cannot be declared with two logical types.
+
+    Reading decides per *source* column whether its exact tokens must survive as text, so
+    a source selected once as ``string`` and once as ``number`` has no single answer.
+    """
+    declared: dict[str, AxisColumnType] = {}
+    for group in groups:
+        for name, source in (group.select | group.optional_select).items():
+            logical_type = group.types.get(name, "string")
+            if declared.setdefault(source, logical_type) != logical_type:
+                raise ValueError(
+                    f"vendor source {source!r} is declared with conflicting logical types: "
+                    f"{declared[source]!r} and {logical_type!r}"
+                )
 
 
 def _check_obs_computed_columns(rule: _RuleCore, obs: ColumnGroup) -> None:

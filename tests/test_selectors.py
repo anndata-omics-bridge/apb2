@@ -12,6 +12,15 @@ from typing import get_args
 
 import pytest
 
+from apb2.configure_parse import (
+    POLICY_BY_MODE,
+    applier_for,
+    coercion_for,
+    computer_for,
+    conversion_for,
+    exploder_for,
+    policy_for,
+)
 from apb2.parse_quant.column_plan import (
     AXIS_COERCERS,
     CoalesceColumn,
@@ -26,15 +35,6 @@ from apb2.parse_quant.layers import (
     RegexNumericCoercion,
 )
 from apb2.parse_quant.table_conversion import LongConversion, WideConversion
-from apb2.selectors import (
-    POLICY_BY_MODE,
-    applier_for,
-    coercion_for,
-    computer_for,
-    conversion_for,
-    exploder_for,
-    policy_for,
-)
 from apb2.vendor_parse_rules.documents.select import packaged_documents
 from apb2.vendor_parse_rules.model import (
     AxisColumnType,

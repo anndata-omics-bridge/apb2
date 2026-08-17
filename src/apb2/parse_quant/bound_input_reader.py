@@ -22,6 +22,7 @@ import pandas as pd
 import pyarrow.parquet as pq
 
 from apb2.parse_quant.errors import AmbiguousDialectError, IncompatibleSourceError
+from apb2.parse_quant.parse_strategy import BoundInputReader
 from apb2.parse_quant.sources import (
     DelimitedDialect,
     DelimitedFile,
@@ -189,6 +190,10 @@ class ParquetTableReader:
 
     def read(self) -> pd.DataFrame:
         return pd.read_parquet(self.path, columns=list(self.plan.columns))
+
+
+_IMPLEMENTS: tuple[type[BoundInputReader], ...] = (DelimitedTableReader, ParquetTableReader)
+"""Pyright checks each class against the protocol here, at its definition site."""
 
 
 # --------------------------------------------------------------------------- bind sources

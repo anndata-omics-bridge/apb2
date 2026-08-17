@@ -10,12 +10,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from apb2 import parse_strategy
+from apb2 import configure_parse
 from apb2.parse_quant.errors import (
     IncompatibleSourceError,
     NoCompatibleLevelError,
 )
 from apb2.parse_quant.fragment_exploder import NoFragments
+from apb2.parse_quant.parse_strategy import Parser
 from apb2.parse_quant.result import ParsedData
 from apb2.parse_quant.sources import (
     DelimitedDialect,
@@ -24,7 +25,6 @@ from apb2.parse_quant.sources import (
     SingleFile,
     UngroupedNumbers,
 )
-from apb2.parse_strategy import Parser
 from apb2.vendor_params.model import Parameters
 from apb2.vendor_parse_rules.model import LongRule
 
@@ -48,6 +48,9 @@ def test_parse_runs_injected_strategies_in_pipeline_order() -> None:
             return pd.DataFrame({"a": [1]})
 
     class Fragments:
+        def packed_columns(self) -> tuple[str, ...]:
+            return ()
+
         def explode(self, table: pd.DataFrame) -> pd.DataFrame:
             calls.append("explode")
             return table
@@ -115,9 +118,9 @@ def test_make_parsers_orders_parsers_by_quantification_level(
         built.append(rule.quantification_level)
         return cast("Parser", SimpleNamespace(level=rule.quantification_level))
 
-    monkeypatch.setattr(parse_strategy, "make_parse_strategy", fake_make_parser)
+    monkeypatch.setattr(configure_parse, "make_parse_strategy", fake_make_parser)
 
-    parsers = parse_strategy.make_parse_strategies(
+    parsers = configure_parse.make_parse_strategies(
         [_rule("protein"), _rule("fragment"), _rule("ion")], _source()
     )
 
@@ -140,9 +143,9 @@ def test_make_parsers_skips_incompatible_rules_and_keeps_compatible_ones(
             raise IncompatibleSourceError("protein table role is not bound")
         return cast("Parser", SimpleNamespace(level=rule.quantification_level))
 
-    monkeypatch.setattr(parse_strategy, "make_parse_strategy", fake_make_parser)
+    monkeypatch.setattr(configure_parse, "make_parse_strategy", fake_make_parser)
 
-    parsers = parse_strategy.make_parse_strategies([_rule("protein"), _rule("ion")], _source())
+    parsers = configure_parse.make_parse_strategies([_rule("protein"), _rule("ion")], _source())
 
     assert [parser.level for parser in parsers] == ["ion"]
 
@@ -160,10 +163,10 @@ def test_make_parsers_raises_when_no_rule_is_compatible(
         del rule, source, parameters, strict
         raise IncompatibleSourceError("nothing is bound")
 
-    monkeypatch.setattr(parse_strategy, "make_parse_strategy", fake_make_parser)
+    monkeypatch.setattr(configure_parse, "make_parse_strategy", fake_make_parser)
 
     with pytest.raises(NoCompatibleLevelError, match="ion"):
-        parse_strategy.make_parse_strategies([_rule("ion")], _source())
+        configure_parse.make_parse_strategies([_rule("ion")], _source())
 
 
 def test_grouped_numbers_reject_equal_separators() -> None:

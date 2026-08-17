@@ -1,5 +1,14 @@
 # Changes
 
+- 2026-08-17: TODO item 11 — two layers instead of three. The four Protocols and `Parser`
+  moved into `parse_quant/parse_strategy.py` (the strategy layer declares its own contracts;
+  `Parser.level` is a plain name), and the composition root merged with the selectors into
+  one top-level `configure_parse.py` (399 lines, 253 code). Rule-declaration arithmetic —
+  `carried_columns`, `var_extras`, `key_closure`, `projected_columns`, `string_typed_sources`
+  — moved to `vendor_parse_rules/runtime.py`; `map_entries` to `apply_rules`; the
+  conflicting-logical-types check became the rule validator `_check_one_type_per_source`.
+  Each implementing module now pins its protocol with `_IMPLEMENTS: type[<Protocol>]`, and
+  the two unions that only served as factory return types are gone.
 - 2026-08-17: TODO item 9 closed — `parse_quant` imports no schema package. Every strategy
   constructor takes ordinary typed values (`bind_source` takes a header predicate and a label
   instead of the rule); the seven selector factories and the configuration→strategy

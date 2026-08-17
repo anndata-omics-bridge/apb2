@@ -8,6 +8,7 @@ import anndata
 import numpy as np
 import pytest
 
+from apb2.configure_parse import make_parse_strategies, make_parse_strategy
 from apb2.output import to_anndata
 from apb2.parse_quant.bound_input_reader import UnknownFormat
 from apb2.parse_quant.errors import (
@@ -22,7 +23,6 @@ from apb2.parse_quant.sources import (
     GroupedNumbers,
     SingleFile,
 )
-from apb2.parse_strategy import make_parse_strategies, make_parse_strategy
 from apb2.vendor_parse_rules.model import LongRule, WideRule, validate_rule
 
 

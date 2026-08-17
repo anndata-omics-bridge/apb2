@@ -14,6 +14,8 @@ import math
 
 import pandas as pd
 
+from apb2.parse_quant.parse_strategy import FragmentExploder
+
 
 def _split_packed(value: object, delimiter: str) -> list[str]:
     """Split one packed cell into tokens, dropping a trailing empty terminator."""
@@ -141,4 +143,9 @@ class NoFragments:
         return df
 
 
-type FragmentExploder = PositionalExplode | ColumnLabeledExplode | NoFragments
+_IMPLEMENTS: tuple[type[FragmentExploder], ...] = (
+    PositionalExplode,
+    ColumnLabeledExplode,
+    NoFragments,
+)
+"""Pyright checks each class against the protocol here, at its definition site."""

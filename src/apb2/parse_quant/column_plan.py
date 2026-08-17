@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 
 from apb2.parse_quant.modifications import ModificationApplier
+from apb2.parse_quant.parse_strategy import ColumnPlan
 from apb2.parse_quant.result import ParsedData
 
 # ------------------------------------------------------------- logical axis-column typing
@@ -353,3 +354,7 @@ class ColumnMaterialization:
             obs=finished.get("obs", result.obs),
             var=finished.get("var", result.var),
         )
+
+
+_IMPLEMENTS: type[ColumnPlan] = ColumnMaterialization
+"""Pyright checks the class against the protocol here, at its definition site."""

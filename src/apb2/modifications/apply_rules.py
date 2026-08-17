@@ -23,6 +23,7 @@ from apb2.modifications.model import (
     ModifiedSequence,
 )
 from apb2.modifications.proforma import render_proforma
+from apb2.modifications.unimod_registry import resolve
 
 
 @dataclass(frozen=True)
@@ -35,6 +36,25 @@ class MapEntry:
     target: tuple[str, ...]
     position: str
     mass_delta: float
+
+
+def map_entries(declared: Iterable[tuple[str, str]]) -> tuple[MapEntry, ...]:
+    """Fill each ``(token, accession)`` pair out of the bundled Unimod registry.
+
+    Raises ``KeyError`` if a pair references an unknown accession, so a rule with a bad
+    accession fails when its applier is built rather than mid-table.
+    """
+    return tuple(
+        MapEntry(
+            token=token,
+            name=record.name,
+            accession=record.accession,
+            target=tuple(record.target),
+            position=record.position,
+            mass_delta=record.mass_delta,
+        )
+        for token, record in ((token, resolve(accession)) for token, accession in declared)
+    )
 
 
 @dataclass(frozen=True)

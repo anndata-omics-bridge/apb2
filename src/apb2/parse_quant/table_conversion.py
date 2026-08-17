@@ -24,6 +24,7 @@ from numpy.typing import NDArray
 
 from apb2.parse_quant.duplicates import DuplicatePolicy
 from apb2.parse_quant.layers import LayerPlan, warn_if_all_missing
+from apb2.parse_quant.parse_strategy import TableConversion
 from apb2.parse_quant.result import ParsedData
 
 logger = logging.getLogger(__name__)
@@ -288,4 +289,5 @@ def _matching_columns(headers: list[str], pattern: str) -> list[tuple[str, str]]
     return out
 
 
-type Conversion = LongConversion | WideConversion
+_IMPLEMENTS: tuple[type[TableConversion], ...] = (LongConversion, WideConversion)
+"""Pyright checks each class against the protocol here, at its definition site."""
