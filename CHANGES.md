@@ -1,5 +1,10 @@
 # Changes
 
+- 2026-08-17: TODO item 10 closed — no inheritance left in the strategies. `modifications.py`
+  loses `_NormalizeSequences`: `TokenRegexApplier` and `SiteListApplier` each implement the
+  applier surface directly, hold a `SequenceColumns` collaborator (source check + the three
+  output columns) and share memoization through one free function.
+
 - 2026-08-15: Four review rounds over the redesign (4 parallel reviewers: DRY / dead code /
   boilerplate / adversarial-vs-baseline, then three adversarial verification rounds; converged).
   Correctness fixes, each with a regression test: the modification applier is never skipped by a

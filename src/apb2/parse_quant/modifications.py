@@ -9,7 +9,7 @@ distinct sequences tokenizes fifty thousand times, not a million.
 
 from __future__ import annotations
 
-from typing import override
+from collections.abc import Callable, Hashable, Iterable
 
 import pandas as pd
 
@@ -66,11 +66,28 @@ def _map_entries(mods: Modifications) -> tuple[MapEntry, ...]:
     return tuple(entries)
 
 
-class _NormalizeSequences:
-    """Shared applier mechanics: column checks, memoized results, output assignment.
+def _normalize_once_per_distinct[K: Hashable](
+    keys: Iterable[K], normalize: Callable[[K], ModifiedSequence]
+) -> list[ModifiedSequence]:
+    """Normalize every distinct key once and replay the result per row.
 
-    Construction resolves the Unimod map, so an unknown accession fails before any table
-    is read. ``apply`` adds three columns in place and returns the same frame: the rule's
+    Normalization is a pure function of the source values, so a column of a million rows
+    with fifty thousand distinct sequences tokenizes fifty thousand times.
+    """
+    memo: dict[K, ModifiedSequence] = {}
+    results: list[ModifiedSequence] = []
+    for key in keys:
+        if key not in memo:
+            memo[key] = normalize(key)
+        results.append(memo[key])
+    return results
+
+
+class SequenceColumns:
+    """The frame-side mechanics both appliers hold: check the sources, write the outputs.
+
+    A collaborator, never a base class: each applier owns one of these and calls it.
+    ``write`` adds three columns in place and returns the same frame: the rule's
     ``output_column`` (ProForma string), ``stripped_sequence`` (amino-acid-only), and
     ``unknown_mod_tokens`` (unresolved vendor tokens per row).
     """
@@ -78,33 +95,33 @@ class _NormalizeSequences:
     def __init__(self, modifications: Modifications) -> None:
         self.output_column = modifications.output_column
         self.sources = modification_sources(modifications)
-        self._outputs = modification_outputs(modifications)
+        self.declared = frozenset(self.sources) | modification_outputs(modifications)
 
-    def source_columns(self) -> frozenset[str]:
-        return frozenset(self.sources) | self._outputs
-
-    def apply(self, df: pd.DataFrame) -> pd.DataFrame:
+    def require(self, df: pd.DataFrame) -> None:
         missing = [column for column in self.sources if column not in df.columns]
         if missing:
             raise KeyError(
                 f"[modifications] needs column(s) {missing} not found in DataFrame; "
                 f"available: {list(df.columns)[:10]}…"
             )
-        results = self._results(df)
+
+    def write(self, df: pd.DataFrame, results: list[ModifiedSequence]) -> pd.DataFrame:
         df[self.output_column] = [r.proforma_sequence for r in results]
         df["stripped_sequence"] = [r.stripped_sequence for r in results]
         df["unknown_mod_tokens"] = [r.unknown_tokens for r in results]
         return df
 
-    def _results(self, df: pd.DataFrame) -> list[ModifiedSequence]:
-        raise NotImplementedError
 
+class TokenRegexApplier:
+    """Normalize inline modification tokens (``PEPM[15.9949]TIDE``) with one regex.
 
-class TokenRegexApplier(_NormalizeSequences):
-    """Normalize inline modification tokens (``PEPM[15.9949]TIDE``) with one regex."""
+    Construction resolves the Unimod map, so an unknown accession fails before any table
+    is read.
+    """
 
     def __init__(self, modifications: TokenRegexModifications) -> None:
-        super().__init__(modifications)
+        self.columns = SequenceColumns(modifications)
+        self.sources = self.columns.sources
         self._rule = ModificationRule(
             token_pattern=modifications.token_pattern,
             token_position=modifications.token_position,
@@ -113,22 +130,27 @@ class TokenRegexApplier(_NormalizeSequences):
             entries=_map_entries(modifications),
         )
 
-    @override
-    def _results(self, df: pd.DataFrame) -> list[ModifiedSequence]:
-        memo: dict[str, ModifiedSequence] = {}
-        out: list[ModifiedSequence] = []
-        for sequence in df[self.sources[0]].astype(str):
-            if sequence not in memo:
-                memo[sequence] = apply_rule(sequence, self._rule)
-            out.append(memo[sequence])
-        return out
+    def source_columns(self) -> frozenset[str]:
+        return self.columns.declared
+
+    def apply(self, df: pd.DataFrame) -> pd.DataFrame:
+        self.columns.require(df)
+        results = _normalize_once_per_distinct(
+            df[self.sources[0]].astype(str), lambda sequence: apply_rule(sequence, self._rule)
+        )
+        return self.columns.write(df, results)
 
 
-class SiteListApplier(_NormalizeSequences):
-    """Normalize parallel name/site columns beside a bare sequence (alphabase layout)."""
+class SiteListApplier:
+    """Normalize parallel name/site columns beside a bare sequence (alphabase layout).
+
+    Construction resolves the Unimod map, so an unknown accession fails before any table
+    is read.
+    """
 
     def __init__(self, modifications: SiteListModifications) -> None:
-        super().__init__(modifications)
+        self.columns = SequenceColumns(modifications)
+        self.sources = self.columns.sources
         self._rule = SiteListRule(
             delimiter=modifications.delimiter,
             site_base=modifications.site_base,
@@ -137,22 +159,20 @@ class SiteListApplier(_NormalizeSequences):
             entries=_map_entries(modifications),
         )
 
-    @override
-    def _results(self, df: pd.DataFrame) -> list[ModifiedSequence]:
+    def source_columns(self) -> frozenset[str]:
+        return self.columns.declared
+
+    def apply(self, df: pd.DataFrame) -> pd.DataFrame:
+        self.columns.require(df)
         sequence_column, modification_column, site_column = self.sources
-        memo: dict[tuple[str, str, str], ModifiedSequence] = {}
-        out: list[ModifiedSequence] = []
         rows = zip(
             df[sequence_column].astype(str),
             df[modification_column].fillna("").astype(str),
             df[site_column].fillna("").astype(str),
             strict=True,
         )
-        for key in rows:
-            if key not in memo:
-                memo[key] = apply_site_list(*key, self._rule)
-            out.append(memo[key])
-        return out
+        results = _normalize_once_per_distinct(rows, lambda key: apply_site_list(*key, self._rule))
+        return self.columns.write(df, results)
 
 
 class NoModifications:
