@@ -1,5 +1,28 @@
 # Changes
 
+- 2026-08-17: TODO items 13 + 14 — `vendor_parse_rules/` has one entry point,
+  `load_document(path) -> Document`, and `Document.rule(level, parameters)` returns the
+  composed, gated, validated rule together with its header recognition. `Rules`,
+  `packaged_rules`, `declared_rule`, `get_rule`, `parameter_gate.py`, `runtime.py` and
+  `documents/select.py` are all gone; the pydantic shell and the base-level merge are private
+  in `rules.py`, `_recognition.py` is private, and `documents/` is only the JSON tree.
+  Detection moved out to `detect_document.py`, the consumer's declaration questions to
+  `rule_reading.py`, the schema-artifact writer to `export_schema.py`, and the error
+  vocabulary to top-level `errors.py` (with `RuleNotApplicable` as the base of the
+  skip contract and `IncompatibleSourceError` its file-specific subclass). `modifications/`
+  split: the Unimod table is the shared `unimod_registry/`, everything sequence-level lives in
+  `parse_quant/modifications/` (`applier.py` — protocol, three appliers, factory —
+  `normalize_sequence.py`, `proforma.py`, `modified_sequence.py`).
+- 2026-08-17: TODO item 12 — items 6 and 8 applied to `modifications/`, the subpackage copied
+  from apb and never reviewed. Names now say what they are: `apply_rules.py` →
+  `normalize_sequence.py`, `ModificationRule`/`SiteListRule` →
+  `TokenRegexSettings`/`SiteListSettings` (they are compiled normalizer settings, not
+  rules.json rules), `apply_rule`/`apply_site_list` → `normalize_token_regex`/
+  `normalize_site_list`. `modifications/model.py` → `modified_sequence.py`: `ModifiedSequence`
+  and `ModificationOccurrence` are plain classes, since they are computed results nothing
+  validates or dumps and one is built per distinct sequence. `SearchedModification` and
+  `ModType` moved to `vendor_params/model.py`, which is the schema that parses them.
+
 - 2026-08-17: TODO item 11 — two layers instead of three. The four Protocols and `Parser`
   moved into `parse_quant/parse_strategy.py` (the strategy layer declares its own contracts;
   `Parser.level` is a plain name), and the composition root merged with the selectors into

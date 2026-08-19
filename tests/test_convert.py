@@ -9,13 +9,13 @@ import numpy as np
 import pytest
 
 from apb2.configure_parse import make_parse_strategies, make_parse_strategy
-from apb2.output import to_anndata
-from apb2.parse_quant.bound_input_reader import UnknownFormat
-from apb2.parse_quant.errors import (
+from apb2.errors import (
     AmbiguousDialectError,
     IncompatibleSourceError,
     NoCompatibleLevelError,
 )
+from apb2.output import to_anndata
+from apb2.parse_quant.bound_input_reader import UnknownFormat
 from apb2.parse_quant.sources import (
     DelimitedDialect,
     DelimitedFile,
@@ -23,44 +23,49 @@ from apb2.parse_quant.sources import (
     GroupedNumbers,
     SingleFile,
 )
-from apb2.vendor_parse_rules.model import LongRule, WideRule, validate_rule
+from apb2.vendor_parse_rules.model import validate_rule
+from apb2.vendor_parse_rules.rules import Rule
 
 
-def _ion_rule() -> LongRule | WideRule:
-    return validate_rule(
-        {
-            "schema_version": "0.2",
-            "file_version": "1",
-            "software_name": "V2Test",
-            "software_version_pattern": "^1$",
-            "shape": "long",
-            "quantification_level": "ion",
-            "axis": {"obs_keys": ["sample"], "var_keys": ["feature"], "x_layer": "Abundance"},
-            "columns": {
-                "obs": {"select": {"sample": "Run"}},
-                "var": {"select": {"feature": "Precursor"}},
-            },
-            "layers": [{"name": "Abundance", "source": "Intensity"}],
-        }
+def _ion_rule() -> Rule:
+    return Rule(
+        validate_rule(
+            {
+                "schema_version": "0.2",
+                "file_version": "1",
+                "software_name": "V2Test",
+                "software_version_pattern": "^1$",
+                "shape": "long",
+                "quantification_level": "ion",
+                "axis": {"obs_keys": ["sample"], "var_keys": ["feature"], "x_layer": "Abundance"},
+                "columns": {
+                    "obs": {"select": {"sample": "Run"}},
+                    "var": {"select": {"feature": "Precursor"}},
+                },
+                "layers": [{"name": "Abundance", "source": "Intensity"}],
+            }
+        )
     )
 
 
-def _protein_rule() -> LongRule | WideRule:
-    return validate_rule(
-        {
-            "schema_version": "0.2",
-            "file_version": "1",
-            "software_name": "V2Test",
-            "software_version_pattern": "^1$",
-            "shape": "long",
-            "quantification_level": "protein",
-            "axis": {"obs_keys": ["sample"], "var_keys": ["feature"], "x_layer": "Abundance"},
-            "columns": {
-                "obs": {"select": {"sample": "Run"}},
-                "var": {"select": {"feature": "Protein"}},
-            },
-            "layers": [{"name": "Abundance", "source": "Intensity"}],
-        }
+def _protein_rule() -> Rule:
+    return Rule(
+        validate_rule(
+            {
+                "schema_version": "0.2",
+                "file_version": "1",
+                "software_name": "V2Test",
+                "software_version_pattern": "^1$",
+                "shape": "long",
+                "quantification_level": "protein",
+                "axis": {"obs_keys": ["sample"], "var_keys": ["feature"], "x_layer": "Abundance"},
+                "columns": {
+                    "obs": {"select": {"sample": "Run"}},
+                    "var": {"select": {"feature": "Protein"}},
+                },
+                "layers": [{"name": "Abundance", "source": "Intensity"}],
+            }
+        )
     )
 
 
@@ -166,40 +171,40 @@ def test_to_anndata_writes_one_file_with_the_apb_namespace(tmp_path: Path) -> No
     assert "Abundance" in adata.layers
 
 
-def _modification_rule(
-    *, extra_computed: list[dict[str, object]] | None = None
-) -> LongRule | WideRule:
-    return validate_rule(
-        {
-            "schema_version": "0.2",
-            "file_version": "1",
-            "software_name": "V2Test",
-            "software_version_pattern": "^1$",
-            "shape": "long",
-            "quantification_level": "ion",
-            "axis": {"obs_keys": ["sample"], "var_keys": ["feature"], "x_layer": "Abundance"},
-            "columns": {
-                "obs": {"select": {"sample": "Run"}},
-                "var": {
-                    "select": {"feature": "Precursor", "modified": "Modified"},
-                    "computed": [
-                        {
-                            "how": "stripped_sequence",
-                            "name": "ProForma_peptide",
-                            "inputs": ["modified"],
-                        },
-                        *(extra_computed or []),
-                    ],
+def _modification_rule(*, extra_computed: list[dict[str, object]] | None = None) -> Rule:
+    return Rule(
+        validate_rule(
+            {
+                "schema_version": "0.2",
+                "file_version": "1",
+                "software_name": "V2Test",
+                "software_version_pattern": "^1$",
+                "shape": "long",
+                "quantification_level": "ion",
+                "axis": {"obs_keys": ["sample"], "var_keys": ["feature"], "x_layer": "Abundance"},
+                "columns": {
+                    "obs": {"select": {"sample": "Run"}},
+                    "var": {
+                        "select": {"feature": "Precursor", "modified": "Modified"},
+                        "computed": [
+                            {
+                                "how": "stripped_sequence",
+                                "name": "ProForma_peptide",
+                                "inputs": ["modified"],
+                            },
+                            *(extra_computed or []),
+                        ],
+                    },
                 },
-            },
-            "layers": [{"name": "Abundance", "source": "Intensity"}],
-            "modifications": {
-                "parser": "token_regex",
-                "source_column": "Modified",
-                "token_pattern": r"\(([^)]+)\)",
-                "map": [{"token": "ox", "accession": "UNIMOD:35"}],
-            },
-        }
+                "layers": [{"name": "Abundance", "source": "Intensity"}],
+                "modifications": {
+                    "parser": "token_regex",
+                    "source_column": "Modified",
+                    "token_pattern": r"\(([^)]+)\)",
+                    "map": [{"token": "ox", "accession": "UNIMOD:35"}],
+                },
+            }
+        )
     )
 
 
@@ -219,29 +224,31 @@ def test_vendor_column_named_like_a_modification_output_does_not_skip_the_applie
     assert list(parsed.var["ProForma_peptide"]) == ["PEPTIDE"]
 
 
-def _optional_shared_rule() -> LongRule | WideRule:
-    return validate_rule(
-        {
-            "schema_version": "0.2",
-            "file_version": "1",
-            "software_name": "V2Test",
-            "software_version_pattern": "^1$",
-            "shape": "long",
-            "quantification_level": "ion",
-            "axis": {"obs_keys": ["sample"], "var_keys": ["vkey"], "x_layer": "Abundance"},
-            "columns": {
-                "obs": {"select": {"sample": "Run"}},
-                "var": {
-                    "select": {"pep": "Peptide"},
-                    "optional_select": {"opt": "Opt"},
-                    "computed": [
-                        {"how": "coalesce", "name": "vkey", "inputs": ["opt", "pep"]},
-                        {"how": "coalesce", "name": "anno", "inputs": ["opt", "pep"]},
-                    ],
+def _optional_shared_rule() -> Rule:
+    return Rule(
+        validate_rule(
+            {
+                "schema_version": "0.2",
+                "file_version": "1",
+                "software_name": "V2Test",
+                "software_version_pattern": "^1$",
+                "shape": "long",
+                "quantification_level": "ion",
+                "axis": {"obs_keys": ["sample"], "var_keys": ["vkey"], "x_layer": "Abundance"},
+                "columns": {
+                    "obs": {"select": {"sample": "Run"}},
+                    "var": {
+                        "select": {"pep": "Peptide"},
+                        "optional_select": {"opt": "Opt"},
+                        "computed": [
+                            {"how": "coalesce", "name": "vkey", "inputs": ["opt", "pep"]},
+                            {"how": "coalesce", "name": "anno", "inputs": ["opt", "pep"]},
+                        ],
+                    },
                 },
-            },
-            "layers": [{"name": "Abundance", "source": "Intensity"}],
-        }
+                "layers": [{"name": "Abundance", "source": "Intensity"}],
+            }
+        )
     )
 
 
@@ -259,25 +266,27 @@ def test_optional_skipped_in_key_phase_stays_skipped_for_rest_computes(tmp_path:
     assert list(parsed.var.index) == ["AAA", "BBB"]
 
 
-def _two_layer_rule() -> LongRule | WideRule:
-    return validate_rule(
-        {
-            "schema_version": "0.2",
-            "file_version": "1",
-            "software_name": "V2Test",
-            "software_version_pattern": "^1$",
-            "shape": "long",
-            "quantification_level": "ion",
-            "axis": {"obs_keys": ["sample"], "var_keys": ["feature"], "x_layer": "Abundance"},
-            "columns": {
-                "obs": {"select": {"sample": "Run"}},
-                "var": {"select": {"feature": "Precursor"}},
-            },
-            "layers": [
-                {"name": "Abundance", "source": "Intensity"},
-                {"name": "Score", "source": "Score"},
-            ],
-        }
+def _two_layer_rule() -> Rule:
+    return Rule(
+        validate_rule(
+            {
+                "schema_version": "0.2",
+                "file_version": "1",
+                "software_name": "V2Test",
+                "software_version_pattern": "^1$",
+                "shape": "long",
+                "quantification_level": "ion",
+                "axis": {"obs_keys": ["sample"], "var_keys": ["feature"], "x_layer": "Abundance"},
+                "columns": {
+                    "obs": {"select": {"sample": "Run"}},
+                    "var": {"select": {"feature": "Precursor"}},
+                },
+                "layers": [
+                    {"name": "Abundance", "source": "Intensity"},
+                    {"name": "Score", "source": "Score"},
+                ],
+            }
+        )
     )
 
 
@@ -309,39 +318,41 @@ def test_strict_promotes_an_empty_auxiliary_layer_to_an_error(tmp_path: Path) ->
         make_parse_strategy(_two_layer_rule(), SingleFile(report), strict=True).parse()
 
 
-def _fragment_rule() -> LongRule | WideRule:
-    return validate_rule(
-        {
-            "schema_version": "0.2",
-            "file_version": "1",
-            "software_name": "V2Test",
-            "software_version_pattern": "^1$",
-            "shape": "long",
-            "quantification_level": "fragment",
-            "axis": {"obs_keys": ["sample"], "var_keys": ["feature"], "x_layer": "Abundance"},
-            "columns": {
-                "obs": {"select": {"sample": "Run"}},
-                "var": {
-                    "select": {"precursor": "Precursor"},
-                    "computed": [
-                        {
-                            "how": "join_nonempty",
-                            "name": "feature",
-                            "inputs": ["precursor", "fragment_label"],
-                            "separator": "/",
-                        }
-                    ],
+def _fragment_rule() -> Rule:
+    return Rule(
+        validate_rule(
+            {
+                "schema_version": "0.2",
+                "file_version": "1",
+                "software_name": "V2Test",
+                "software_version_pattern": "^1$",
+                "shape": "long",
+                "quantification_level": "fragment",
+                "axis": {"obs_keys": ["sample"], "var_keys": ["feature"], "x_layer": "Abundance"},
+                "columns": {
+                    "obs": {"select": {"sample": "Run"}},
+                    "var": {
+                        "select": {"precursor": "Precursor"},
+                        "computed": [
+                            {
+                                "how": "join_nonempty",
+                                "name": "feature",
+                                "inputs": ["precursor", "fragment_label"],
+                                "separator": "/",
+                            }
+                        ],
+                    },
                 },
-            },
-            "layers": [
-                {"name": "Abundance", "source": "Frag.Quant"},
-                {"name": "Correlation", "source": "Frag.Corr"},
-            ],
-            "fragments": {
-                "label_strategy": "positional",
-                "value_columns": ["Frag.Quant", "Frag.Corr"],
-            },
-        }
+                "layers": [
+                    {"name": "Abundance", "source": "Frag.Quant"},
+                    {"name": "Correlation", "source": "Frag.Corr"},
+                ],
+                "fragments": {
+                    "label_strategy": "positional",
+                    "value_columns": ["Frag.Quant", "Frag.Corr"],
+                },
+            }
+        )
     )
 
 

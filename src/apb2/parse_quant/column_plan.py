@@ -6,7 +6,7 @@ the flat frame — the pivot cannot group without it — while every remaining d
 column is materialized afterwards on the deduplicated obs/var frames, where a column fix
 touches nrObs or nrVars rows instead of nrObs x nrVars.
 
-``selectors.column_plan_for`` performs the split and reads the ``how`` and ``types``
+``configure_parse.column_plan_for`` performs the split and reads the ``how`` and ``types``
 selectors once; what arrives here is two finished passes per axis — the columns to select,
 the computers to run, and the coercion each declared column's logical type named.
 """
@@ -19,7 +19,7 @@ from dataclasses import replace
 import numpy as np
 import pandas as pd
 
-from apb2.parse_quant.modifications import ModificationApplier
+from apb2.parse_quant.modifications.applier import ModificationApplier
 from apb2.parse_quant.parse_strategy import ColumnPlan
 from apb2.parse_quant.result import ParsedData
 
@@ -84,7 +84,7 @@ AXIS_COERCERS: Mapping[str, AxisCoercer] = {
     "number": _coerce_number,
     "boolean": _coerce_boolean,
 }
-"""One coercion per logical axis-column type; ``selectors.coercer_for`` reads this table."""
+"""One coercion per logical axis-column type; ``configure_parse.coercer_for`` reads this table."""
 
 
 # ------------------------------------------------------------------------------ computers

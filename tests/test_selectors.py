@@ -14,11 +14,11 @@ import pytest
 
 from apb2.configure_parse import (
     POLICY_BY_MODE,
-    applier_for,
     coercion_for,
     computer_for,
     conversion_for,
     exploder_for,
+    modifications_for,
     policy_for,
 )
 from apb2.parse_quant.column_plan import (
@@ -35,7 +35,6 @@ from apb2.parse_quant.layers import (
     RegexNumericCoercion,
 )
 from apb2.parse_quant.table_conversion import LongConversion, WideConversion
-from apb2.vendor_parse_rules.documents.select import packaged_documents
 from apb2.vendor_parse_rules.model import (
     AxisColumnType,
     Coalesce,
@@ -50,15 +49,13 @@ from apb2.vendor_parse_rules.model import (
     QuantificationLevel,
     RegexValuePattern,
     StrippedSequence,
-    compose_rule,
-    load_document,
 )
-from apb2.vendor_parse_rules.runtime import recognition_for
+from apb2.vendor_parse_rules.rules import PACKAGED, load_document
 
 _RULES = [
-    pytest.param(document.path, level, id=f"{document.path.parent.name}/{level}")
-    for document in packaged_documents()
-    for level in document.levels
+    pytest.param(path, level, id=f"{path.parent.name}/{level}")
+    for path in PACKAGED
+    for level in load_document(path).levels
 ]
 
 
@@ -106,9 +103,9 @@ def test_every_packaged_selector_value_constructs_its_strategy(
     document: Path, level: QuantificationLevel
 ) -> None:
     """Sweep the packaged tree: every selector in every rule builds a runtime object."""
-    rule = compose_rule(load_document(document), level)
-    recognition = recognition_for(rule)
-    applier_for(rule)
+    composed = load_document(document).declared(level)
+    rule, recognition = composed.config, composed.recognition
+    modifications_for(rule)
     packed_header = list(rule.fragments.value_columns) if rule.fragments is not None else []
     exploder_for(rule, packed_header)
     conversion = conversion_for(rule, strict=False)

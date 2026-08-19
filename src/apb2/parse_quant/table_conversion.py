@@ -1,6 +1,6 @@
 """``TableConversion``: the ``shape`` block — key-prepared table to matrices and axes.
 
-``selectors.conversion_for`` is the single dispatch over the rule shape. Past it the shape
+``configure_parse.conversion_for`` is the single dispatch over the rule shape. Past it the shape
 does not exist: a ``LongConversion`` scatters long rows into dense matrices via integer
 category codes (pivot_table materialises a huge transient for high-cardinality var axes;
 the scatter is O(nnz + obs·var) with identical semantics), a ``WideConversion`` reads its

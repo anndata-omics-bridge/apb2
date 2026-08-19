@@ -79,6 +79,10 @@ def load_registry() -> dict[str, UnimodEntry]:
     return by_accession
 
 
+# COMMENT want to have class here which implments the functions below. load_registry() returns this class.
+# name the class UnimodRegistry...
+
+
 def resolve(accession: str) -> UnimodEntry:
     """Return the canonical record for ``accession`` or raise ``KeyError``."""
     registry = load_registry()

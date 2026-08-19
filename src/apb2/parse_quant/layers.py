@@ -1,6 +1,6 @@
 """How one layer's values become numbers in a matrix cell: the ``layers[]`` runtime.
 
-``selectors.coercion_for`` reads the ``encoding_mode`` flag **once** and it becomes a type
+``configure_parse.coercion_for`` reads the ``encoding_mode`` flag **once** and it becomes a type
 here. Past that point the illegal combinations are not rejected, they are unrepresentable:
 a ``FactorCoercion`` has no ``missing_values`` field to set. Splitting numeric into two
 types rather than giving one a ``pattern: str | None`` is the same rule one level down: an

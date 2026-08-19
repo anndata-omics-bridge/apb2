@@ -1,13 +1,15 @@
-"""Token extraction and mapping from vendor modified sequences.
+"""Normalize one vendor modified sequence into a ProForma peptide.
 
 Takes a vendor-specific modified sequence (e.g. ``"PEPM[15.9949]TIDE"`` or
-``"_(ac)PEPTIDEM(ox)_"``) plus a modification rule (regex + map entries)
-and produces a :class:`ModifiedSequence` with localized
-:class:`ModificationOccurrence`\\s and a ProForma rendering.
+``"_(ac)PEPTIDEM(ox)_"``) plus the settings that say how its tokens are written, and
+produces a ``ModifiedSequence`` with localized occurrences and a ProForma rendering.
 
-Map lookup uses the tuple ``(mass_delta, target, position)`` per the plan,
-not mass alone — so e.g. Acetyl-Nterm and Acetyl-K with the same mass
-remain distinguishable.
+The two settings records are **not** rules: in apb2 a rule is a rules.json document
+(``LongRule | WideRule``). These are the compiled parameters this normalizer needs, built
+once per parse by ``configure_parse.applier_for`` from the ``[modifications]`` block.
+
+Map lookup uses the tuple ``(mass_delta, target, position)``, not mass alone — so e.g.
+Acetyl-Nterm and Acetyl-K with the same mass remain distinguishable.
 """
 
 from __future__ import annotations
@@ -18,17 +20,17 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Literal
 
-from apb2.modifications.model import (
+from apb2.parse_quant.modifications.modified_sequence import (
     ModificationOccurrence,
     ModifiedSequence,
 )
-from apb2.modifications.proforma import render_proforma
-from apb2.modifications.unimod_registry import resolve
+from apb2.parse_quant.modifications.proforma import render_proforma
+from apb2.unimod_registry.registry import resolve
 
 
 @dataclass(frozen=True)
 class MapEntry:
-    """One ``modifications.map`` entry from a parsing-rule JSON document."""
+    """One vendor token and the Unimod identity it resolved to."""
 
     token: str
     name: str
@@ -58,8 +60,8 @@ def map_entries(declared: Iterable[tuple[str, str]]) -> tuple[MapEntry, ...]:
 
 
 @dataclass(frozen=True)
-class ModificationRule:
-    """Parsed ``[modifications]`` section."""
+class TokenRegexSettings:
+    """How one vendor writes inline modification tokens, plus the map they resolve to."""
 
     token_pattern: str
     token_position: str  # "before_residue" | "after_residue"
@@ -69,8 +71,8 @@ class ModificationRule:
 
 
 @dataclass(frozen=True)
-class SiteListRule:
-    """Parsed ``parser="site_list"`` ``[modifications]`` section."""
+class SiteListSettings:
+    """How one vendor writes parallel modification-name and site columns."""
 
     delimiter: str = ";"
     site_base: int = 1
@@ -436,7 +438,7 @@ def _tokenize(
 
 
 def _resolve_tokens(
-    pending: list[_PendingToken], rule: ModificationRule, stripped: str
+    pending: list[_PendingToken], settings: TokenRegexSettings, stripped: str
 ) -> tuple[list[ModificationOccurrence], dict[int, str], list[str]]:
     """Match pending tokens to map entries; apply ``unknown_policy`` and record
     terminal/residue indices for unresolved tokens.
@@ -447,16 +449,16 @@ def _resolve_tokens(
 
     for tok in pending:
         matched = _match_entry(
-            rule.entries,
+            settings.entries,
             tok.raw_token,
             tok.location,
-            rule.case_sensitive,
+            settings.case_sensitive,
         )
         if isinstance(matched, MatchedMapEntry):
             occurrences.append(tok.location.occurrence(matched.entry, tok.raw_token))
             continue
         _apply_unknown_policy(
-            rule.unknown_policy,
+            settings.unknown_policy,
             tok.raw_token,
             tok.location,
             len(stripped),
@@ -475,7 +477,7 @@ def _apply_unknown_policy(
     unknown_tokens: dict[int, str],
     unknown_list: list[str],
 ) -> None:
-    """Apply one rule's unknown-token policy to one unmatched token."""
+    """Apply the declared unknown-token policy to one unmatched token."""
     if unknown_policy == "error":
         raise ValueError(f"unknown modification token: {raw_token!r}")
     if unknown_policy == "drop":
@@ -496,25 +498,25 @@ def _modified_sequence(
     return ModifiedSequence(
         stripped_sequence=stripped,
         proforma_sequence=proforma,
-        occurrences=occurrences,
+        occurrences=tuple(occurrences),
         source_sequence=source_sequence,
-        unknown_tokens=unknown_list,
+        unknown_tokens=tuple(unknown_list),
     )
 
 
-def apply_rule(modified_sequence: str, rule: ModificationRule) -> ModifiedSequence:
-    """Normalize a vendor modified sequence via ``rule``: strip → tokenize → resolve → render."""
-    pattern = re.compile(rule.token_pattern)
+def normalize_token_regex(modified_sequence: str, settings: TokenRegexSettings) -> ModifiedSequence:
+    """Normalize a vendor modified sequence: strip → tokenize → resolve → render."""
+    pattern = re.compile(settings.token_pattern)
     seq = _strip_terminal_markers(modified_sequence)
-    stripped_chars, pending = _tokenize(seq, pattern, rule.token_position)
+    stripped_chars, pending = _tokenize(seq, pattern, settings.token_position)
     stripped = "".join(stripped_chars)
-    occurrences, unknown_tokens, unknown_list = _resolve_tokens(pending, rule, stripped)
+    occurrences, unknown_tokens, unknown_list = _resolve_tokens(pending, settings, stripped)
     return _modified_sequence(
         stripped, occurrences, unknown_tokens, unknown_list, modified_sequence
     )
 
 
-def _site_location(site: int, rule: SiteListRule, stripped: str) -> ModificationLocation:
+def _site_location(site: int, settings: SiteListSettings, stripped: str) -> ModificationLocation:
     """Map a vendor site value to a ProForma position and 0-based residue index.
 
     Site ``0`` is the N-terminus by convention, independent of ``site_base``: a
@@ -523,23 +525,23 @@ def _site_location(site: int, rule: SiteListRule, stripped: str) -> Modification
     """
     if site == 0:
         return TerminalOnlyLocation("N-term")
-    index = site - rule.site_base
+    index = site - settings.site_base
     if index >= len(stripped):
         return TerminalOnlyLocation("C-term")
     return ResidueLocation(index, stripped[index])
 
 
-def apply_site_list(
-    sequence: str, modifications: str, sites: str, rule: SiteListRule
+def normalize_site_list(
+    sequence: str, modifications: str, sites: str, settings: SiteListSettings
 ) -> ModifiedSequence:
     """Normalize a bare sequence plus parallel modification/site columns.
 
     ``modifications`` and ``sites`` are paired index-wise after splitting on
-    ``rule.delimiter``; a length mismatch is a vendor-file defect and raises.
+    ``settings.delimiter``; a length mismatch is a vendor-file defect and raises.
     """
     stripped = "".join(ch for ch in sequence if ch.isalpha())
-    tokens = [t for t in modifications.split(rule.delimiter) if t] if modifications else []
-    raw_sites = [s for s in sites.split(rule.delimiter) if s] if sites else []
+    tokens = [t for t in modifications.split(settings.delimiter) if t] if modifications else []
+    raw_sites = [s for s in sites.split(settings.delimiter) if s] if sites else []
 
     if len(tokens) != len(raw_sites):
         raise ValueError(
@@ -548,8 +550,8 @@ def apply_site_list(
         )
 
     by_token = {
-        (entry.token if rule.case_sensitive else entry.token.lower()): entry
-        for entry in rule.entries
+        (entry.token if settings.case_sensitive else entry.token.lower()): entry
+        for entry in settings.entries
     }
 
     occurrences: list[ModificationOccurrence] = []
@@ -563,14 +565,19 @@ def apply_site_list(
             )
         site = int(raw_site)
 
-        location = _site_location(site, rule, stripped)
-        token_key = raw_token if rule.case_sensitive else raw_token.lower()
+        location = _site_location(site, settings, stripped)
+        token_key = raw_token if settings.case_sensitive else raw_token.lower()
 
         if token_key in by_token:
             occurrences.append(location.occurrence(by_token[token_key], raw_token))
             continue
         _apply_unknown_policy(
-            rule.unknown_policy, raw_token, location, len(stripped), unknown_tokens, unknown_list
+            settings.unknown_policy,
+            raw_token,
+            location,
+            len(stripped),
+            unknown_tokens,
+            unknown_list,
         )
 
     return _modified_sequence(stripped, occurrences, unknown_tokens, unknown_list, sequence)

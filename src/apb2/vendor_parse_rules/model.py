@@ -15,11 +15,9 @@ module never touches pandas or numpy: it is the declarative side of the parser.
 
 from __future__ import annotations
 
-import json
 import re
 from collections.abc import Mapping
-from pathlib import Path
-from typing import Annotated, Literal, cast, get_args
+from typing import Annotated, Literal, get_args
 
 from pydantic import (
     BaseModel,
@@ -476,6 +474,11 @@ def group_names(group: ColumnGroup) -> list[str]:
     return list(dict.fromkeys([*group.select, *group.optional_select, *computed]))
 
 
+def layer_required(rule: _RuleCore, layer: Layer) -> bool:
+    """A layer must be present iff it is the ``x_layer`` or explicitly ``required``."""
+    return layer.required or layer.name == rule.axis.x_layer
+
+
 def modification_outputs(modifications: Modifications) -> frozenset[str]:
     """The columns modification normalization synthesizes onto a frame."""
     return frozenset({modifications.output_column, "stripped_sequence", "unknown_mod_tokens"})
@@ -615,123 +618,3 @@ def _check_computed_column(rule: _RuleCore, column: ComputedColumn, var: ColumnG
             raise ValueError("how='proforma_fragment' is valid only for fragment rules.")
         if column.name not in rule.axis.var_keys:
             raise ValueError("computed ProForma fragment columns must be used in axis.var_keys.")
-
-
-# ------------------------------------------------------------------------------ documents
-
-
-type JsonDict = dict[str, object]
-
-_FIELDWISE_BLOCKS = (
-    "axis",
-    "column_roles",
-    "modifications",
-    "fragments",
-    "requires_search_parameters",
-)
-_CONCAT_BLOCKS = ("layers", "search_parameter_overrides")
-
-
-class _InputBlock(ModelBase):
-    shape: TableShape
-
-
-class Document(ModelBase):
-    """One parsed rules.json: a validated shell around raw dict fragments.
-
-    The fragments stay raw dicts through the base-times-level merge — merging dicts needs no
-    models, presence is key membership — and cross the single typed boundary,
-    ``validate_rule``, only once composed. That boundary is also the only validator:
-    unknown keys and wrong types ride through the merge and are reported there with paths.
-    """
-
-    path: Path
-    schema_version: str
-    file_version: str
-    software_name: str
-    software_version_pattern: str
-    input: _InputBlock
-    base: JsonDict
-    levels: dict[QuantificationLevel, JsonDict] = Field(min_length=1)
-
-
-def compose_rule(document: Document, level: QuantificationLevel) -> LongRule | WideRule:
-    """Merge ``level`` over the document's base and validate the composed rule."""
-    try:
-        merged = _merge_fragments(document.base, document.levels[level])
-    except TypeError as error:
-        raise ValueError(
-            f"{document.path}: level {level!r} fragments do not merge: {error}"
-        ) from error
-    return validate_rule(
-        {
-            "schema_version": document.schema_version,
-            "file_version": document.file_version,
-            "software_name": document.software_name,
-            "software_version_pattern": document.software_version_pattern,
-            "quantification_level": level,
-            "shape": document.input.shape,
-            **merged,
-        }
-    )
-
-
-def load_document(path: Path) -> Document:
-    """Parse one rules.json shell; every fragment is validated later, by ``rule``."""
-    raw = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(raw, dict):
-        raise ValueError(f"{path}: document must be a JSON object")
-    return Document.model_validate({"path": path, **cast("JsonDict", raw)})
-
-
-def _merge_fragments(base: JsonDict, level: JsonDict) -> JsonDict:
-    """Merge one level fragment over a base fragment.
-
-    ``_FIELDWISE_BLOCKS`` merge field-wise (a level field replaces the base field
-    wholesale); inside ``columns.obs`` / ``columns.var`` the ``select`` /
-    ``optional_select`` / ``types`` mappings merge key-wise and ``computed`` concatenates;
-    ``_CONCAT_BLOCKS`` concatenate. Keys outside the known blocks ride through unchanged
-    so that ``validate_rule``'s ``extra="forbid"`` rejects them with a field path.
-    """
-    merged = _merge_blocks(base, level, mappings=_FIELDWISE_BLOCKS, sequences=_CONCAT_BLOCKS)
-    columns: JsonDict = {}
-    for part in ("obs", "var"):
-        group = _merge_blocks(
-            _mapping(_mapping(base, "columns"), part),
-            _mapping(_mapping(level, "columns"), part),
-            mappings=("select", "optional_select", "types"),
-            sequences=("computed",),
-        )
-        if group:
-            columns[part] = group
-    if columns:
-        merged["columns"] = columns
-    return merged
-
-
-def _merge_blocks(
-    base: JsonDict,
-    level: JsonDict,
-    *,
-    mappings: tuple[str, ...],
-    sequences: tuple[str, ...],
-) -> JsonDict:
-    """One merge shape: named mappings union key-wise, named sequences concatenate."""
-    merged: JsonDict = {**base, **level}
-    for key in mappings:
-        block = {**_mapping(base, key), **_mapping(level, key)}
-        if block:
-            merged[key] = block
-    for key in sequences:
-        entries = [*_sequence(base, key), *_sequence(level, key)]
-        if entries:
-            merged[key] = entries
-    return merged
-
-
-def _mapping(fragment: JsonDict, key: str) -> JsonDict:
-    return cast("JsonDict", fragment.get(key) or {})
-
-
-def _sequence(fragment: JsonDict, key: str) -> list[object]:
-    return cast("list[object]", fragment.get(key) or [])

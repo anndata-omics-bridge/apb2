@@ -1,25 +1,44 @@
-"""Normalize modified sequences on a frame: the runtime of the ``[modifications]`` block.
+"""``ModificationApplier``: normalize modified sequences on a frame.
+
+The contract, its three implementations, and the factory that selects between them are all
+here — the dispatch is on which settings record arrived, and both settings types are this
+package's own, so nothing about a rule is needed to choose. What stays in
+``configure_parse`` is only the rule reading: whether a block is declared, whether anything
+consumes its output, and building the settings from the declaration.
 
 Appliers memoize on unique source values: normalization is a pure function of the source
 columns, so a column with a million rows and fifty thousand distinct sequences tokenizes
-fifty thousand times, not a million. Which applier runs, and whether one runs at all, is
-decided once by ``selectors.applier_for``; each applier is constructed with the columns it
-reads and writes plus a finished engine rule, and never sees a rule declaration.
+fifty thousand times, not a million.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable, Hashable, Iterable
+from typing import Protocol
 
 import pandas as pd
 
-from apb2.modifications.apply_rules import (
-    ModificationRule,
-    SiteListRule,
-    apply_rule,
-    apply_site_list,
+from apb2.parse_quant.modifications.modified_sequence import ModifiedSequence
+from apb2.parse_quant.modifications.normalize_sequence import (
+    SiteListSettings,
+    TokenRegexSettings,
+    normalize_site_list,
+    normalize_token_regex,
 )
-from apb2.modifications.model import ModifiedSequence
+
+
+class ModificationApplier(Protocol):
+    """Add the normalized modification columns to a frame, and declare what it touches.
+
+    ``sources`` are the raw vendor columns that must be present; ``source_columns()`` adds
+    the names it writes, which together are what the read plan must project.
+    """
+
+    sources: tuple[str, ...]
+
+    def source_columns(self) -> frozenset[str]: ...
+
+    def apply(self, table: pd.DataFrame, /) -> pd.DataFrame: ...
 
 
 def _normalize_once_per_distinct[K: Hashable](
@@ -73,10 +92,10 @@ class SequenceColumns:
 class TokenRegexApplier:
     """Normalize inline modification tokens (``PEPM[15.9949]TIDE``) with one regex."""
 
-    def __init__(self, columns: SequenceColumns, rule: ModificationRule) -> None:
+    def __init__(self, columns: SequenceColumns, settings: TokenRegexSettings) -> None:
         self.columns = columns
         self.sources = columns.sources
-        self._rule = rule
+        self._settings = settings
 
     def source_columns(self) -> frozenset[str]:
         return self.columns.declared
@@ -84,7 +103,8 @@ class TokenRegexApplier:
     def apply(self, df: pd.DataFrame) -> pd.DataFrame:
         self.columns.require(df)
         results = _normalize_once_per_distinct(
-            df[self.sources[0]].astype(str), lambda sequence: apply_rule(sequence, self._rule)
+            df[self.sources[0]].astype(str),
+            lambda sequence: normalize_token_regex(sequence, self._settings),
         )
         return self.columns.write(df, results)
 
@@ -92,10 +112,10 @@ class TokenRegexApplier:
 class SiteListApplier:
     """Normalize parallel name/site columns beside a bare sequence (alphabase layout)."""
 
-    def __init__(self, columns: SequenceColumns, rule: SiteListRule) -> None:
+    def __init__(self, columns: SequenceColumns, settings: SiteListSettings) -> None:
         self.columns = columns
         self.sources = columns.sources
-        self._rule = rule
+        self._settings = settings
 
     def source_columns(self) -> frozenset[str]:
         return self.columns.declared
@@ -109,12 +129,18 @@ class SiteListApplier:
             df[site_column].fillna("").astype(str),
             strict=True,
         )
-        results = _normalize_once_per_distinct(rows, lambda key: apply_site_list(*key, self._rule))
+        results = _normalize_once_per_distinct(
+            rows, lambda key: normalize_site_list(*key, self._settings)
+        )
         return self.columns.write(df, results)
 
 
 class NoModifications:
-    """No modification normalization runs: none is declared, or none is read."""
+    """No modification normalization runs: none is declared, or nothing reads its output.
+
+    Constructed by ``configure_parse.modifications_for``, not by ``applier_for`` below —
+    both of those are questions about the rule, and neither is a kind of settings.
+    """
 
     sources: tuple[str, ...] = ()
 
@@ -125,4 +151,27 @@ class NoModifications:
         return frozenset()
 
 
-type ModificationApplier = TokenRegexApplier | SiteListApplier | NoModifications
+_IMPLEMENTS: tuple[type[ModificationApplier], ...] = (
+    TokenRegexApplier,
+    SiteListApplier,
+    NoModifications,
+)
+"""Every class claiming the protocol, wherever it is constructed — pyright checks each one
+against it here, at its definition site. Not a list of what ``applier_for`` returns:
+``NoModifications`` is constructed by ``configure_parse.modifications_for`` instead.
+"""
+
+
+def applier_for(
+    columns: SequenceColumns, settings: TokenRegexSettings | SiteListSettings
+) -> ModificationApplier:
+    """Return the applier that normalizes the kind of settings it was given.
+
+    Two of the three implementations, because only two are a *kind of settings*. The
+    identity applier answers "no block is declared" and "nothing reads its output", which
+    are questions about the rule; giving this signature a third settings type meaning
+    "none" would be ``| None`` wearing a class.
+    """
+    if isinstance(settings, SiteListSettings):
+        return SiteListApplier(columns, settings)
+    return TokenRegexApplier(columns, settings)

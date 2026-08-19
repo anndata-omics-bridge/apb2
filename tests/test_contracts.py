@@ -11,7 +11,7 @@ import pandas as pd
 import pytest
 
 from apb2 import configure_parse
-from apb2.parse_quant.errors import (
+from apb2.errors import (
     IncompatibleSourceError,
     NoCompatibleLevelError,
 )
@@ -25,8 +25,7 @@ from apb2.parse_quant.sources import (
     SingleFile,
     UngroupedNumbers,
 )
-from apb2.vendor_params.model import Parameters
-from apb2.vendor_parse_rules.model import LongRule
+from apb2.vendor_parse_rules.rules import Rule
 
 
 def _empty_result(uns: dict[str, str] | None = None) -> ParsedData:
@@ -91,10 +90,11 @@ def test_identity_fragments_return_the_table_unchanged() -> None:
     assert NoFragments().packed_columns() == ()
 
 
-def _rule(level: str) -> LongRule:
+def _rule(level: str) -> Rule:
+    """A stand-in for what the rules door returns: only the level is read here."""
     return cast(
-        "LongRule",
-        SimpleNamespace(quantification_level=level, software_name="fake"),
+        "Rule",
+        SimpleNamespace(config=SimpleNamespace(quantification_level=level, software_name="fake")),
     )
 
 
@@ -108,15 +108,14 @@ def test_make_parsers_orders_parsers_by_quantification_level(
     built: list[str] = []
 
     def fake_make_parser(
-        rule: LongRule,
+        rule: Rule,
         source: InputSource,
-        parameters: Parameters | None = None,
         *,
         strict: bool = False,
     ) -> Parser:
-        del source, parameters, strict
-        built.append(rule.quantification_level)
-        return cast("Parser", SimpleNamespace(level=rule.quantification_level))
+        del source, strict
+        built.append(rule.config.quantification_level)
+        return cast("Parser", SimpleNamespace(level=rule.config.quantification_level))
 
     monkeypatch.setattr(configure_parse, "make_parse_strategy", fake_make_parser)
 
@@ -132,16 +131,15 @@ def test_make_parsers_skips_incompatible_rules_and_keeps_compatible_ones(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def fake_make_parser(
-        rule: LongRule,
+        rule: Rule,
         source: InputSource,
-        parameters: Parameters | None = None,
         *,
         strict: bool = False,
     ) -> Parser:
-        del source, parameters, strict
-        if rule.quantification_level == "protein":
+        del source, strict
+        if rule.config.quantification_level == "protein":
             raise IncompatibleSourceError("protein table role is not bound")
-        return cast("Parser", SimpleNamespace(level=rule.quantification_level))
+        return cast("Parser", SimpleNamespace(level=rule.config.quantification_level))
 
     monkeypatch.setattr(configure_parse, "make_parse_strategy", fake_make_parser)
 
@@ -154,13 +152,12 @@ def test_make_parsers_raises_when_no_rule_is_compatible(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def fake_make_parser(
-        rule: LongRule,
+        rule: Rule,
         source: InputSource,
-        parameters: Parameters | None = None,
         *,
         strict: bool = False,
     ) -> Parser:
-        del rule, source, parameters, strict
+        del rule, source, strict
         raise IncompatibleSourceError("nothing is bound")
 
     monkeypatch.setattr(configure_parse, "make_parse_strategy", fake_make_parser)

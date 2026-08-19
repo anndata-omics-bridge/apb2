@@ -22,24 +22,26 @@ import json
 from collections.abc import Iterable, Mapping, Sequence
 from collections.abc import Set as AbstractSet
 
-from apb2.modifications import apply_rules
+from apb2 import rule_reading
+from apb2.errors import IncompatibleSourceError, NoCompatibleLevelError, RuleNotApplicable
 from apb2.parse_quant import (
     bound_input_reader,
     column_plan,
     duplicates,
     fragment_exploder,
     layers,
-    modifications,
     parse_strategy,
     table_conversion,
 )
-from apb2.parse_quant.errors import IncompatibleSourceError, NoCompatibleLevelError
+from apb2.parse_quant.modifications import applier as modification_applier
+from apb2.parse_quant.modifications import normalize_sequence
 from apb2.parse_quant.sources import InputSource
 from apb2.serialization import JsonValue
-from apb2.vendor_params.model import Parameters
-from apb2.vendor_parse_rules import model, runtime
+from apb2.vendor_parse_rules import model
+from apb2.vendor_parse_rules.rules import Recognition, Rule
 
-type Rule = model.LongRule | model.WideRule
+type RuleConfig = model.LongRule | model.WideRule
+"""The validated declaration inside a ``Rule``; every selector below reads one."""
 
 
 # ------------------------------------------------------------------- the composition root
@@ -48,52 +50,46 @@ type Rule = model.LongRule | model.WideRule
 def make_parse_strategy(
     rule: Rule,
     source: InputSource,
-    parameters: Parameters | None = None,
     *,
     strict: bool = False,
 ) -> parse_strategy.Parser:
     """Construct one fully injected parser for one quantification level.
 
-    Raises ``IncompatibleSourceError`` when ``source`` cannot satisfy ``rule`` or when the
-    rule's parameter gate is not satisfied by ``parameters``. ``strict`` promotes
-    non-``X`` layer-contract warnings to errors.
+    ``rule`` is what the rules door returned: the declaration the evidence selected, and the
+    recognition built with it. Nothing here reads a search parameter, and nothing rebuilds
+    the recognition. Raises ``IncompatibleSourceError`` when ``source`` cannot satisfy the
+    rule; ``strict`` promotes non-``X`` layer-contract warnings to errors.
     """
-    if not runtime.available_for(rule, parameters):
-        raise IncompatibleSourceError(
-            f"{runtime.rule_label(rule)} is not available for the supplied search parameters "
-            f"(requires {rule.requires_search_parameters})"
-        )
-    rule = runtime.resolved_for(rule, parameters)
-    label = runtime.rule_label(rule)
-    recognition = runtime.recognition_for(rule)
+    config, recognition = rule.config, rule.recognition
+    label = rule_reading.rule_label(config)
     binding = bound_input_reader.bind_source(source, accepts=recognition.matches, rule_label=label)
     header = binding.header()
     if not recognition.matches(header):
         raise IncompatibleSourceError(
             f"{binding.path} does not carry the columns required by {label}"
         )
-    applier = applier_for(rule)
+    applier = modifications_for(config)
     missing = [column for column in applier.sources if column not in set(header)]
     if missing:
         raise IncompatibleSourceError(
             f"{binding.path} lacks the [modifications] source column(s) {missing} required "
             f"by {label}"
         )
-    exploder = exploder_for(rule, header)
+    exploder = exploder_for(config, header)
+    columns_read = [*applier.source_columns(), *exploder.packed_columns()]
     return parse_strategy.Parser(
-        level=rule.quantification_level,
-        input=binding.make_reader(_read_plan(recognition, header, applier, exploder)),
+        level=config.quantification_level,
+        input=binding.make_reader(_read_plan(recognition, header, columns_read)),
         fragments=exploder,
-        columns=column_plan_for(rule, recognition, applier),
-        conversion=conversion_for(rule, strict=strict),
-        provenance=_provenance(rule),
+        columns=column_plan_for(config, recognition, applier),
+        conversion=conversion_for(config, strict=strict),
+        provenance=_provenance(config),
     )
 
 
 def make_parse_strategies(
     rules: Iterable[Rule],
     source: InputSource,
-    parameters: Parameters | None = None,
     *,
     strict: bool = False,
 ) -> list[parse_strategy.Parser]:
@@ -102,15 +98,15 @@ def make_parse_strategies(
     Incompatible rules never gate construction of the compatible ones; an empty result
     is an error because a source that satisfies nothing was the wrong source.
     """
-    ordered = sorted(rules, key=lambda rule: model.LEVELS.index(rule.quantification_level))
+    ordered = sorted(rules, key=lambda rule: model.LEVELS.index(rule.config.quantification_level))
     parsers: list[parse_strategy.Parser] = []
     for rule in ordered:
         try:
-            parsers.append(make_parse_strategy(rule, source, parameters, strict=strict))
-        except IncompatibleSourceError:
+            parsers.append(make_parse_strategy(rule, source, strict=strict))
+        except RuleNotApplicable:
             continue
     if not parsers:
-        levels = [rule.quantification_level for rule in ordered]
+        levels = [rule.config.quantification_level for rule in ordered]
         raise NoCompatibleLevelError(
             f"no rule among levels {levels} is satisfied by the bound source {source!r}"
         )
@@ -118,24 +114,22 @@ def make_parse_strategies(
 
 
 def _read_plan(
-    recognition: runtime.Recognition,
-    header: Sequence[str],
-    applier: modifications.ModificationApplier,
-    exploder: parse_strategy.FragmentExploder,
+    recognition: Recognition, header: Sequence[str], also: Iterable[str]
 ) -> bound_input_reader.ReadPlan:
-    """Fix the projection: everything the rule reads, plus what the two resolved
-    strategies resolved against the same header.
+    """Fix the projection: everything the rule reads, plus ``also``.
+
+    ``also`` is what the resolved strategies decided they touch against this same header —
+    modification sources and outputs, packed fragment columns. They are asked for those
+    names at the call site: a projection is names, so nothing here holds a strategy.
     """
-    columns = runtime.projected_columns(
-        recognition, header, [*applier.source_columns(), *exploder.packed_columns()]
-    )
+    columns = rule_reading.projected_columns(recognition, header, also)
     return bound_input_reader.ReadPlan(
         columns=columns,
-        string_sources=runtime.string_typed_sources(recognition) & frozenset(columns),
+        string_sources=rule_reading.string_typed_sources(recognition) & frozenset(columns),
     )
 
 
-def _provenance(rule: Rule) -> dict[str, JsonValue]:
+def _provenance(rule: RuleConfig) -> dict[str, JsonValue]:
     """Serialize the rule's provenance once; the parser retains no model."""
     return {
         "rule_json": json.dumps(rule.model_dump(mode="json")),
@@ -174,7 +168,7 @@ def computer_for(column: model.ComputedColumn) -> column_plan.ColumnComputer:
 
 
 def column_plan_for(
-    rule: Rule, recognition: runtime.Recognition, applier: modifications.ModificationApplier
+    rule: RuleConfig, recognition: Recognition, applier: modification_applier.ModificationApplier
 ) -> column_plan.ColumnMaterialization:
     """Build both materialization passes for every axis the rule declares."""
     keys_by_axis = {"obs": rule.axis.obs_keys, "var": rule.axis.var_keys}
@@ -194,7 +188,7 @@ def _axis_materialization(
     the rest afterwards on the deduplicated axis frame.
     """
     declared = tuple(model.group_names(group))
-    closure = runtime.key_closure(group, keys)
+    closure = rule_reading.key_closure(group, keys)
     return column_plan.AxisMaterialization(
         declared=declared,
         keys=_materialization_pass(group, closure),
@@ -234,13 +228,13 @@ def coercion_for(layer: model.Layer) -> layers.LayerCoercion:
     return layers.PlainNumericCoercion(missing_values)
 
 
-def _layer_plans(rule: Rule) -> tuple[layers.LayerPlan, ...]:
+def _layer_plans(rule: RuleConfig) -> tuple[layers.LayerPlan, ...]:
     """One plan per declared layer, with the rule-level ``required`` question folded in."""
     return tuple(
         layers.LayerPlan(
             name=layer.name,
             source=layer.source,
-            required=runtime.layer_required(rule, layer),
+            required=model.layer_required(rule, layer),
             coercion=coercion_for(layer),
         )
         for layer in rule.layers
@@ -274,7 +268,7 @@ def policy_for(declared: model.Duplicates) -> duplicates.DuplicatePolicy:
 # ---------------------------------------------------------------------------- fragments
 
 
-def exploder_for(rule: Rule, header: list[str]) -> parse_strategy.FragmentExploder:
+def exploder_for(rule: RuleConfig, header: list[str]) -> parse_strategy.FragmentExploder:
     """Read the rule's ``label_strategy`` once, and return the exploder it names.
 
     Packed columns resolve against the header here: a missing column backing a required
@@ -285,9 +279,7 @@ def exploder_for(rule: Rule, header: list[str]) -> parse_strategy.FragmentExplod
     if declared is None:
         return fragment_exploder.NoFragments()
     present = set(header)
-    required_sources = {
-        layer.source for layer in rule.layers if runtime.layer_required(rule, layer)
-    }
+    required_sources = {layer.source for layer in rule.layers if model.layer_required(rule, layer)}
     missing = [
         column
         for column in declared.value_columns
@@ -296,13 +288,13 @@ def exploder_for(rule: Rule, header: list[str]) -> parse_strategy.FragmentExplod
     if missing:
         raise IncompatibleSourceError(
             f"input lacks the packed fragment column(s) {missing} required by "
-            f"{runtime.rule_label(rule)}"
+            f"{rule_reading.rule_label(rule)}"
         )
     value_columns = tuple(column for column in declared.value_columns if column in present)
     if not value_columns:
         raise IncompatibleSourceError(
             f"input carries none of the packed fragment columns {list(declared.value_columns)} "
-            f"declared by {runtime.rule_label(rule)}"
+            f"declared by {rule_reading.rule_label(rule)}"
         )
     if isinstance(declared, model.ColumnLabeledFragments):
         return fragment_exploder.ColumnLabeledExplode(
@@ -321,66 +313,66 @@ def exploder_for(rule: Rule, header: list[str]) -> parse_strategy.FragmentExplod
 # ------------------------------------------------------------------------ modifications
 
 
-def applier_for(rule: Rule) -> modifications.ModificationApplier:
-    """Read the ``parser`` selector once; return the applier it names, or the identity.
+def modifications_for(rule: RuleConfig) -> modification_applier.ModificationApplier:
+    """Read the ``[modifications]`` block, and hand its settings to the applier factory.
 
-    The absence questions — is a block declared, does anything read its output — are
-    asked once here instead of on every table, and the Unimod map is resolved in the same
-    step, so an unknown accession fails before any table is read.
+    Everything rule-shaped happens here — is a block declared, does anything read its
+    output, what do its fields say — including resolving the Unimod map, so an unknown
+    accession fails before any table is read. Which class those settings name is
+    ``applier_for``'s decision, and it lives beside the classes.
     """
     declared = rule.modifications
     if declared is None:
-        return modifications.NoModifications()
+        return modification_applier.NoModifications()
     consumed = any(
         isinstance(column, model.ProformaSequence | model.StrippedSequence)
         for column in rule.columns.var.computed
     )
     if not consumed:
-        return modifications.NoModifications()
-    columns = modifications.SequenceColumns(
+        return modification_applier.NoModifications()
+    columns = modification_applier.SequenceColumns(
         output_column=declared.output_column,
-        sources=runtime.modification_sources(declared),
+        sources=rule_reading.modification_sources(declared),
         outputs=model.modification_outputs(declared),
     )
-    entries = apply_rules.map_entries((entry.token, entry.accession) for entry in declared.map)
+    entries = normalize_sequence.map_entries(
+        (entry.token, entry.accession) for entry in declared.map
+    )
+    settings: normalize_sequence.TokenRegexSettings | normalize_sequence.SiteListSettings
     if isinstance(declared, model.SiteListModifications):
-        return modifications.SiteListApplier(
-            columns,
-            apply_rules.SiteListRule(
-                delimiter=declared.delimiter,
-                site_base=declared.site_base,
-                case_sensitive=declared.case_sensitive,
-                unknown_policy=declared.unknown_policy,
-                entries=entries,
-            ),
+        settings = normalize_sequence.SiteListSettings(
+            delimiter=declared.delimiter,
+            site_base=declared.site_base,
+            case_sensitive=declared.case_sensitive,
+            unknown_policy=declared.unknown_policy,
+            entries=entries,
         )
-    return modifications.TokenRegexApplier(
-        columns,
-        apply_rules.ModificationRule(
+    else:
+        settings = normalize_sequence.TokenRegexSettings(
             token_pattern=declared.token_pattern,
             token_position=declared.token_position,
             case_sensitive=declared.case_sensitive,
             unknown_policy=declared.unknown_policy,
             entries=entries,
-        ),
-    )
+        )
+    return modification_applier.applier_for(columns, settings)
 
 
 # -------------------------------------------------------------------------------- shape
 
 
-def conversion_for(rule: Rule, *, strict: bool) -> parse_strategy.TableConversion:
+def conversion_for(rule: RuleConfig, *, strict: bool) -> parse_strategy.TableConversion:
     """Read a rule's shape once, and return the conversion it names."""
     layer_plans = _layer_plans(rule)
     policy = policy_for(rule.axis.duplicates)
-    var_carry = runtime.carried_columns(
-        rule.axis.var_keys, rule.columns.var, runtime.var_extras(rule)
+    var_carry = rule_reading.carried_columns(
+        rule.axis.var_keys, rule.columns.var, rule_reading.var_extras(rule)
     )
     if isinstance(rule, model.LongRule):
         return table_conversion.LongConversion(
             obs_keys=rule.axis.obs_keys,
             var_keys=rule.axis.var_keys,
-            obs_carry=runtime.carried_columns(rule.axis.obs_keys, rule.columns.obs, ()),
+            obs_carry=rule_reading.carried_columns(rule.axis.obs_keys, rule.columns.obs, ()),
             var_carry=var_carry,
             layers=layer_plans,
             x_layer=rule.axis.x_layer,

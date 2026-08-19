@@ -3,7 +3,7 @@
 Wide and long tables mean different things by "duplicate": the wide converter finds
 several *columns* claiming one sample, the long converter finds repeated key *rows*.
 That is why a policy answers several combining questions rather than one — the two
-converters do not share a representation. ``selectors.policy_for`` reads the declared
+converters do not share a representation. ``configure_parse.policy_for`` reads the declared
 ``mode`` once and hands the conversion the policy it names.
 """
 

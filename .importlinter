@@ -28,7 +28,7 @@ forbidden_modules =
 name = the parse strategies import no schema package, directly or transitively
 type = forbidden
 # TODO item 9. Every strategy in parse_quant takes ordinary typed values, so neither the
-# rule nor the search-parameter evidence can reach it: selectors.py translates one into
+# rule nor the search-parameter evidence can reach it: configure_parse.py translates one into
 # the other, and parse_strategy.py is the only module that depends on all three sides.
 source_modules =
     apb2.parse_quant

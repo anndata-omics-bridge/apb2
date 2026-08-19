@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Literal
@@ -16,29 +17,22 @@ from typing import Annotated, Literal
 from cyclopts import App, Parameter
 from loguru import logger
 
+from apb2 import export_schema
 from apb2.configure_parse import make_parse_strategy
+from apb2.detect_document import DetectedSoftware, guess_software, software_slug
+from apb2.errors import (
+    AmbiguousRuleError,
+    IncompatibleSourceError,
+    RuleNotApplicable,
+    RuleUnavailableError,
+)
 from apb2.output import as_anndata, update_namespace, write_atomically
 from apb2.parse_quant.bound_input_reader import format_for
-from apb2.parse_quant.errors import IncompatibleSourceError
 from apb2.parse_quant.sources import SingleFile
 from apb2.vendor_params.model import Parameters
 from apb2.vendor_params.registry import parse_params
-from apb2.vendor_parse_rules.documents import export as schema_export
-from apb2.vendor_parse_rules.documents.select import (
-    AmbiguousRuleError,
-    DetectedSoftware,
-    RuleUnavailableError,
-    guess_software,
-    software_slug,
-)
-from apb2.vendor_parse_rules.model import (
-    Document,
-    LongRule,
-    QuantificationLevel,
-    WideRule,
-    compose_rule,
-    load_document,
-)
+from apb2.vendor_parse_rules.model import QuantificationLevel
+from apb2.vendor_parse_rules.rules import Rule, load_document
 
 app = App(name="apb2", help="apb2 CLI: rules-driven vendor-table conversion", help_on_error=True)
 
@@ -96,18 +90,18 @@ def _convert_from_rule_config(
     rule_config: Path,
 ) -> int:
     """Compose one level of an explicit rule document and execute it."""
-    document = load_document(rule_config)
-    rule = _composed_rule(document, level)
-    if rule is None:
-        return 1
+    rules = load_document(rule_config)
     parameters = (
         parse_params(
             options.params,
-            software=options.params_software or software_slug(document.software_name),
+            software=options.params_software or software_slug(rules.software_name),
         )
         if options.params is not None
         else None
     )
+    rule = _rule_or_log(lambda: rules.rule(level, parameters))
+    if rule is None:
+        return 1
     return _execute(data, output, rule, "rule_config", parameters, options.params, options)
 
 
@@ -142,26 +136,26 @@ def _convert_from_packaged_rules(
         )
         return 1
     logger.info("vendor={} software_version={}", detected.software, detected.version or "missing")
-    document = load_document(detected.get_rule_path())
-    rule = _composed_rule(document, level)
+    rule = _rule_or_log(lambda: load_document(detected.get_rule_path()).rule(level, parameters))
     if rule is None:
         return 1
     method: _SelectionMethod = "software_version" if detected.version is not None else "columns"
     return _execute(data, output, rule, method, parameters, options.params, options)
 
 
-def _composed_rule(document: Document, level: QuantificationLevel) -> LongRule | WideRule | None:
-    """Compose one level, or log the available levels when the document lacks it."""
-    if level not in document.levels:
-        logger.error(f"{document.path} has no level {level!r}; available: {list(document.levels)}")
+def _rule_or_log(get: Callable[[], Rule]) -> Rule | None:
+    """Ask the rules door for a rule, or log why this file cannot provide it."""
+    try:
+        return get()
+    except RuleNotApplicable as error:
+        logger.error(str(error))
         return None
-    return compose_rule(document, level)
 
 
 def _execute(
     data: Path,
     output: Path,
-    rule: LongRule | WideRule,
+    rule: Rule,
     method: _SelectionMethod,
     parameters: Parameters | None,
     parameters_path: Path | None,
@@ -169,7 +163,7 @@ def _execute(
 ) -> int:
     """Parse one composed rule and write it atomically with its provenance."""
     try:
-        strategy = make_parse_strategy(rule, SingleFile(data), parameters, strict=options.strict)
+        strategy = make_parse_strategy(rule, SingleFile(data), strict=options.strict)
     except IncompatibleSourceError as error:
         logger.error(str(error))
         return 1
@@ -195,7 +189,7 @@ def _execute(
 @app.command(name="export-schema")
 def export_schema_cmd() -> int:
     """Regenerate the packaged JSON Schema artifact from the pydantic models."""
-    schema_export.main()
+    export_schema.write_artifact()
     return 0
 
 

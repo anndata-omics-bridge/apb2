@@ -3,7 +3,7 @@
 DIA-NN-style reports pack per-fragment values as delimiter-joined lists inside each
 precursor row (``Fragment.Info`` plus parallel ``Fragment.Quant.*`` lists, aligned by
 index, often terminated by a trailing delimiter). Which exploder runs, and which packed
-columns it receives, is decided once by ``selectors.exploder_for`` against the inspected
+columns it receives, is decided once by ``configure_parse.exploder_for`` against the inspected
 header. The read plan projects the frame before it reaches the exploder, so no trim
 happens here.
 """

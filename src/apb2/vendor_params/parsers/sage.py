@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import IO
 
-from apb2.modifications import unimod_registry
+from apb2.unimod_registry import registry as unimod_registry
 from apb2.vendor_params.model import Parameters
 from apb2.vendor_params.parsers._common import (
     format_tolerance_range,

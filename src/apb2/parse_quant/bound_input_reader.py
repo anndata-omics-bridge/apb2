@@ -3,7 +3,7 @@
 One module for everything between a path and a DataFrame. ``format_for(path)`` returns a
 path-initialized reader for header-level questions; ``bind_source`` resolves one typed
 ``InputSource`` into one concrete bound table (the single dispatch over the source union);
-the two table readers execute a ``ReadPlan`` that ``selectors.compile_read_plan`` compiled
+the two table readers execute a ``ReadPlan`` that ``configure_parse`` compiled
 from the rule. Detection is not an unrestricted guess: a candidate delimiter is viable only
 when the header it exposes is accepted, which is how the rule's required sources enter here
 — as a predicate over headers, never as a rule.
@@ -21,7 +21,7 @@ from pathlib import Path
 import pandas as pd
 import pyarrow.parquet as pq
 
-from apb2.parse_quant.errors import AmbiguousDialectError, IncompatibleSourceError
+from apb2.errors import AmbiguousDialectError, IncompatibleSourceError
 from apb2.parse_quant.parse_strategy import BoundInputReader
 from apb2.parse_quant.sources import (
     DelimitedDialect,

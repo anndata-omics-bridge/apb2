@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import re
+from enum import StrEnum
 from typing import Literal
 
 from pydantic import (
@@ -17,8 +18,7 @@ from pydantic import (
     model_validator,
 )
 
-from apb2.modifications import unimod_registry
-from apb2.modifications.model import SearchedModification
+from apb2.unimod_registry import registry as unimod_registry
 
 
 class ParamsError(Exception):
@@ -86,10 +86,43 @@ _RANGE_RE = re.compile(
 _ABSOLUTE_RE = re.compile(r"^(?P<value>[+-]?\d+(?:\.\d+)?)\s*(?P<unit>[A-Za-z]*)$")
 _SEARCH_MOD_RE = re.compile(r"^(?P<target>.*?)\[(?P<identity>[^\[\]]+)\]$")
 _MASS_IDENTITY_RE = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$")
+_ACCESSION_RE = re.compile(r"^(UNIMOD|MOD):\d+$", re.IGNORECASE)
 
 
 class _Strict(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+class ModType(StrEnum):
+    """Whether a modification was searched as fixed, variable, or unknown."""
+
+    fixed = "fixed"
+    variable = "variable"
+    unknown = "unknown"
+
+
+class SearchedModification(_Strict):
+    """A modification declared in a search-engine parameter file.
+
+    Part of the parameter schema, not of modification domain knowledge: it is parsed from a
+    vendor parameter file (``model_validate`` below) and carries no sequence localization —
+    that is ``ModificationOccurrence``, which the sequence normalizer builds.
+    """
+
+    name: str
+    accession: str | None = None
+    mod_type: ModType = ModType.unknown
+    target: str | None = None
+    position: str | None = "Anywhere"
+    mass_delta: float | None = None
+    source: str | None = None
+
+    @field_validator("accession")
+    @classmethod
+    def _valid_accession(cls, value: str | None) -> str | None:
+        if value is not None and not _ACCESSION_RE.match(value):
+            raise ValueError("accession must look like UNIMOD:35 or MOD:00425")
+        return value
 
 
 class Probability(_Strict):

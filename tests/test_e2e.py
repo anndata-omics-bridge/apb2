@@ -26,20 +26,15 @@ from anndata_proteomics.vendor_quant_rules.registry import (
 )
 
 from apb2.configure_parse import make_parse_strategy
+from apb2.detect_document import software_slug
+from apb2.errors import RuleNotApplicable
 from apb2.parse_quant.sources import SingleFile
 from apb2.vendor_params.model import Parameters
 from apb2.vendor_params.registry import parse_params
-from apb2.vendor_parse_rules.documents.select import packaged_documents, software_slug
-from apb2.vendor_parse_rules.model import (
-    LongRule,
-    QuantificationLevel,
-    WideRule,
-    compose_rule,
-    load_document,
-)
-from apb2.vendor_parse_rules.runtime import available_for
+from apb2.vendor_parse_rules.model import LongRule, QuantificationLevel, WideRule
+from apb2.vendor_parse_rules.rules import PACKAGED, load_document
 
-_APB2_DOCUMENT_PATHS = [document.path for document in packaged_documents()]
+_APB2_RULES = tuple(load_document(path) for path in PACKAGED)
 
 
 def _document_key(path: Path) -> tuple[str, ...]:
@@ -54,9 +49,9 @@ _LEGACY_LOCATORS = {
 }
 
 _CASES = [
-    pytest.param(path, level, id=f"{path.parent.name}/{level}")
-    for path in _APB2_DOCUMENT_PATHS
-    for level in load_document(path).levels
+    pytest.param(rules.path, level, id=f"{rules.path.parent.name}/{level}")
+    for rules in _APB2_RULES
+    for level in rules.levels
 ]
 
 
@@ -71,16 +66,20 @@ def _cached_parameters(rule: LongRule | WideRule, data_file: Path) -> Parameters
 
 @pytest.mark.parametrize(("path", "level"), _CASES)
 def test_apb2_matches_legacy_conversion(path: Path, level: QuantificationLevel) -> None:
-    rule = compose_rule(load_document(path), level)
+    rules = load_document(path)
+    rule = rules.declared(level).config
     if rule.fragments is not None:
         pytest.skip("fragment level converted on a subset in legacy tests")
 
-    data_file = find_test_data_for_version(rule.software_name, rule.software_version_pattern)
+    data_file = find_test_data_for_version(rules.software_name, rules.software_version_pattern)
     if isinstance(data_file, VendorDataUnavailable) or not data_file.exists():
-        pytest.skip(f"no test data for {rule.software_name!r} {rule.software_version_pattern!r}")
+        pytest.skip(f"no test data for {rules.software_name!r} {rules.software_version_pattern!r}")
     parameters = _cached_parameters(rule, data_file)
-    if not available_for(rule, parameters):
-        pytest.skip(f"cached {rule.software_name} file is not {level}-level")
+    try:
+        composed = rules.rule(level, parameters)
+    except RuleNotApplicable:
+        pytest.skip(f"cached {rules.software_name} file is not {level}-level")
+    rule = composed.config
 
     legacy_locator = _LEGACY_LOCATORS[(_document_key(path), level)]
     legacy_rule = load_legacy_rule(legacy_locator)
@@ -90,7 +89,7 @@ def test_apb2_matches_legacy_conversion(path: Path, level: QuantificationLevel) 
         pytest.skip(f"cached {rule.software_name} file lacks columns for {level}")
 
     pieces = convert_table(df, legacy_rule)
-    parsed = make_parse_strategy(rule, SingleFile(data_file), parameters).parse()
+    parsed = make_parse_strategy(composed, SingleFile(data_file)).parse()
 
     np.testing.assert_allclose(parsed.X, pieces.X, equal_nan=True)
     pd.testing.assert_frame_equal(parsed.obs, pieces.obs)

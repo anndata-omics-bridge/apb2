@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from apb2.modifications.model import ModificationOccurrence
+from collections.abc import Sequence
+
+from apb2.parse_quant.modifications.modified_sequence import ModificationOccurrence
 
 
 def render_proforma(
     stripped: str,
-    occurrences: list[ModificationOccurrence],
+    occurrences: Sequence[ModificationOccurrence],
     unknown_tokens: dict[int, str],
 ) -> str:
     """Build a ProForma 2.0 string from a stripped sequence + modifications.
@@ -53,7 +55,7 @@ def render_proforma(
 
 
 def _group_occurrences(
-    occurrences: list[ModificationOccurrence],
+    occurrences: Sequence[ModificationOccurrence],
 ) -> tuple[list[str], list[str], dict[int, list[str]]]:
     nterm: list[str] = []
     cterm: list[str] = []

@@ -8,7 +8,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import IO, NamedTuple, TypedDict
 
-from apb2.modifications import unimod_registry
+from apb2.unimod_registry import registry as unimod_registry
 from apb2.vendor_params.model import MassTolerance, Parameters
 from apb2.vendor_params.parsers._common import (
     MassModificationMatch,
