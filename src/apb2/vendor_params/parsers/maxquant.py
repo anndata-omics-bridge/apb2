@@ -9,8 +9,18 @@ from typing import IO
 
 import pandas as pd
 
-from apb2.vendor_params.model import MassTolerance, Parameters
-from apb2.vendor_params.parsers._common import homogenize_paren_mods
+from apb2.vendor_params.model import (
+    MassTolerance,
+    ModType,
+    Parameters,
+    Probability,
+    SearchedModification,
+)
+from apb2.vendor_params.parsers._common import (
+    homogenize_paren_mods,
+    modifications,
+    split_modifications,
+)
 
 XmlValue = str | dict[str, "XmlValue"] | list["XmlValue"] | None
 FlatValue = str | None
@@ -24,14 +34,15 @@ _MODIFICATION_MAPPING = {
 }
 
 
-def _homogenize_mods(raw_mods: str, sep: str = ",") -> str:
-    """Parse and homogenize a separator-delimited ``{name} ({residues})`` string."""
-    if not raw_mods or not raw_mods.strip():
-        return ""
-    return ", ".join(
-        homogenize_paren_mods(mod, _MODIFICATION_MAPPING)
-        for mod in raw_mods.split(sep)
-        if mod.strip()
+def _homogenize_mods(raw_mods: str, mod_type: ModType) -> list[SearchedModification]:
+    """Resolve a comma-delimited ``{name} ({residues})`` string into modifications."""
+    return modifications(
+        (
+            token
+            for mod in split_modifications(raw_mods)
+            for token in homogenize_paren_mods(mod, _MODIFICATION_MAPPING)
+        ),
+        mod_type,
     )
 
 
@@ -81,12 +92,6 @@ def _read_xml(source: Path | IO[bytes] | IO[str]) -> dict[str, XmlValue]:
     return parsed
 
 
-def _extend(t: KeyPath, target_length: int) -> KeyPath:
-    if len(t) > target_length:
-        raise ValueError(f"tuple too long for index width {target_length}: {t!r}")
-    return t + (None,) * (target_length - len(t))
-
-
 def _flatten(d: dict[str, XmlValue], parent_key: KeyPath = ()) -> list[tuple[KeyPath, FlatValue]]:
     items: list[tuple[KeyPath, FlatValue]] = []
     for key, value in d.items():
@@ -105,11 +110,12 @@ def _flatten(d: dict[str, XmlValue], parent_key: KeyPath = ()) -> list[tuple[Key
 
 
 def _build_series(record: dict[str, XmlValue], index_length: int = 4) -> pd.Series:
+    """Index the flattened document by a fixed-width key path, padding shorter paths."""
     items = _flatten(record)
-    keys = [_extend(key, index_length) for key, _ in items]
-    values = [value for _, value in items]
-    idx = pd.MultiIndex.from_tuples(keys)
-    return pd.Series(values, index=idx)
+    if any(len(key) > index_length for key, _ in items):
+        raise ValueError(f"mqpar nests deeper than the index width {index_length}")
+    keys = [key + (None,) * (index_length - len(key)) for key, _ in items]
+    return pd.Series([value for _, value in items], index=pd.MultiIndex.from_tuples(keys))
 
 
 def _text(value: object, field: str) -> str:
@@ -123,27 +129,31 @@ def _joined_text(value: object, field: str) -> str:
     """Return one or more text values as a comma-delimited string."""
     if isinstance(value, str):
         return value
-    if isinstance(value, pd.Series):
-        parts: list[str] = []
-        for item in value:
-            if not isinstance(item, str):
-                raise TypeError(f"MaxQuant {field} entries must be text")
-            parts.append(item)
-        return ",".join(parts)
-    raise TypeError(f"MaxQuant {field} must contain text values")
+    if not isinstance(value, pd.Series):
+        raise TypeError(f"MaxQuant {field} must contain text values")
+    return ",".join(_text(item, field) for item in value)
+
+
+def _field(series: pd.Series, name: str) -> str:
+    """Read one top-level mqpar value as text."""
+    return _text(series.loc[name].squeeze(), name)
+
+
+def _group_field(series: pd.Series, *path: str) -> str:
+    """Read one value from mqpar's single selected parameter group as text."""
+    return _text(
+        series.loc[pd.IndexSlice[("parameterGroups", "parameterGroup", *path)]].squeeze(),
+        path[0],
+    )
 
 
 def _tolerance_pair(series: pd.Series) -> tuple[MassTolerance, MassTolerance]:
     """Build precursor (ppm) and fragment (ppm/Da) tolerances from the mqpar series."""
-    prec_value = float(
-        _text(
-            series.loc[
-                pd.IndexSlice["parameterGroups", "parameterGroup", "mainSearchTol", :]
-            ].squeeze(),
-            "mainSearchTol",
-        )
+    precursor = MassTolerance(
+        mode="absolute",
+        value=float(_group_field(series, "mainSearchTol")),
+        unit="ppm",
     )
-    precursor = MassTolerance(mode="absolute", value=prec_value, unit="ppm")
     frag_value = float(
         _text(
             series.loc[
@@ -164,21 +174,22 @@ def _tolerance_pair(series: pd.Series) -> tuple[MassTolerance, MassTolerance]:
 def _min_peptide_length(series: pd.Series) -> int:
     """Read the minimum peptide length, tolerating the pre/post-rename key."""
     keys = set(series.index.get_level_values(0))
-    if "minPepLen" in keys:
-        field = "minPepLen"
-    elif "minPeptideLength" in keys:
-        field = "minPeptideLength"
-    else:
-        raise KeyError("MaxQuant parameters contain no minimum peptide length field")
-    return int(_text(series.loc[field].squeeze(), field))
+    for field in ("minPepLen", "minPeptideLength"):
+        if field in keys:
+            return int(_field(series, field))
+    raise KeyError("MaxQuant parameters contain no minimum peptide length field")
 
 
-def _mods_for_version(series: pd.Series, version: str) -> tuple[str, str]:
-    """Homogenize fixed/variable modifications, handling the 1.6.0.0 path change."""
-    if version > "1.6.0.0":
-        fixed_path = pd.IndexSlice["parameterGroups", "parameterGroup", "fixedModifications", :]
-    else:
-        fixed_path = pd.IndexSlice["fixedModifications", :]
+def _mods_for_version(
+    series: pd.Series,
+    version: str,
+) -> tuple[list[SearchedModification], list[SearchedModification]]:
+    """Resolve fixed/variable modifications, handling the 1.6.0.0 path change."""
+    fixed_path = (
+        pd.IndexSlice["parameterGroups", "parameterGroup", "fixedModifications", :]
+        if version > "1.6.0.0"
+        else pd.IndexSlice["fixedModifications", :]
+    )
     fixed_mods = _joined_text(series.loc[fixed_path].squeeze(), "fixedModifications")
 
     variable_mods = _joined_text(
@@ -188,7 +199,10 @@ def _mods_for_version(series: pd.Series, version: str) -> tuple[str, str]:
         "variableModifications",
     )
 
-    return _homogenize_mods(fixed_mods), _homogenize_mods(variable_mods)
+    return (
+        _homogenize_mods(fixed_mods, ModType.fixed),
+        _homogenize_mods(variable_mods, ModType.variable),
+    )
 
 
 def extract_params(
@@ -220,67 +234,24 @@ def extract_params(
 
     version = str(series.loc["maxQuantVersion"].squeeze())
     precursor_tolerance, fragment_tolerance = _tolerance_pair(series)
-    enzyme_mode = int(
-        _text(
-            series.loc[("parameterGroups", "parameterGroup", "enzymeMode")].squeeze(),
-            "enzymeMode",
-        )
-    )
+    enzyme_mode = int(_group_field(series, "enzymeMode"))
     fixed_mods, variable_mods = _mods_for_version(series, version)
 
-    return Parameters.model_validate(
-        {
-            "software_name": "MaxQuant",
-            "software_version": version,
-            "search_engine": "Andromeda",
-            "ident_fdr_psm": float(_text(series.loc["peptideFdr"].squeeze(), "peptideFdr")),
-            "ident_fdr_peptide": None,
-            "ident_fdr_protein": float(_text(series.loc["proteinFdr"].squeeze(), "proteinFdr")),
-            "enable_match_between_runs": (
-                _text(
-                    series.loc["matchBetweenRuns"].squeeze(),
-                    "matchBetweenRuns",
-                ).lower()
-                == "true"
-            ),
-            "precursor_mass_tolerance": precursor_tolerance,
-            "fragment_mass_tolerance": fragment_tolerance,
-            "enzyme": _text(
-                series.loc[("parameterGroups", "parameterGroup", "enzymes", "string")].squeeze(),
-                "enzyme",
-            ),
-            "semi_enzymatic": enzyme_mode != 0,
-            "allowed_miscleavages": int(
-                _text(
-                    series.loc[
-                        pd.IndexSlice[
-                            "parameterGroups",
-                            "parameterGroup",
-                            "maxMissedCleavages",
-                            :,
-                        ]
-                    ].squeeze(),
-                    "maxMissedCleavages",
-                )
-            ),
-            "min_peptide_length": _min_peptide_length(series),
-            "max_peptide_length": None,
-            "fixed_mods": fixed_mods,
-            "variable_mods": variable_mods,
-            "max_mods": int(
-                _text(
-                    series.loc[("parameterGroups", "parameterGroup", "maxNmods")].squeeze(),
-                    "maxNmods",
-                )
-            ),
-            "min_precursor_charge": None,
-            "max_precursor_charge": int(
-                _text(
-                    series.loc[
-                        pd.IndexSlice["parameterGroups", "parameterGroup", "maxCharge", :]
-                    ].squeeze(),
-                    "maxCharge",
-                )
-            ),
-        }
+    return Parameters(
+        software_name="MaxQuant",
+        software_version=version,
+        search_engine="Andromeda",
+        ident_fdr_psm=Probability(value=float(_field(series, "peptideFdr"))),
+        ident_fdr_protein=Probability(value=float(_field(series, "proteinFdr"))),
+        enable_match_between_runs=_field(series, "matchBetweenRuns").lower() == "true",
+        precursor_mass_tolerance=precursor_tolerance,
+        fragment_mass_tolerance=fragment_tolerance,
+        enzyme=_group_field(series, "enzymes", "string"),
+        semi_enzymatic=enzyme_mode != 0,
+        allowed_miscleavages=int(_group_field(series, "maxMissedCleavages")),
+        min_peptide_length=_min_peptide_length(series),
+        fixed_mods=fixed_mods,
+        variable_mods=variable_mods,
+        max_mods=int(_group_field(series, "maxNmods")),
+        max_precursor_charge=int(_group_field(series, "maxCharge")),
     )

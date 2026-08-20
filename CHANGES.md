@@ -1,5 +1,26 @@
 # Changes
 
+- 2026-08-20: `vendor_params/` no longer routes typed values through strings. Each parser hands
+  `Parameters` exactly the types its fields declare — `MassTolerance`, `Probability`,
+  `list[SearchedModification]` — and constructs it by keyword instead of `model_validate({...})`,
+  so Pyright checks the boundary. `model.py` 524 -> 209 lines: the nine `mode="before"` coercers,
+  `MassTolerance.parse`, `Probability.parse`, `_ENZYME_MAP`, the modification-token resolver, and
+  `unparsed_parameters`/`UnparsedParameter` (zero producers) are gone, along with the schema's
+  dependency on `unimod_registry`. `parsers/` 2741 -> 2538: `FragPipeParameterData`,
+  `FragPipeVariantData`, `MetaMorpheusParameterData`, and `DiannImplicitDefaults` deleted;
+  FragPipe's six do-nothing identity types and eight constructor wrappers deleted (596 -> 413);
+  DIA-NN's five `_extract_cfg_*` and five `_command_*` staging helpers collapsed (600 -> 508);
+  the settings-text reader shared by PEAKS and Spectronaut moved to `_common.py`. Two defects
+  fixed at the root: `sage._enzyme` treated a null `restrict` as a restriction (the deleted enzyme
+  map had been masking it), and PEAKS's FDR was recovered by a `>= 1 -> /100` magnitude guess after
+  the parser discarded the `%`. `DiannParameterData` is kept on purpose — DIA-NN genuinely merges
+  four evidence sources by precedence — but now in the schema's own types. Tests: all fifteen
+  `apb/tests/test_params_*.py` ported with the `tests/params/` fixtures, their `from_series`
+  oracle relocated to the test-only `tests/proteobench_params.py`, plus a snapshot test over all
+  87 cached vendor parameter files; 70 -> 261 tests. Verified: across those 87 files the only
+  changes are the removed `unparsed_parameters` and 171 modifications gaining the `mod_type` the
+  parser already knew. Plan and full record: `TODO/Archive/TODO_vendor_params_boundary.md`.
+
 - 2026-08-17: TODO items 13 + 14 — `vendor_parse_rules/` has one entry point,
   `load_document(path) -> Document`, and `Document.rule(level, parameters)` returns the
   composed, gated, validated rule together with its header recognition. `Rules`,

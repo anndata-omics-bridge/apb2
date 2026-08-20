@@ -6,44 +6,52 @@ import json
 from pathlib import Path
 from typing import IO
 
-from apb2.unimod_registry import registry as unimod_registry
-from apb2.vendor_params.model import Parameters
-from apb2.vendor_params.parsers._common import (
-    format_tolerance_range,
-    read_text,
-)
-
-MASS_TOLERANCE = 0.001
+from apb2.vendor_params.model import MassTolerance, ModType, Parameters, SearchedModification
+from apb2.vendor_params.parsers._common import modifications, read_text, symmetric_tolerance
 
 # Sage uses "[" for N-terminal and "]" for C-terminal modifications.
 RESIDUE_MAP = {"[": "Protein N-term", "]": "Protein C-term", "^": "N-term", "$": "C-term"}
 
 
-def _lookup_mod_name(mass: float) -> str:
-    """Return a modification name for a mass shift within tolerance, else the raw mass."""
-    result = unimod_registry.find_by_mass(mass, tolerance=MASS_TOLERANCE)
-    if isinstance(result, unimod_registry.UnimodMatch):
-        return result.entry.name
-    return str(mass)
+def _tolerance(declared: dict[str, list[float]]) -> MassTolerance:
+    """Read Sage's ``{unit: [lower, upper]}`` tolerance."""
+    for unit, bounds in declared.items():
+        lower, upper = bounds
+        return symmetric_tolerance(lower, upper, unit)
+    raise ValueError(f"Sage tolerance declares no unit: {declared!r}")
 
 
-def _parse_static_mods(mods: dict[str, float]) -> str:
-    """Render Sage ``static_mods`` ({residue: mass}) as a ProForma-like string."""
-    results = []
-    for residue, mass in mods.items():
-        res = RESIDUE_MAP.get(residue, residue)
-        results.append(f"{res}[{_lookup_mod_name(mass)}]")
-    return ", ".join(results)
+def _static_mods(mods: dict[str, float], mod_type: ModType) -> list[SearchedModification]:
+    """Resolve Sage ``static_mods`` ({residue: mass})."""
+    return modifications(
+        (f"{RESIDUE_MAP.get(residue, residue)}[{mass}]" for residue, mass in mods.items()),
+        mod_type,
+    )
 
 
-def _parse_variable_mods(mods: dict[str, list[float]]) -> str:
-    """Render Sage ``variable_mods`` ({residue: [masses]}) as a ProForma-like string."""
-    results = []
-    for residue, masses in mods.items():
-        res = RESIDUE_MAP.get(residue, residue)
-        for mass in masses:
-            results.append(f"{res}[{_lookup_mod_name(mass)}]")
-    return ", ".join(results)
+def _variable_mods(mods: dict[str, list[float]], mod_type: ModType) -> list[SearchedModification]:
+    """Resolve Sage ``variable_mods`` ({residue: [masses]})."""
+    return modifications(
+        (
+            f"{RESIDUE_MAP.get(residue, residue)}[{mass}]"
+            for residue, masses in mods.items()
+            for mass in masses
+        ),
+        mod_type,
+    )
+
+
+def _enzyme(declared: dict[str, object]) -> str:
+    """Name the protease Sage's cleavage rule describes.
+
+    ``restrict`` names the residue that blocks cleavage when it follows the cleavage site, so a
+    null or absent ``restrict`` means nothing blocks it: cleaving after K and R regardless of a
+    following proline is Trypsin/P, and blocking on proline is Trypsin.
+    """
+    cleave_at = str(declared["cleave_at"])
+    if cleave_at not in ("KR", "RK"):
+        return cleave_at
+    return "Trypsin" if declared.get("restrict") == "P" else "Trypsin/P"
 
 
 def extract_params(source: Path | IO[bytes] | IO[str]) -> Parameters:
@@ -54,24 +62,9 @@ def extract_params(source: Path | IO[bytes] | IO[str]) -> Parameters:
     so existing expected-output CSVs are reproduced unchanged.
     """
     data = json.loads(read_text(source))
-
-    enzyme = data["database"]["enzyme"]["cleave_at"]
-    if enzyme in ("KR", "RK"):
-        if "restrict" not in data["database"]["enzyme"]:
-            enzyme = "Trypsin/P"
-        elif data["database"]["enzyme"]["restrict"] == "P":
-            enzyme = "Trypsin"
-        # restrict present but not "P" (e.g. null) → keep raw KR/RK
-
-    semi = data["database"]["enzyme"].get("semi_enzymatic")
-    if semi is None or semi is False:
-        semi_enzymatic = False
-    elif semi is True:
-        semi_enzymatic = True
-    else:
-        raise ValueError(f"unknown semi_enzymatic value: {semi!r}")
-
-    max_len = data["database"]["enzyme"]["max_len"]
+    database = data["database"]
+    enzyme = database["enzyme"]
+    max_len = enzyme["max_len"]
 
     # `quant.lfq_settings.combine_charge_states` decides whether `lfq.tsv` is ion- or
     # peptidoform-level: Sage's DOCS.md gives it default `true` ("Combine all charge states
@@ -82,25 +75,23 @@ def extract_params(source: Path | IO[bytes] | IO[str]) -> Parameters:
         lfq_settings.get("combine_charge_states", True) if lfq_settings else None
     )
 
-    return Parameters.model_validate(
-        {
-            "software_name": "Sage",
-            "software_version": data["version"],
-            "combine_charge_states": combine_charge_states,
-            "search_engine": "Sage",
-            "search_engine_version": data["version"],
-            "enzyme": enzyme,
-            "semi_enzymatic": semi_enzymatic,
-            "allowed_miscleavages": data["database"]["enzyme"]["missed_cleavages"],
-            "fixed_mods": _parse_static_mods(data["database"]["static_mods"]),
-            "variable_mods": _parse_variable_mods(data["database"]["variable_mods"]),
-            "precursor_mass_tolerance": format_tolerance_range(data["precursor_tol"]),
-            "fragment_mass_tolerance": format_tolerance_range(data["fragment_tol"]),
-            "min_peptide_length": int(data["database"]["enzyme"]["min_len"]),
-            "max_peptide_length": int(max_len) if max_len is not None else None,
-            "max_mods": int(data["database"]["max_variable_mods"]),
-            "min_precursor_charge": int(data["precursor_charge"][0]),
-            "max_precursor_charge": int(data["precursor_charge"][1]),
-            "enable_match_between_runs": True,
-        }
+    return Parameters(
+        software_name="Sage",
+        software_version=data["version"],
+        combine_charge_states=combine_charge_states,
+        search_engine="Sage",
+        search_engine_version=data["version"],
+        enzyme=_enzyme(enzyme),
+        semi_enzymatic=bool(enzyme.get("semi_enzymatic")),
+        allowed_miscleavages=enzyme["missed_cleavages"],
+        fixed_mods=_static_mods(database["static_mods"], ModType.fixed),
+        variable_mods=_variable_mods(database["variable_mods"], ModType.variable),
+        precursor_mass_tolerance=_tolerance(data["precursor_tol"]),
+        fragment_mass_tolerance=_tolerance(data["fragment_tol"]),
+        min_peptide_length=int(enzyme["min_len"]),
+        max_peptide_length=int(max_len) if max_len is not None else None,
+        max_mods=int(database["max_variable_mods"]),
+        min_precursor_charge=int(data["precursor_charge"][0]),
+        max_precursor_charge=int(data["precursor_charge"][1]),
+        enable_match_between_runs=True,
     )

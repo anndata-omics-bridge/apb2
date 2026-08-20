@@ -8,8 +8,14 @@ from typing import IO
 import yaml
 from pydantic import BaseModel, ConfigDict
 
-from apb2.vendor_params.model import MassTolerance, Parameters
-from apb2.vendor_params.parsers._common import read_text
+from apb2.vendor_params.model import (
+    MassTolerance,
+    ModType,
+    Parameters,
+    Probability,
+    SearchedModification,
+)
+from apb2.vendor_params.parsers._common import modifications, read_text, tolerance_unit
 
 MODIFICATION_MAPPING = {
     "cC": "C[Carbamidomethyl]",
@@ -67,10 +73,12 @@ class _AlphaPeptDocument(_AlphaPeptModel):
     workflow: _Workflow
 
 
-def _map_modifications(modifications: list[str]) -> str:
-    """Map validated AlphaPept modification names."""
-    names = (raw.strip() for raw in modifications)
-    return ", ".join(MODIFICATION_MAPPING.get(name, name) for name in names)
+def _map_modifications(declared: list[str], mod_type: ModType) -> list[SearchedModification]:
+    """Resolve validated AlphaPept modification names."""
+    return modifications(
+        (MODIFICATION_MAPPING.get(name.strip(), name.strip()) for name in declared),
+        mod_type,
+    )
 
 
 def extract_params(source: Path | IO[bytes] | IO[str]) -> Parameters:
@@ -85,38 +93,31 @@ def extract_params(source: Path | IO[bytes] | IO[str]) -> Parameters:
     features = record.features
     workflow = record.workflow
 
-    enzyme = fasta.protease
-    if enzyme == "trypsin":
-        enzyme = "Trypsin"
+    unit = tolerance_unit("ppm" if search.ppm else "Da")
 
-    fixed = fasta.mods_fixed + fasta.mods_fixed_terminal + fasta.mods_fixed_terminal_prot
-    variable = (
-        fasta.mods_variable + fasta.mods_variable_terminal + fasta.mods_variable_terminal_prot
-    )
-
-    unit = "ppm" if search.ppm else "Da"
-    prec_tol = MassTolerance(mode="absolute", value=search.prec_tol, unit=unit)
-    frag_tol = MassTolerance(mode="absolute", value=search.frag_tol, unit=unit)
-
-    return Parameters.model_validate(
-        {
-            "software_name": "AlphaPept",
-            "software_version": summary.version,
-            "search_engine": "AlphaPept",
-            "search_engine_version": summary.version,
-            "enzyme": enzyme,
-            "allowed_miscleavages": fasta.n_missed_cleavages,
-            "fixed_mods": _map_modifications(fixed),
-            "variable_mods": _map_modifications(variable),
-            "max_mods": fasta.n_modifications_max,
-            "min_peptide_length": fasta.pep_length_min,
-            "max_peptide_length": fasta.pep_length_max,
-            "precursor_mass_tolerance": prec_tol,
-            "fragment_mass_tolerance": frag_tol,
-            "ident_fdr_protein": search.protein_fdr,
-            "ident_fdr_psm": search.peptide_fdr,
-            "min_precursor_charge": features.iso_charge_min,
-            "max_precursor_charge": features.iso_charge_max,
-            "enable_match_between_runs": workflow.match,
-        }
+    return Parameters(
+        software_name="AlphaPept",
+        software_version=summary.version,
+        search_engine="AlphaPept",
+        search_engine_version=summary.version,
+        enzyme="Trypsin" if fasta.protease == "trypsin" else fasta.protease,
+        allowed_miscleavages=fasta.n_missed_cleavages,
+        fixed_mods=_map_modifications(
+            fasta.mods_fixed + fasta.mods_fixed_terminal + fasta.mods_fixed_terminal_prot,
+            ModType.fixed,
+        ),
+        variable_mods=_map_modifications(
+            fasta.mods_variable + fasta.mods_variable_terminal + fasta.mods_variable_terminal_prot,
+            ModType.variable,
+        ),
+        max_mods=fasta.n_modifications_max,
+        min_peptide_length=fasta.pep_length_min,
+        max_peptide_length=fasta.pep_length_max,
+        precursor_mass_tolerance=MassTolerance(mode="absolute", value=search.prec_tol, unit=unit),
+        fragment_mass_tolerance=MassTolerance(mode="absolute", value=search.frag_tol, unit=unit),
+        ident_fdr_protein=Probability(value=search.protein_fdr),
+        ident_fdr_psm=Probability(value=search.peptide_fdr),
+        min_precursor_charge=features.iso_charge_min,
+        max_precursor_charge=features.iso_charge_max,
+        enable_match_between_runs=workflow.match,
     )

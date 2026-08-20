@@ -1,0 +1,3 @@
+DIA-NN 2.6.0 Enterprise (Data-Independent Acquisition by Neural Networks)
+diann.exe --f sample.raw --out report.parquet --unimod4 --dda
+All runs will be analysed as DDA runs

@@ -1,0 +1,6531 @@
+{
+  "alphadia/059a69e4": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 5,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "predictors_library": "AlphaPeptDeep",
+    "protein_inference": null,
+    "quantification_method": "DirectLFQ",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "AlphaDIA",
+    "search_engine_version": "1.10.4-dev0",
+    "semi_enzymatic": null,
+    "software_name": "AlphaDIA",
+    "software_version": "1.10.4-dev0",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "alphadia/0d6d0437": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 10.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 5,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 5.0
+    },
+    "predictors_library": "AlphaPeptDeep",
+    "protein_inference": null,
+    "quantification_method": "DirectLFQ",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "AlphaDIA",
+    "search_engine_version": "1.12.2",
+    "semi_enzymatic": null,
+    "software_name": "AlphaDIA",
+    "software_version": "1.12.2",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "alphadia/11d1e3ca": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 15.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 10.0
+    },
+    "predictors_library": "AlphaPeptDeep",
+    "protein_inference": null,
+    "quantification_method": "DirectLFQ",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "AlphaDIA",
+    "search_engine_version": "1.10.3",
+    "semi_enzymatic": null,
+    "software_name": "AlphaDIA",
+    "software_version": "1.10.3",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "alphadia/1bd69ca0": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 10.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 5,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 5.0
+    },
+    "predictors_library": "AlphaPeptDeep",
+    "protein_inference": null,
+    "quantification_method": "DirectLFQ",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "AlphaDIA",
+    "search_engine_version": "1.12.1",
+    "semi_enzymatic": null,
+    "software_name": "AlphaDIA",
+    "software_version": "1.12.1",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "alphadia/1d6460ec": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 10.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 3,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 2,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 5.0
+    },
+    "predictors_library": "AlphaPeptDeep",
+    "protein_inference": null,
+    "quantification_method": "DirectLFQ",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "AlphaDIA",
+    "search_engine_version": "2.1.0",
+    "semi_enzymatic": null,
+    "software_name": "AlphaDIA",
+    "software_version": "2.1.0",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "alphadia/39dad694": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 10.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 5,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 3.0
+    },
+    "predictors_library": "AlphaPeptDeep",
+    "protein_inference": null,
+    "quantification_method": "DirectLFQ",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "AlphaDIA",
+    "search_engine_version": "2.1.1",
+    "semi_enzymatic": null,
+    "software_name": "AlphaDIA",
+    "software_version": "2.1.1",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "alphadia/40e72489": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 15.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 10.0
+    },
+    "predictors_library": "AlphaPeptDeep",
+    "protein_inference": null,
+    "quantification_method": "DirectLFQ",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "AlphaDIA",
+    "search_engine_version": "1.10.3",
+    "semi_enzymatic": null,
+    "software_name": "AlphaDIA",
+    "software_version": "1.10.3",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "alphadia/61e5aa4f": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 15.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 5,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 15.0
+    },
+    "predictors_library": "AlphaPeptDeep",
+    "protein_inference": null,
+    "quantification_method": "DirectLFQ",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "AlphaDIA",
+    "search_engine_version": "1.12.1",
+    "semi_enzymatic": null,
+    "software_name": "AlphaDIA",
+    "software_version": "1.12.1",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "alphadia/a1745787": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 10.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 3,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 2,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 5.0
+    },
+    "predictors_library": "AlphaPeptDeep",
+    "protein_inference": null,
+    "quantification_method": "DirectLFQ",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "AlphaDIA",
+    "search_engine_version": "2.1.0",
+    "semi_enzymatic": null,
+    "software_name": "AlphaDIA",
+    "software_version": "2.1.0",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "alphadia/e465ee50": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 5,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "predictors_library": "AlphaPeptDeep",
+    "protein_inference": null,
+    "quantification_method": "DirectLFQ",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "AlphaDIA",
+    "search_engine_version": "1.12.1",
+    "semi_enzymatic": null,
+    "software_name": "AlphaDIA",
+    "software_version": "1.12.1",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "alphadia/ff31788b": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "predictors_library": "AlphaPeptDeep",
+    "protein_inference": null,
+    "quantification_method": "DirectLFQ",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "AlphaDIA",
+    "search_engine_version": "1.10.4-dev0",
+    "semi_enzymatic": null,
+    "software_name": "AlphaDIA",
+    "software_version": "1.10.4-dev0",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "alphapept/94c4c0b7": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 50.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 3,
+    "max_peptide_length": 27,
+    "max_precursor_charge": 6,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 10.0
+    },
+    "predictors_library": null,
+    "protein_inference": null,
+    "quantification_method": null,
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "AlphaPept",
+    "search_engine_version": "0.5.3",
+    "semi_enzymatic": null,
+    "software_name": "AlphaPept",
+    "software_version": "0.5.3",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "alphapept/e8e80290": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 3,
+    "max_peptide_length": 27,
+    "max_precursor_charge": 6,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 10.0
+    },
+    "predictors_library": null,
+    "protein_inference": null,
+    "quantification_method": null,
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "AlphaPept",
+    "search_engine_version": "0.5.0",
+    "semi_enzymatic": null,
+    "software_name": "AlphaPept",
+    "software_version": "0.5.0",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "diann/17c2e4a1": {
+    "abundance_normalization_ions": "Cross-run normalization",
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 15.9405
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 2000.0,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": 1000.0,
+    "min_fragment_mz": 50.0,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": 400.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 7.67047
+    },
+    "predictors_library": "{'RT': 'DIANN', 'IM': 'DIANN', 'MS2_int': 'DIANN'}",
+    "protein_inference": "Genes",
+    "quantification_method": "QuantUMS high-precision",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": 13,
+    "search_engine": "DIA-NN",
+    "search_engine_version": "1.9.1",
+    "semi_enzymatic": null,
+    "software_name": "DIA-NN",
+    "software_version": "1.9.1",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "diann/1d73b995": {
+    "abundance_normalization_ions": "Cross-run normalization",
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 2000.0,
+    "max_mods": null,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": 1200.0,
+    "min_fragment_mz": 200.0,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 2,
+    "min_precursor_mz": 400.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "predictors_library": null,
+    "protein_inference": "Genes",
+    "quantification_method": "QuantUMS high-precision",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": 8,
+    "search_engine": "DIA-NN",
+    "search_engine_version": "2.3.0 Academia ",
+    "semi_enzymatic": null,
+    "software_name": "DIA-NN",
+    "software_version": "2.3.0 Academia ",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "diann/2115d5e3": {
+    "abundance_normalization_ions": "Cross-run normalization",
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 5.62001
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 2000.0,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": 1000.0,
+    "min_fragment_mz": 50.0,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": 200.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 2.78001
+    },
+    "predictors_library": "{'RT': 'DIANN', 'IM': 'DIANN', 'MS2_int': 'DIANN'}",
+    "protein_inference": "Genes",
+    "quantification_method": "QuantUMS high-precision",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": 6,
+    "search_engine": "DIA-NN",
+    "search_engine_version": "1.7.16",
+    "semi_enzymatic": null,
+    "software_name": "DIA-NN",
+    "software_version": "1.7.16",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "diann/269bb831": {
+    "abundance_normalization_ions": "Cross-run normalization",
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 2000.0,
+    "max_mods": null,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": 1200.0,
+    "min_fragment_mz": 200.0,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 2,
+    "min_precursor_mz": 400.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "predictors_library": null,
+    "protein_inference": "Genes",
+    "quantification_method": "QuantUMS high-precision",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": 6,
+    "search_engine": "DIA-NN",
+    "search_engine_version": "2.5.0 Academia ",
+    "semi_enzymatic": null,
+    "software_name": "DIA-NN",
+    "software_version": "2.5.0 Academia ",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "diann/2b63aca2": {
+    "abundance_normalization_ions": "Cross-run normalization",
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 11.5251
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 2000.0,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": 1000.0,
+    "min_fragment_mz": 50.0,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": 400.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 13.8504
+    },
+    "predictors_library": "{'RT': 'DIANN', 'IM': 'DIANN', 'MS2_int': 'DIANN'}",
+    "protein_inference": "Genes",
+    "quantification_method": "Legacy",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": 8,
+    "search_engine": "DIA-NN",
+    "search_engine_version": "1.9.2",
+    "semi_enzymatic": null,
+    "software_name": "DIA-NN",
+    "software_version": "1.9.2",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "diann/300beac4": {
+    "abundance_normalization_ions": "Cross-run normalization",
+    "acquisition_method": "DDA",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 10.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.05
+    },
+    "max_fragment_mz": 1800.0,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 3,
+    "max_precursor_mz": 1000.0,
+    "min_fragment_mz": 200.0,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 2,
+    "min_precursor_mz": 400.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 4.0
+    },
+    "predictors_library": "{'RT': 'User defined speclib', 'IM': 'User defined speclib', 'MS2_int': 'User defined speclib'}",
+    "protein_inference": "0",
+    "quantification_method": "QuantUMS high-accuracy",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": 1,
+    "search_engine": "DIA-NN",
+    "search_engine_version": "2.6.0 Enterprise ",
+    "semi_enzymatic": null,
+    "software_name": "DIA-NN",
+    "software_version": "2.6.0 Enterprise ",
+    "variable_mods": []
+  },
+  "diann/3209a263": {
+    "abundance_normalization_ions": "Cross-run normalization",
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 12.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 2000.0,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 5,
+    "max_precursor_mz": 1000.0,
+    "min_fragment_mz": 50.0,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": 400.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 11.0
+    },
+    "predictors_library": "{'RT': 'DIANN', 'IM': 'DIANN', 'MS2_int': 'DIANN'}",
+    "protein_inference": "Genes",
+    "quantification_method": "QuantUMS high-precision",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": 8,
+    "search_engine": "DIA-NN",
+    "search_engine_version": "2.2.0 Academia ",
+    "semi_enzymatic": null,
+    "software_name": "DIA-NN",
+    "software_version": "2.2.0 Academia ",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "diann/3fa76efd": {
+    "abundance_normalization_ions": "Cross-run normalization",
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 8.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 2000.0,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": 1000.0,
+    "min_fragment_mz": 50.0,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": 400.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 2.6
+    },
+    "predictors_library": "{'RT': 'DIANN', 'IM': 'DIANN', 'MS2_int': 'DIANN'}",
+    "protein_inference": "Genes",
+    "quantification_method": "QuantUMS high-precision",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": 5,
+    "search_engine": "DIA-NN",
+    "search_engine_version": "2.0 Academia ",
+    "semi_enzymatic": null,
+    "software_name": "DIA-NN",
+    "software_version": "2.0 Academia ",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "diann/466d95b6": {
+    "abundance_normalization_ions": "Cross-run normalization",
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 9.60848
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 2000.0,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": 1000.0,
+    "min_fragment_mz": 50.0,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": 400.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 2.35167
+    },
+    "predictors_library": "{'RT': 'DIANN', 'IM': 'DIANN', 'MS2_int': 'DIANN'}",
+    "protein_inference": "Genes",
+    "quantification_method": "QuantUMS high-precision",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": 5,
+    "search_engine": "DIA-NN",
+    "search_engine_version": "1.9.1",
+    "semi_enzymatic": null,
+    "software_name": "DIA-NN",
+    "software_version": "1.9.1",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "diann/4cc229a7": {
+    "abundance_normalization_ions": "Cross-run normalization",
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 5,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "R*",
+    "fixed_mods": [],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 40.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.1
+    },
+    "max_fragment_mz": 1000.0,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 3,
+    "max_precursor_mz": 1000.0,
+    "min_fragment_mz": 400.0,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 2,
+    "min_precursor_mz": 700.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 40.0
+    },
+    "predictors_library": "{'RT': 'DIANN', 'IM': 'DIANN', 'MS2_int': 'DIANN'}",
+    "protein_inference": "Genes",
+    "quantification_method": "QuantUMS high-precision",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": 5,
+    "search_engine": "DIA-NN",
+    "search_engine_version": "2.3.0 Academia ",
+    "semi_enzymatic": null,
+    "software_name": "DIA-NN",
+    "software_version": "2.3.0 Academia ",
+    "variable_mods": []
+  },
+  "diann/51d66907": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": null,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 17.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 1800.0,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": 1800.0,
+    "min_fragment_mz": 200.0,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": 300.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 29.0
+    },
+    "predictors_library": "{'RT': 'User defined speclib', 'IM': 'User defined speclib', 'MS2_int': 'User defined speclib'}",
+    "protein_inference": "Genes",
+    "quantification_method": "QuantUMS high-precision",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": 5,
+    "search_engine": "DIA-NN",
+    "search_engine_version": "2.1.0 Academia ",
+    "semi_enzymatic": null,
+    "software_name": "DIA-NN",
+    "software_version": "2.1.0 Academia ",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "diann/53bb223d": {
+    "abundance_normalization_ions": "Cross-run normalization",
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 2000.0,
+    "max_mods": null,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": 1200.0,
+    "min_fragment_mz": 200.0,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 2,
+    "min_precursor_mz": 400.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "predictors_library": null,
+    "protein_inference": "Genes",
+    "quantification_method": "QuantUMS high-precision",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": 8,
+    "search_engine": "DIA-NN",
+    "search_engine_version": "2.5.0 Academia ",
+    "semi_enzymatic": null,
+    "software_name": "DIA-NN",
+    "software_version": "2.5.0 Academia ",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "diann/6ff1ade3": {
+    "abundance_normalization_ions": "Cross-run normalization",
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 1800.0,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": 980.0,
+    "min_fragment_mz": 200.0,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": 380.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 10.0
+    },
+    "predictors_library": "{'RT': 'User defined speclib', 'IM': 'User defined speclib', 'MS2_int': 'User defined speclib'}",
+    "protein_inference": "Genes",
+    "quantification_method": "QuantUMS high-precision",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": 5,
+    "search_engine": "DIA-NN",
+    "search_engine_version": "2.1.0 Academia ",
+    "semi_enzymatic": null,
+    "software_name": "DIA-NN",
+    "software_version": "2.1.0 Academia ",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "diann/84423cb9": {
+    "abundance_normalization_ions": "Cross-run normalization",
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 6.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 2000.0,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 5,
+    "max_precursor_mz": 1000.0,
+    "min_fragment_mz": 50.0,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": 400.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 2.5
+    },
+    "predictors_library": "{'RT': 'DIANN', 'IM': 'DIANN', 'MS2_int': 'DIANN'}",
+    "protein_inference": "Genes",
+    "quantification_method": "QuantUMS high-precision",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": 6,
+    "search_engine": "DIA-NN",
+    "search_engine_version": "2.2.0 Academia ",
+    "semi_enzymatic": null,
+    "software_name": "DIA-NN",
+    "software_version": "2.2.0 Academia ",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "N-term[Acetyl]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:21",
+        "mass_delta": 79.966331,
+        "mod_type": "variable",
+        "name": "STY[Phospho]",
+        "position": "Anywhere",
+        "source": "STY[Phospho]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:121",
+        "mass_delta": 114.042927,
+        "mod_type": "variable",
+        "name": "K[GG]",
+        "position": "Anywhere",
+        "source": "K[GG]",
+        "target": null
+      }
+    ]
+  },
+  "diann/92df8c79": {
+    "abundance_normalization_ions": "Cross-run normalization",
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 2000.0,
+    "max_mods": null,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": 1200.0,
+    "min_fragment_mz": 200.0,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 2,
+    "min_precursor_mz": 400.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "predictors_library": null,
+    "protein_inference": "Genes",
+    "quantification_method": "QuantUMS high-precision",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": 6,
+    "search_engine": "DIA-NN",
+    "search_engine_version": "2.1.0 Academia ",
+    "semi_enzymatic": null,
+    "software_name": "DIA-NN",
+    "software_version": "2.1.0 Academia ",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "diann/9fe3da66": {
+    "abundance_normalization_ions": "Cross-run normalization",
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 2000.0,
+    "max_mods": null,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": 1200.0,
+    "min_fragment_mz": 200.0,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 2,
+    "min_precursor_mz": 400.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "predictors_library": null,
+    "protein_inference": "Genes",
+    "quantification_method": "QuantUMS high-precision",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": 8,
+    "search_engine": "DIA-NN",
+    "search_engine_version": "2.1.0 Academia ",
+    "semi_enzymatic": null,
+    "software_name": "DIA-NN",
+    "software_version": "2.1.0 Academia ",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "diann/a9263cb4": {
+    "abundance_normalization_ions": "Cross-run normalization",
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 17.7359
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 2000.0,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": 1000.0,
+    "min_fragment_mz": 50.0,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": 400.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 14.1496
+    },
+    "predictors_library": "{'RT': 'DIANN', 'IM': 'DIANN', 'MS2_int': 'DIANN'}",
+    "protein_inference": "Genes",
+    "quantification_method": "QuantUMS high-precision",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": 8,
+    "search_engine": "DIA-NN",
+    "search_engine_version": "1.9.1",
+    "semi_enzymatic": null,
+    "software_name": "DIA-NN",
+    "software_version": "1.9.1",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "diann/b5e94b67": {
+    "abundance_normalization_ions": "Cross-run normalization",
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 17.9612
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 2000.0,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": 1000.0,
+    "min_fragment_mz": 50.0,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": 400.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 10.8807
+    },
+    "predictors_library": "{'RT': 'DIANN', 'IM': 'DIANN', 'MS2_int': 'DIANN'}",
+    "protein_inference": "Genes",
+    "quantification_method": "QuantUMS high-precision",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": 10,
+    "search_engine": "DIA-NN",
+    "search_engine_version": "1.7.16",
+    "semi_enzymatic": null,
+    "software_name": "DIA-NN",
+    "software_version": "1.7.16",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "diann/c27f8b99": {
+    "abundance_normalization_ions": "Cross-run normalization",
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.4164
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 2000.0,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": 1000.0,
+    "min_fragment_mz": 50.0,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": 400.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 14.9565
+    },
+    "predictors_library": "{'RT': 'DIANN', 'IM': 'DIANN', 'MS2_int': 'DIANN'}",
+    "protein_inference": "Genes",
+    "quantification_method": "QuantUMS high-precision",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": 6,
+    "search_engine": "DIA-NN",
+    "search_engine_version": "1.7.16",
+    "semi_enzymatic": null,
+    "software_name": "DIA-NN",
+    "software_version": "1.7.16",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "diann/d4b75fc9": {
+    "abundance_normalization_ions": "Cross-run normalization",
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 8.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 1800.0,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 3,
+    "max_precursor_mz": 1500.0,
+    "min_fragment_mz": 200.0,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": 400.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 3.1
+    },
+    "predictors_library": "{'RT': 'User defined speclib', 'IM': 'User defined speclib', 'MS2_int': 'User defined speclib'}",
+    "protein_inference": "2",
+    "quantification_method": "QuantUMS high-precision",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": 6,
+    "search_engine": "DIA-NN",
+    "search_engine_version": "2.3.2 Academia ",
+    "semi_enzymatic": null,
+    "software_name": "DIA-NN",
+    "software_version": "2.3.2 Academia ",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "diann/dcfb0316": {
+    "abundance_normalization_ions": "Cross-run normalization",
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 14.3505
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 2000.0,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": 1000.0,
+    "min_fragment_mz": 50.0,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": 400.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 9.32611
+    },
+    "predictors_library": "{'RT': 'DIANN', 'IM': 'DIANN', 'MS2_int': 'DIANN'}",
+    "protein_inference": "Genes",
+    "quantification_method": "QuantUMS high-precision",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": 13,
+    "search_engine": "DIA-NN",
+    "search_engine_version": "1.9.2",
+    "semi_enzymatic": null,
+    "software_name": "DIA-NN",
+    "software_version": "1.9.2",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "diann/dfa7a079": {
+    "abundance_normalization_ions": "Cross-run normalization",
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 2000.0,
+    "max_mods": null,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": 1200.0,
+    "min_fragment_mz": 200.0,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 2,
+    "min_precursor_mz": 400.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "predictors_library": null,
+    "protein_inference": "Genes",
+    "quantification_method": "QuantUMS high-precision",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": 6,
+    "search_engine": "DIA-NN",
+    "search_engine_version": "2.2.0 Academia ",
+    "semi_enzymatic": null,
+    "software_name": "DIA-NN",
+    "software_version": "2.2.0 Academia ",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "diann/e4155ea1": {
+    "abundance_normalization_ions": "Cross-run normalization",
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 2000.0,
+    "max_mods": null,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": 1200.0,
+    "min_fragment_mz": 200.0,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 2,
+    "min_precursor_mz": 400.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "predictors_library": null,
+    "protein_inference": "Genes",
+    "quantification_method": "QuantUMS high-precision",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": 6,
+    "search_engine": "DIA-NN",
+    "search_engine_version": "2.3.0 Academia ",
+    "semi_enzymatic": null,
+    "software_name": "DIA-NN",
+    "software_version": "2.3.0 Academia ",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "diann/ee003831": {
+    "abundance_normalization_ions": "Cross-run normalization",
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 12.1831
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 2000.0,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": 1000.0,
+    "min_fragment_mz": 50.0,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": 400.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 14.3141
+    },
+    "predictors_library": "{'RT': 'DIANN', 'IM': 'DIANN', 'MS2_int': 'DIANN'}",
+    "protein_inference": "Genes",
+    "quantification_method": "QuantUMS high-precision",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": 8,
+    "search_engine": "DIA-NN",
+    "search_engine_version": "1.8",
+    "semi_enzymatic": null,
+    "software_name": "DIA-NN",
+    "software_version": "1.8",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "diann/f0ac6060": {
+    "abundance_normalization_ions": "Cross-run normalization",
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 2000.0,
+    "max_mods": null,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": 1200.0,
+    "min_fragment_mz": 200.0,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 2,
+    "min_precursor_mz": 400.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "predictors_library": null,
+    "protein_inference": "Genes",
+    "quantification_method": "QuantUMS high-precision",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": 6,
+    "search_engine": "DIA-NN",
+    "search_engine_version": "2.5.0 Academia ",
+    "semi_enzymatic": null,
+    "software_name": "DIA-NN",
+    "software_version": "2.5.0 Academia ",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "diann/f36a37ad": {
+    "abundance_normalization_ions": "Cross-run normalization",
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 31.5257
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 2000.0,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": 1000.0,
+    "min_fragment_mz": 50.0,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": 400.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 9.12019
+    },
+    "predictors_library": "{'RT': 'DIANN', 'IM': 'DIANN', 'MS2_int': 'DIANN'}",
+    "protein_inference": "Genes",
+    "quantification_method": "QuantUMS high-precision",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": 13,
+    "search_engine": "DIA-NN",
+    "search_engine_version": "1.8",
+    "semi_enzymatic": null,
+    "software_name": "DIA-NN",
+    "software_version": "1.8",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "diann/faed01b6": {
+    "abundance_normalization_ions": "Cross-run normalization",
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 10.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 2000.0,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": 1000.0,
+    "min_fragment_mz": 50.0,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": 400.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 12.0
+    },
+    "predictors_library": "{'RT': 'DIANN', 'IM': 'DIANN', 'MS2_int': 'DIANN'}",
+    "protein_inference": "Genes",
+    "quantification_method": "QuantUMS high-precision",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": 8,
+    "search_engine": "DIA-NN",
+    "search_engine_version": "2.0 Academia ",
+    "semi_enzymatic": null,
+    "software_name": "DIA-NN",
+    "software_version": "2.0 Academia ",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "diann/fc165c31": {
+    "abundance_normalization_ions": "Cross-run normalization",
+    "acquisition_method": "DIA",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 8.32578
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 2000.0,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": 1000.0,
+    "min_fragment_mz": 50.0,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": 400.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 2.42372
+    },
+    "predictors_library": "{'RT': 'DIANN', 'IM': 'DIANN', 'MS2_int': 'DIANN'}",
+    "protein_inference": "Genes",
+    "quantification_method": "QuantUMS high-precision",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": 6,
+    "search_engine": "DIA-NN",
+    "search_engine_version": "1.9.2",
+    "semi_enzymatic": null,
+    "software_name": "DIA-NN",
+    "software_version": "1.9.2",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "fragpipe/0b5a0c9b": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 10.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 3,
+    "max_peptide_length": 50,
+    "max_precursor_charge": null,
+    "max_precursor_mz": 980.0,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 10.0
+    },
+    "predictors_library": null,
+    "protein_inference": "ProteinProphet: --maxppmdiff 2000000 --minprob 0.5",
+    "quantification_method": "Robust LC (high accuracy)",
+    "quantification_software": "DIA-NN",
+    "quantification_software_version": "1.8.2 beta 8",
+    "scan_window": null,
+    "search_engine": "MSFragger",
+    "search_engine_version": "4.3",
+    "semi_enzymatic": false,
+    "software_name": "FragPipe",
+    "software_version": "23.1",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "fragpipe/0c36dceb": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": {
+      "value": 0.01
+    },
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 3,
+    "max_peptide_length": 50,
+    "max_precursor_charge": null,
+    "max_precursor_mz": 5000.0,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 10.0
+    },
+    "predictors_library": null,
+    "protein_inference": "ProteinProphet: --maxppmdiff 2000000",
+    "quantification_method": null,
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "MSFragger",
+    "search_engine_version": "4.2",
+    "semi_enzymatic": false,
+    "software_name": "FragPipe",
+    "software_version": "23.0",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "fragpipe/28b0c3b9": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "Da",
+      "value": 0.02
+    },
+    "ident_fdr_peptide": {
+      "value": 0.01
+    },
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 3,
+    "max_peptide_length": 50,
+    "max_precursor_charge": null,
+    "max_precursor_mz": 5000.0,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 10.0
+    },
+    "predictors_library": null,
+    "protein_inference": "ProteinProphet: --maxppmdiff 2000000",
+    "quantification_method": null,
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "MSFragger",
+    "search_engine_version": "4.2",
+    "semi_enzymatic": false,
+    "software_name": "FragPipe",
+    "software_version": "23.0",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "fragpipe/3afad226": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 3,
+    "max_peptide_length": 50,
+    "max_precursor_charge": null,
+    "max_precursor_mz": 5000.0,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "predictors_library": null,
+    "protein_inference": "ProteinProphet: --maxppmdiff 2000000 --minprob 0.5",
+    "quantification_method": "Robust LC (high accuracy)",
+    "quantification_software": "DIA-NN",
+    "quantification_software_version": "1.8.2 beta 8",
+    "scan_window": null,
+    "search_engine": "MSFragger",
+    "search_engine_version": "4.2",
+    "semi_enzymatic": true,
+    "software_name": "FragPipe",
+    "software_version": "23.0",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "fragpipe/45486140": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "Da",
+      "value": 0.02
+    },
+    "ident_fdr_peptide": {
+      "value": 0.01
+    },
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 3,
+    "max_peptide_length": 50,
+    "max_precursor_charge": null,
+    "max_precursor_mz": 5000.0,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 10.0
+    },
+    "predictors_library": null,
+    "protein_inference": "ProteinProphet: --maxppmdiff 2000000",
+    "quantification_method": null,
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "MSFragger",
+    "search_engine_version": null,
+    "semi_enzymatic": false,
+    "software_name": "FragPipe",
+    "software_version": "22.0",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "fragpipe/54db0c0b": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": {
+      "value": 0.01
+    },
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 3,
+    "max_peptide_length": 50,
+    "max_precursor_charge": null,
+    "max_precursor_mz": 5000.0,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "predictors_library": null,
+    "protein_inference": "ProteinProphet: --maxppmdiff 2000000",
+    "quantification_method": null,
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "MSFragger",
+    "search_engine_version": null,
+    "semi_enzymatic": false,
+    "software_name": "FragPipe",
+    "software_version": "22.1-build02",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "fragpipe/70722cf5": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 3,
+    "max_peptide_length": 50,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": 4000.0,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": 100.0,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 10.0
+    },
+    "predictors_library": null,
+    "protein_inference": "ProteinProphet: --maxppmdiff 2000000",
+    "quantification_method": "Robust LC (high accuracy)",
+    "quantification_software": "DIA-NN",
+    "quantification_software_version": "1.8.2 beta 8",
+    "scan_window": null,
+    "search_engine": "MSFragger",
+    "search_engine_version": null,
+    "semi_enzymatic": false,
+    "software_name": "FragPipe",
+    "software_version": "22.0",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "fragpipe/8aa05b0d": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 3,
+    "max_peptide_length": 30,
+    "max_precursor_charge": null,
+    "max_precursor_mz": 5000.0,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "predictors_library": null,
+    "protein_inference": "ProteinProphet: --maxppmdiff 2000000 --minprob 0.5",
+    "quantification_method": "Robust LC (high accuracy)",
+    "quantification_software": "DIA-NN",
+    "quantification_software_version": "1.8.2 beta 8",
+    "scan_window": null,
+    "search_engine": "MSFragger",
+    "search_engine_version": "4.4",
+    "semi_enzymatic": false,
+    "software_name": "FragPipe",
+    "software_version": "24.0",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "fragpipe/94433e4a": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 3,
+    "max_peptide_length": 30,
+    "max_precursor_charge": null,
+    "max_precursor_mz": 5000.0,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "predictors_library": null,
+    "protein_inference": "ProteinProphet: --maxppmdiff 2000000 --minprob 0.5",
+    "quantification_method": "Robust LC (high accuracy)",
+    "quantification_software": "DIA-NN",
+    "quantification_software_version": "1.8.2 beta 8",
+    "scan_window": null,
+    "search_engine": "MSFragger",
+    "search_engine_version": "4.4",
+    "semi_enzymatic": false,
+    "software_name": "FragPipe",
+    "software_version": "24.0",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "fragpipe/9d82889d": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": null,
+    "max_precursor_mz": 4000.0,
+    "min_fragment_mz": null,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "predictors_library": null,
+    "protein_inference": "ProteinProphet: --maxppmdiff 2000000 --minprob 0.5",
+    "quantification_method": "Robust LC (high accuracy)",
+    "quantification_software": "DIA-NN",
+    "quantification_software_version": "1.8.2 beta 8",
+    "scan_window": null,
+    "search_engine": "MSFragger",
+    "search_engine_version": null,
+    "semi_enzymatic": false,
+    "software_name": "FragPipe",
+    "software_version": "22.0",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "fragpipe/b9f217a2": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 10.0
+    },
+    "ident_fdr_peptide": {
+      "value": 0.01
+    },
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 3,
+    "max_peptide_length": 50,
+    "max_precursor_charge": null,
+    "max_precursor_mz": 5000.0,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "predictors_library": null,
+    "protein_inference": "ProteinProphet: --maxppmdiff 2000000",
+    "quantification_method": null,
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "MSFragger",
+    "search_engine_version": null,
+    "semi_enzymatic": false,
+    "software_name": "FragPipe",
+    "software_version": "22.1-build02",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "fragpipe/ce5593d5": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": null,
+    "max_precursor_mz": 4000.0,
+    "min_fragment_mz": null,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "predictors_library": null,
+    "protein_inference": "ProteinProphet: --maxppmdiff 2000000 --minprob 0.5",
+    "quantification_method": "Robust LC (high accuracy)",
+    "quantification_software": "DIA-NN",
+    "quantification_software_version": "1.8.2 beta 8",
+    "scan_window": null,
+    "search_engine": "MSFragger",
+    "search_engine_version": null,
+    "semi_enzymatic": false,
+    "software_name": "FragPipe",
+    "software_version": "22.0",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "fragpipe/d1bb56a4": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 3,
+    "max_peptide_length": 30,
+    "max_precursor_charge": null,
+    "max_precursor_mz": 5000.0,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "predictors_library": null,
+    "protein_inference": "ProteinProphet: --maxppmdiff 2000000",
+    "quantification_method": "Robust LC (high accuracy)",
+    "quantification_software": "DIA-NN",
+    "quantification_software_version": "1.8.2 beta 8",
+    "scan_window": null,
+    "search_engine": "MSFragger",
+    "search_engine_version": "4.4",
+    "semi_enzymatic": false,
+    "software_name": "FragPipe",
+    "software_version": "24.0",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "fragpipe/fae9b73e": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": null,
+    "max_precursor_mz": 4900.0,
+    "min_fragment_mz": null,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "predictors_library": null,
+    "protein_inference": "ProteinProphet: --maxppmdiff 2000000 --minprob 0.5",
+    "quantification_method": "Robust LC (high accuracy)",
+    "quantification_software": "DIA-NN",
+    "quantification_software_version": "1.8.2 beta 8",
+    "scan_window": null,
+    "search_engine": "MSFragger",
+    "search_engine_version": "4.3",
+    "semi_enzymatic": false,
+    "software_name": "FragPipe",
+    "software_version": "23.0",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "fragpipe/fdad2a4d": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": null,
+    "max_precursor_mz": 5000.0,
+    "min_fragment_mz": null,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 10.0
+    },
+    "predictors_library": null,
+    "protein_inference": "ProteinProphet: --maxppmdiff 2000000",
+    "quantification_method": "Robust LC (high accuracy)",
+    "quantification_software": "DIA-NN",
+    "quantification_software_version": "1.8.2 beta 8",
+    "scan_window": null,
+    "search_engine": "MSFragger",
+    "search_engine_version": "4.3",
+    "semi_enzymatic": false,
+    "software_name": "FragPipe",
+    "software_version": "23.0",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "maxquant/00e2f863": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 5,
+    "max_peptide_length": null,
+    "max_precursor_charge": 7,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": null,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 4.5
+    },
+    "predictors_library": null,
+    "protein_inference": null,
+    "quantification_method": null,
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "Andromeda",
+    "search_engine_version": null,
+    "semi_enzymatic": false,
+    "software_name": "MaxQuant",
+    "software_version": "2.5.1.0",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "maxquant/0280a06f": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 5,
+    "max_peptide_length": null,
+    "max_precursor_charge": 7,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": null,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 4.5
+    },
+    "predictors_library": null,
+    "protein_inference": null,
+    "quantification_method": null,
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "Andromeda",
+    "search_engine_version": null,
+    "semi_enzymatic": false,
+    "software_name": "MaxQuant",
+    "software_version": "2.3.1.0",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "maxquant/254d6c77": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 5,
+    "max_peptide_length": null,
+    "max_precursor_charge": 7,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": null,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 4.5
+    },
+    "predictors_library": null,
+    "protein_inference": null,
+    "quantification_method": null,
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "Andromeda",
+    "search_engine_version": null,
+    "semi_enzymatic": false,
+    "software_name": "MaxQuant",
+    "software_version": "1.5.8.2",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "maxquant/36b7b01b": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 5,
+    "max_peptide_length": null,
+    "max_precursor_charge": 7,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": null,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 4.5
+    },
+    "predictors_library": null,
+    "protein_inference": null,
+    "quantification_method": null,
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "Andromeda",
+    "search_engine_version": null,
+    "semi_enzymatic": false,
+    "software_name": "MaxQuant",
+    "software_version": "2.1.4.0",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "maxquant/601cf4e2": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 5,
+    "max_peptide_length": null,
+    "max_precursor_charge": 7,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": null,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 4.5
+    },
+    "predictors_library": null,
+    "protein_inference": null,
+    "quantification_method": null,
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "Andromeda",
+    "search_engine_version": null,
+    "semi_enzymatic": false,
+    "software_name": "MaxQuant",
+    "software_version": "2.7.5.0",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "maxquant/7912158e": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 5,
+    "max_peptide_length": null,
+    "max_precursor_charge": 7,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": null,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 4.5
+    },
+    "predictors_library": null,
+    "protein_inference": null,
+    "quantification_method": null,
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "Andromeda",
+    "search_engine_version": null,
+    "semi_enzymatic": false,
+    "software_name": "MaxQuant",
+    "software_version": "1.6.3.3",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "maxquant/8f4fa9a7": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 5,
+    "max_peptide_length": null,
+    "max_precursor_charge": 7,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": null,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 4.5
+    },
+    "predictors_library": null,
+    "protein_inference": null,
+    "quantification_method": null,
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "Andromeda",
+    "search_engine_version": null,
+    "semi_enzymatic": false,
+    "software_name": "MaxQuant",
+    "software_version": "1.5.2.8",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "maxquant/a1140a31": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 5,
+    "max_peptide_length": null,
+    "max_precursor_charge": 7,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": null,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 4.5
+    },
+    "predictors_library": null,
+    "protein_inference": null,
+    "quantification_method": null,
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "Andromeda",
+    "search_engine_version": null,
+    "semi_enzymatic": false,
+    "software_name": "MaxQuant",
+    "software_version": "2.1.3.0",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "maxquant/a3d801fc": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 5,
+    "max_peptide_length": null,
+    "max_precursor_charge": 7,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": null,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 4.5
+    },
+    "predictors_library": null,
+    "protein_inference": null,
+    "quantification_method": null,
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "Andromeda",
+    "search_engine_version": null,
+    "semi_enzymatic": false,
+    "software_name": "MaxQuant",
+    "software_version": "2.4.13.0",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "maxquant/be39a8de": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 1,
+    "max_peptide_length": null,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 6,
+    "min_precursor_charge": null,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 4.5
+    },
+    "predictors_library": null,
+    "protein_inference": null,
+    "quantification_method": null,
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "Andromeda",
+    "search_engine_version": null,
+    "semi_enzymatic": false,
+    "software_name": "MaxQuant",
+    "software_version": "2.6.3.0",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "maxquant/e5a709af": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 5,
+    "max_peptide_length": null,
+    "max_precursor_charge": 7,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": null,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 4.5
+    },
+    "predictors_library": null,
+    "protein_inference": null,
+    "quantification_method": null,
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "Andromeda",
+    "search_engine_version": null,
+    "semi_enzymatic": false,
+    "software_name": "MaxQuant",
+    "software_version": "2.6.7.0",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "maxquant/f4f23a74": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 5,
+    "max_peptide_length": null,
+    "max_precursor_charge": 7,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": null,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 4.5
+    },
+    "predictors_library": null,
+    "protein_inference": null,
+    "quantification_method": null,
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "Andromeda",
+    "search_engine_version": null,
+    "semi_enzymatic": false,
+    "software_name": "MaxQuant",
+    "software_version": "1.5.3.30",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "peaks/5691d485": {
+    "abundance_normalization_ions": "Use TIC",
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 1800.0,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": 1800.0,
+    "min_fragment_mz": 200.0,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": 300.0,
+    "precursor_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "predictors_library": null,
+    "protein_inference": null,
+    "quantification_method": "Identification Directed Quantification",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "PEAKS",
+    "search_engine_version": null,
+    "semi_enzymatic": false,
+    "software_name": "PEAKS",
+    "software_version": null,
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "peaks/806987cb": {
+    "abundance_normalization_ions": "No Normalization",
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "ident_fdr_peptide": {
+      "value": 0.01
+    },
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 2000.0,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 5,
+    "max_precursor_mz": 1000.0,
+    "min_fragment_mz": 50.0,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": 400.0,
+    "precursor_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "predictors_library": null,
+    "protein_inference": null,
+    "quantification_method": "Identification Directed Quantification",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "PEAKS",
+    "search_engine_version": "13 20250520",
+    "semi_enzymatic": false,
+    "software_name": "PEAKS",
+    "software_version": "13 20250520",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "peaks/9d136133": {
+    "abundance_normalization_ions": "Use TIC",
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "Da",
+      "value": 0.02
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 1,
+    "max_peptide_length": 45,
+    "max_precursor_charge": 5,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 10.0
+    },
+    "predictors_library": null,
+    "protein_inference": null,
+    "quantification_method": "Identification Directed Quantification",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "PEAKS",
+    "search_engine_version": "13 20250520",
+    "semi_enzymatic": false,
+    "software_name": "PEAKS",
+    "software_version": "13 20250520",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "peaks/aa1d53e8": {
+    "abundance_normalization_ions": "No Normalization",
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Specified by each sample",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "ident_fdr_peptide": {
+      "value": 0.01
+    },
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": null,
+    "max_fragment_mz": 2000.0,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 5,
+    "max_precursor_mz": 980.0,
+    "min_fragment_mz": 150.0,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": 380.0,
+    "precursor_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "predictors_library": null,
+    "protein_inference": null,
+    "quantification_method": "Identification Directed Quantification",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "PEAKS",
+    "search_engine_version": "13 20250515",
+    "semi_enzymatic": false,
+    "software_name": "PEAKS",
+    "software_version": "13 20250515",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "peaks/b3425225": {
+    "abundance_normalization_ions": "No Normalization",
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "ident_fdr_peptide": {
+      "value": 0.01
+    },
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 2000.0,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 5,
+    "max_precursor_mz": 980.0,
+    "min_fragment_mz": 150.0,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": 380.0,
+    "precursor_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "predictors_library": null,
+    "protein_inference": null,
+    "quantification_method": "Identification Directed Quantification",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "PEAKS",
+    "search_engine_version": "13 20250520",
+    "semi_enzymatic": false,
+    "software_name": "PEAKS",
+    "software_version": "13 20250520",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "peaks/b5fddd9b": {
+    "abundance_normalization_ions": "Use TIC",
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "ident_fdr_peptide": {
+      "value": 0.01
+    },
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": null,
+    "max_fragment_mz": 2000.0,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": 1400.0,
+    "min_fragment_mz": 50.0,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": 300.0,
+    "precursor_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "predictors_library": null,
+    "protein_inference": null,
+    "quantification_method": "Identification Directed Quantification",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "PEAKS",
+    "search_engine_version": null,
+    "semi_enzymatic": false,
+    "software_name": "PEAKS",
+    "software_version": null,
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "peaks/d08f2cb6": {
+    "abundance_normalization_ions": "No Normalization",
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": 1750.0,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 5,
+    "max_precursor_mz": 905.0,
+    "min_fragment_mz": 140.0,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 1,
+    "min_precursor_mz": 395.0,
+    "precursor_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "predictors_library": null,
+    "protein_inference": null,
+    "quantification_method": "Identification Directed Quantification",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "PEAKS",
+    "search_engine_version": "13 20250520",
+    "semi_enzymatic": false,
+    "software_name": "PEAKS",
+    "software_version": "13 20250520",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      }
+    ]
+  },
+  "sage/05906d50": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": false,
+    "enable_match_between_runs": true,
+    "enzyme": null,
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "Da",
+      "value": 0.02
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": null,
+    "max_fragment_mz": null,
+    "max_mods": 2,
+    "max_peptide_length": null,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 2,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 10.0
+    },
+    "predictors_library": null,
+    "protein_inference": null,
+    "quantification_method": null,
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "Sage",
+    "search_engine_version": "0.15.0-beta.2",
+    "semi_enzymatic": false,
+    "software_name": "Sage",
+    "software_version": "0.15.0-beta.2",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "sage/fc1bf3c2": {
+    "abundance_normalization_ions": null,
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": true,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": null,
+    "ident_fdr_psm": null,
+    "max_fragment_mz": null,
+    "max_mods": 3,
+    "max_peptide_length": 30,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": 2,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "predictors_library": null,
+    "protein_inference": null,
+    "quantification_method": null,
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "Sage",
+    "search_engine_version": "0.14.6",
+    "semi_enzymatic": false,
+    "software_name": "Sage",
+    "software_version": "0.14.6",
+    "variable_mods": [
+      {
+        "accession": null,
+        "mass_delta": null,
+        "mod_type": "variable",
+        "name": "Protein N-term[42.0]",
+        "position": "Anywhere",
+        "source": "Protein N-term[42.0]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "spectronaut/273e81ee": {
+    "abundance_normalization_ions": "False",
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 5,
+    "max_peptide_length": 52,
+    "max_precursor_charge": null,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": null,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "predictors_library": null,
+    "protein_inference": "IDPicker",
+    "quantification_method": "MS2",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": "Dynamic",
+    "search_engine": "Spectronaut",
+    "search_engine_version": "19.5.241126.62635",
+    "semi_enzymatic": false,
+    "software_name": "Spectronaut",
+    "software_version": "19.5.241126.62635",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "spectronaut/2eb6ecaa": {
+    "abundance_normalization_ions": "True",
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 5,
+    "max_peptide_length": 52,
+    "max_precursor_charge": null,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": null,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "predictors_library": null,
+    "protein_inference": "IDPicker",
+    "quantification_method": "MS2",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": "Dynamic",
+    "search_engine": "Spectronaut",
+    "search_engine_version": "19.9.250512.62635",
+    "semi_enzymatic": false,
+    "software_name": "Spectronaut",
+    "software_version": "19.9.250512.62635",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "spectronaut/486bf22b": {
+    "abundance_normalization_ions": "True",
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": null,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 6,
+    "min_precursor_charge": null,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "predictors_library": null,
+    "protein_inference": "IDPicker",
+    "quantification_method": "MS2",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": "Dynamic",
+    "search_engine": "Spectronaut",
+    "search_engine_version": "20.0.250606.92449",
+    "semi_enzymatic": false,
+    "software_name": "Spectronaut",
+    "software_version": "20.0.250606.92449",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "spectronaut/4d93f6f4": {
+    "abundance_normalization_ions": "True",
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 5,
+    "max_peptide_length": 52,
+    "max_precursor_charge": null,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": null,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "predictors_library": null,
+    "protein_inference": "All Matching Proteins",
+    "quantification_method": "MS2",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": "Dynamic",
+    "search_engine": "Spectronaut",
+    "search_engine_version": "20.4.260109.92449",
+    "semi_enzymatic": false,
+    "software_name": "Spectronaut",
+    "software_version": "20.4.260109.92449",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "spectronaut/67fe009f": {
+    "abundance_normalization_ions": "True",
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": null,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 6,
+    "min_precursor_charge": null,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "predictors_library": null,
+    "protein_inference": "IDPicker",
+    "quantification_method": "MS2",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": "Dynamic",
+    "search_engine": "Spectronaut",
+    "search_engine_version": "20.0.250602.92449",
+    "semi_enzymatic": false,
+    "software_name": "Spectronaut",
+    "software_version": "20.0.250602.92449",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "spectronaut/77d349e2": {
+    "abundance_normalization_ions": "True",
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": null,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 6,
+    "min_precursor_charge": null,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "predictors_library": null,
+    "protein_inference": "IDPicker",
+    "quantification_method": "MS2",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": "Dynamic",
+    "search_engine": "Spectronaut",
+    "search_engine_version": "20.0.250606.92449",
+    "semi_enzymatic": false,
+    "software_name": "Spectronaut",
+    "software_version": "20.0.250606.92449",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "spectronaut/809d9271": {
+    "abundance_normalization_ions": "True",
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 2,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 5,
+    "max_peptide_length": 52,
+    "max_precursor_charge": null,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 7,
+    "min_precursor_charge": null,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "predictors_library": null,
+    "protein_inference": "IDPicker",
+    "quantification_method": "MS2",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": "Dynamic",
+    "search_engine": "Spectronaut",
+    "search_engine_version": "19.0.240606.62635",
+    "semi_enzymatic": false,
+    "software_name": "Spectronaut",
+    "software_version": "19.0.240606.62635",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "spectronaut/887471e3": {
+    "abundance_normalization_ions": "True",
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": false,
+    "enzyme": "Trypsin/P",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "ident_fdr_peptide": null,
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 1,
+    "max_peptide_length": 30,
+    "max_precursor_charge": null,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 6,
+    "min_precursor_charge": null,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": "Automatic calibration",
+      "mode": "automatic",
+      "unit": null,
+      "value": null
+    },
+    "predictors_library": null,
+    "protein_inference": "IDPicker",
+    "quantification_method": "MS2",
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": "Dynamic",
+    "search_engine": "Spectronaut",
+    "search_engine_version": "19.5.241126.62635",
+    "semi_enzymatic": false,
+    "software_name": "Spectronaut",
+    "software_version": "19.5.241126.62635",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "wombat/557e8c64": {
+    "abundance_normalization_ions": "median",
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "Da",
+      "value": 0.02
+    },
+    "ident_fdr_peptide": {
+      "value": 0.01
+    },
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 4,
+    "max_peptide_length": 35,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 5,
+    "min_precursor_charge": 2,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "predictors_library": null,
+    "protein_inference": null,
+    "quantification_method": null,
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "various",
+    "search_engine_version": null,
+    "semi_enzymatic": null,
+    "software_name": "Wombat",
+    "software_version": "0.9.11",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  },
+  "wombat/58dfec05": {
+    "abundance_normalization_ions": "median",
+    "acquisition_method": "unknown",
+    "allowed_miscleavages": 1,
+    "combine_charge_states": null,
+    "enable_match_between_runs": true,
+    "enzyme": "Trypsin",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "Da",
+      "value": 0.02
+    },
+    "ident_fdr_peptide": {
+      "value": 0.01
+    },
+    "ident_fdr_protein": {
+      "value": 0.01
+    },
+    "ident_fdr_psm": {
+      "value": 0.01
+    },
+    "max_fragment_mz": null,
+    "max_mods": 4,
+    "max_peptide_length": 35,
+    "max_precursor_charge": 4,
+    "max_precursor_mz": null,
+    "min_fragment_mz": null,
+    "min_peptide_length": 5,
+    "min_precursor_charge": 2,
+    "min_precursor_mz": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 20.0
+    },
+    "predictors_library": null,
+    "protein_inference": null,
+    "quantification_method": null,
+    "quantification_software": null,
+    "quantification_software_version": null,
+    "scan_window": null,
+    "search_engine": "various",
+    "search_engine_version": null,
+    "semi_enzymatic": null,
+    "software_name": "Wombat",
+    "software_version": "0.9.11",
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:1",
+        "mass_delta": 42.010565,
+        "mod_type": "variable",
+        "name": "Protein N-term[Acetyl]",
+        "position": "Anywhere",
+        "source": "Protein N-term[Acetyl]",
+        "target": null
+      },
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
+  }
+}

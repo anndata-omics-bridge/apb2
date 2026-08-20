@@ -8,8 +8,21 @@ from typing import IO
 import yaml
 from pydantic import BaseModel, ConfigDict
 
-from apb2.vendor_params.model import Parameters
-from apb2.vendor_params.parsers._common import read_text
+from apb2.vendor_params.model import ModType, Parameters, Probability
+from apb2.vendor_params.parsers._common import (
+    modifications,
+    read_text,
+    split_modifications,
+    tolerance_from_text,
+)
+
+# Longest qualifier first: "protein n-term" also contains "n-term".
+_TERMINI = {
+    "protein n-term": "Protein N-term",
+    "protein c-term": "Protein C-term",
+    "n-term": "N-term",
+    "c-term": "C-term",
+}
 
 
 class _WombatModel(BaseModel):
@@ -54,14 +67,9 @@ def _homogenize_mod_xtandem(mod_str: str) -> str:
     name, residue_part = mod_str.split(" of ", 1)
     residue_part = residue_part.strip()
     lower = residue_part.lower()
-    if "protein n-term" in lower:
-        return f"Protein N-term[{name}]"
-    if "n-term" in lower:
-        return f"N-term[{name}]"
-    if "protein c-term" in lower:
-        return f"Protein C-term[{name}]"
-    if "c-term" in lower:
-        return f"C-term[{name}]"
+    for qualifier, target in _TERMINI.items():
+        if qualifier in lower:
+            return f"{target}[{name}]"
     return f"{residue_part.upper()}[{name}]"
 
 
@@ -73,36 +81,30 @@ def extract_params(source: Path | IO[bytes] | IO[str]) -> Parameters:
     record = _WombatDocument.model_validate(yaml.safe_load(read_text(source)))
     parameters = record.params
 
-    enzyme = parameters.enzyme
-    if enzyme == "trypsin":
-        enzyme = "Trypsin"
-
-    return Parameters.model_validate(
-        {
-            "software_name": "Wombat",
-            "software_version": record.version,
-            "search_engine": "various",
-            "enzyme": enzyme,
-            "allowed_miscleavages": parameters.miscleavages,
-            "fixed_mods": ", ".join(
-                _homogenize_mod_xtandem(modification)
-                for modification in parameters.fixed_mods.split(",")
-            ),
-            "variable_mods": ", ".join(
-                _homogenize_mod_xtandem(modification)
-                for modification in parameters.variable_mods.split(",")
-            ),
-            "max_mods": parameters.max_mods,
-            "min_peptide_length": parameters.min_peptide_length,
-            "max_peptide_length": parameters.max_peptide_length,
-            "precursor_mass_tolerance": parameters.precursor_mass_tolerance,
-            "fragment_mass_tolerance": parameters.fragment_mass_tolerance,
-            "ident_fdr_protein": parameters.ident_fdr_protein,
-            "ident_fdr_peptide": parameters.ident_fdr_peptide,
-            "ident_fdr_psm": parameters.ident_fdr_psm,
-            "min_precursor_charge": parameters.min_precursor_charge,
-            "max_precursor_charge": parameters.max_precursor_charge,
-            "enable_match_between_runs": parameters.enable_match_between_runs,
-            "abundance_normalization_ions": parameters.normalization_method,
-        }
+    return Parameters(
+        software_name="Wombat",
+        software_version=record.version,
+        search_engine="various",
+        enzyme="Trypsin" if parameters.enzyme == "trypsin" else parameters.enzyme,
+        allowed_miscleavages=parameters.miscleavages,
+        fixed_mods=modifications(
+            (_homogenize_mod_xtandem(mod) for mod in split_modifications(parameters.fixed_mods)),
+            ModType.fixed,
+        ),
+        variable_mods=modifications(
+            (_homogenize_mod_xtandem(mod) for mod in split_modifications(parameters.variable_mods)),
+            ModType.variable,
+        ),
+        max_mods=parameters.max_mods,
+        min_peptide_length=parameters.min_peptide_length,
+        max_peptide_length=parameters.max_peptide_length,
+        precursor_mass_tolerance=tolerance_from_text(parameters.precursor_mass_tolerance),
+        fragment_mass_tolerance=tolerance_from_text(parameters.fragment_mass_tolerance),
+        ident_fdr_protein=Probability(value=parameters.ident_fdr_protein),
+        ident_fdr_peptide=Probability(value=parameters.ident_fdr_peptide),
+        ident_fdr_psm=Probability(value=parameters.ident_fdr_psm),
+        min_precursor_charge=parameters.min_precursor_charge,
+        max_precursor_charge=parameters.max_precursor_charge,
+        enable_match_between_runs=parameters.enable_match_between_runs,
+        abundance_normalization_ions=parameters.normalization_method,
     )

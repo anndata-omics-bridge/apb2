@@ -6,14 +6,23 @@ import re
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
-from typing import IO, NamedTuple, TypedDict
+from typing import IO, NamedTuple
 
 from apb2.unimod_registry import registry as unimod_registry
-from apb2.vendor_params.model import MassTolerance, Parameters
+from apb2.vendor_params.model import (
+    MassTolerance,
+    ModType,
+    Parameters,
+    Probability,
+    SearchedModification,
+)
 from apb2.vendor_params.parsers._common import (
     MassModificationMatch,
     lookup_mass_mod,
+    modifications,
     read_text,
+    symmetric_tolerance,
+    tolerance_unit,
 )
 
 
@@ -26,30 +35,19 @@ class Parameter(NamedTuple):
 
 
 @dataclass(frozen=True, slots=True)
-class WorkflowVersion:
-    """One version string declared by a FragPipe workflow."""
-
-    value: str
-
-
-@dataclass(frozen=True, slots=True)
-class WorkflowVersionUnavailable:
-    """A FragPipe workflow did not declare this component version."""
-
-
-type WorkflowVersionEvidence = WorkflowVersion | WorkflowVersionUnavailable
-
-VERSION_UNAVAILABLE = WorkflowVersionUnavailable()
-
-
-@dataclass(frozen=True, slots=True)
 class ParsedWorkflow:
-    """Typed values extracted from one FragPipe workflow document."""
+    """Typed values extracted from one FragPipe workflow document.
+
+    A component version is ``None`` when the workflow does not declare it. That absence is
+    what happened while reading the file, not a variant with its own behaviour: every reader
+    asks the same question and reports "not stated", so there is nothing for a separate type
+    to implement.
+    """
 
     header: str
-    msfragger_version: WorkflowVersionEvidence
-    fragpipe_version: WorkflowVersionEvidence
-    diann_version: WorkflowVersionEvidence
+    msfragger_version: str | None
+    fragpipe_version: str | None
+    diann_version: str | None
     records: list[Parameter]
 
 
@@ -74,114 +72,41 @@ _MASS_TOLERANCE = 0.001
 
 
 @dataclass(frozen=True, slots=True)
-class DiannIdentificationFdrs:
-    """DIA-NN reports PSM and protein FDR without a peptide FDR."""
+class IdentificationFdrs:
+    """The FDR thresholds a workflow's identification stage applied.
 
-    psm: float
-    protein: float
+    ``peptide`` is ``None`` for a DIA-NN identification stage, which reports PSM and protein
+    FDR only. That is an absent value rather than a second kind of stage: nothing downstream
+    behaves differently, it just has one fewer threshold to record.
+    """
 
-
-@dataclass(frozen=True, slots=True)
-class PhiReportIdentificationFdrs:
-    """Philosopher reports PSM, peptide, and protein FDRs."""
-
-    psm: float
-    peptide: float
-    protein: float
+    psm: Probability
+    peptide: Probability | None
+    protein: Probability
 
 
 @dataclass(frozen=True, slots=True)
-class LabelFreeQuantification:
-    """IonQuant label-free quantification settings."""
+class Quantification:
+    """The quantification stage a workflow declared, if it declared one.
+
+    ``method`` is named only by DIA-NN; IonQuant's label-free stage reports match-between-runs
+    alone. A workflow with no quantification stage yields ``None`` instead of an instance.
+    """
 
     match_between_runs: bool
+    method: str | None
 
 
 @dataclass(frozen=True, slots=True)
-class DiannQuantification:
-    """DIA-NN quantification settings."""
+class ChargeRange:
+    """The precursor-charge bounds MSFragger searched.
 
-    match_between_runs: bool
-    method: str
-
-
-@dataclass(frozen=True, slots=True)
-class NoQuantification:
-    """The workflow does not declare a quantification stage."""
-
-
-@dataclass(frozen=True, slots=True)
-class BoundedChargeRange:
-    """Both precursor-charge bounds are known."""
+    ``maximum`` is ``None`` unless the workflow overrides the charge range, in which case
+    MSFragger's own default upper bound applies and the file does not state it.
+    """
 
     minimum: int
-    maximum: int
-
-
-@dataclass(frozen=True, slots=True)
-class LowerBoundedChargeRange:
-    """Only the default minimum precursor charge is known."""
-
-    minimum: int
-
-
-@dataclass(frozen=True, slots=True)
-class DigestMassRange:
-    """MSFragger digest-mass bounds."""
-
-    minimum: float
-    maximum: float
-
-
-@dataclass(frozen=True, slots=True)
-class PrecursorMzRange:
-    """Both precursor m/z bounds derived from bounded charge and mass."""
-
-    minimum: float
-    maximum: float
-
-
-@dataclass(frozen=True, slots=True)
-class MaximumPrecursorMz:
-    """The only m/z bound derivable from a lower-bounded charge range."""
-
-    maximum: float
-
-
-class FragPipeVariantData(TypedDict, total=False):
-    """Fields whose presence depends on tagged workflow stages."""
-
-    ident_fdr_peptide: float
-    enable_match_between_runs: bool
-    quantification_method: str
-    max_precursor_charge: int
-    min_precursor_mz: float
-    max_precursor_mz: float
-
-
-class FragPipeParameterData(FragPipeVariantData):
-    """Precisely typed values accepted by :class:`Parameters`."""
-
-    software_name: str
-    software_version: str | None
-    quantification_software: str | None
-    quantification_software_version: str | None
-    search_engine: str
-    search_engine_version: str | None
-    enzyme: str
-    allowed_miscleavages: int
-    semi_enzymatic: bool
-    fixed_mods: str
-    variable_mods: str
-    max_mods: int
-    min_peptide_length: int
-    max_peptide_length: int
-    precursor_mass_tolerance: str
-    fragment_mass_tolerance: MassTolerance
-    ident_fdr_psm: float
-    ident_fdr_protein: float
-    protein_inference: str | None
-    min_precursor_charge: int
+    maximum: int | None
 
 
 def _lookup_mod_name(mass: float, source_token: str) -> str:
@@ -195,15 +120,13 @@ def _lookup_mod_name(mass: float, source_token: str) -> str:
     return source_token.strip()
 
 
-def _parse_fixed_mods(raw: str) -> str:
+def _parse_fixed_mods(raw: str) -> list[SearchedModification]:
     """Parse MSFragger fixed modifications string into ProForma-like format.
 
     Input format: ``mass,residue_description,active,num_sites`` entries separated by ``; ``.
     Example: ``57.02146,C (cysteine),true,-1``
     """
-    if not raw or not raw.strip():
-        return ""
-    results = []
+    results: list[str] = []
     for entry in raw.split("; "):
         parts = entry.strip().split(",", 3)
         if len(parts) < 3:
@@ -225,18 +148,16 @@ def _parse_fixed_mods(raw: str) -> str:
         else:
             residue = residue_desc
         results.append(f"{residue}[{mod_name}]")
-    return ", ".join(results)
+    return modifications(results, ModType.fixed)
 
 
-def _parse_variable_mods(raw: str) -> str:
+def _parse_variable_mods(raw: str) -> list[SearchedModification]:
     """Parse MSFragger variable modifications string into ProForma-like format.
 
     Input format: ``mass,residue,active,max_occurrences`` entries separated by ``; ``.
     Special residue notations: ``[^`` = protein N-term, ``nX`` = peptide N-term of residue X.
     """
-    if not raw or not raw.strip():
-        return ""
-    results = []
+    results: list[str] = []
     for entry in raw.split("; "):
         parts = entry.strip().split(",", 3)
         if len(parts) < 3:
@@ -259,7 +180,7 @@ def _parse_variable_mods(raw: str) -> str:
                 results.append(f"N-term[{mod_name}]")
         else:
             results.append(f"{residue_field}[{mod_name}]")
-    return ", ".join(results)
+    return modifications(results, ModType.variable)
 
 
 def _parse_lines(lines: list[str], sep: str = "=") -> list[Parameter]:
@@ -305,22 +226,22 @@ def _read_workflow(
 ) -> ParsedWorkflow:
     lines = content.splitlines()
     header = lines[0][1:].strip()  # leading '#'
-    msfragger_version: WorkflowVersionEvidence = VERSION_UNAVAILABLE
-    fragpipe_version: WorkflowVersionEvidence = VERSION_UNAVAILABLE
-    diann_version: WorkflowVersionEvidence = VERSION_UNAVAILABLE
+    msfragger_version: str | None = None
+    fragpipe_version: str | None = None
+    diann_version: str | None = None
     for line in lines[1:]:
         if line.startswith("# MSFragger version"):
-            msfragger_version = WorkflowVersion(line.split(" ")[-1].strip())
+            msfragger_version = line.split(" ")[-1].strip()
         elif line.startswith("fragpipe-config.bin-msfragger"):
             path = line.split("=")[-1].strip()
             filename = path.replace("\\", "/").rsplit("/", 1)[-1]
             match = re.search(_VERSION_NO_PATTERN, filename)
             if match:
-                msfragger_version = WorkflowVersion(match.group(1))
+                msfragger_version = match.group(1)
         if line.startswith("# FragPipe version"):
-            fragpipe_version = WorkflowVersion(line.split(" ")[-1].strip())
+            fragpipe_version = line.split(" ")[-1].strip()
         elif line.startswith("# DIA-NN version"):
-            diann_version = WorkflowVersion(line.removeprefix("# DIA-NN version").strip())
+            diann_version = line.removeprefix("# DIA-NN version").strip()
         elif line.startswith(("fragpipe-config.bin-diann", "fragpipe.config.bin-diann")):
             executable = re.sub(
                 r"/+",
@@ -329,7 +250,7 @@ def _read_workflow(
             )
             match = _DIANN_PATH_VERSION.search(executable)
             if match:
-                diann_version = WorkflowVersion(match.group(1).replace("_", " "))
+                diann_version = match.group(1).replace("_", " ")
     return ParsedWorkflow(
         header=header,
         msfragger_version=msfragger_version,
@@ -357,91 +278,24 @@ def _tolerances(
     precursor_mass_upper: str,
     fragment_mass_units: str,
     fragment_mass_tolerance: str,
-) -> tuple[str, MassTolerance]:
+) -> tuple[MassTolerance, MassTolerance]:
     """Return ``(precursor_tolerance, fragment_tolerance)``.
 
-    The precursor range carries independent lower/upper bounds (structurally
-    asymmetric), so it stays a bracketed string that ``MassTolerance.parse``
-    validates; the symmetric fragment tolerance is built as a typed object.
+    MSFragger states the precursor range as independent lower and upper bounds, which
+    ``symmetric_tolerance`` reduces to the half-width the schema stores — rejecting a genuinely
+    asymmetric range rather than silently keeping one side.
     """
-    precursor_unit = "ppm" if int(precursor_mass_units) else "Da"
-    precursor_tol = (
-        f"[{precursor_mass_lower} {precursor_unit}, {precursor_mass_upper} {precursor_unit}]"
+    precursor = symmetric_tolerance(
+        float(precursor_mass_lower),
+        float(precursor_mass_upper),
+        "ppm" if int(precursor_mass_units) else "Da",
     )
-    fragment_unit = "ppm" if int(fragment_mass_units) else "Da"
-    fragment_tol = MassTolerance(
+    fragment = MassTolerance(
         mode="absolute",
         value=float(fragment_mass_tolerance),
-        unit=fragment_unit,
+        unit=tolerance_unit("ppm" if int(fragment_mass_units) else "Da"),
     )
-    return precursor_tol, fragment_tol
-
-
-def _diann_identification_fdrs(q_value: str) -> DiannIdentificationFdrs:
-    """Build the two FDR values reported by a DIA-NN identification stage."""
-    value = float(q_value)
-    return DiannIdentificationFdrs(psm=value, protein=value)
-
-
-def _phi_report_identification_fdrs(command: str) -> PhiReportIdentificationFdrs:
-    """Build the FDR triplet reported by a Philosopher identification stage."""
-    psm, peptide, protein = _parse_phi_report_filters(command)
-    return PhiReportIdentificationFdrs(psm=psm, peptide=peptide, protein=protein)
-
-
-def _label_free_quantification(mbr: str) -> LabelFreeQuantification:
-    """Build IonQuant label-free quantification settings."""
-    return LabelFreeQuantification(match_between_runs=bool(int(mbr)))
-
-
-def _diann_quantification(command_options: str, strategy: str) -> DiannQuantification:
-    """Build DIA-NN quantification settings."""
-    return DiannQuantification(
-        match_between_runs="--reanalyse" in command_options,
-        method=_DIANN_QUANT[int(strategy)],
-    )
-
-
-def _diann_quantification_without_command_options(strategy: str) -> DiannQuantification:
-    """Build DIA-NN quantification when the workflow declares no option field."""
-    return DiannQuantification(
-        match_between_runs=False,
-        method=_DIANN_QUANT[int(strategy)],
-    )
-
-
-def _bounded_charge_range(minimum: str, maximum: str) -> BoundedChargeRange:
-    """Parse both explicitly overridden precursor-charge bounds."""
-    return BoundedChargeRange(minimum=int(minimum), maximum=int(maximum))
-
-
-def _digest_mass_range(minimum: str, maximum: str) -> DigestMassRange:
-    """Extract the concrete digest-mass interval required for m/z derivation."""
-    return DigestMassRange(minimum=float(minimum), maximum=float(maximum))
-
-
-def _precursor_mz_range(
-    digest_mass: DigestMassRange,
-    charge: BoundedChargeRange,
-) -> PrecursorMzRange:
-    """Derive both m/z bounds when both charge bounds are known."""
-    return PrecursorMzRange(
-        minimum=digest_mass.minimum / charge.maximum,
-        maximum=digest_mass.maximum / charge.minimum,
-    )
-
-
-def _maximum_precursor_mz(
-    digest_mass: DigestMassRange,
-    charge: LowerBoundedChargeRange,
-) -> MaximumPrecursorMz:
-    """Derive only maximum m/z when the maximum charge is unknown."""
-    return MaximumPrecursorMz(maximum=digest_mass.maximum / charge.minimum)
-
-
-def _protein_inference(command_options: str) -> str:
-    """Describe the active ProteinProphet configuration."""
-    return f"ProteinProphet: {command_options}"
+    return precursor, fragment
 
 
 def _workflow_values(records: list[Parameter]) -> dict[str, str]:
@@ -449,72 +303,46 @@ def _workflow_values(records: list[Parameter]) -> dict[str, str]:
     return {record.name: record.value for record in records if record.value is not None}
 
 
-def _legacy_fragpipe_version(header: str) -> WorkflowVersionEvidence:
-    """Parse a FragPipe version from a legacy workflow header."""
+def _legacy_fragpipe_version(header: str) -> str | None:
+    """Read a FragPipe version from a legacy workflow header."""
     match = re.match(r"FragPipe \((\d+\.\d+.*)\)", header)
-    return WorkflowVersion(match.group(1)) if match else VERSION_UNAVAILABLE
+    return match.group(1) if match else None
 
 
-def _workflow_identification(
-    values: dict[str, str], uses_diann: bool
-) -> DiannIdentificationFdrs | PhiReportIdentificationFdrs:
-    """Select the workflow's active identification stage."""
+def _workflow_identification(values: dict[str, str], uses_diann: bool) -> IdentificationFdrs:
+    """Read the FDR thresholds of the workflow's active identification stage."""
     if uses_diann:
-        return _diann_identification_fdrs(values["diann.q-value"])
-    return _phi_report_identification_fdrs(values["phi-report.filter"])
+        q_value = Probability(value=float(values["diann.q-value"]))
+        return IdentificationFdrs(psm=q_value, peptide=None, protein=q_value)
+    psm, peptide, protein = _parse_phi_report_filters(values["phi-report.filter"])
+    return IdentificationFdrs(
+        psm=Probability(value=psm),
+        peptide=Probability(value=peptide),
+        protein=Probability(value=protein),
+    )
 
 
-def _workflow_quantification(
-    values: dict[str, str], uses_diann: bool
-) -> LabelFreeQuantification | DiannQuantification | NoQuantification:
-    """Select the workflow's active quantification stage."""
+def _workflow_quantification(values: dict[str, str], uses_diann: bool) -> Quantification | None:
+    """Read the workflow's quantification stage, or ``None`` when it declares none."""
     if values["quantitation.run-label-free-quant"] == "true":
-        return _label_free_quantification(values["ionquant.mbr"])
-    if uses_diann:
-        strategy = values["diann.quantification-strategy"]
-        if "diann.fragpipe.cmd-opts" in values:
-            return _diann_quantification(values["diann.fragpipe.cmd-opts"], strategy)
-        if "diann.cmd-opts" in values:
-            return _diann_quantification(values["diann.cmd-opts"], strategy)
-        return _diann_quantification_without_command_options(strategy)
-    return NoQuantification()
+        return Quantification(match_between_runs=bool(int(values["ionquant.mbr"])), method=None)
+    if not uses_diann:
+        return None
+    options = values.get("diann.fragpipe.cmd-opts", values.get("diann.cmd-opts", ""))
+    return Quantification(
+        match_between_runs="--reanalyse" in options,
+        method=_DIANN_QUANT[int(values["diann.quantification-strategy"])],
+    )
 
 
-def _workflow_charge_range(
-    values: dict[str, str],
-) -> BoundedChargeRange | LowerBoundedChargeRange:
-    """Select the explicit or default precursor-charge shape."""
-    if values["msfragger.override_charge"] == "true":
-        return _bounded_charge_range(
-            values["msfragger.misc.fragger.precursor-charge-lo"],
-            values["msfragger.misc.fragger.precursor-charge-hi"],
-        )
-    return LowerBoundedChargeRange(minimum=1)
-
-
-def _add_variant_parameter_data(
-    data: FragPipeParameterData,
-    fdrs: DiannIdentificationFdrs | PhiReportIdentificationFdrs,
-    quantification: LabelFreeQuantification | DiannQuantification | NoQuantification,
-    charge_range: BoundedChargeRange | LowerBoundedChargeRange,
-    digest_mass_range: DigestMassRange,
-) -> None:
-    """Project tagged workflow variants onto optional parameter fields."""
-    data["max_precursor_mz"] = _maximum_precursor_mz(
-        digest_mass_range,
-        LowerBoundedChargeRange(minimum=charge_range.minimum),
-    ).maximum
-    if isinstance(fdrs, PhiReportIdentificationFdrs):
-        data["ident_fdr_peptide"] = fdrs.peptide
-    if isinstance(quantification, LabelFreeQuantification | DiannQuantification):
-        data["enable_match_between_runs"] = quantification.match_between_runs
-    if isinstance(quantification, DiannQuantification):
-        data["quantification_method"] = quantification.method
-    if isinstance(charge_range, BoundedChargeRange):
-        precursor_mz = _precursor_mz_range(digest_mass_range, charge_range)
-        data["max_precursor_charge"] = charge_range.maximum
-        data["min_precursor_mz"] = precursor_mz.minimum
-        data["max_precursor_mz"] = precursor_mz.maximum
+def _workflow_charge_range(values: dict[str, str]) -> ChargeRange:
+    """Read the precursor-charge bounds, which the workflow states only when overridden."""
+    if values["msfragger.override_charge"] != "true":
+        return ChargeRange(minimum=1, maximum=None)
+    return ChargeRange(
+        minimum=int(values["msfragger.misc.fragger.precursor-charge-lo"]),
+        maximum=int(values["msfragger.misc.fragger.precursor-charge-hi"]),
+    )
 
 
 def extract_params(source: Path | IO[bytes] | IO[str] | BytesIO) -> Parameters:
@@ -526,9 +354,7 @@ def extract_params(source: Path | IO[bytes] | IO[str] | BytesIO) -> Parameters:
     content = read_text(source)
     workflow = _read_workflow(content)
     values = _workflow_values(workflow.records)
-    fragpipe_version = workflow.fragpipe_version
-    if isinstance(fragpipe_version, WorkflowVersionUnavailable):
-        fragpipe_version = _legacy_fragpipe_version(workflow.header)
+    fragpipe_version = workflow.fragpipe_version or _legacy_fragpipe_version(workflow.header)
 
     precursor_tol, fragment_tol = _tolerances(
         values["msfragger.precursor_mass_units"],
@@ -541,56 +367,47 @@ def extract_params(source: Path | IO[bytes] | IO[str] | BytesIO) -> Parameters:
     fdrs = _workflow_identification(values, uses_diann)
     quantification = _workflow_quantification(values, uses_diann)
     charge_range = _workflow_charge_range(values)
-    digest_mass_range = _digest_mass_range(
-        values["msfragger.misc.fragger.digest-mass-lo"],
-        values["msfragger.misc.fragger.digest-mass-hi"],
-    )
+    digest_mass_lo = float(values["msfragger.misc.fragger.digest-mass-lo"])
+    digest_mass_hi = float(values["msfragger.misc.fragger.digest-mass-hi"])
     protein_inference = (
-        _protein_inference(values["protein-prophet.cmd-opts"])
+        f"ProteinProphet: {values['protein-prophet.cmd-opts']}"
         if values["protein-prophet.run-protein-prophet"] == "true"
         else None
     )
-    parameter_data: FragPipeParameterData = {
-        "software_name": "FragPipe",
-        "software_version": (
-            fragpipe_version.value if isinstance(fragpipe_version, WorkflowVersion) else None
-        ),
-        "quantification_software": "DIA-NN" if uses_diann else None,
-        "quantification_software_version": (
-            workflow.diann_version.value
-            if uses_diann and isinstance(workflow.diann_version, WorkflowVersion)
-            else None
-        ),
-        "search_engine": "MSFragger",
-        "search_engine_version": (
-            workflow.msfragger_version.value
-            if isinstance(workflow.msfragger_version, WorkflowVersion)
-            else None
-        ),
-        "enzyme": _resolve_enzyme(
+    return Parameters(
+        software_name="FragPipe",
+        software_version=fragpipe_version,
+        quantification_software="DIA-NN" if uses_diann else None,
+        quantification_software_version=workflow.diann_version if uses_diann else None,
+        search_engine="MSFragger",
+        search_engine_version=workflow.msfragger_version,
+        enzyme=_resolve_enzyme(
             values["msfragger.search_enzyme_name_1"],
             values["msfragger.search_enzyme_name_2"],
         ),
-        "allowed_miscleavages": int(values["msfragger.allowed_missed_cleavage_1"]),
-        "semi_enzymatic": values["msfragger.num_enzyme_termini"] != "2",
-        "fixed_mods": _parse_fixed_mods(values["msfragger.table.fix-mods"]),
-        "variable_mods": _parse_variable_mods(values["msfragger.table.var-mods"]),
-        "max_mods": int(values["msfragger.max_variable_mods_per_peptide"]),
-        "min_peptide_length": int(values["msfragger.digest_min_length"]),
-        "max_peptide_length": int(values["msfragger.digest_max_length"]),
-        "precursor_mass_tolerance": precursor_tol,
-        "fragment_mass_tolerance": fragment_tol,
-        "ident_fdr_psm": fdrs.psm,
-        "ident_fdr_protein": fdrs.protein,
-        "protein_inference": protein_inference,
-        "min_precursor_charge": charge_range.minimum,
-    }
-    _add_variant_parameter_data(
-        parameter_data,
-        fdrs,
-        quantification,
-        charge_range,
-        digest_mass_range,
+        allowed_miscleavages=int(values["msfragger.allowed_missed_cleavage_1"]),
+        semi_enzymatic=values["msfragger.num_enzyme_termini"] != "2",
+        fixed_mods=_parse_fixed_mods(values["msfragger.table.fix-mods"]),
+        variable_mods=_parse_variable_mods(values["msfragger.table.var-mods"]),
+        max_mods=int(values["msfragger.max_variable_mods_per_peptide"]),
+        min_peptide_length=int(values["msfragger.digest_min_length"]),
+        max_peptide_length=int(values["msfragger.digest_max_length"]),
+        precursor_mass_tolerance=precursor_tol,
+        fragment_mass_tolerance=fragment_tol,
+        ident_fdr_psm=fdrs.psm,
+        ident_fdr_peptide=fdrs.peptide,
+        ident_fdr_protein=fdrs.protein,
+        protein_inference=protein_inference,
+        enable_match_between_runs=(
+            None if quantification is None else quantification.match_between_runs
+        ),
+        quantification_method=None if quantification is None else quantification.method,
+        min_precursor_charge=charge_range.minimum,
+        max_precursor_charge=charge_range.maximum,
+        # The lightest peptide at the highest charge, which needs an upper charge bound.
+        min_precursor_mz=(
+            None if charge_range.maximum is None else digest_mass_lo / charge_range.maximum
+        ),
+        # The heaviest peptide at the lowest charge, which is always known.
+        max_precursor_mz=digest_mass_hi / charge_range.minimum,
     )
-
-    return Parameters.model_validate(parameter_data)

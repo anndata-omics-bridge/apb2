@@ -18,8 +18,15 @@ import re
 from pathlib import Path
 from typing import IO
 
-from apb2.vendor_params.model import MassTolerance, Parameters, ParamsError
-from apb2.vendor_params.parsers._common import read_lines
+from apb2.vendor_params.model import (
+    MassTolerance,
+    ModType,
+    Parameters,
+    ParamsError,
+    Probability,
+    SearchedModification,
+)
+from apb2.vendor_params.parsers._common import automatic_tolerance, modifications, read_lines
 
 _ANSI_RE = re.compile(r"(\x9b|\x1b\[)[0-?]*[ -/]*[@-~]")
 _TIMESTAMP_RE = re.compile(r"(\d+ days?,\s*)?(\d+):\d{2}:\d{2}\.?\d*")
@@ -37,6 +44,14 @@ _FLOAT_RE = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$")
 
 _MODIFICATION_DELIMITER = ";"
 
+# AlphaDIA names its protease in lowercase; the canonical display names are APB's.
+_ENZYME_MAP = {"trypsin": "Trypsin", "trypsin/p": "Trypsin/P"}
+
+
+def _count(value: str | None) -> int | None:
+    """Read an integer setting AlphaDIA prints as text."""
+    return None if value is None else int(float(value.strip()))
+
 
 def _clean(line: str) -> str:
     """Strip ANSI codes, timestamp, log level, and tree drawing characters."""
@@ -50,15 +65,17 @@ def _effective_value(value: str) -> str:
     return _ANNOTATION_RE.sub("", value).strip()
 
 
-def _homogenize_mods(mod_string: str) -> str:
+def _homogenize_mods(mod_string: str | None, mod_type: ModType) -> list[SearchedModification]:
     """Render AlphaDIA ``Name@Residue`` tokens in APB's ProForma-like notation.
 
     ``Oxidation@M`` -> ``M[Oxidation]``;
     ``Acetyl@Protein_N-term`` -> ``Protein N-term[Acetyl]``.
     """
+    if mod_string is None:
+        return []
     out: list[str] = []
-    for token in mod_string.split(_MODIFICATION_DELIMITER):
-        token = token.strip()
+    for raw in mod_string.split(_MODIFICATION_DELIMITER):
+        token = raw.strip()
         if not token:
             continue
         if "@" in token:
@@ -66,7 +83,7 @@ def _homogenize_mods(mod_string: str) -> str:
             out.append(f"{residue.replace('_', ' ')}[{name}]")
         else:
             out.append(token)
-    return ", ".join(out)
+    return modifications(out, mod_type)
 
 
 def _nested_range(lines: list[str], start: int) -> tuple[int, int] | None:
@@ -93,15 +110,15 @@ def _ppm(value: str) -> MassTolerance:
     """AlphaDIA reports both search tolerances in ppm.
 
     A tolerance of ``0`` means AlphaDIA calibrated it from the data rather than
-    searching at zero width, so it routes through :meth:`MassTolerance.parse` to
-    reach the same automatic-calibration record other vendors produce.
+    searching at zero width, so it reports the same automatic-calibration record
+    other vendors produce.
     """
     text = value.strip()
     if not _FLOAT_RE.fullmatch(text):
         raise ValueError(f"AlphaDIA ppm tolerance must be numeric, got {value!r}")
     numeric = abs(float(text))
     if numeric == 0:
-        return MassTolerance(mode="automatic", label="Automatic calibration")
+        return automatic_tolerance()
     return MassTolerance(mode="absolute", value=numeric, unit="ppm")
 
 
@@ -143,45 +160,36 @@ def extract_params(source: Path | IO[bytes] | IO[str]) -> Parameters:
     if version is None:
         raise ParamsError("no AlphaDIA version banner found; not an AlphaDIA run log")
 
-    fdr = scalars.get("fdr")
+    raw_fdr = scalars.get("fdr")
+    fdr = None if raw_fdr is None else Probability(value=float(raw_fdr.strip()))
     length = ranges.get("precursor_len")
     charge = ranges.get("precursor_charge")
     mbr = scalars.get("mbr_step_enabled")
     precursor_tolerance = scalars.get("target_ms1_tolerance")
     fragment_tolerance = scalars.get("target_ms2_tolerance")
-    fixed_modifications = scalars.get("fixed_modifications")
-    variable_modifications = scalars.get("variable_modifications")
 
-    return Parameters.model_validate(
-        {
-            "software_name": "AlphaDIA",
-            "software_version": version,
-            "search_engine": "AlphaDIA",
-            "search_engine_version": version,
-            "acquisition_method": "DIA",
-            "ident_fdr_psm": fdr,
-            "ident_fdr_protein": fdr,
-            "enable_match_between_runs": mbr.strip() == "True" if mbr is not None else None,
-            "precursor_mass_tolerance": (
-                None if precursor_tolerance is None else _ppm(precursor_tolerance)
-            ),
-            "fragment_mass_tolerance": (
-                None if fragment_tolerance is None else _ppm(fragment_tolerance)
-            ),
-            "enzyme": scalars.get("enzyme"),
-            "allowed_miscleavages": scalars.get("missed_cleavages"),
-            "min_peptide_length": length[0] if length else None,
-            "max_peptide_length": length[1] if length else None,
-            "fixed_mods": (
-                [] if fixed_modifications is None else _homogenize_mods(fixed_modifications)
-            ),
-            "variable_mods": (
-                [] if variable_modifications is None else _homogenize_mods(variable_modifications)
-            ),
-            "max_mods": scalars.get("max_var_mod_num"),
-            "min_precursor_charge": charge[0] if charge else None,
-            "max_precursor_charge": charge[1] if charge else None,
-            "quantification_method": "DirectLFQ",
-            "predictors_library": "AlphaPeptDeep",
-        }
+    return Parameters(
+        software_name="AlphaDIA",
+        software_version=version,
+        search_engine="AlphaDIA",
+        search_engine_version=version,
+        acquisition_method="DIA",
+        ident_fdr_psm=fdr,
+        ident_fdr_protein=fdr,
+        enable_match_between_runs=mbr.strip() == "True" if mbr is not None else None,
+        precursor_mass_tolerance=(
+            None if precursor_tolerance is None else _ppm(precursor_tolerance)
+        ),
+        fragment_mass_tolerance=(None if fragment_tolerance is None else _ppm(fragment_tolerance)),
+        enzyme=_ENZYME_MAP.get(scalars.get("enzyme", "").strip().lower(), scalars.get("enzyme")),
+        allowed_miscleavages=_count(scalars.get("missed_cleavages")),
+        min_peptide_length=length[0] if length else None,
+        max_peptide_length=length[1] if length else None,
+        fixed_mods=_homogenize_mods(scalars.get("fixed_modifications"), ModType.fixed),
+        variable_mods=_homogenize_mods(scalars.get("variable_modifications"), ModType.variable),
+        max_mods=_count(scalars.get("max_var_mod_num")),
+        min_precursor_charge=charge[0] if charge else None,
+        max_precursor_charge=charge[1] if charge else None,
+        quantification_method="DirectLFQ",
+        predictors_library="AlphaPeptDeep",
     )

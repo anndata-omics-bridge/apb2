@@ -5,14 +5,29 @@ from __future__ import annotations
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import IO, TypedDict
+from typing import IO
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from apb2.vendor_params.model import MassTolerance, Parameters
-from apb2.vendor_params.parsers._common import read_text
+from apb2.vendor_params.model import (
+    MassTolerance,
+    ModType,
+    Parameters,
+    Probability,
+    SearchedModification,
+)
+from apb2.vendor_params.parsers._common import modifications, read_text, tolerance_unit
 
 _Source = Path | IO[bytes] | IO[str]
+
+# MetaMorpheus names its protease in lowercase; the canonical display names are APB's.
+_ENZYME_MAP = {"trypsin": "Trypsin", "trypsin/p": "Trypsin/P"}
+_TERMINI = {
+    "(Prot N-Term)": "Protein N-term",
+    "(Pep N-Term)": "N-term",
+    "(Prot C-Term)": "Protein C-term",
+    "(Pep C-Term)": "C-term",
+}
 
 
 class _VendorModel(BaseModel):
@@ -79,37 +94,13 @@ class VersionFile:
     first_line: str
 
 
-class MetaMorpheusParameterData(TypedDict):
-    """Precisely typed values accepted by :class:`Parameters`."""
-
-    software_name: str
-    software_version: str
-    search_engine: str
-    enzyme: str
-    allowed_miscleavages: int
-    fixed_mods: str
-    variable_mods: str
-    precursor_mass_tolerance: MassTolerance
-    fragment_mass_tolerance: MassTolerance
-    min_peptide_length: int
-    max_peptide_length: int
-    max_mods: int
-    min_precursor_charge: int
-    max_precursor_charge: int
-    enable_match_between_runs: bool
-    quantification_method: str
-    protein_inference: str | None
-    abundance_normalization_ions: bool
-    ident_fdr_psm: str
-
-
 def _format_tolerance(tolerance: str) -> MassTolerance:
-    """Parse ``"±20.0000 PPM"`` into a typed symmetric tolerance."""
+    """Read ``"±20.0000 PPM"`` as a typed symmetric tolerance."""
     value, unit = tolerance.split()
     return MassTolerance(
         mode="absolute",
         value=float(value.strip("±")),
-        unit="ppm" if unit.lower() == "ppm" else "Da",
+        unit=tolerance_unit(unit),
     )
 
 
@@ -129,25 +120,22 @@ def _homogenize_mod(mod_str: str) -> str:
         return mod_str
     name, residue_part = mod_str.split(" on ", 1)
     residue_part = residue_part.strip()
-    if "(Prot N-Term)" in residue_part:
-        return f"Protein N-term[{name}]"
-    if "(Pep N-Term)" in residue_part:
-        return f"N-term[{name}]"
-    if "(Prot C-Term)" in residue_part:
-        return f"Protein C-term[{name}]"
-    if "(Pep C-Term)" in residue_part:
-        return f"C-term[{name}]"
+    for qualifier, target in _TERMINI.items():
+        if qualifier in residue_part:
+            return f"{target}[{name}]"
     return f"{residue_part}[{name}]"
 
 
-def _parse_modifications(mods: str) -> str:
-    """Convert MetaMorpheus tab-delimited mod blocks into a ``, ``-joined string."""
-    parsed: list[str] = []
-    for entry in mods.split("\t\t"):
-        parts = entry.split("\t")
-        if len(parts) > 1:
-            parsed.append(_homogenize_mod(parts[1]))
-    return ", ".join(parsed)
+def _parse_modifications(mods: str, mod_type: ModType) -> list[SearchedModification]:
+    """Resolve MetaMorpheus's tab-delimited modification blocks."""
+    return modifications(
+        (
+            _homogenize_mod(parts[1])
+            for parts in (entry.split("\t") for entry in mods.split("\t\t"))
+            if len(parts) > 1
+        ),
+        mod_type,
+    )
 
 
 def _load_pair(file_a: _Source, file_b: _Source) -> tuple[VersionFile, SettingsFile]:
@@ -187,25 +175,24 @@ def extract_params(file_a: _Source, file_b: _Source) -> Parameters:
     if len(version_parts) < 3:
         raise ValueError("MetaMorpheus version report has no version value")
 
-    parameter_data: MetaMorpheusParameterData = {
-        "software_name": "MetaMorpheus",
-        "software_version": version_parts[2],
-        "search_engine": "MetaMorpheus",
-        "enzyme": digestion.protease,
-        "allowed_miscleavages": digestion.max_missed_cleavages,
-        "fixed_mods": _parse_modifications(common.fixed_modifications),
-        "variable_mods": _parse_modifications(common.variable_modifications),
-        "precursor_mass_tolerance": _format_tolerance(common.precursor_mass_tolerance),
-        "fragment_mass_tolerance": _format_tolerance(common.product_mass_tolerance),
-        "min_peptide_length": digestion.min_peptide_length,
-        "max_peptide_length": digestion.max_peptide_length,
-        "max_mods": digestion.max_mods_for_peptide,
-        "min_precursor_charge": precursor.min_assumed_charge_state,
-        "max_precursor_charge": precursor.max_assumed_charge_state,
-        "enable_match_between_runs": search.match_between_runs,
-        "quantification_method": "FlashLFQ",
-        "protein_inference": "Parsimony" if search.do_parsimony else None,
-        "abundance_normalization_ions": search.normalize,
-        "ident_fdr_psm": str(common.q_value_threshold),
-    }
-    return Parameters.model_validate(parameter_data)
+    return Parameters(
+        software_name="MetaMorpheus",
+        software_version=version_parts[2],
+        search_engine="MetaMorpheus",
+        enzyme=_ENZYME_MAP.get(digestion.protease.lower(), digestion.protease),
+        allowed_miscleavages=digestion.max_missed_cleavages,
+        fixed_mods=_parse_modifications(common.fixed_modifications, ModType.fixed),
+        variable_mods=_parse_modifications(common.variable_modifications, ModType.variable),
+        precursor_mass_tolerance=_format_tolerance(common.precursor_mass_tolerance),
+        fragment_mass_tolerance=_format_tolerance(common.product_mass_tolerance),
+        min_peptide_length=digestion.min_peptide_length,
+        max_peptide_length=digestion.max_peptide_length,
+        max_mods=digestion.max_mods_for_peptide,
+        min_precursor_charge=precursor.min_assumed_charge_state,
+        max_precursor_charge=precursor.max_assumed_charge_state,
+        enable_match_between_runs=search.match_between_runs,
+        quantification_method="FlashLFQ",
+        protein_inference="Parsimony" if search.do_parsimony else None,
+        abundance_normalization_ions=search.normalize,
+        ident_fdr_psm=Probability(value=common.q_value_threshold),
+    )

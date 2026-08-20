@@ -1,0 +1,244 @@
+0:00:00.014813 PROGRESS:           _      _         ___ ___   _   
+0:00:00.015058 PROGRESS:      __ _| |_ __| |_  __ _|   \_ _| /_\  
+0:00:00.015090 PROGRESS:     / _` | | '_ \ ' \/ _` | |) | | / _ \ 
+0:00:00.015120 PROGRESS:     \__,_|_| .__/_||_\__,_|___/___/_/ \_\
+0:00:00.015152 PROGRESS:            |_|                           
+0:00:00.015178 PROGRESS: 
+0:00:00.015201 PROGRESS: version: 1.10.3
+0:00:00.015244 INFO: hostname: thestral
+0:00:00.015324 INFO: date: 2025-04-16 21:46:31
+0:00:00.015347 INFO: ================ AlphaX Environment ===============
+0:00:00.015374 INFO: alphatims       : 1.0.8
+0:00:00.015395 INFO: alpharaw        : 0.4.5
+0:00:00.015414 INFO: alphabase       : 1.5.0
+0:00:00.015436 INFO: alphapeptdeep   : 1.3.0
+0:00:00.015455 INFO: directlfq       : 0.2.19
+0:00:00.015500 INFO: ===================================================
+0:00:00.015521 INFO: ================= Pip Environment =================
+0:00:00.079612 INFO: alphatims==1.0.8 click==8.1.8 partd==1.4.2 wget==3.2 torchmetrics==1.4.0.post0 uri-template==1.3.0 directlfq==0.2.19 nvidia-nvjitlink-cu12==12.4.127 lxml==5.3.1 alphadia==1.10.3 fsspec==2025.3.0 fqdn==1.5.1 jsonref==1.1.0 simplejson==3.20.1 tornado==6.4.2 s3transfer==0.11.4 pythonnet==3.0.3 tqdm==4.67.1 psutil==7.0.0 urllib3==2.3.0 fonttools==4.56.0 arrow==1.3.0 dask==2024.11.2 numpy==1.26.4 tzdata==2025.1 gitdb==4.0.12 contextlib2==21.6.0 future==1.0.0 toolz==1.0.0 monotonic==1.6 argparse==1.4.0 nvidia-cuda-cupti-cu12==12.4.127 numba==0.59.1 importlib_resources==6.5.2 packaging==24.2 SQLAlchemy==2.0.39 typing_extensions==4.12.2 pyarrow==19.0.1 joblib==1.4.2 requests-oauthlib==2.0.0 rdkit==2024.3.3 webcolors==24.11.1 cffi==1.17.1 nvidia-cuda-nvrtc-cu12==12.4.127 protobuf==5.29.3 pyteomics==4.7.5 mpmath==1.3.0 pytz==2025.1 multiprocess==0.70.17 MarkupSafe==3.0.2 pyzstd==0.16.2 six==1.17.0 cycler==0.12.1 charset-normalizer==3.4.1 pyparsing==3.2.1 tenacity==9.0.0 llvmlite==0.42.0 attrs==25.2.0 pip==23.0.1 requests==2.32.3 triton==3.2.0 h5py==3.13.0 oauthlib==3.2.2 zstandard==0.22.0 pyahocorasick==2.1.0 swagger-spec-validator==3.0.4 blinker==1.9.0 pycparser==2.22 alpharaw==0.4.5 regex==2024.11.6 streamlit-aggrid==1.1.1 streamlit==1.43.2 tokenizers==0.19.1 websocket-client==1.8.0 certifi==2025.1.31 narwhals==1.30.0 isoduration==20.11.0 python-dateutil==2.9.0.post0 peptdeep==1.3.0 botocore==1.37.11 locket==1.0.0 referencing==0.36.2 torch==2.6.0 nvidia-cusparse-cu12==12.3.1.170 rocket-fft==0.2.5 lightning-utilities==0.14.0 neptune==1.10.4 importlib_metadata==8.6.1 cloudpickle==3.1.1 clr_loader==0.2.7.post0 setuptools==66.1.1 pandas==2.2.3 dill==0.3.9 jsonschema-specifications==2024.10.1 networkx==3.4.2 transformers==4.40.2 biopython==1.85 filelock==3.17.0 types-python-dateutil==2.9.0.20241206 seaborn==0.13.2 toml==0.10.2 zipp==3.21.0 rfc3339-validator==0.1.4 altair==5.5.0 greenlet==3.1.1 scipy==1.12.0 matplotlib==3.10.1 contourpy==1.3.1 pydeck==0.9.1 threadpoolctl==3.5.0 Jinja2==3.1.6 bravado-core==6.1.1 msgpack==1.1.0 nvidia-nvtx-cu12==12.4.127 nvidia-cusolver-cu12==11.6.1.9 xxhash==3.4.1 safetensors==0.5.3 idna==3.10 cachetools==5.5.2 huggingface-hub==0.29.3 jsonpointer==3.0.0 rpds-py==0.23.1 nvidia-cufft-cu12==11.2.1.3 jsonschema==4.23.0 watchdog==6.0.0 python-decouple==3.8 sympy==1.13.1 boto3==1.37.11 dask-expr==1.1.19 pillow==11.1.0 plotly==6.0.0 nvidia-cublas-cu12==12.4.5.8 nvidia-cudnn-cu12==9.1.0.70 smmap==5.0.2 nvidia-curand-cu12==10.3.5.147 GitPython==3.1.44 progressbar==2.5 PyJWT==2.10.1 kiwisolver==1.4.8 nvidia-cuda-runtime-cu12==12.4.127 scikit-learn==1.6.1 nvidia-nccl-cu12==2.21.5 jmespath==1.0.1 rfc3986-validator==0.1.1 bravado==11.1.0 nvidia-cusparselt-cu12==0.6.2 alphabase==1.5.0 PyYAML==6.0.2
+0:00:00.079775 INFO: ===================================================
+0:00:00.079814 INFO: Running step 'library'
+0:00:00.079907 INFO: loading config from /home/robbe/.pyenv/versions/alphadia/lib/python3.11/site-packages/alphadia/constants/default.yaml
+0:00:00.091890 INFO: loading additional config provided via CLI
+0:00:00.092006 INFO: loading additional config provided via CLI parameters
+0:00:00.092281 INFO: Updating config with 'user defined'
+0:00:00.092385 INFO: Updating config with 'user defined (cli)'
+0:00:00.092431 INFO: ├──version: 1
+0:00:00.092461 INFO: ├──workflow_name: None
+0:00:00.092485 INFO: ├──output_directory: None
+0:00:00.092506 INFO: ├──library_path: None
+0:00:00.092527 INFO: ├──raw_paths:
+0:00:00.092550 INFO: │   [32;20m- ./Raw_Astral/LFQ_Astral_DIA_15min_50ng_Condition_A_REP1.raw [user defined (cli), default: None][0m
+0:00:00.092575 INFO: │   [32;20m- ./Raw_Astral/LFQ_Astral_DIA_15min_50ng_Condition_A_REP2.raw [user defined (cli), default: None][0m
+0:00:00.092594 INFO: │   [32;20m- ./Raw_Astral/LFQ_Astral_DIA_15min_50ng_Condition_A_REP3.raw [user defined (cli), default: None][0m
+0:00:00.092619 INFO: │   [32;20m- ./Raw_Astral/LFQ_Astral_DIA_15min_50ng_Condition_B_REP1.raw [user defined (cli), default: None][0m
+0:00:00.092639 INFO: │   [32;20m- ./Raw_Astral/LFQ_Astral_DIA_15min_50ng_Condition_B_REP2.raw [user defined (cli), default: None][0m
+0:00:00.092659 INFO: │   [32;20m- ./Raw_Astral/LFQ_Astral_DIA_15min_50ng_Condition_B_REP3.raw [user defined (cli), default: None][0m
+0:00:00.092679 INFO: ├──fasta_paths:
+0:00:00.092701 INFO: │   [32;20m- ./ProteoBenchFASTA_DDAQuantification.fasta [user defined (cli), default: None][0m
+0:00:00.092723 INFO: ├──quant_directory: None
+0:00:00.092744 INFO: ├──general
+0:00:00.092766 INFO: │   [32;20m├──thread_count: 100 [user defined, default: 10][0m
+0:00:00.092786 INFO: │   ├──transfer_step_enabled: False
+0:00:00.092807 INFO: │   [32;20m├──mbr_step_enabled: False [user defined, default: True][0m
+0:00:00.092828 INFO: │   ├──reuse_calibration: False
+0:00:00.092849 INFO: │   ├──reuse_quant: False
+0:00:00.092868 INFO: │   ├──astral_ms1: False
+0:00:00.092888 INFO: │   ├──log_level: INFO
+0:00:00.092909 INFO: │   ├──mmap_detector_events: False
+0:00:00.092930 INFO: │   [32;20m├──use_gpu: False [user defined, default: True][0m
+0:00:00.092951 INFO: │   ├──save_library: True
+0:00:00.092971 INFO: │   └──save_mbr_library: True
+0:00:00.092990 INFO: ├──library_loading
+0:00:00.093011 INFO: │   └──rt_heuristic: 180
+0:00:00.093030 INFO: ├──library_prediction
+0:00:00.093050 INFO: │   [32;20m├──enabled: True [user defined, default: False][0m
+0:00:00.093070 INFO: │   [32;20m├──enzyme: trypsin/p [user defined, default: trypsin][0m
+0:00:00.093094 INFO: │   ├──fixed_modifications: Carbamidomethyl@C
+0:00:00.093118 INFO: │   ├──variable_modifications: Oxidation@M;Acetyl@Protein_N-term
+0:00:00.093139 INFO: │   [32;20m├──max_var_mod_num: 1 [user defined, default: 2][0m
+0:00:00.093160 INFO: │   ├──missed_cleavages: 1
+0:00:00.093179 INFO: │   ├──precursor_len:
+0:00:00.093199 INFO: │   │   [32;20m- 6 [user defined, default: 7][0m
+0:00:00.093220 INFO: │   │   [32;20m- 30 [user defined, default: 35][0m
+0:00:00.093240 INFO: │   ├──precursor_charge:
+0:00:00.093261 INFO: │   │   [32;20m- 1 [user defined, default: 2][0m
+0:00:00.093282 INFO: │   │   [32;20m- 4[0m
+0:00:00.093302 INFO: │   ├──precursor_mz:
+0:00:00.093322 INFO: │   │   [32;20m- 400[0m
+0:00:00.093341 INFO: │   │   [32;20m- 1000 [user defined, default: 1200][0m
+0:00:00.093360 INFO: │   ├──fragment_mz:
+0:00:00.093380 INFO: │   │   [32;20m- 50 [user defined, default: 200][0m
+0:00:00.093400 INFO: │   │   [32;20m- 2000[0m
+0:00:00.093421 INFO: │   ├──nce: 25
+0:00:00.093444 INFO: │   ├──fragment_types:
+0:00:00.093464 INFO: │   │   [32;20m- b[0m
+0:00:00.093483 INFO: │   │   [32;20m- y[0m
+0:00:00.093504 INFO: │   ├──max_fragment_charge: 2
+0:00:00.093524 INFO: │   [32;20m├──instrument: Astral [user defined, default: Lumos][0m
+0:00:00.093544 INFO: │   ├──peptdeep_model_path: None
+0:00:00.093564 INFO: │   └──peptdeep_model_type: generic
+0:00:00.093583 INFO: ├──custom_modifications:
+0:00:00.093610 INFO: │   ├──name: Dimethyl:d12@K
+0:00:00.093629 INFO: │   └──composition: H(-2)2H(8)13C(2)
+0:00:00.093650 INFO: │   ├──name: Dimethyl:d12@Any_N-term
+0:00:00.093669 INFO: │   └──composition: H(-2)2H(8)13C(2)
+0:00:00.093688 INFO: │   ├──name: Dimethyl:d12@Protein_N-term
+0:00:00.093707 INFO: │   └──composition: H(-2)2H(8)13C(2)
+0:00:00.093728 INFO: │   ├──name: mTRAQ:d12@K
+0:00:00.093749 INFO: │   └──composition: H(12)C(1)13C(10)15N(2)O(1)
+0:00:00.093770 INFO: │   ├──name: mTRAQ:d12@Any_N-term
+0:00:00.093790 INFO: │   └──composition: H(12)C(1)13C(14)15N(2)O(1)
+0:00:00.093810 INFO: │   ├──name: mTRAQ:d12@Protein_N-term
+0:00:00.093828 INFO: │   └──composition: H(12)C(1)13C(14)15N(2)O(1)
+0:00:00.093850 INFO: │   ├──name: Label:13C(12)@K
+0:00:00.093870 INFO: │   └──composition: C(12)
+0:00:00.093888 INFO: ├──search
+0:00:00.093908 INFO: │   [32;20m├──target_ms1_tolerance: 10 [user defined, default: 5][0m
+0:00:00.093927 INFO: │   [32;20m├──target_ms2_tolerance: 15 [user defined, default: 10][0m
+0:00:00.093947 INFO: │   ├──target_rt_tolerance: 0
+0:00:00.093966 INFO: │   ├──target_mobility_tolerance: 0
+0:00:00.093988 INFO: │   ├──quant_window: 3
+0:00:00.094009 INFO: │   [32;20m├──target_num_candidates: 2 [user defined, default: 3][0m
+0:00:00.094029 INFO: │   ├──channel_filter: 
+0:00:00.094050 INFO: │   ├──exclude_shared_ions: True
+0:00:00.094071 INFO: │   ├──compete_for_fragments: True
+0:00:00.094090 INFO: │   ├──quant_all: True
+0:00:00.094111 INFO: │   ├──top_k_fragments: 12
+0:00:00.094131 INFO: │   └──experimental_xic: True
+0:00:00.094151 INFO: ├──calibration
+0:00:00.094170 INFO: │   ├──batch_size: 8000
+0:00:00.094190 INFO: │   ├──optimization_lock_target: 200
+0:00:00.094208 INFO: │   ├──max_steps: 20
+0:00:00.094228 INFO: │   ├──min_steps: 2
+0:00:00.094248 INFO: │   ├──max_skips: 1
+0:00:00.094267 INFO: │   ├──norm_rt_mode: linear
+0:00:00.094287 INFO: │   ├──max_fragments: 5000
+0:00:00.094311 INFO: │   └──min_correlation: 0.7
+0:00:00.094341 INFO: ├──search_initial
+0:00:00.094361 INFO: │   ├──initial_num_candidates: 1
+0:00:00.094381 INFO: │   ├──initial_ms1_tolerance: 30
+0:00:00.094399 INFO: │   ├──initial_ms2_tolerance: 30
+0:00:00.094419 INFO: │   ├──initial_mobility_tolerance: 0.1
+0:00:00.094439 INFO: │   └──initial_rt_tolerance: 0.5
+0:00:00.094458 INFO: ├──selection_config
+0:00:00.094479 INFO: │   ├──peak_len_rt: 10.0
+0:00:00.094500 INFO: │   ├──sigma_scale_rt: 0.5
+0:00:00.094521 INFO: │   ├──peak_len_mobility: 0.01
+0:00:00.094541 INFO: │   ├──sigma_scale_mobility: 1.0
+0:00:00.094564 INFO: │   ├──top_k_precursors: 3
+0:00:00.094584 INFO: │   ├──kernel_size: 30
+0:00:00.094603 INFO: │   ├──f_mobility: 1.0
+0:00:00.094625 INFO: │   ├──f_rt: 0.99
+0:00:00.094646 INFO: │   ├──center_fraction: 0.5
+0:00:00.094667 INFO: │   ├──min_size_mobility: 8
+0:00:00.094687 INFO: │   ├──min_size_rt: 3
+0:00:00.094707 INFO: │   ├──max_size_mobility: 20
+0:00:00.094727 INFO: │   ├──max_size_rt: 15
+0:00:00.094747 INFO: │   ├──group_channels: False
+0:00:00.094767 INFO: │   ├──use_weighted_score: True
+0:00:00.094787 INFO: │   ├──join_close_candidates: False
+0:00:00.094807 INFO: │   ├──join_close_candidates_scan_threshold: 0.6
+0:00:00.094828 INFO: │   └──join_close_candidates_cycle_threshold: 0.6
+0:00:00.094849 INFO: ├──scoring_config
+0:00:00.094869 INFO: │   ├──score_grouped: False
+0:00:00.094888 INFO: │   ├──top_k_isotopes: 3
+0:00:00.094908 INFO: │   ├──reference_channel: -1
+0:00:00.094929 INFO: │   ├──precursor_mz_tolerance: 10
+0:00:00.094948 INFO: │   └──fragment_mz_tolerance: 15
+0:00:00.094967 INFO: ├──library_multiplexing
+0:00:00.094992 INFO: │   ├──enabled: False
+0:00:00.095012 INFO: │   ├──input_channel: 0
+0:00:00.095031 INFO: │   └──multiplex_mapping:
+0:00:00.095050 INFO: ├──multiplexing
+0:00:00.095070 INFO: │   ├──enabled: False
+0:00:00.095089 INFO: │   ├──target_channels: 4,8
+0:00:00.095108 INFO: │   ├──decoy_channel: 12
+0:00:00.095128 INFO: │   ├──reference_channel: 0
+0:00:00.095148 INFO: │   └──competetive_scoring: True
+0:00:00.095166 INFO: ├──fdr
+0:00:00.095186 INFO: │   ├──fdr: 0.01
+0:00:00.095205 INFO: │   ├──group_level: proteins
+0:00:00.095225 INFO: │   ├──inference_strategy: heuristic
+0:00:00.095244 INFO: │   ├──competetive_scoring: True
+0:00:00.095263 INFO: │   ├──keep_decoys: False
+0:00:00.095282 INFO: │   ├──channel_wise_fdr: False
+0:00:00.095302 INFO: │   ├──enable_two_step_classifier: False
+0:00:00.095321 INFO: │   ├──two_step_classifier_max_iterations: 5
+0:00:00.095340 INFO: │   └──enable_nn_hyperparameter_tuning: False
+0:00:00.095360 INFO: ├──search_output
+0:00:00.095380 INFO: │   ├──file_format: tsv
+0:00:00.095399 INFO: │   ├──peptide_level_lfq: False
+0:00:00.095419 INFO: │   [32;20m├──precursor_level_lfq: True [user defined, default: False][0m
+0:00:00.095439 INFO: │   ├──min_k_fragments: 12
+0:00:00.095459 INFO: │   ├──min_correlation: 0.9
+0:00:00.095480 INFO: │   ├──num_samples_quadratic: 50
+0:00:00.095499 INFO: │   ├──min_nonnan: 3
+0:00:00.095519 INFO: │   ├──normalize_lfq: True
+0:00:00.095538 INFO: │   └──save_fragment_quant_matrix: False
+0:00:00.095558 INFO: ├──optimization
+0:00:00.095580 INFO: │   ├──order_of_optimization: None
+0:00:00.095599 INFO: │   ├──ms2_error
+0:00:00.095620 INFO: │   │   ├──targeted_update_percentile_range: 0.95
+0:00:00.095640 INFO: │   │   ├──targeted_update_factor: 1.0
+0:00:00.095660 INFO: │   │   ├──automatic_update_percentile_range: 0.99
+0:00:00.095680 INFO: │   │   ├──automatic_update_factor: 1.1
+0:00:00.095701 INFO: │   │   ├──try_narrower_values: True
+0:00:00.095720 INFO: │   │   ├──maximal_decrease: 0.5
+0:00:00.095739 INFO: │   │   ├──favour_narrower_optimum: False
+0:00:00.095760 INFO: │   │   └──maximum_decrease_from_maximum: 0.1
+0:00:00.095781 INFO: │   ├──ms1_error
+0:00:00.095800 INFO: │   │   ├──targeted_update_percentile_range: 0.95
+0:00:00.095820 INFO: │   │   ├──targeted_update_factor: 1.0
+0:00:00.095840 INFO: │   │   ├──automatic_update_percentile_range: 0.99
+0:00:00.095860 INFO: │   │   ├──automatic_update_factor: 1.1
+0:00:00.095881 INFO: │   │   ├──try_narrower_values: False
+0:00:00.095901 INFO: │   │   ├──maximal_decrease: 0.2
+0:00:00.095921 INFO: │   │   ├──favour_narrower_optimum: False
+0:00:00.095941 INFO: │   │   └──maximum_decrease_from_maximum: 0.1
+0:00:00.095960 INFO: │   ├──mobility_error
+0:00:00.095979 INFO: │   │   ├──targeted_update_percentile_range: 0.95
+0:00:00.095999 INFO: │   │   ├──targeted_update_factor: 1.0
+0:00:00.096018 INFO: │   │   ├──automatic_update_percentile_range: 0.99
+0:00:00.096038 INFO: │   │   ├──automatic_update_factor: 1.1
+0:00:00.096057 INFO: │   │   ├──try_narrower_values: False
+0:00:00.096076 INFO: │   │   ├──maximal_decrease: 0.2
+0:00:00.096097 INFO: │   │   ├──favour_narrower_optimum: False
+0:00:00.096119 INFO: │   │   └──maximum_decrease_from_maximum: 0.1
+0:00:00.096139 INFO: │   └──rt_error
+0:00:00.096163 INFO: │       ├──targeted_update_percentile_range: 0.95
+0:00:00.096183 INFO: │       ├──targeted_update_factor: 1.0
+0:00:00.096204 INFO: │       ├──automatic_update_percentile_range: 0.99
+0:00:00.096224 INFO: │       ├──automatic_update_factor: 1.1
+0:00:00.096243 INFO: │       ├──try_narrower_values: True
+0:00:00.096270 INFO: │       ├──maximal_decrease: 0.2
+0:00:00.096290 INFO: │       ├──favour_narrower_optimum: True
+0:00:00.096310 INFO: │       └──maximum_decrease_from_maximum: 0.1
+0:00:00.096329 INFO: ├──optimization_manager
+0:00:00.096349 INFO: │   ├──fwhm_rt: 5
+0:00:00.096369 INFO: │   ├──fwhm_mobility: 0.01
+0:00:00.096389 INFO: │   └──score_cutoff: 0
+0:00:00.096408 INFO: ├──transfer_library
+0:00:00.096428 INFO: │   ├──enabled: False
+0:00:00.096448 INFO: │   ├──fragment_types:
+0:00:00.096467 INFO: │   │   [32;20m- b[0m
+0:00:00.096486 INFO: │   │   [32;20m- y[0m
+0:00:00.096505 INFO: │   ├──max_charge: 2
+0:00:00.096525 INFO: │   ├──top_k_samples: 3
+0:00:00.096544 INFO: │   ├──norm_delta_max: True
+0:00:00.096564 INFO: │   ├──precursor_correlation_cutoff: 0.5
+0:00:00.096584 INFO: │   └──fragment_correlation_ratio: 0.75
+0:00:00.096603 INFO: └──transfer_learning
+0:00:00.096623 INFO:     ├──enabled: False
+0:00:00.096642 INFO:     ├──batch_size: 2000
+0:00:00.096661 INFO:     ├──max_lr: 0.0001
+0:00:00.096681 INFO:     ├──train_fraction: 0.7
+0:00:00.096700 INFO:     ├──validation_fraction: 0.2
+0:00:00.096720 INFO:     ├──test_fraction: 0.1
+0:00:00.096740 INFO:     ├──test_interval: 1
+0:00:00.096759 INFO:     ├──lr_patience: 3
+0:00:00.096778 INFO:     ├──epochs: 51
+0:00:00.096798 INFO:     ├──warmup_epochs: 5
+0:00:00.096817 INFO:     ├──nce: 25
+0:00:00.096837 INFO:     [32;20m└──instrument: Astral [user defined, default: Lumos][0m
+0:00:00.102285 INFO: Registering 7 custom modifications
