@@ -43,6 +43,11 @@ dev = [
     "ruff>=0.15,<1",
     "twine>=6,<7",
 ]
+# Benchmark-only. documentation/benchmarks/long_table_conversion.py compares APB's
+# long-table conversion under pandas and polars; polars is not a runtime dependency.
+bench = [
+    "polars>=1.43,<2",
+]
 
 [tool.ruff]
 line-length = 100
@@ -101,3 +106,6 @@ xfail_strict = true
 
 [tool.deptry]
 known_first_party = ["apb2"]
+# documentation/ holds benchmark tooling, not the package. Its only extra import is polars,
+# declared in the `bench` dependency group; the runtime package must not depend on it.
+exclude = ["documentation", "tests", "venv", "[.]venv", "[.]direnv", "[.]git", "setup[.]py"]
