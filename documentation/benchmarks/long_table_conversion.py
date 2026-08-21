@@ -47,17 +47,16 @@ if TYPE_CHECKING:  # bench-only engines: imported inside each variant, annotated
 
 Variant = Literal["polars", "duckdb", "pandas-pyarrow", "pandas-numpy"]
 
-STEPS = (
-    "read",
-    "filter",
-    "keys",
-    "factorize",
-    "scatter",
-    "axis_frames",
-    "tables",
-    "write_parquet",
-    "write_duckdb",
-)
+CONVERSION_STEPS = ("read", "filter", "keys", "factorize", "scatter", "axis_frames")
+STEPS = (*CONVERSION_STEPS, "tables", "write_parquet", "write_duckdb")
+
+# A real run persists to one target, not to both, so there is no single total: the conversion
+# on its own, and the conversion followed by each of the two ways of storing its result.
+TOTALS: dict[str, tuple[str, ...]] = {
+    "TOTAL convert": CONVERSION_STEPS,
+    "TOTAL parquet": (*CONVERSION_STEPS, "tables", "write_parquet"),
+    "TOTAL duckdb": (*CONVERSION_STEPS, "tables", "write_duckdb"),
+}
 
 app = App(name="long-table-conversion", help=__doc__)
 
@@ -133,6 +132,7 @@ class Timings:
 
     @property
     def total(self) -> float:
+        """Every step, both writes included -- the upper bound, not what one run costs."""
         return sum(self.steps.values())
 
 
@@ -651,10 +651,11 @@ def _report(runs: Sequence[Timings], results: dict[Variant, Conversion]) -> None
     for step in STEPS:
         row = f"{step:14}" + "".join(f"{medians[variant][step]:18.3f}" for variant in variants)
         logger.info(row)
-    total = f"{'TOTAL':14}" + "".join(
-        f"{sum(medians[variant].values()):18.3f}" for variant in variants
-    )
-    logger.info(total)
+    for label, steps in TOTALS.items():
+        totals = f"{label:14}" + "".join(
+            f"{sum(medians[variant][step] for step in steps):18.3f}" for variant in variants
+        )
+        logger.info(totals)
 
 
 @app.default
@@ -728,7 +729,7 @@ def benchmark(
         for index in range(repeats):
             _, timings = convert(destination.cleared())
             runs.append(timings)
-            logger.debug(f"{name} run {index + 1}: {timings.total:.3f} s")
+            logger.debug(f"{name} run {index + 1}: {timings.total:.3f} s, both writes included")
 
     _require_agreement(results)
     _require_persisted_agreement(results, root)

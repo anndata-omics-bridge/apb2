@@ -58,35 +58,44 @@ discarded warm-up.
 
 | step | polars 1.43 | DuckDB 1.5 | pandas 3.0 + pyarrow | pandas 3.0 conventional |
 | --- | --- | --- | --- | --- |
-| read TSV (9 columns) | **0.109 s** | 0.337 | 2.177 | 2.163 |
-| filter rows | 0.002 | 0.063 | 0.001 | 0.000 |
-| build axis keys | 0.004 | 0.150 | 0.037 | 0.082 |
-| factorize | 0.027 | **0.020** | 0.110 | 0.106 |
-| scatter to 3 dense layers | 0.009 | 0.023 | 0.014 | **0.003** |
-| deduplicate axis frames | 0.008 | 0.064 | 0.039 | 0.031 |
-| build the output tables | 0.008 | 0.034 | 0.014 | 0.014 |
-| write 5 Parquet files | **0.056** | 0.124 | 0.158 | 0.157 |
-| write 1 DuckDB database | 0.267 | **0.245** | 0.288 | 0.336 |
-| **total** | **0.490 s** | **1.061 s** | **2.839 s** | **2.893 s** |
+| read TSV (9 columns) | **0.107 s** | 0.326 | 2.024 | 1.989 |
+| filter rows | 0.001 | 0.060 | 0.001 | 0.000 |
+| build axis keys | 0.004 | 0.147 | 0.036 | 0.080 |
+| factorize | 0.026 | **0.021** | 0.104 | 0.100 |
+| scatter to 3 dense layers | 0.009 | 0.022 | 0.013 | **0.003** |
+| deduplicate axis frames | 0.007 | 0.061 | 0.037 | 0.030 |
+| build the output tables | 0.008 | 0.033 | 0.014 | 0.014 |
+| write 5 Parquet files | **0.056** | 0.120 | 0.151 | 0.152 |
+| write 1 DuckDB database | 0.267 | **0.240** | 0.287 | 0.326 |
+| **total, convert only** | **0.155 s** | **0.637 s** | **2.216 s** | **2.202 s** |
+| **total, convert + Parquet** | **0.219 s** | **0.789 s** | **2.381 s** | **2.368 s** |
+| **total, convert + DuckDB** | **0.430 s** | **0.909 s** | **2.517 s** | **2.542 s** |
 
-**The entire pandas gap is the TSV reader — 20x against polars, 6x against DuckDB — and nothing
-else matters.** Every non-read step costs under 0.35 s in all four. APB's cost is parsing vendor
+Three totals because a real run persists to one target, not both: the conversion on its own,
+then the conversion followed by each way of storing its result. `build the output tables` is
+shared prep and counts in both write totals.
+
+**The entire pandas gap is the TSV reader — 19x against polars, 6x against DuckDB — and nothing
+else matters.** Every non-read step costs under 0.33 s in all four. APB's cost is parsing vendor
 text, so the reader is the only figure with real leverage.
 
-**Serialization is 0.3–0.5 s and it does not reorder the field.** Writing the same tables costs
-polars 0.33 s, DuckDB 0.40 s, pandas 0.46–0.51 s. That is *more than twice* polars' own
-conversion time (0.33 s against 0.16 s) and 16% of a pandas run — so on a fast engine the write
-is the larger half of the job, and choosing the storage format matters as much as the reader. Parquet is 2–5x cheaper to write than
-the DuckDB database, and it is the one step where polars' lead is small and DuckDB's write into
-its own format is the fastest of the four.
+**Serialization does not reorder the field, but it dominates a fast one.** Storing the result
+costs 0.06–0.33 s of writing plus 0.01–0.03 s of preparation, near enough the same for every
+engine. Against polars' 0.155 s conversion that is +41% for Parquet and +177% for DuckDB — the
+database write alone outweighs everything polars did to get there. Against pandas the same two
+writes are +7% and +14%, lost in the reader.
+**So the storage format is the second decision, and on a fast engine nearly as large as the
+first.**
 
-**Parquet is also smaller, and how much depends on the writer.** Same five tables: polars 18 MB,
-DuckDB 26 MB, pandas 29 MB, against 27–28 MB for every DuckDB database. polars' default
-compression is the difference, not the data.
+**Parquet is cheaper to write and smaller on disk.** 2–5x faster than the database write in
+every variant, and for the same five tables 18 MB (polars) / 26 MB (DuckDB) / 29 MB (pandas)
+against 27–28 MB for every DuckDB database. The spread across writers is default compression,
+not the data. The DuckDB write is also the one step where polars does not lead: DuckDB writing
+its own format is marginally fastest at 0.240 s.
 
-**The PyArrow dtype backend buys nothing here** (2.839 s against 2.893 s, inside the noise) and
-conventional pandas is *faster* at the scatter, 0.003 s against 0.014 s. Worth knowing because
-`polars-benchmark` hardcodes `dtype_backend="pyarrow"` in its pandas queries, so its published
+**The PyArrow dtype backend buys nothing here** (2.381 s against 2.368 s to Parquet, inside the
+noise) and conventional pandas is *faster* at the scatter, 0.003 s against 0.013 s. Worth
+knowing because `polars-benchmark` hardcodes `dtype_backend="pyarrow"` in its pandas queries, so its published
 "pandas" numbers already are the PyArrow variant.
 
 **DuckDB lands between them, and wins the factorize.** Deriving the axis codes is a
@@ -101,8 +110,8 @@ frame is 0.002 s (measured 2026-08-20, on a comparable export). AnnData 0.13 req
 `.obs`/`.var`, so a non-pandas core converts at the storage edge — at no measurable cost.
 
 Compare columns within one run, not across runs: the same file read by the same pandas variant
-was 0.35 s faster before the write steps existed, since the process now holds the output tables
-while it reads. Every column in the table above comes from one invocation.
+was ~0.2 s faster before the write steps existed, since the process now holds the output tables
+while it reads. Every number in the table above comes from one invocation.
 
 ### Three traps this script exists to document
 

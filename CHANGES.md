@@ -3,9 +3,10 @@
 - 2026-08-21: `documentation/benchmarks/long_table_conversion.py` times APB's long-table
   conversion under polars, DuckDB, and pandas on both dtype backends, then serializes the result
   twice per variant — one DuckDB database, one Parquet folder — and reads every copy back before
-  it reports. On a 695 MiB Spectronaut export: 0.49 s (polars) / 1.06 s (DuckDB) / 2.84 s
-  (pandas), where the conversion gap is entirely the TSV reader (20x) and serialization is
-  0.33–0.51 s regardless of engine. `polars` and `duckdb` are in the new `bench` dependency
+  it reports. Totals are reported three ways, convert-only and convert-plus-each-target. On a
+  695 MiB Spectronaut export, convert + Parquet: 0.22 s (polars) / 0.79 s (DuckDB) / 2.38 s
+  (pandas); the conversion gap is entirely the TSV reader (19x), and serializing costs every
+  engine about the same 0.07–0.36 s, which is +41% on a polars run and +7% on a pandas one. `polars` and `duckdb` are in the new `bench` dependency
   group, not runtime dependencies.
 
 - 2026-08-20: `vendor_params/` no longer routes typed values through strings. Each parser hands
