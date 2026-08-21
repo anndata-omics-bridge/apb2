@@ -26,21 +26,21 @@ from typing import Literal
 
 from pydantic import Field, model_validator
 
-from apb2.parserV2.vendor_parse_rules.schema_axis import ColumnGroup
-from apb2.parserV2.vendor_parse_rules.schema_base import (
+from apb2.parserV2.vendor_parse_rules.schema.axis import ColumnGroup
+from apb2.parserV2.vendor_parse_rules.schema.base import (
     SCHEMA_VERSION,
     ModelBase,
     QuantificationLevel,
 )
-from apb2.parserV2.vendor_parse_rules.schema_base_modifications import modification_outputs
-from apb2.parserV2.vendor_parse_rules.schema_fragments import ColumnLabeledFragments
-from apb2.parserV2.vendor_parse_rules.schema_input import Input
-from apb2.parserV2.vendor_parse_rules.schema_measurements import layer_required
-from apb2.parserV2.vendor_parse_rules.schema_parameters import (
+from apb2.parserV2.vendor_parse_rules.schema.base_modifications import modification_outputs
+from apb2.parserV2.vendor_parse_rules.schema.fragments import ColumnLabeledFragments
+from apb2.parserV2.vendor_parse_rules.schema.input import Input
+from apb2.parserV2.vendor_parse_rules.schema.measurements import layer_required
+from apb2.parserV2.vendor_parse_rules.schema.parameters import (
     ConditionValue,
     SearchParameterField,
 )
-from apb2.parserV2.vendor_parse_rules.schema_rule import (
+from apb2.parserV2.vendor_parse_rules.schema.rule import (
     LongRule,
     WideRule,
     validate_rule,

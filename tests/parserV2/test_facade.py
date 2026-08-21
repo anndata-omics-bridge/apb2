@@ -48,7 +48,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.vendor_parse_rules.document import RuleNotApplicable, SearchParameterEvidence
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
-from apb2.parserV2.vendor_parse_rules.schema_base import QuantificationLevel
+from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
 from parserV2 import synthetic
 from parserV2.fixtures import DocumentPair, document_pairs, level_pairs
 

@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 
 from pydantic import Discriminator, Field, Tag, model_validator
 
-from apb2.parserV2.vendor_parse_rules.schema_base import DuplicateMode, ModelBase
+from apb2.parserV2.vendor_parse_rules.schema.base import DuplicateMode, ModelBase
 
 
 class Duplicates(ModelBase):

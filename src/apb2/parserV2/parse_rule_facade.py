@@ -112,7 +112,7 @@ from apb2.parserV2.vendor_parse_rules.document import (
     RuleDocument,
     SearchParameterEvidence,
 )
-from apb2.parserV2.vendor_parse_rules.schema_axis import (
+from apb2.parserV2.vendor_parse_rules.schema.axis import (
     Coalesce,
     ColumnGroup,
     ComputedColumn,
@@ -122,17 +122,17 @@ from apb2.parserV2.vendor_parse_rules.schema_axis import (
     StrippedSequence,
     group_names,
 )
-from apb2.parserV2.vendor_parse_rules.schema_base_formats import (
+from apb2.parserV2.vendor_parse_rules.schema.base_formats import (
     DELIMITED_BASE_FORMATS,
     PARQUET_EXTENSIONS,
     BaseDelimitedFormat,
     DetectedNumberFormat,
     SupportedExtension,
 )
-from apb2.parserV2.vendor_parse_rules.schema_base_modifications import SiteListModifications
-from apb2.parserV2.vendor_parse_rules.schema_fragments import ColumnLabeledFragments
-from apb2.parserV2.vendor_parse_rules.schema_input import Input
-from apb2.parserV2.vendor_parse_rules.schema_measurements import (
+from apb2.parserV2.vendor_parse_rules.schema.base_modifications import SiteListModifications
+from apb2.parserV2.vendor_parse_rules.schema.fragments import ColumnLabeledFragments
+from apb2.parserV2.vendor_parse_rules.schema.input import Input
+from apb2.parserV2.vendor_parse_rules.schema.measurements import (
     FactorLayer,
     Layer,
     NoValuePattern,
@@ -140,7 +140,7 @@ from apb2.parserV2.vendor_parse_rules.schema_measurements import (
     RegexValuePattern,
     layer_required,
 )
-from apb2.parserV2.vendor_parse_rules.schema_rule import LongRule, WideRule
+from apb2.parserV2.vendor_parse_rules.schema.rule import LongRule, WideRule
 from apb2.unimod_registry.registry import resolve as resolve_accession
 
 _EMPTY_RATIO = 0.001

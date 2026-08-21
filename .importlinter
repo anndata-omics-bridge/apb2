@@ -77,6 +77,15 @@ layers =
     parse_rule_facade
     parse_quant | vendor_parse_rules
 
+[importlinter:contract:rule-schema-is-an-inward-child]
+name = the rule schema never imports its parent document or loader
+type = forbidden
+source_modules =
+    apb2.parserV2.vendor_parse_rules.schema
+forbidden_modules =
+    apb2.parserV2.vendor_parse_rules.document
+    apb2.parserV2.vendor_parse_rules.loader
+
 [importlinter:contract:parse-quant-directory-nesting-is-the-import-rule]
 name = parse_quant modules descend into data and parameters, never the other way
 type = layers

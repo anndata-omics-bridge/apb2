@@ -14,7 +14,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from apb2.parserV2.vendor_parse_rules.schema_rule import rule_json_schema as parser_v2_schema
+from apb2.parserV2.vendor_parse_rules.schema.rule import rule_json_schema as parser_v2_schema
 from apb2.vendor_parse_rules.model import rule_json_schema
 
 ARTIFACTS = (

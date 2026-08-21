@@ -52,7 +52,7 @@ from apb2.parserV2.parse_quant.parameters.axis import (
 )
 from apb2.parserV2.parse_quant.parameters.source import LevelReadPlan, SingleFile
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
-from apb2.parserV2.vendor_parse_rules.schema_base import QuantificationLevel
+from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
 from apb2.vendor_parse_rules import model as legacy_model
 from apb2.vendor_parse_rules.rules import load_document as load_legacy
 from parserV2.fixtures import DocumentPair, document_pairs

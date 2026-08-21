@@ -17,7 +17,7 @@ from apb2.parserV2.vendor_parse_rules.document import (
     SearchParameterEvidence,
     make_rule_document,
 )
-from apb2.parserV2.vendor_parse_rules.schema_base import SCHEMA_VERSION, QuantificationLevel
+from apb2.parserV2.vendor_parse_rules.schema.base import SCHEMA_VERSION, QuantificationLevel
 
 NO_EVIDENCE = SearchParameterEvidence(acquisition_method="unknown", combine_charge_states=None)
 

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pydantic import Field
 
-from apb2.parserV2.vendor_parse_rules.schema_base import ModelBase, TableShape
-from apb2.parserV2.vendor_parse_rules.schema_base_formats import (
+from apb2.parserV2.vendor_parse_rules.schema.base import ModelBase, TableShape
+from apb2.parserV2.vendor_parse_rules.schema.base_formats import (
     DetectedDelimiter,
     DetectedNumberFormat,
     SupportedExtension,

@@ -20,7 +20,7 @@ from apb2.parserV2.vendor_parse_rules.document import (
 )
 from apb2.parserV2.vendor_parse_rules.loader import PACKAGED as PARSER_V2_PACKAGED
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
-from apb2.parserV2.vendor_parse_rules.schema_base import QuantificationLevel
+from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
 from apb2.vendor_parse_rules.rules import PACKAGED as LEGACY_PACKAGED
 from apb2.vendor_parse_rules.rules import load_document
 from parserV2.rule_inventory import document_key

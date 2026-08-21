@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field, model_validator
 
-from apb2.parserV2.vendor_parse_rules.schema_base import ModelBase
+from apb2.parserV2.vendor_parse_rules.schema.base import ModelBase
 
 type Delimiter = Annotated[str, Field(min_length=1, max_length=1)]
 

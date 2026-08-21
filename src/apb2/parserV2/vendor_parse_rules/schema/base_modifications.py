@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field
 
-from apb2.parserV2.vendor_parse_rules.schema_base import (
+from apb2.parserV2.vendor_parse_rules.schema.base import (
     ModelBase,
     TokenPosition,
     UnknownPolicy,

@@ -109,7 +109,7 @@ from apb2.parserV2.parse_quant.parquet_writer import ParquetWriter
 from apb2.parserV2.parse_quant.parser import Parser
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
-from apb2.parserV2.vendor_parse_rules.schema_base import LEVELS
+from apb2.parserV2.vendor_parse_rules.schema.base import LEVELS
 from parserV2 import synthetic
 from parserV2.fixtures import DocumentPair, document_pairs, level_pairs
 

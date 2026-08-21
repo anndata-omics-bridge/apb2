@@ -9,7 +9,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
     NumericTextFormat,
     ParquetFormatContract,
 )
-from apb2.parserV2.vendor_parse_rules.schema_base_formats import (
+from apb2.parserV2.vendor_parse_rules.schema.base_formats import (
     DELIMITED_BASE_FORMATS,
     PARQUET_EXTENSIONS,
 )

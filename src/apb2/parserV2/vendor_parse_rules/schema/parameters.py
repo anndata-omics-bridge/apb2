@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import Field
 
-from apb2.parserV2.vendor_parse_rules.schema_base import ModelBase
+from apb2.parserV2.vendor_parse_rules.schema.base import ModelBase
 
 type ConditionValue = str | int | float | bool | None
 type SearchParameterField = Literal["acquisition_method", "combine_charge_states"]

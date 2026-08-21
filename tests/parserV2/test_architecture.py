@@ -15,6 +15,7 @@ import pytest
 PARSER_V2 = Path("src/apb2/parserV2")
 PARSE_QUANT = PARSER_V2 / "parse_quant"
 RULES = PARSER_V2 / "vendor_parse_rules"
+RULE_SCHEMA = RULES / "schema"
 
 
 def _modules(root: Path) -> tuple[Path, ...]:
@@ -66,6 +67,16 @@ def test_the_rule_package_imports_nothing_above_itself(path: Path) -> None:
         name.startswith("apb2.") and not name.startswith("apb2.parserV2.vendor_parse_rules")
         for name in imported
     )
+
+
+@pytest.mark.parametrize(
+    "path", _modules(RULE_SCHEMA), ids=lambda path: str(path.relative_to(RULE_SCHEMA))
+)
+def test_the_rule_schema_never_imports_its_parent_document_or_loader(path: Path) -> None:
+    imported = _imported_modules(path)
+
+    assert "apb2.parserV2.vendor_parse_rules.document" not in imported
+    assert "apb2.parserV2.vendor_parse_rules.loader" not in imported
 
 
 def test_only_a_parent_module_knows_both_children() -> None:

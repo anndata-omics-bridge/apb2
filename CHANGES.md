@@ -1,11 +1,12 @@
 # Changes
 
-- 2026-08-21: Parser V2's schema-0.3 declarations are split by ownership across
-  `vendor_parse_rules/schema_*.py`; the former umbrella `schema.py` is gone, and consumers import
-  the exact declaring module. The physical-input schema is smaller: each rule authors only real
+- 2026-08-21: Parser V2's schema-0.3 declarations are split by ownership under the inward-only
+  `vendor_parse_rules/schema/` child package; its marker exports nothing, schema modules never
+  import the parent document or loader, and consumers import the exact declaring module. The
+  former umbrella `schema.py` is gone. The physical-input schema is smaller: each rule authors only real
   extension hints, MaxQuant additionally names `evidence.txt`, and only Spectronaut enables
   delimiter and localized/grouped-number detection. Shared UTF-8, delimiter, quoting, and fixed
-  dot-decimal defaults live once in `schema_base_formats.py`. The speculative input `kind`, source
+  dot-decimal defaults live once in `schema/base_formats.py`. The speculative input `kind`, source
   roles, `SingleTableSource`, and `FileRoles` were removed. Runtime-strategy compatibility checks
   moved to `ParseRuleFacade`, harmless defensive validators were deleted, and composed rules are
   validated before a valid parameter gate can classify them as inapplicable.

@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field, model_validator
 
-from apb2.parserV2.vendor_parse_rules.schema_base import AxisColumnType, ModelBase
+from apb2.parserV2.vendor_parse_rules.schema.base import AxisColumnType, ModelBase
 
 
 class Axis(ModelBase):

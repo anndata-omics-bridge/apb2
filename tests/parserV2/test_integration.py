@@ -35,7 +35,7 @@ from apb2.parserV2.parse_quant.parquet_writer import MANIFEST_NAME
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.vendor_parse_rules.document import SearchParameterEvidence
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
-from apb2.parserV2.vendor_parse_rules.schema_base import QuantificationLevel
+from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
 from apb2.vendor_params.model import Parameters
 from apb2.vendor_params.registry import parse_params
 from apb2.vendor_parse_rules.rules import load_document as load_legacy

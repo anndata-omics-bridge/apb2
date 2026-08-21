@@ -7,7 +7,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field, TypeAdapter, model_validator
 
-from apb2.parserV2.vendor_parse_rules.schema_axis import (
+from apb2.parserV2.vendor_parse_rules.schema.axis import (
     Axis,
     Coalesce,
     ColumnGroup,
@@ -22,18 +22,18 @@ from apb2.parserV2.vendor_parse_rules.schema_axis import (
     WideColumns,
     group_names,
 )
-from apb2.parserV2.vendor_parse_rules.schema_base import (
+from apb2.parserV2.vendor_parse_rules.schema.base import (
     AxisColumnType,
     ModelBase,
     QuantificationLevel,
 )
-from apb2.parserV2.vendor_parse_rules.schema_base_modifications import (
+from apb2.parserV2.vendor_parse_rules.schema.base_modifications import (
     Modifications,
     modification_outputs,
 )
-from apb2.parserV2.vendor_parse_rules.schema_fragments import Fragments
-from apb2.parserV2.vendor_parse_rules.schema_measurements import Measurements
-from apb2.parserV2.vendor_parse_rules.schema_parameters import (
+from apb2.parserV2.vendor_parse_rules.schema.fragments import Fragments
+from apb2.parserV2.vendor_parse_rules.schema.measurements import Measurements
+from apb2.parserV2.vendor_parse_rules.schema.parameters import (
     ConditionValue,
     SearchParameterField,
     SearchParameterOverride,

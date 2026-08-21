@@ -144,7 +144,7 @@ from apb2.parserV2.vendor_parse_rules.document import (
     RuleNotApplicable,
     SearchParameterEvidence,
 )
-from apb2.parserV2.vendor_parse_rules.schema_base import LEVELS
+from apb2.parserV2.vendor_parse_rules.schema.base import LEVELS
 
 
 class NoCompatibleLevelError(ValueError):
