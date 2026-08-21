@@ -1,5 +1,11 @@
 # Changes
 
+- 2026-08-21: `documentation/benchmarks/long_table_conversion.py` times APB's long-table
+  conversion under polars, DuckDB, and pandas on both dtype backends, refusing to report unless
+  all four produce the same matrices. On a 695 MiB Spectronaut export the whole difference is the
+  TSV reader: 0.15 s (polars) / 0.61 s (DuckDB) / 1.98 s (pandas). `polars` and `duckdb` are in
+  the new `bench` dependency group, not runtime dependencies.
+
 - 2026-08-20: `vendor_params/` no longer routes typed values through strings. Each parser hands
   `Parameters` exactly the types its fields declare — `MassTolerance`, `Probability`,
   `list[SearchedModification]` — and constructs it by keyword instead of `model_validate({...})`,
