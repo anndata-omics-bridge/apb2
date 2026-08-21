@@ -1,5 +1,73 @@
 # Changes
 
+- 2026-08-21: Parser V2's schema-0.3 declarations are split by ownership across
+  `vendor_parse_rules/schema_*.py`; the former umbrella `schema.py` is gone, and consumers import
+  the exact declaring module. The physical-input schema is smaller: each rule authors only real
+  extension hints, MaxQuant additionally names `evidence.txt`, and only Spectronaut enables
+  delimiter and localized/grouped-number detection. Shared UTF-8, delimiter, quoting, and fixed
+  dot-decimal defaults live once in `schema_base_formats.py`. The speculative input `kind`, source
+  roles, `SingleTableSource`, and `FileRoles` were removed. Runtime-strategy compatibility checks
+  moved to `ParseRuleFacade`, harmless defensive validators were deleted, and composed rules are
+  validated before a valid parameter gate can classify them as inapplicable.
+
+- 2026-08-21: Parser V2 is implemented (work packages W12–W13). `src/apb2/parser_v2.py` is the
+  outer boundary: it translates the existing `Parameters` model into the two fields schema 0.3
+  permits and nothing else. Every comparable packaged level now converts through the generic
+  implementation and matches the unchanged one cell for cell — 15 (document, level) pairs on their
+  real cached exports — with one accepted difference: MaxQuant aggregates, and a cell with rows but
+  no present value is `0.0` there and missing here, which is the architecture's own decision.
+  Finding that parity took four fixes on live data: measurements stay text unless the rule sums
+  them (PEAKS writes `-`, WOMBAT `NA`), an unreadable token encodes as missing and is reported
+  rather than refusing the file, `True`/`False` in a numeric layer reads as 1/0 (Spectronaut), and
+  `NaN` counts as absence so one of them cannot poison an aggregated cell. Also new:
+  `documentation/benchmarks/parser_v2_stages.py`, which measures the four cost claims the
+  architecture makes — on a 219 MiB DIA-NN report, reading is 5% of a 0.89 s parse, decomposition
+  62%, the Parquet write allocates no dense array for 5 layers and the AnnData write allocates
+  exactly 5, and modification normalization tracks distinct sequences rather than rows (0.023 s to
+  0.398 s for 1 000 to 100 000 distinct values at a fixed 200 000 rows).
+
+- 2026-08-21: Parser V2 work packages W8–W11. `parser.py` holds the algorithm — read,
+  decompose, prepare each axis, reindex each layer — with identity and validity decided in one
+  place: distinct raw keys collapsing into one valid final key raise `CanonicalKeyCollisionError`
+  under every duplicate policy, while an incomplete final key removes its axis row and the layer
+  cells that pointed at it. `parquet_writer.py` persists a parsed level as a directory dataset
+  with a manifest, preserving every Polars value and dtype; `anndata_writer.py` is the only module
+  that encodes, allocates, or touches pandas. `compile.py` consumes every declarative tag once and
+  injects tag-free behaviour: `compile_parsers` returns one parser per compatible level in
+  canonical order. All 12 packaged documents now compile and 16 of the 19 levels parse their real
+  cached exports end to end (the three that do not are the same three the legacy suite skips).
+  Two defects found that way: a declared column carrying the name of its own physical source
+  shadowed the raw key map, and reading a measurement column as a float is itself an encoding —
+  real exports write `-`, `NA`, and `False` in a column a rule calls numeric, so measurements now
+  stay text unless the rule sums them.
+
+- 2026-08-21: Parser V2 work packages W3–W7. `parse_rule_facade.py` projects one effective rule
+  into storage-neutral working parameters and resolves it against one observed header in a single
+  atomic `ResolvedLevelPlan`; the axis key plan comes from one generic dependency walk over the
+  authored keys, so all 19 packaged levels compile both axes with no vendor or level branch, and
+  the specification's worked AlphaDIA example holds assertion for assertion. `delimited_input.py`
+  resolves a dialect by asking which candidate exposes a usable header (ambiguity is reported, not
+  guessed) and detects the decimal mark from the file's own values; `parquet_input.py` keeps the
+  physical schema. `columns.py`, `modifications.py`, `fragments.py`, `decomposition.py`, and
+  `duplicates.py` hold the configured leaf algorithms: the ported modification domain reproduces
+  the unchanged implementation exactly on 24 000 real vendor sequences across all 12 documents,
+  long and wide input reduce to one raw contract with repeated cells intact, and per-layer presence
+  lets keep-first skip AlphaDIA's `0` sentinel without encoding the value it keeps.
+
+- 2026-08-21: Parser V2 work packages W0–W2. `polars` moved from the benchmark group to
+  `[project.dependencies]` and `pytest-cov` joined the dev group, so `make test` runs the coverage
+  invocation the Makefile always declared. `src/apb2/parserV2/` now holds the parsing-owned
+  vocabulary — `parse_quant/data` (source, raw, parsed pipeline states), `parse_quant/parameters`
+  (working, source, axis, measurements, resolved), and `parse_quant/contracts.py` (the nine
+  Protocols `Parser` consumes plus the runtime axis plans) — and one complete schema-0.3 rule
+  generation under `parserV2/vendor_parse_rules/`: `axis` is identity only, `primary_layer`,
+  `duplicates`, and `layers` moved under `measurements`, `keep_all_as_raw_table` is gone, search
+  conditions have a finite two-field vocabulary, and the physical input policy (extensions,
+  delimiters, quoting, encoding, number notation) is declared data instead of reader constants.
+  All 12 documents and all 19 effective levels migrated; each is compared declaration by
+  declaration against the unchanged 0.2 oracle, and recognition is compared on real cached vendor
+  headers. Five `.importlinter` contracts make the folder-nesting import law merge-blocking.
+
 - 2026-08-21: `documentation/benchmarks/long_table_conversion.py` times APB's long-table
   conversion under polars, DuckDB, and pandas on both dtype backends, then serializes the result
   twice per variant — one DuckDB database, one Parquet folder — and reads every copy back before

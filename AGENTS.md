@@ -8,7 +8,7 @@ The closest `AGENTS.md` wins. Explicit user instructions override this file.
 | --- | --- |
 | Synchronize | `uv sync --frozen --group dev` |
 | Format | `.venv/bin/ruff format src tests && .venv/bin/ruff check --fix src tests` |
-| Lint | `.venv/bin/ruff check src tests` |
+| Lint | `make lint` |
 | Typecheck | `.venv/bin/pyright` |
 | Dependencies | `.venv/bin/deptry .` |
 | Tests | `.venv/bin/pytest -q` |
@@ -26,6 +26,27 @@ The closest `AGENTS.md` wins. Explicit user instructions override this file.
 - Keep `__init__.py` empty and import public objects from their defining modules.
 - Use Google-style docstrings for public APIs and the configured 100-character
   line length.
+
+## Architecture and import direction
+
+These rules are mandatory for Parser V2 and for every newly introduced or
+structurally refactored package. Existing legacy violations do not authorize new
+ones.
+
+For a package `A/` with child packages `A/B/` and `A/C/`:
+
+- modules directly in `A/` may import from `A/B/` and `A/C/`;
+- code under `A/B/` or `A/C/` must not import modules directly in `A/`;
+- `A/B/` and `A/C/` must not import one another; and
+- a module in `A/` owned only by `A/B/` moves into `A/B/`; genuine cross-child
+  composition remains in `A/`.
+
+For Parser V2, rule storage and parsing are sibling children. Their facade and
+runtime composition belong in the parent; neither child imports the other or
+the parent. Physical readers and writers are parsing-owned and stay inside the
+parsing package, while computational modules do not import those I/O modules.
+Encode each concrete boundary in `.importlinter`; `make lint` and `make check`
+must execute `lint-imports`, so the prose rule is also a merge-blocking check.
 
 ## Dependency rules
 

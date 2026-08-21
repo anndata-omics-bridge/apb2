@@ -17,8 +17,9 @@ format:  ## Format and autofix source and tests
 format-check:  ## Check formatting without changing files
 	$(VENV_BIN)/ruff format --check src tests
 
-lint:  ## Run Ruff lint checks
+lint:  ## Run code and import-architecture lint checks
 	$(VENV_BIN)/ruff check src tests
+	$(VENV_BIN)/lint-imports
 
 typecheck:  ## Run standard Pyright in strict mode
 	$(VENV_BIN)/pyright

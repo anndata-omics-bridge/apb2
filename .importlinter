@@ -58,3 +58,113 @@ forbidden_modules =
     anndata_proteomics.workflows
     anndata_proteomics.adapters
     anndata_proteomics.scripts
+
+# --------------------------------------------------------------------------- Parser V2
+#
+# Directory nesting is the import rule, not decoration. A module directly in a package may
+# import its children; a child may import neither its parent nor its sibling child. The
+# parenthesised layers are modules a later work package adds; each loses its parentheses
+# when it lands, so a contract never passes by naming something that does not exist.
+
+[importlinter:contract:parserv2-directory-nesting-is-the-import-rule]
+name = parserV2 children never import upward or sideways
+type = layers
+exhaustive = True
+containers =
+    apb2.parserV2
+layers =
+    compile
+    parse_rule_facade
+    parse_quant | vendor_parse_rules
+
+[importlinter:contract:parse-quant-directory-nesting-is-the-import-rule]
+name = parse_quant modules descend into data and parameters, never the other way
+type = layers
+exhaustive = True
+containers =
+    apb2.parserV2.parse_quant
+layers =
+    (parser) | (decomposition) | (duplicates)
+    contracts
+    columns | modifications | fragments | delimited_input | parquet_input | anndata_writer | parquet_writer
+    errors | layer_labels | numeric_text
+    data | parameters
+
+[importlinter:contract:parse-quant-children-are-independent]
+name = data and parameters never import a module directly in parse_quant
+type = forbidden
+source_modules =
+    apb2.parserV2.parse_quant.data
+    apb2.parserV2.parse_quant.parameters
+forbidden_modules =
+    apb2.parserV2.parse_rule_facade
+    apb2.parserV2.compile
+    apb2.parserV2.parse_quant.contracts
+
+[importlinter:contract:parserv2-owns-its-vocabulary]
+name = nothing under parserV2 imports the legacy parser, its rules, or its parameter model
+type = forbidden
+source_modules =
+    apb2.parserV2
+forbidden_modules =
+    apb2.vendor_params
+    apb2.vendor_parse_rules
+    apb2.parse_quant
+    apb2.configure_parse
+    apb2.rule_reading
+    apb2.errors
+    apb2.output
+    apb2.serialization
+    apb2.detect_document
+
+[importlinter:contract:parse-quant-computation-holds-no-storage-backend]
+name = parsing computation imports no Pydantic, pandas, NumPy, AnnData, or Arrow
+type = forbidden
+source_modules =
+    apb2.parserV2.parse_quant.data
+    apb2.parserV2.parse_quant.parameters
+    apb2.parserV2.parse_quant.contracts
+    apb2.parserV2.parse_quant.errors
+forbidden_modules =
+    pydantic
+    pandas
+    numpy
+    anndata
+    pyarrow
+
+[importlinter:contract:writers-see-only-a-parsed-level]
+name = an output adapter knows the parsed result, the notation, and its own backend
+type = forbidden
+source_modules =
+    apb2.parserV2.parse_quant.anndata_writer
+    apb2.parserV2.parse_quant.parquet_writer
+forbidden_modules =
+    apb2.parserV2.parse_quant.parser
+    apb2.parserV2.parse_quant.contracts
+    apb2.parserV2.parse_quant.decomposition
+    apb2.parserV2.parse_quant.duplicates
+    apb2.parserV2.parse_quant.columns
+    apb2.parserV2.parse_quant.modifications
+    apb2.parserV2.parse_quant.fragments
+    apb2.parserV2.parse_quant.delimited_input
+    apb2.parserV2.parse_quant.parquet_input
+    apb2.parserV2.parse_quant.data.raw
+    apb2.parserV2.parse_quant.data.source
+    apb2.parserV2.parse_quant.parameters
+
+[importlinter:contract:readers-see-only-a-source-table]
+name = an input adapter knows the source table, its parameters, and its own backend
+type = forbidden
+source_modules =
+    apb2.parserV2.parse_quant.delimited_input
+    apb2.parserV2.parse_quant.parquet_input
+forbidden_modules =
+    apb2.parserV2.parse_quant.parser
+    apb2.parserV2.parse_quant.contracts
+    apb2.parserV2.parse_quant.decomposition
+    apb2.parserV2.parse_quant.duplicates
+    apb2.parserV2.parse_quant.columns
+    apb2.parserV2.parse_quant.modifications
+    apb2.parserV2.parse_quant.fragments
+    apb2.parserV2.parse_quant.data.raw
+    apb2.parserV2.parse_quant.data.parsed

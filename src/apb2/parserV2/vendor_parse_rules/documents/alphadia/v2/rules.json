@@ -1,0 +1,145 @@
+{
+  "schema_version": "0.3",
+  "file_version": "2",
+  "software_name": "AlphaDIA",
+  "software_version_pattern": "^2\\.",
+  "input": {
+    "shape": "long",
+    "extensions": [
+      ".parquet"
+    ]
+  },
+  "base": {
+    "axis": {
+      "obs_keys": [
+        "raw_name"
+      ]
+    },
+    "measurements": {
+      "duplicates": {
+        "mode": "error"
+      }
+    },
+    "columns": {
+      "obs": {
+        "select": {
+          "raw_name": "raw.name"
+        }
+      }
+    },
+    "modifications": {
+      "parser": "site_list",
+      "sequence_column": "precursor.sequence",
+      "modification_column": "precursor.mods",
+      "site_column": "precursor.mod_sites",
+      "delimiter": ";",
+      "site_base": 1,
+      "case_sensitive": false,
+      "unknown_policy": "preserve",
+      "output_column": "proforma_sequence",
+      "map": [
+        {
+          "token": "Carbamidomethyl@C",
+          "accession": "UNIMOD:4"
+        },
+        {
+          "token": "Oxidation@M",
+          "accession": "UNIMOD:35"
+        },
+        {
+          "token": "Acetyl@Protein_N-term",
+          "accession": "UNIMOD:1"
+        }
+      ]
+    }
+  },
+  "levels": {
+    "ion": {
+      "axis": {
+        "var_keys": [
+          "ProForma_ion"
+        ]
+      },
+      "measurements": {
+        "primary_layer": "Precursor_Intensity",
+        "layers": [
+          {
+            "name": "Precursor_Intensity",
+            "source": "precursor.intensity",
+            "missing_values": [
+              0
+            ]
+          },
+          {
+            "name": "QValue",
+            "source": "precursor.qval"
+          },
+          {
+            "name": "Proba",
+            "source": "precursor.proba"
+          },
+          {
+            "name": "RT_Observed",
+            "source": "precursor.rt.observed"
+          }
+        ]
+      },
+      "columns": {
+        "var": {
+          "select": {
+            "Sequence": "precursor.sequence",
+            "Charge": "precursor.charge",
+            "Mods": "precursor.mods",
+            "Mod_Sites": "precursor.mod_sites",
+            "Genes": "pg.genes",
+            "Proteins": "pg.proteins",
+            "Protein_Group": "pg.name",
+            "Protein_Group_Master": "pg.master_protein",
+            "Decoy": "precursor.decoy"
+          },
+          "optional_select": {
+            "Channel": "precursor.channel",
+            "Protein_Group_QValue": "pg.qval",
+            "Mz_Observed": "precursor.mz.observed",
+            "Mobility_Observed": "precursor.mobility.observed"
+          },
+          "types": {
+            "Charge": "integer",
+            "Decoy": "boolean",
+            "Protein_Group_QValue": "number",
+            "Mz_Observed": "number",
+            "Mobility_Observed": "number"
+          },
+          "computed": [
+            {
+              "name": "ProForma_peptidoform",
+              "inputs": [
+                "Sequence"
+              ],
+              "how": "proforma_sequence"
+            },
+            {
+              "name": "ProForma_peptide",
+              "inputs": [
+                "Sequence"
+              ],
+              "how": "stripped_sequence"
+            },
+            {
+              "name": "ProForma_ion",
+              "inputs": [
+                "ProForma_peptidoform",
+                "Charge"
+              ],
+              "how": "proforma_ion"
+            }
+          ]
+        }
+      },
+      "column_roles": {
+        "protein_assignment": "Proteins",
+        "fasta_accessions": "Proteins"
+      }
+    }
+  }
+}

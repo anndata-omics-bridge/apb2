@@ -19,6 +19,7 @@ dependencies = [
     "numpy>=2",
     "packaging>=24",
     "pandas>=2.2",
+    "polars>=1.43,<2",
     "pyarrow>=18",
     "pydantic>=2.10",
     "pyyaml>=6",
@@ -40,14 +41,15 @@ dev = [
     "pre-commit>=4,<5",
     "pyright>=1.1.400,<2",
     "pytest>=9,<10",
+    "pytest-cov>=7,<8",
     "ruff>=0.15,<1",
     "twine>=6,<7",
 ]
 # Benchmark-only. documentation/benchmarks/long_table_conversion.py compares APB's
-# long-table conversion across dataframe engines; none of these is a runtime dependency.
+# long-table conversion across dataframe engines. Polars is a runtime dependency and is
+# therefore not repeated here; DuckDB exists only for that comparison.
 bench = [
     "duckdb>=1.4,<2",
-    "polars>=1.43,<2",
 ]
 
 [tool.ruff]

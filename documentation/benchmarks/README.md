@@ -145,3 +145,60 @@ dataframe variants.
 
 The fragment-explode and modification-applier paths, which are string-heavy and are where the
 remaining risk in a migration sits.
+
+## `parser_v2_stages.py` — where Parser V2 spends its time
+
+The engine benchmark above chose Polars. This one checks the four cost claims the Parser V2
+architecture makes, which are properties of the design rather than of a machine, and are
+therefore reported rather than thresholded.
+
+```bash
+.venv/bin/python documentation/benchmarks/parser_v2_stages.py stages RULES DATA \
+    --level ion --output parquet
+.venv/bin/python documentation/benchmarks/parser_v2_stages.py scaling
+```
+
+`stages` times what can be constructed on its own — binding, source resolution, the projected
+read, decomposition — and then the whole `parse()`; what is left over is axis preparation,
+duplicate resolution, and final alignment. `scaling` checks the two claims that are about *what*
+a stage scales with. Memory is the process resident high-water mark, because Polars allocates in
+Rust where `tracemalloc` cannot see it.
+
+### Result, 2026-08-21
+
+`apb/test_data_download/.../Results_quant_ion_DIA_AIF/.../input_file.txt` — a DIA-NN v1 report,
+219 MiB, 325 788 rows, 14 of its 60 columns projected, converted to 6 x 72 804 with 5 layers.
+Polars 1.43.2, Python 3.13, 14 cores / 48 GB, warm cache, median of 3 after a discarded warm-up.
+
+| Stage | median | peak RSS |
+| --- | ---: | ---: |
+| bind and observe the dialect | 0.007 s | |
+| resolve the level against the header | <0.001 s | |
+| read the 14-column projection | 0.049 s | 1.2 GiB |
+| decompose to raw axes and wide layers | 0.552 s | 1.2 GiB |
+| `parse()` whole | 0.894 s | 1.3 GiB |
+| — of which axis prep, duplicates, alignment | ~0.29 s | |
+| write the Parquet dataset | 0.048 s | |
+| write the `.h5ad` | 0.800 s | |
+
+Reading is 5% of the parse. Decomposition — the long-to-wide pivot over 325 788 rows — is 62%,
+and the axis work that follows it runs on 6 and 72 804 rows rather than on 325 788, which is
+what putting it after decomposition buys.
+
+**Allocation, measured rather than asserted.** The Parquet write allocates **no** dense array
+for 5 layers. The AnnData write allocates **exactly 5**, all `(72804, 6)`: one per encoded layer
+and nothing else.
+
+**Modification normalization scales with distinct variables, not with rows.** At a fixed 200 000
+rows, going from 1 000 to 100 000 distinct sequences moves it from 0.023 s to 0.398 s — a 17x
+cost for a 100x growth in distinct work, with the row count unchanged. That is why normalization
+runs on `VarRaw` and not on the source table.
+
+| distinct sequences (200 000 rows) | median |
+| --- | ---: |
+| 1 000 | 0.023 s |
+| 10 000 | 0.059 s |
+| 100 000 | 0.398 s |
+
+**Duplicate resolution stays vectorized.** 10 000 raw keys resolved across 6, 60, and 600
+observation columns: 0.001 s, 0.005 s, 0.039 s — linear in the columns, with no per-cell Python.
