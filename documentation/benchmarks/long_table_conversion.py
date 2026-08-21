@@ -1,11 +1,11 @@
-"""Benchmark APB's long-table conversion under pandas and polars.
+"""Benchmark APB's long-table conversion under pandas, polars, and DuckDB.
 
 Why this and not a published benchmark: the TPC-H suites (including
 `pola-rs/polars-benchmark`) measure joins and aggregations over narrow tables. APB never
 joins. It reads one wide long-format vendor export, builds string axis keys, deduplicates
 them, and scatters the long rows into dense matrices via integer category codes. This script
 runs exactly those steps -- the ones in ``parse_quant/table_conversion.py`` -- so the
-pandas-versus-polars question is answered on APB's own shape.
+choice-of-engine question is answered on APB's own shape.
 
 Every variant must produce the same matrices; the script asserts that before reporting
 timings, because a wrong factorize can produce correct output at absurd cost (see the
@@ -32,7 +32,7 @@ from cyclopts import App
 from loguru import logger
 from numpy.typing import NDArray
 
-Variant = Literal["polars", "pandas-pyarrow", "pandas-numpy"]
+Variant = Literal["polars", "duckdb", "pandas-pyarrow", "pandas-numpy"]
 
 STEPS = ("read", "filter", "keys", "factorize", "scatter", "axis_frames")
 
@@ -268,6 +268,126 @@ def run_polars(table: Path, spec: TableSpec) -> tuple[Conversion, Timings]:
     return Conversion(n_obs, n_var, layers), Timings("polars", clock.steps)
 
 
+def _sql_identifier(name: str) -> str:
+    """Quote a vendor column name for SQL: they contain dots, spaces, and parentheses."""
+    escaped = name.replace('"', '""')
+    return f'"{escaped}"'
+
+
+def _sql_literal(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
+
+
+def _dense_float(column: object) -> NDArray[np.float64]:
+    """Fill a possibly-masked DuckDB column with NaN and cast to float64.
+
+    ``fetchnumpy`` returns a masked array for any nullable column -- and, for a dictionary
+    type, something that is not an array at all -- so this decodes the one case the scatter
+    can use and rejects the rest rather than silently producing an object array.
+    """
+    if isinstance(column, np.ma.MaskedArray):
+        filled: NDArray[np.float64] = np.ma.filled(column.astype(np.float64), np.nan)
+        return filled
+    if isinstance(column, np.ndarray):
+        return column.astype(np.float64)
+    raise TypeError(f"expected a numeric DuckDB column, got {type(column).__name__}")
+
+
+def run_duckdb(table: Path, spec: TableSpec) -> tuple[Conversion, Timings]:
+    """Convert with DuckDB, doing read, filter, keys, and factorize in SQL.
+
+    The engine is a query processor rather than a dataframe library, so the steps are the same
+    six operations expressed as statements over temporary tables. Each one is materialized with
+    ``CREATE OR REPLACE TABLE`` so a step's cost lands in that step rather than being deferred
+    into the next by lazy evaluation.
+    """
+    import duckdb
+
+    clock = _Clock()
+    connection = duckdb.connect()
+
+    def read() -> None:
+        selected = ", ".join(_sql_identifier(name) for name in spec.columns)
+        connection.execute(
+            f"CREATE OR REPLACE TABLE source AS SELECT {selected} FROM "
+            f"read_csv({_sql_literal(str(table))}, delim='\t', header=true, "
+            f"sample_size=10240, nullstr=['', 'NaN'])"
+        )
+
+    clock.step("read", read)
+    clock.step(
+        "filter",
+        lambda: connection.execute(
+            "CREATE OR REPLACE TABLE filtered AS SELECT * FROM source "
+            f"WHERE {_sql_identifier(spec.filter_column)} <= {spec.filter_maximum}"
+        ),
+    )
+
+    def build_keys() -> None:
+        var_parts = ", ".join(f"CAST({_sql_identifier(key)} AS VARCHAR)" for key in spec.var_keys)
+        # `row_number() OVER ()` numbers the rows in the order the reader produced them, which
+        # is file order: DuckDB preserves insertion order by default. Every later step sorts or
+        # groups by it, so duplicate keys resolve to the same long row as under pandas.
+        connection.execute(
+            "CREATE OR REPLACE TABLE keyed AS SELECT *, "
+            "row_number() OVER () - 1 AS _row, "
+            f"CAST({_sql_identifier(spec.obs_key)} AS VARCHAR) AS _obs, "
+            f"concat_ws('_', {var_parts}) AS _var FROM filtered"
+        )
+
+    clock.step("keys", build_keys)
+
+    def factorize() -> None:
+        # First appearance, not sorted: `LongConversion` takes its categories from a
+        # `drop_duplicates`, so the axis order is the order the keys first occur in the file.
+        for axis in ("obs", "var"):
+            connection.execute(
+                f"CREATE OR REPLACE TABLE {axis}_levels AS "
+                f"SELECT _{axis}, row_number() OVER (ORDER BY first_row) - 1 AS _{axis}_code "
+                f"FROM (SELECT _{axis}, min(_row) AS first_row FROM keyed GROUP BY _{axis})"
+            )
+
+    clock.step("factorize", factorize)
+    n_obs = connection.execute("SELECT count(*) FROM obs_levels").fetchone()
+    n_var = connection.execute("SELECT count(*) FROM var_levels").fetchone()
+    assert n_obs is not None and n_var is not None
+    n_obs, n_var = int(n_obs[0]), int(n_var[0])
+
+    def scatter() -> dict[str, NDArray[np.float64]]:
+        aliases = {f"layer_{index}": name for index, name in enumerate(spec.layers)}
+        projected = ", ".join(
+            f"TRY_CAST(keyed.{_sql_identifier(name)} AS DOUBLE) AS {alias}"
+            for alias, name in aliases.items()
+        )
+        columns = connection.execute(
+            "SELECT obs_levels._obs_code, var_levels._var_code, "
+            f"{projected} FROM keyed "
+            "JOIN obs_levels USING (_obs) JOIN var_levels USING (_var) "
+            "ORDER BY keyed._row"
+        ).fetchnumpy()
+        return _scatter(
+            _dense_float(columns["_obs_code"]).astype(np.int64),
+            _dense_float(columns["_var_code"]).astype(np.int64),
+            ((name, _dense_float(columns[alias])) for alias, name in aliases.items()),
+            n_obs,
+            n_var,
+        )
+
+    layers = clock.step("scatter", scatter)
+
+    def axis_frames() -> None:
+        for axis in ("obs", "var"):
+            connection.execute(
+                f"CREATE OR REPLACE TABLE {axis}_frame AS SELECT * FROM keyed "
+                f"QUALIFY row_number() OVER (PARTITION BY _{axis} ORDER BY _row) = 1"
+            )
+
+    clock.step("axis_frames", axis_frames)
+    connection.close()
+
+    return Conversion(n_obs, n_var, layers), Timings("duckdb", clock.steps)
+
+
 def _require_agreement(results: dict[Variant, Conversion]) -> None:
     """Reject the run unless every variant produced the same matrices."""
     reference_name, reference = next(iter(results.items()))
@@ -324,7 +444,7 @@ def benchmark(
     filter_maximum: float = 0.01,
     repeats: int = 3,
 ) -> int:
-    """Time APB's long-table conversion under each dataframe library.
+    """Time APB's long-table conversion under each engine.
 
     Parameters
     ----------
@@ -357,6 +477,7 @@ def benchmark(
 
     variants: dict[Variant, Callable[[], tuple[Conversion, Timings]]] = {
         "polars": lambda: run_polars(table, spec),
+        "duckdb": lambda: run_duckdb(table, spec),
         "pandas-pyarrow": lambda: run_pandas(table, spec, pyarrow_backend=True),
         "pandas-numpy": lambda: run_pandas(table, spec, pyarrow_backend=False),
     }

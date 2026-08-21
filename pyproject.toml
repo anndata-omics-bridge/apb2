@@ -44,8 +44,9 @@ dev = [
     "twine>=6,<7",
 ]
 # Benchmark-only. documentation/benchmarks/long_table_conversion.py compares APB's
-# long-table conversion under pandas and polars; polars is not a runtime dependency.
+# long-table conversion across dataframe engines; none of these is a runtime dependency.
 bench = [
+    "duckdb>=1.4,<2",
     "polars>=1.43,<2",
 ]
 
