@@ -4,7 +4,9 @@
 
 Times the steps `parse_quant/table_conversion.py` performs on a long-format vendor export:
 read the declared columns, filter rows, build string axis keys, factorize them, scatter the
-long rows into dense `obs x var` layers, deduplicate the axis frames.
+long rows into dense `obs x var` layers, deduplicate the axis frames. Each variant then
+persists what it built, twice — one DuckDB database and one folder of Parquet files — because
+converting fast and writing slowly is not a faster engine.
 
 Three engines, four variants: polars, DuckDB, and pandas on each of its two dtype backends.
 
@@ -27,8 +29,24 @@ Column names default to a Spectronaut ion-level export; override `--obs-key`, `-
 `--layers`, `--carry`, and `--filter-column` for another vendor. `--repeats` sets the timed
 runs per variant (one warm-up per variant runs first and is discarded).
 
-Every variant must produce the same matrices or the run fails before reporting. That check is
-not decoration — it caught two real defects while this script was being written, both below.
+Every variant must produce the same matrices *and* every serialized copy is read back and
+checked against the matrix it came from, or the run fails before reporting. Those checks are not
+decoration — the first caught two real defects while this script was being written, both below,
+and the layer tables are transposed on the way out, which is exactly where a fast-but-wrong
+write would hide.
+
+Output layout, one subtree per variant so the four can be compared instead of overwriting each
+other:
+
+```
+<output-dir>/<variant>/conversion.duckdb        obs, var, layer_<column> tables
+<output-dir>/<variant>/parquet/<table>.parquet  the same tables, one file each
+```
+
+`--output-dir` defaults to a fresh temporary directory, reported at the start of the run and
+left in place. The axis frames are stored as they are; each layer is stored variable-major —
+one row per ion, one column per run, plus the `_var` key — because the variable axis is the one
+that grows and a Parquet file with 124 267 columns would be pathological.
 
 ### Result, 2026-08-21
 
@@ -40,20 +58,34 @@ discarded warm-up.
 
 | step | polars 1.43 | DuckDB 1.5 | pandas 3.0 + pyarrow | pandas 3.0 conventional |
 | --- | --- | --- | --- | --- |
-| read TSV (9 columns) | **0.103 s** | 0.311 | 1.801 | 1.767 |
-| filter rows | 0.002 | 0.058 | 0.001 | 0.001 |
-| build axis keys | 0.003 | 0.144 | 0.034 | 0.078 |
-| factorize | 0.026 | **0.020** | 0.099 | 0.095 |
-| scatter to 3 dense layers | 0.008 | 0.021 | 0.013 | **0.002** |
-| deduplicate axis frames | 0.008 | 0.060 | 0.034 | 0.028 |
-| **total** | **0.150 s** | **0.614 s** | **1.982 s** | **1.971 s** |
+| read TSV (9 columns) | **0.109 s** | 0.337 | 2.177 | 2.163 |
+| filter rows | 0.002 | 0.063 | 0.001 | 0.000 |
+| build axis keys | 0.004 | 0.150 | 0.037 | 0.082 |
+| factorize | 0.027 | **0.020** | 0.110 | 0.106 |
+| scatter to 3 dense layers | 0.009 | 0.023 | 0.014 | **0.003** |
+| deduplicate axis frames | 0.008 | 0.064 | 0.039 | 0.031 |
+| build the output tables | 0.008 | 0.034 | 0.014 | 0.014 |
+| write 5 Parquet files | **0.056** | 0.124 | 0.158 | 0.157 |
+| write 1 DuckDB database | 0.267 | **0.245** | 0.288 | 0.336 |
+| **total** | **0.490 s** | **1.061 s** | **2.839 s** | **2.893 s** |
 
-**The entire pandas gap is the TSV reader — 17x against polars, 6x against DuckDB — and nothing
-else matters.** Every non-read step costs under 0.15 s in all four; together they are 9% of
-pandas' time. APB's cost is parsing vendor text, so the reader is the only figure with leverage.
+**The entire pandas gap is the TSV reader — 20x against polars, 6x against DuckDB — and nothing
+else matters.** Every non-read step costs under 0.35 s in all four. APB's cost is parsing vendor
+text, so the reader is the only figure with real leverage.
 
-**The PyArrow dtype backend buys nothing here** (1.982 s against 1.971 s, inside the noise) and
-conventional pandas is *faster* at the scatter, 0.002 s against 0.013 s. Worth knowing because
+**Serialization is 0.3–0.5 s and it does not reorder the field.** Writing the same tables costs
+polars 0.33 s, DuckDB 0.40 s, pandas 0.46–0.51 s. That is *more than twice* polars' own
+conversion time (0.33 s against 0.16 s) and 16% of a pandas run — so on a fast engine the write
+is the larger half of the job, and choosing the storage format matters as much as the reader. Parquet is 2–5x cheaper to write than
+the DuckDB database, and it is the one step where polars' lead is small and DuckDB's write into
+its own format is the fastest of the four.
+
+**Parquet is also smaller, and how much depends on the writer.** Same five tables: polars 18 MB,
+DuckDB 26 MB, pandas 29 MB, against 27–28 MB for every DuckDB database. polars' default
+compression is the difference, not the data.
+
+**The PyArrow dtype backend buys nothing here** (2.839 s against 2.893 s, inside the noise) and
+conventional pandas is *faster* at the scatter, 0.003 s against 0.014 s. Worth knowing because
 `polars-benchmark` hardcodes `dtype_backend="pyarrow"` in its pandas queries, so its published
 "pandas" numbers already are the PyArrow variant.
 
@@ -65,8 +97,12 @@ cheap in a dataframe and a window function in SQL. It is also the only variant t
 result over the Python boundary as a copy rather than a view.
 
 **The AnnData boundary is free.** `polars.DataFrame.to_pandas()` on a 131 920 x 9 variable
-frame is 0.002 s (measured 2026-08-20, on a comparable export). AnnData 0.13 requires pandas for `.obs`/`.var`, so a non-pandas core converts
-at the storage edge — at no measurable cost.
+frame is 0.002 s (measured 2026-08-20, on a comparable export). AnnData 0.13 requires pandas for
+`.obs`/`.var`, so a non-pandas core converts at the storage edge — at no measurable cost.
+
+Compare columns within one run, not across runs: the same file read by the same pandas variant
+was 0.35 s faster before the write steps existed, since the process now holds the output tables
+while it reads. Every column in the table above comes from one invocation.
 
 ### Three traps this script exists to document
 

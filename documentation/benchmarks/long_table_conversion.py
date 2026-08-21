@@ -7,9 +7,14 @@ them, and scatters the long rows into dense matrices via integer category codes.
 runs exactly those steps -- the ones in ``parse_quant/table_conversion.py`` -- so the
 choice-of-engine question is answered on APB's own shape.
 
-Every variant must produce the same matrices; the script asserts that before reporting
-timings, because a wrong factorize can produce correct output at absurd cost (see the
-``polars`` note in ``documentation/benchmarks/README.md``).
+Each variant then serializes what it built, twice: into one DuckDB database and into one
+folder of Parquet files. The conversion is only half of a run; persisting the result is the
+other half, and an engine that converts quickly and writes slowly is not a faster engine.
+
+Every variant must produce the same matrices, and every serialized copy must still match
+the matrix it came from; the script asserts both before reporting timings, because a wrong
+factorize can produce correct output at absurd cost (see the ``polars`` note in
+``documentation/benchmarks/README.md``).
 
 Run it with a vendor file APB can already parse::
 
@@ -20,21 +25,39 @@ Run it with a vendor file APB can already parse::
 from __future__ import annotations
 
 import gc
+import re
+import shutil
 import statistics
+import tempfile
 import time
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 from cyclopts import App
 from loguru import logger
 from numpy.typing import NDArray
 
+if TYPE_CHECKING:  # bench-only engines: imported inside each variant, annotated here
+    import duckdb
+    import pandas as pd
+    import polars as pl
+
 Variant = Literal["polars", "duckdb", "pandas-pyarrow", "pandas-numpy"]
 
-STEPS = ("read", "filter", "keys", "factorize", "scatter", "axis_frames")
+STEPS = (
+    "read",
+    "filter",
+    "keys",
+    "factorize",
+    "scatter",
+    "axis_frames",
+    "tables",
+    "write_parquet",
+    "write_duckdb",
+)
 
 app = App(name="long-table-conversion", help=__doc__)
 
@@ -62,6 +85,34 @@ class TableSpec:
         for name in columns:
             seen[name] = None
         return list(seen)
+
+
+@dataclass(frozen=True, slots=True)
+class Destination:
+    """Where one variant persists the tables it built.
+
+    One database and one folder, both named after the variant, so the four variants' outputs
+    sit side by side and can be compared after the run instead of overwriting each other.
+    """
+
+    root: Path
+
+    @property
+    def parquet_dir(self) -> Path:
+        return self.root / "parquet"
+
+    @property
+    def database(self) -> Path:
+        return self.root / "conversion.duckdb"
+
+    def parquet_file(self, table: str) -> Path:
+        return self.parquet_dir / f"{table}.parquet"
+
+    def cleared(self) -> Destination:
+        """Remove any output from an earlier run, so a write is a write and not an append."""
+        shutil.rmtree(self.root, ignore_errors=True)
+        self.parquet_dir.mkdir(parents=True)
+        return self
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,6 +150,11 @@ class _Clock:
         return result
 
 
+def _table_name(layer: str) -> str:
+    """Name a table after a vendor column, which contains dots, spaces, and parentheses."""
+    return "layer_" + re.sub(r"\W+", "_", layer).strip("_").lower()
+
+
 def _scatter(
     obs_codes: NDArray[np.int64],
     var_codes: NDArray[np.int64],
@@ -121,8 +177,25 @@ def _scatter(
     return layers
 
 
+def _layer_columns(
+    matrix: NDArray[np.float64],
+    obs_names: Sequence[str],
+    var_names: Sequence[str],
+) -> dict[str, object]:
+    """Lay a dense layer out as a table: one row per variable, one column per observation.
+
+    Variable-major because that is the axis that grows -- 124 267 ions against 6 runs -- and a
+    Parquet file with one column per ion would be pathological. The column-name mapping is
+    engine-independent; each variant hands it to its own frame constructor.
+    """
+    return {
+        "_var": list(var_names),
+        **{name: matrix[index] for index, name in enumerate(obs_names)},
+    }
+
+
 def run_pandas(
-    table: Path, spec: TableSpec, *, pyarrow_backend: bool
+    table: Path, spec: TableSpec, destination: Destination, *, pyarrow_backend: bool
 ) -> tuple[Conversion, Timings]:
     """Convert with pandas, on either the PyArrow or the conventional NumPy dtype backend."""
     import pandas as pd
@@ -186,7 +259,7 @@ def run_pandas(
             n_var,
         ),
     )
-    clock.step(
+    axis_frames = clock.step(
         "axis_frames",
         lambda: (
             frame.assign(_key=obs_key).drop_duplicates(subset="_key"),
@@ -194,11 +267,26 @@ def run_pandas(
         ),
     )
 
+    obs_names = [str(name) for name in obs_cat.categories]
+    var_names = [str(name) for name in var_cat.categories]
+
+    def tables() -> dict[str, pd.DataFrame]:
+        built = {"obs": axis_frames[0], "var": axis_frames[1]}
+        for name, matrix in layers.items():
+            built[_table_name(name)] = pd.DataFrame(_layer_columns(matrix, obs_names, var_names))
+        return built
+
+    written = clock.step("tables", tables)
+    clock.step("write_parquet", lambda: _write_parquet_pandas(written, destination))
+    clock.step("write_duckdb", lambda: _write_database(written, destination))
+
     variant: Variant = "pandas-pyarrow" if pyarrow_backend else "pandas-numpy"
     return Conversion(n_obs, n_var, layers), Timings(variant, clock.steps)
 
 
-def run_polars(table: Path, spec: TableSpec) -> tuple[Conversion, Timings]:
+def run_polars(
+    table: Path, spec: TableSpec, destination: Destination
+) -> tuple[Conversion, Timings]:
     """Convert with polars."""
     import polars as pl
 
@@ -228,6 +316,8 @@ def run_polars(table: Path, spec: TableSpec) -> tuple[Conversion, Timings]:
         ),
     )
 
+    levels: dict[str, pl.DataFrame] = {}
+
     def factorize() -> pl.DataFrame:
         # A Categorical's physical codes are NOT dense per column: polars shares a string
         # cache across the frame, so a six-value column can carry six-figure codes and sizing
@@ -235,17 +325,18 @@ def run_polars(table: Path, spec: TableSpec) -> tuple[Conversion, Timings]:
         # unique values is the factorize that matches pandas' dense `Categorical.codes`.
         out = frame
         for name in ("_obs", "_var"):
-            levels = out.select(name).unique(maintain_order=True).with_row_index(f"{name}_code")
+            levels[name] = (
+                out.select(name).unique(maintain_order=True).with_row_index(f"{name}_code")
+            )
             # `maintain_order="left"` keeps the long rows in file order, so a duplicated
             # (obs, var) key resolves to the same row as it does under pandas. APB decides
             # duplicates explicitly (`parse_quant/duplicates.py`); the benchmark only has to
             # avoid introducing a difference of its own.
-            out = out.join(levels, on=name, how="left", maintain_order="left")
+            out = out.join(levels[name], on=name, how="left", maintain_order="left")
         return out
 
     frame = clock.step("factorize", factorize)
-    n_obs = frame.select(pl.col("_obs_code").n_unique()).item()
-    n_var = frame.select(pl.col("_var_code").n_unique()).item()
+    n_obs, n_var = levels["_obs"].height, levels["_var"].height
 
     layers = clock.step(
         "scatter",
@@ -257,13 +348,26 @@ def run_polars(table: Path, spec: TableSpec) -> tuple[Conversion, Timings]:
             n_var,
         ),
     )
-    clock.step(
+    axis_frames = clock.step(
         "axis_frames",
         lambda: (
             frame.unique(subset="_obs", keep="first"),
             frame.unique(subset="_var", keep="first"),
         ),
     )
+
+    obs_names = levels["_obs"]["_obs"].to_list()
+    var_names = levels["_var"]["_var"].to_list()
+
+    def tables() -> dict[str, pl.DataFrame]:
+        built = {"obs": axis_frames[0], "var": axis_frames[1]}
+        for name, matrix in layers.items():
+            built[_table_name(name)] = pl.DataFrame(_layer_columns(matrix, obs_names, var_names))
+        return built
+
+    written = clock.step("tables", tables)
+    clock.step("write_parquet", lambda: _write_parquet_polars(written, destination))
+    clock.step("write_duckdb", lambda: _write_database(written, destination))
 
     return Conversion(n_obs, n_var, layers), Timings("polars", clock.steps)
 
@@ -293,15 +397,18 @@ def _dense_float(column: object) -> NDArray[np.float64]:
     raise TypeError(f"expected a numeric DuckDB column, got {type(column).__name__}")
 
 
-def run_duckdb(table: Path, spec: TableSpec) -> tuple[Conversion, Timings]:
+def run_duckdb(
+    table: Path, spec: TableSpec, destination: Destination
+) -> tuple[Conversion, Timings]:
     """Convert with DuckDB, doing read, filter, keys, and factorize in SQL.
 
     The engine is a query processor rather than a dataframe library, so the steps are the same
-    six operations expressed as statements over temporary tables. Each one is materialized with
+    operations expressed as statements over temporary tables. Each one is materialized with
     ``CREATE OR REPLACE TABLE`` so a step's cost lands in that step rather than being deferred
     into the next by lazy evaluation.
     """
     import duckdb
+    import pyarrow as pa
 
     clock = _Clock()
     connection = duckdb.connect()
@@ -348,10 +455,9 @@ def run_duckdb(table: Path, spec: TableSpec) -> tuple[Conversion, Timings]:
             )
 
     clock.step("factorize", factorize)
-    n_obs = connection.execute("SELECT count(*) FROM obs_levels").fetchone()
-    n_var = connection.execute("SELECT count(*) FROM var_levels").fetchone()
-    assert n_obs is not None and n_var is not None
-    n_obs, n_var = int(n_obs[0]), int(n_var[0])
+    obs_names = _axis_names(connection, "obs")
+    var_names = _axis_names(connection, "var")
+    n_obs, n_var = len(obs_names), len(var_names)
 
     def scatter() -> dict[str, NDArray[np.float64]]:
         aliases = {f"layer_{index}": name for index, name in enumerate(spec.layers)}
@@ -378,14 +484,88 @@ def run_duckdb(table: Path, spec: TableSpec) -> tuple[Conversion, Timings]:
     def axis_frames() -> None:
         for axis in ("obs", "var"):
             connection.execute(
-                f"CREATE OR REPLACE TABLE {axis}_frame AS SELECT * FROM keyed "
+                f"CREATE OR REPLACE TABLE {axis} AS SELECT * FROM keyed "
                 f"QUALIFY row_number() OVER (PARTITION BY _{axis} ORDER BY _row) = 1"
             )
 
     clock.step("axis_frames", axis_frames)
+
+    def tables() -> list[str]:
+        # Arrow is DuckDB's own ingest format, so a NumPy matrix enters as an Arrow table
+        # rather than through a dataframe library this variant is not supposed to need.
+        built = ["obs", "var"]
+        for name, matrix in layers.items():
+            arrow = pa.table(_layer_columns(matrix, obs_names, var_names))
+            connection.register("layer_source", arrow)
+            table_name = _table_name(name)
+            connection.execute(
+                f"CREATE OR REPLACE TABLE {table_name} AS SELECT * FROM layer_source"
+            )
+            connection.unregister("layer_source")
+            built.append(table_name)
+        return built
+
+    written = clock.step("tables", tables)
+
+    clock.step("write_parquet", lambda: _copy_to_parquet(connection, written, destination))
+    clock.step("write_duckdb", lambda: _copy_to_database(connection, written, destination))
     connection.close()
 
     return Conversion(n_obs, n_var, layers), Timings("duckdb", clock.steps)
+
+
+def _axis_names(connection: duckdb.DuckDBPyConnection, axis: str) -> list[str]:
+    """Read one axis' keys in code order, so a layer's columns line up with its matrix rows."""
+    rows = connection.execute(f"SELECT _{axis} FROM {axis}_levels ORDER BY _{axis}_code").fetchall()
+    return [str(row[0]) for row in rows]
+
+
+def _copy_to_parquet(
+    connection: duckdb.DuckDBPyConnection, tables: Sequence[str], destination: Destination
+) -> None:
+    """Write one Parquet file per table, with DuckDB's own writer."""
+    for name in tables:
+        target = _sql_literal(str(destination.parquet_file(name)))
+        connection.execute(f"COPY {name} TO {target} (FORMAT parquet)")
+
+
+def _copy_to_database(
+    connection: duckdb.DuckDBPyConnection, tables: Sequence[str], destination: Destination
+) -> None:
+    """Copy the in-memory tables into one persistent DuckDB database file."""
+    connection.execute(f"ATTACH {_sql_literal(str(destination.database))} AS persisted")
+    for name in tables:
+        connection.execute(f"CREATE OR REPLACE TABLE persisted.{name} AS SELECT * FROM {name}")
+    connection.execute("DETACH persisted")
+
+
+def _write_parquet_pandas(tables: Mapping[str, pd.DataFrame], destination: Destination) -> None:
+    """Write each table as its own Parquet file, with pandas' own writer."""
+    for name, frame in tables.items():
+        frame.to_parquet(destination.parquet_file(name), index=False)
+
+
+def _write_parquet_polars(tables: Mapping[str, pl.DataFrame], destination: Destination) -> None:
+    """Write each table as its own Parquet file, with polars' own writer."""
+    for name, frame in tables.items():
+        frame.write_parquet(destination.parquet_file(name))
+
+
+def _write_database(
+    tables: Mapping[str, pd.DataFrame] | Mapping[str, pl.DataFrame], destination: Destination
+) -> None:
+    """Persist frames into one DuckDB database, scanning each frame where it already sits.
+
+    Both dataframe variants get here: a DuckDB database is the target either way, and what is
+    timed is how cheaply that engine's frames can be handed over.
+    """
+    import duckdb
+
+    with duckdb.connect(destination.database) as connection:
+        for name, frame in tables.items():
+            connection.register("source", frame)
+            connection.execute(f"CREATE OR REPLACE TABLE {name} AS SELECT * FROM source")
+            connection.unregister("source")
 
 
 def _require_agreement(results: dict[Variant, Conversion]) -> None:
@@ -407,6 +587,51 @@ def _require_agreement(results: dict[Variant, Conversion]) -> None:
             # is not guaranteed bit-identical across libraries.
             if not np.allclose(other, matrix, rtol=1e-9, atol=0.0, equal_nan=True):
                 raise ValueError(f"{name} and {reference_name} disagree on layer {layer!r}")
+
+
+def _require_persisted_agreement(results: Mapping[Variant, Conversion], root: Path) -> None:
+    """Read every serialized copy back and check it against the matrix it was written from.
+
+    A write step that is fast because it wrote the wrong thing is worse than a slow one, and
+    the layer tables are transposed on the way out, so this is where that would show up.
+    """
+    import duckdb
+
+    for variant, conversion in results.items():
+        destination = Destination(root / variant)
+        attached = _sql_literal(str(destination.database))
+        with duckdb.connect() as connection:
+            connection.execute(f"ATTACH {attached} AS persisted (READ_ONLY)")
+            for name, matrix in conversion.layers.items():
+                table = _table_name(name)
+                parquet = _sql_literal(str(destination.parquet_file(table)))
+                for label, source in (
+                    ("parquet", f"read_parquet({parquet})"),
+                    ("database", f"persisted.{table}"),
+                ):
+                    stored = connection.execute(f"SELECT * FROM {source}").fetchnumpy()
+                    _require_layer_match(variant, label, table, stored, matrix)
+    logger.info("every variant's Parquet folder and DuckDB database match the matrices in memory")
+
+
+def _require_layer_match(
+    variant: Variant,
+    label: str,
+    table: str,
+    stored: Mapping[str, object],
+    matrix: NDArray[np.float64],
+) -> None:
+    """Compare one stored layer table, one observation column at a time."""
+    columns = [name for name in stored if name != "_var"]
+    if len(columns) != matrix.shape[0]:
+        raise ValueError(
+            f"{variant} wrote {table} to {label} with {len(columns)} observation columns, "
+            f"the matrix has {matrix.shape[0]}"
+        )
+    for index, column in enumerate(columns):
+        values = _dense_float(stored[column])
+        if not np.allclose(values, matrix[index], rtol=1e-9, atol=0.0, equal_nan=True):
+            raise ValueError(f"{variant}'s {label} copy of {table} differs in column {column!r}")
 
 
 def _report(runs: Sequence[Timings], results: dict[Variant, Conversion]) -> None:
@@ -443,6 +668,7 @@ def benchmark(
     filter_column: str = "EG.Qvalue",
     filter_maximum: float = 0.01,
     repeats: int = 3,
+    output_dir: Path | None = None,
 ) -> int:
     """Time APB's long-table conversion under each engine.
 
@@ -462,6 +688,9 @@ def benchmark(
         The row filter a rule applies before conversion.
     repeats
         Timed runs per variant. One warm-up run per variant runs first and is discarded.
+    output_dir
+        Where each variant writes its DuckDB database and Parquet folder. Defaults to a fresh
+        temporary directory, which is reported and left in place for inspection.
     """
     spec = TableSpec(
         obs_key=obs_key,
@@ -475,25 +704,34 @@ def benchmark(
         logger.error(f"no such table: {table}")
         return 1
 
-    variants: dict[Variant, Callable[[], tuple[Conversion, Timings]]] = {
-        "polars": lambda: run_polars(table, spec),
-        "duckdb": lambda: run_duckdb(table, spec),
-        "pandas-pyarrow": lambda: run_pandas(table, spec, pyarrow_backend=True),
-        "pandas-numpy": lambda: run_pandas(table, spec, pyarrow_backend=False),
+    root = output_dir if output_dir is not None else Path(tempfile.mkdtemp(prefix="apb2-bench-"))
+    logger.info(f"serializing each variant under {root}")
+
+    variants: dict[Variant, Callable[[Destination], tuple[Conversion, Timings]]] = {
+        "polars": lambda destination: run_polars(table, spec, destination),
+        "duckdb": lambda destination: run_duckdb(table, spec, destination),
+        "pandas-pyarrow": lambda destination: run_pandas(
+            table, spec, destination, pyarrow_backend=True
+        ),
+        "pandas-numpy": lambda destination: run_pandas(
+            table, spec, destination, pyarrow_backend=False
+        ),
     }
 
     results: dict[Variant, Conversion] = {}
     runs: list[Timings] = []
     for name, convert in variants.items():
+        destination = Destination(root / name)
         logger.info(f"warming {name}")
-        conversion, _ = convert()
+        conversion, _ = convert(destination.cleared())
         results[name] = conversion
         for index in range(repeats):
-            _, timings = convert()
+            _, timings = convert(destination.cleared())
             runs.append(timings)
             logger.debug(f"{name} run {index + 1}: {timings.total:.3f} s")
 
     _require_agreement(results)
+    _require_persisted_agreement(results, root)
     _report(runs, results)
     return 0
 
