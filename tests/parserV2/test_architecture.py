@@ -13,8 +13,10 @@ from pathlib import Path
 import pytest
 
 PARSER_V2 = Path("src/apb2/parserV2")
+APB2 = PARSER_V2.parent
 PARSE_QUANT = PARSER_V2 / "parse_quant"
 RULES = PARSER_V2 / "vendor_parse_rules"
+SEARCH_PARAMETERS = PARSER_V2 / "search_parameters"
 RULE_SCHEMA = RULES / "schema"
 
 
@@ -41,10 +43,38 @@ def _root_modules() -> tuple[Path, ...]:
 @pytest.mark.parametrize(
     "path", _modules(PARSER_V2), ids=lambda path: str(path.relative_to(PARSER_V2))
 )
-def test_no_module_under_parser_v2_reaches_the_search_parameter_model(path: Path) -> None:
+def test_parser_v2_reaches_neither_deleted_modules_nor_the_apb_oracle(path: Path) -> None:
     imported = _imported_modules(path)
+    deleted = (
+        "apb2.vendor_params",
+        "apb2.vendor_parse_rules",
+        "apb2.parse_quant",
+        "apb2.configure_parse",
+        "apb2.detect_document",
+        "apb2.errors",
+        "apb2.output",
+        "apb2.parser_v2",
+        "apb2.rule_reading",
+        "apb2.serialization",
+        "apb2.unimod_registry",
+    )
 
-    assert not any(name.startswith("apb2.vendor_params") for name in imported)
+    assert not any(name.startswith(deleted) for name in imported)
+    assert not any(name.startswith("anndata_proteomics") for name in imported)
+
+
+def test_the_top_level_production_tree_is_only_the_cli_and_parser_v2() -> None:
+    entries = {path.name for path in APB2.iterdir() if path.name != "__pycache__"}
+
+    assert entries == {"__init__.py", "cli.py", "parserV2", "py.typed"}
+
+
+def test_the_cli_imports_only_parser_v2_from_apb2() -> None:
+    imported = _imported_modules(APB2 / "cli.py")
+
+    assert all(
+        not name.startswith("apb2.") or name.startswith("apb2.parserV2.") for name in imported
+    )
 
 
 @pytest.mark.parametrize(
@@ -55,6 +85,7 @@ def test_the_parse_package_never_imports_the_rule_package_or_its_parent(path: Pa
     root_names = {f"apb2.parserV2.{module.stem}" for module in _root_modules()}
 
     assert not any(name.startswith("apb2.parserV2.vendor_parse_rules") for name in imported)
+    assert not any(name.startswith("apb2.parserV2.search_parameters") for name in imported)
     assert not (imported & root_names)
 
 
@@ -63,8 +94,25 @@ def test_the_rule_package_imports_nothing_above_itself(path: Path) -> None:
     imported = _imported_modules(path)
 
     assert not any(name.startswith("apb2.parserV2.parse_quant") for name in imported)
+    assert not any(name.startswith("apb2.parserV2.search_parameters") for name in imported)
     assert not any(
         name.startswith("apb2.") and not name.startswith("apb2.parserV2.vendor_parse_rules")
+        for name in imported
+    )
+
+
+@pytest.mark.parametrize(
+    "path",
+    _modules(SEARCH_PARAMETERS),
+    ids=lambda path: str(path.relative_to(SEARCH_PARAMETERS)),
+)
+def test_the_parameter_package_imports_nothing_above_itself(path: Path) -> None:
+    imported = _imported_modules(path)
+
+    assert not any(name.startswith("apb2.parserV2.parse_quant") for name in imported)
+    assert not any(name.startswith("apb2.parserV2.vendor_parse_rules") for name in imported)
+    assert not any(
+        name.startswith("apb2.") and not name.startswith("apb2.parserV2.search_parameters")
         for name in imported
     )
 
@@ -89,7 +137,12 @@ def test_only_a_parent_module_knows_both_children() -> None:
         if rules and parse:
             both.add(str(path.relative_to(PARSER_V2)))
 
-    assert both <= {"parse_rule_facade.py", "compile.py"}
+    assert both <= {
+        "compile.py",
+        "conversion.py",
+        "detect_document.py",
+        "parse_rule_facade.py",
+    }
 
 
 def test_every_package_marker_stays_empty() -> None:

@@ -4,67 +4,20 @@ root_packages =
     anndata_proteomics
 include_external_packages = True
 
-[importlinter:contract:declarative-side-stays-declarative]
-name = models and documents never touch the computational stack or the legacy package
-type = forbidden
-source_modules =
-    apb2.vendor_parse_rules.model
-    apb2.vendor_parse_rules.documents
-forbidden_modules =
-    pandas
-    numpy
-    anndata
-    anndata_proteomics
-
-[importlinter:contract:anndata-is-a-storage-adapter]
-name = the parse strategy never imports a storage backend
-type = forbidden
-source_modules =
-    apb2.parse_quant
-forbidden_modules =
-    anndata
-
-[importlinter:contract:strategies-never-read-the-configuration]
-name = the parse strategies import no schema package, directly or transitively
-type = forbidden
-# TODO item 9. Every strategy in parse_quant takes ordinary typed values, so neither the
-# rule nor the search-parameter evidence can reach it: configure_parse.py translates one into
-# the other, and parse_strategy.py is the only module that depends on all three sides.
-source_modules =
-    apb2.parse_quant
-forbidden_modules =
-    apb2.vendor_parse_rules
-    apb2.vendor_params
-
-[importlinter:contract:declarations-do-not-know-the-strategy]
-name = the schema packages never import the parse strategy
-type = forbidden
-source_modules =
-    apb2.vendor_parse_rules
-    apb2.vendor_params
-forbidden_modules =
-    apb2.parse_quant
-
-[importlinter:contract:no-legacy-parser-coupling]
-name = apb2 never imports apb's parser machinery
+[importlinter:contract:no-apb-oracle-coupling]
+name = production apb2 never imports the external APB parity oracle
 type = forbidden
 allow_indirect_imports = True
 source_modules =
     apb2
 forbidden_modules =
-    anndata_proteomics.converters
-    anndata_proteomics.vendor_quant_rules
-    anndata_proteomics.modifications
-    anndata_proteomics.workflows
-    anndata_proteomics.adapters
-    anndata_proteomics.scripts
+    anndata_proteomics
 
 # --------------------------------------------------------------------------- Parser V2
 #
 # Directory nesting is the import rule, not decoration. A module directly in a package may
 # import its children; a child may import neither its parent nor its sibling child. The
-# parenthesised layers are modules a later work package adds; each loses its parentheses
-# when it lands, so a contract never passes by naming something that does not exist.
+# Parent modules compose children. Child packages are peers and may not import one another.
 
 [importlinter:contract:parserv2-directory-nesting-is-the-import-rule]
 name = parserV2 children never import upward or sideways
@@ -73,9 +26,24 @@ exhaustive = True
 containers =
     apb2.parserV2
 layers =
+    conversion
+    detect_document
     compile
     parse_rule_facade
-    parse_quant | vendor_parse_rules
+    parse_quant | search_parameters | vendor_parse_rules
+
+[importlinter:contract:search-parameter-directory-nesting-is-the-import-rule]
+name = search parameter dispatch descends through vendor parsers to common values
+type = layers
+exhaustive = True
+containers =
+    apb2.parserV2.search_parameters
+layers =
+    registry
+    alphadia | alphapept | diann | maxquant | metamorpheus | msaid | peaks | sage | spectronaut | wombat
+    fragpipe
+    common
+    model | unimod
 
 [importlinter:contract:rule-schema-is-an-inward-child]
 name = the rule schema never imports its parent document or loader
@@ -109,22 +77,6 @@ forbidden_modules =
     apb2.parserV2.parse_rule_facade
     apb2.parserV2.compile
     apb2.parserV2.parse_quant.contracts
-
-[importlinter:contract:parserv2-owns-its-vocabulary]
-name = nothing under parserV2 imports the legacy parser, its rules, or its parameter model
-type = forbidden
-source_modules =
-    apb2.parserV2
-forbidden_modules =
-    apb2.vendor_params
-    apb2.vendor_parse_rules
-    apb2.parse_quant
-    apb2.configure_parse
-    apb2.rule_reading
-    apb2.errors
-    apb2.output
-    apb2.serialization
-    apb2.detect_document
 
 [importlinter:contract:parse-quant-computation-holds-no-storage-backend]
 name = parsing computation imports no Pydantic, pandas, NumPy, AnnData, or Arrow

@@ -20,7 +20,6 @@ dependencies = [
     "packaging>=24",
     "pandas>=2.2",
     "polars>=1.43,<2",
-    "pyarrow>=18",
     "pydantic>=2.10",
     "pyyaml>=6",
 ]

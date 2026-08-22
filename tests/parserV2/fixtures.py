@@ -1,9 +1,4 @@
-"""Shared fixtures for the Parser V2 suites: paired documents and real vendor headers.
-
-The unchanged schema-0.2 package is the oracle, so every migration and parity test needs the
-same two things: the pair of documents describing one vendor, and a header a real export of
-that vendor actually carries.
-"""
+"""Shared fixtures pairing Parser V2 documents with the external APB oracle."""
 
 from __future__ import annotations
 
@@ -12,6 +7,10 @@ from pathlib import Path
 
 import polars as pl
 from anndata_proteomics.test_data import VendorDataUnavailable, find_test_data_for_version
+from anndata_proteomics.vendor_quant_rules._discovery import iter_packaged_documents
+from anndata_proteomics.vendor_quant_rules.loader import (
+    load_rule_document as load_oracle_document,
+)
 
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.vendor_parse_rules.document import (
@@ -21,8 +20,6 @@ from apb2.parserV2.vendor_parse_rules.document import (
 from apb2.parserV2.vendor_parse_rules.loader import PACKAGED as PARSER_V2_PACKAGED
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
-from apb2.vendor_parse_rules.rules import PACKAGED as LEGACY_PACKAGED
-from apb2.vendor_parse_rules.rules import load_document
 from parserV2.rule_inventory import document_key
 
 _TEXT_DELIMITERS = ("\t", ",", ";")
@@ -71,18 +68,16 @@ def _header_of(path: Path) -> tuple[str, ...]:
 
 @dataclass(frozen=True, slots=True)
 class DocumentPair:
-    """One vendor's document in both generations, keyed by its path below ``documents/``."""
+    """One vendor document in Parser V2 and in the external APB oracle."""
 
     key: str
-    legacy_path: Path
+    oracle_path: Path
     parser_v2_path: Path
 
     def data_path(self) -> Path | None:
         """The cached real export of this vendor, when the test data is available."""
-        document = load_document(self.legacy_path)
-        found = find_test_data_for_version(
-            document.software_name, document.software_version_pattern
-        )
+        document = load_oracle_document(self.oracle_path)
+        found = find_test_data_for_version(document.software_name, document.software_version)
         if isinstance(found, VendorDataUnavailable) or not found.exists():
             return None
         return found
@@ -110,10 +105,10 @@ def document_pairs() -> tuple[DocumentPair, ...]:
     return tuple(
         DocumentPair(
             key=document_key(path),
-            legacy_path=path,
+            oracle_path=path,
             parser_v2_path=parser_v2[document_key(path)],
         )
-        for path in LEGACY_PACKAGED
+        for path in iter_packaged_documents()
     )
 
 

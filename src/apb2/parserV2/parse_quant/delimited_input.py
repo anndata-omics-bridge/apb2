@@ -49,6 +49,43 @@ def detected_evidence(
     Raises ``IncompatibleSourceError`` when no candidate exposes a usable header and
     ``AmbiguousDialectError`` when more than one does.
     """
+    delimiter, header = _detected_header(path, contract, accepts)
+    return DelimitedSourceEvidence(
+        columns=header,
+        delimiter=delimiter,
+        quote_char=contract.quote_char,
+        encoding=contract.encoding,
+        number_format=_resolved_number_format(path, delimiter, contract),
+    )
+
+
+def detected_header_evidence(
+    path: Path,
+    contract: DelimitedFormatContract,
+    accepts: HeaderPredicate,
+) -> DelimitedSourceEvidence:
+    """Resolve only header metadata for rule recognition, without inspecting data rows."""
+    delimiter, header = _detected_header(path, contract, accepts)
+    candidates = contract.number_format_candidates
+    number_format = next(
+        (candidate for candidate in candidates if candidate.decimal_mark != delimiter),
+        candidates[0],
+    )
+    return DelimitedSourceEvidence(
+        columns=header,
+        delimiter=delimiter,
+        quote_char=contract.quote_char,
+        encoding=contract.encoding,
+        number_format=number_format,
+    )
+
+
+def _detected_header(
+    path: Path,
+    contract: DelimitedFormatContract,
+    accepts: HeaderPredicate,
+) -> tuple[str, tuple[str, ...]]:
+    """Return the unique declared delimiter and header accepted by one level."""
     viable = [
         (delimiter, header)
         for delimiter, header in (
@@ -67,14 +104,7 @@ def detected_evidence(
             f"{path} exposes a usable header under several declared delimiters "
             f"{[delimiter for delimiter, _header in viable]}; bind an explicit dialect instead"
         )
-    delimiter, header = viable[0]
-    return DelimitedSourceEvidence(
-        columns=header,
-        delimiter=delimiter,
-        quote_char=contract.quote_char,
-        encoding=contract.encoding,
-        number_format=_resolved_number_format(path, delimiter, contract),
-    )
+    return viable[0]
 
 
 def stated_evidence(

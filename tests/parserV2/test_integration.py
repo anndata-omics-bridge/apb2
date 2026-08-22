@@ -16,30 +16,43 @@ import numpy as np
 import pandas as pd
 import polars as pl
 import pytest
+from anndata_proteomics.converters._pieces import ConversionPieces
+from anndata_proteomics.converters.assemble import convert_table
+from anndata_proteomics.converters.pipeline import string_sources_for_rules
+from anndata_proteomics.readers.dispatch import read_table_preserving_strings
+from anndata_proteomics.vendor_params.model import Parameters as OracleParameters
+from anndata_proteomics.vendor_quant_rules.loader import (
+    load_parameterized_rule as load_parameterized_oracle_rule,
+)
+from anndata_proteomics.vendor_quant_rules.loader import load_rule as load_oracle_rule
+from anndata_proteomics.vendor_quant_rules.registry import iter_packaged_rules
+from anndata_proteomics.vendor_quant_rules.schema.parse_rule import ParseRule as OracleRule
 
-from apb2.configure_parse import make_parse_strategy
-from apb2.detect_document import software_slug
-from apb2.errors import RuleNotApplicable
-from apb2.parse_quant.result import ParsedData
-from apb2.parse_quant.sources import SingleFile as LegacySingleFile
-from apb2.parser_v2 import search_parameter_evidence, unknown_search_parameters
 from apb2.parserV2.compile import (
     AnnDataOutput,
     ParquetOutput,
     ParseRuleCompiler,
     compile_parsers,
 )
+from apb2.parserV2.detect_document import (
+    UNKNOWN_SEARCH_PARAMETERS,
+    search_parameter_evidence,
+    software_slug,
+)
 from apb2.parserV2.parse_quant.data.parsed import ParsedLevel
 from apb2.parserV2.parse_quant.parameters.source import SingleFile
 from apb2.parserV2.parse_quant.parquet_writer import MANIFEST_NAME
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
-from apb2.parserV2.vendor_parse_rules.document import SearchParameterEvidence
+from apb2.parserV2.search_parameters.model import Parameters
+from apb2.parserV2.search_parameters.registry import parse_params
+from apb2.parserV2.vendor_parse_rules.document import (
+    RuleNotApplicable,
+    SearchParameterEvidence,
+)
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
-from apb2.vendor_params.model import Parameters
-from apb2.vendor_params.registry import parse_params
-from apb2.vendor_parse_rules.rules import load_document as load_legacy
 from parserV2.fixtures import DocumentPair, document_pairs, level_pairs
+from parserV2.rule_inventory import document_key
 
 _SEPARATOR = "\x1f"
 """A unit separator, so a joined key cannot be confused with a key containing one."""
@@ -47,6 +60,9 @@ _SEPARATOR = "\x1f"
 _LEVEL_CASES = [
     pytest.param(pair, level, id=f"{pair.key}/{level}") for pair, level in level_pairs()
 ]
+_ORACLE_LOCATORS = {
+    (document_key(locator.path), locator.level): locator for locator in iter_packaged_rules()
+}
 
 
 def cached_parameters(pair: DocumentPair) -> Parameters | None:
@@ -57,7 +73,7 @@ def cached_parameters(pair: DocumentPair) -> Parameters | None:
     found = sorted(data.parent.glob("param_0.*"))
     if not found:
         return None
-    software = load_legacy(pair.legacy_path).software_name
+    software = load_rule_document(pair.parser_v2_path).software_name
     return parse_params(found[0], software=software_slug(software))
 
 
@@ -65,7 +81,7 @@ def evidence_for(pair: DocumentPair) -> SearchParameterEvidence:
     """What the application hands Parser V2: the two permitted fields, or neither."""
     parameters = cached_parameters(pair)
     if parameters is None:
-        return unknown_search_parameters()
+        return UNKNOWN_SEARCH_PARAMETERS
     return search_parameter_evidence(parameters)
 
 
@@ -109,12 +125,23 @@ def assert_same_quantities(
     assert not differing, f"{label}: {differing}/{expected.size} quantities differ"
 
 
-def legacy_conversion(pair: DocumentPair, level: QuantificationLevel) -> ParsedData:
-    document = load_legacy(pair.legacy_path)
-    rule = document.rule(level, cached_parameters(pair))
+def oracle_conversion(
+    pair: DocumentPair, level: QuantificationLevel
+) -> tuple[ConversionPieces, OracleRule]:
+    locator = _ORACLE_LOCATORS[(pair.key, level)]
+    parameters = cached_parameters(pair)
+    rule = (
+        load_parameterized_oracle_rule(
+            locator,
+            OracleParameters.model_validate(parameters.model_dump(mode="json")),
+        )
+        if parameters is not None
+        else load_oracle_rule(locator)
+    )
     data = pair.data_path()
     assert data is not None
-    return make_parse_strategy(rule, LegacySingleFile(data)).parse()
+    frame = read_table_preserving_strings(data, string_sources_for_rules([rule]))
+    return convert_table(frame, rule), rule
 
 
 def parser_v2_conversion(
@@ -149,27 +176,26 @@ def test_the_conversion_matches_the_unchanged_implementation(
     if pair.data_path() is None:
         pytest.skip(f"no cached export for {pair.key}")
     try:
-        legacy = legacy_conversion(pair, level)
+        oracle, rule = oracle_conversion(pair, level)
     except (RuleNotApplicable, ValueError, KeyError) as reason:
         pytest.skip(f"the unchanged implementation does not convert this fixture: {reason}")
 
     parsed, stored = parser_v2_conversion(pair, level)
 
-    rule = load_legacy(pair.legacy_path).rule(level, cached_parameters(pair)).config
     keys = (tuple(rule.axis.obs_keys), tuple(rule.axis.var_keys))
     aggregates = rule.axis.duplicates.mode == "aggregate"
-    assert list(parsed.layers) == list(legacy.layers)
+    assert list(parsed.layers) == list(oracle.layers)
     assert parsed.primary_layer_name == rule.axis.x_layer
     assert set(keys[0]) <= set(stored.obs.columns)
     assert set(keys[1]) <= set(stored.var.columns)
-    for name, matrix in legacy.layers.items():
-        expected = matrix_frame(matrix, legacy.obs, legacy.var, keys)
+    for name, matrix in oracle.layers.items():
+        expected = matrix_frame(matrix, oracle.obs, oracle.var, keys)
         actual = matrix_frame(np.asarray(stored.layers[name]), stored.obs, stored.var, keys)
         assert sorted(expected.index) == sorted(actual.index), name
         assert sorted(expected.columns) == sorted(actual.columns), name
         aligned = actual.loc[expected.index, expected.columns]
         assert_same_quantities(name, expected.to_numpy(), aligned.to_numpy(), aggregates=aggregates)
-    primary = matrix_frame(legacy.X, legacy.obs, legacy.var, keys)
+    primary = matrix_frame(oracle.X, oracle.obs, oracle.var, keys)
     assert_same_quantities(
         "X",
         primary.to_numpy(),
@@ -289,7 +315,7 @@ def test_the_application_hands_over_exactly_the_two_permitted_fields() -> None:
 
 
 def test_no_parameters_read_is_a_different_fact_from_parameters_that_say_nothing() -> None:
-    absent = unknown_search_parameters()
+    absent = UNKNOWN_SEARCH_PARAMETERS
 
     assert absent == SearchParameterEvidence(
         acquisition_method="unknown", combine_charge_states=None

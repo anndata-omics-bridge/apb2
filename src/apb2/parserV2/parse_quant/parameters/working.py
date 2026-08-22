@@ -12,12 +12,12 @@ this child to import upward.
 Every example in this module is a value a packaged rule really produces, named by the vendor
 and level it came from. Any of them can be reproduced in four lines:
 
-    from apb2.parser_v2 import unknown_search_parameters
+    from apb2.parserV2.detect_document import UNKNOWN_SEARCH_PARAMETERS
     from apb2.parserV2.parse_rule_facade import ParseRuleFacade
     from apb2.parserV2.vendor_parse_rules.loader import PACKAGED, load_rule_document
 
     document = load_rule_document(next(p for p in PACKAGED if p.parent.name == "peaks"))
-    working = ParseRuleFacade(document, "ion", unknown_search_parameters()).working_parameters
+    working = ParseRuleFacade(document, "ion", UNKNOWN_SEARCH_PARAMETERS).working_parameters
 
 The five vendors the examples draw on, and why each was chosen:
 

@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import polars as pl
 import pytest
+from anndata_proteomics.modifications import apply_rules as oracle_normalize
+from anndata_proteomics.modifications.model import ModifiedSequence as OracleModifiedSequence
 
-from apb2.parse_quant.modifications import normalize_sequence as legacy_normalize
 from apb2.parserV2 import compile as composition
 from apb2.parserV2.compile import make_modification_normalizer
 from apb2.parserV2.parse_quant.axis_columns import (
@@ -52,9 +53,6 @@ from apb2.parserV2.parse_quant.parameters.axis import (
 )
 from apb2.parserV2.parse_quant.parameters.source import LevelReadPlan, SingleFile
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
-from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
-from apb2.vendor_parse_rules import model as legacy_model
-from apb2.vendor_parse_rules.rules import load_document as load_legacy
 from parserV2.fixtures import DocumentPair, document_pairs
 
 OXIDATION = ModificationMapEntry(
@@ -579,7 +577,7 @@ def test_normalization_matches_the_unchanged_implementation_on_real_sequences(
     columns = tuple(frame.get_column(name) for name in normalizer.sources)
     derived = normalizer.normalize(columns)
 
-    expected = _legacy_results(pair, level, columns)
+    expected = _oracle_results(config, columns)
     assert derived[config.proforma_output].to_list() == [
         result.proforma_sequence for result in expected
     ]
@@ -588,34 +586,43 @@ def test_normalization_matches_the_unchanged_implementation_on_real_sequences(
     ]
 
 
-def _legacy_results(
-    pair: DocumentPair, level: QuantificationLevel, columns: tuple[pl.Series, ...]
-) -> list[legacy_normalize.ModifiedSequence]:
-    """Run the unchanged normalizer over the same values, through its own declaration."""
-    declared = load_legacy(pair.legacy_path).declared(level).config.modifications
-    assert declared is not None
-    entries = legacy_normalize.map_entries((entry.token, entry.accession) for entry in declared.map)
+def _oracle_results(
+    config: SiteListModificationConfig | TokenRegexModificationConfig,
+    columns: tuple[pl.Series, ...],
+) -> list[OracleModifiedSequence]:
+    """Run the external APB normalizer over the same resolved configuration and values."""
+    entries = tuple(
+        oracle_normalize.MapEntry(
+            token=entry.token,
+            name=entry.name,
+            accession=entry.accession,
+            target=entry.target,
+            position=entry.position,
+            mass_delta=entry.mass_delta,
+        )
+        for entry in config.entries
+    )
     texts = [
         [value if value is not None else "" for value in column.cast(pl.String).to_list()]
         for column in columns
     ]
-    if isinstance(declared, legacy_model.SiteListModifications):
-        settings = legacy_normalize.SiteListSettings(
-            delimiter=declared.delimiter,
-            site_base=declared.site_base,
-            case_sensitive=declared.case_sensitive,
-            unknown_policy=declared.unknown_policy,
+    if isinstance(config, SiteListModificationConfig):
+        settings = oracle_normalize.SiteListRule(
+            delimiter=config.delimiter,
+            site_base=config.site_base,
+            case_sensitive=config.case_sensitive,
+            unknown_policy=config.unknown_policy,
             entries=entries,
         )
         return [
-            legacy_normalize.normalize_site_list(sequence, mods, sites, settings)
+            oracle_normalize.apply_site_list(sequence, mods, sites, settings)
             for sequence, mods, sites in zip(*texts, strict=True)
         ]
-    token_settings = legacy_normalize.TokenRegexSettings(
-        token_pattern=declared.token_pattern,
-        token_position=declared.token_position,
-        case_sensitive=declared.case_sensitive,
-        unknown_policy=declared.unknown_policy,
+    token_settings = oracle_normalize.ModificationRule(
+        token_pattern=config.token_pattern,
+        token_position=config.token_position,
+        case_sensitive=config.case_sensitive,
+        unknown_policy=config.unknown_policy,
         entries=entries,
     )
-    return [legacy_normalize.normalize_token_regex(value, token_settings) for value in texts[0]]
+    return [oracle_normalize.apply_rule(value, token_settings) for value in texts[0]]

@@ -1,42 +1,65 @@
-"""apb2 CLI dispatcher.
-
-Subcommands:
-- convert <data> LEVEL       convert one quantification level of a vendor file to .h5ad
-- export-schema              regenerate the packaged JSON Schema artifact
-"""
+"""The ``apb2 convert`` command: a thin adapter over Parser V2."""
 
 from __future__ import annotations
 
 import json
 import sys
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated
 
 from cyclopts import App, Parameter
 from loguru import logger
+from pydantic import ValidationError
 
-from apb2 import export_schema
-from apb2.configure_parse import make_parse_strategy
-from apb2.detect_document import DetectedSoftware, guess_software, software_slug
-from apb2.errors import (
-    AmbiguousRuleError,
-    IncompatibleSourceError,
-    RuleNotApplicable,
-    RuleUnavailableError,
+from apb2.parserV2.conversion import (
+    ConversionResult,
+    SoftwareGuessError,
+    SoftwareMismatchError,
+    convert_from_packaged_rules,
+    convert_from_rule_config,
 )
-from apb2.output import as_anndata, update_namespace, write_atomically
-from apb2.parse_quant.bound_input_reader import format_for
-from apb2.parse_quant.sources import SingleFile
-from apb2.vendor_params.model import Parameters
-from apb2.vendor_params.registry import parse_params
-from apb2.vendor_parse_rules.model import QuantificationLevel
-from apb2.vendor_parse_rules.rules import Rule, load_document
+from apb2.parserV2.detect_document import RuleDetectionError
+from apb2.parserV2.parse_quant.anndata_writer import AnnDataLayerContractError
+from apb2.parserV2.parse_quant.axis_columns import AxisCoercionError, ColumnComputationError
+from apb2.parserV2.parse_quant.data.layer_columns import StorageLabelError
+from apb2.parserV2.parse_quant.duplicates import AggregateTypeError, DuplicateCellError
+from apb2.parserV2.parse_quant.errors import AmbiguousDialectError, IncompatibleSourceError
+from apb2.parserV2.parse_quant.fragments import PackedLengthError
+from apb2.parserV2.parse_quant.modifications import (
+    PackedSiteMismatchError,
+    UnknownModificationError,
+)
+from apb2.parserV2.parse_quant.parser import AxisShapeError, CanonicalKeyCollisionError
+from apb2.parserV2.search_parameters.model import ParamsError
+from apb2.parserV2.vendor_parse_rules.document import RuleNotApplicable
+from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
 
-app = App(name="apb2", help="apb2 CLI: rules-driven vendor-table conversion", help_on_error=True)
+app = App(name="apb2", help="Rules-driven vendor-table conversion", help_on_error=True)
 
-_SelectionMethod = Literal["software_version", "columns", "rule_config"]
+_EXPECTED_FAILURES = (
+    AggregateTypeError,
+    AmbiguousDialectError,
+    AnnDataLayerContractError,
+    AxisCoercionError,
+    AxisShapeError,
+    CanonicalKeyCollisionError,
+    ColumnComputationError,
+    DuplicateCellError,
+    IncompatibleSourceError,
+    json.JSONDecodeError,
+    OSError,
+    PackedLengthError,
+    PackedSiteMismatchError,
+    ParamsError,
+    RuleDetectionError,
+    RuleNotApplicable,
+    SoftwareGuessError,
+    SoftwareMismatchError,
+    StorageLabelError,
+    UnknownModificationError,
+    ValidationError,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,143 +83,73 @@ def convert(
     level: QuantificationLevel,
     options: Annotated[ConvertCliOptions, Parameter(name="*")] = DEFAULT_CONVERT_CLI_OPTIONS,
 ) -> int:
-    """Convert one quantification level of a vendor file to an AnnData (.h5ad).
+    """Convert one quantification level of a vendor file to AnnData.
 
     --params is the vendor parameter file and is required unless --rule-config is given.
-    The vendor is detected from the parameter values and the column headers; --software
-    (the rule folder slug, e.g. "diann") checks and disambiguates that detection. For
-    compound workflows such as FragPipe with DIA-NN output, --params-software selects the
-    parameter parser independently (e.g. "fragpipe"). --rule-config selects an explicit
-    software-version document; LEVEL chooses one section. --output is an extensionless
-    basename; apb2 appends .h5ad. Without --output, the result is written next to the
-    input using the input stem. --strict promotes layer-contract warnings to errors.
+    --software disambiguates packaged rule detection. --params-software selects the
+    parameter parser independently for compound workflows. --rule-config selects an
+    explicit schema-0.3 document. --output is an extensionless basename; apb2 appends
+    .h5ad. --strict promotes layer-contract warnings to errors.
     """
     if options.output is not None and options.output.suffix:
         logger.error(
-            f"--output must be an extensionless basename, got {options.output}; apb2 appends .h5ad"
+            "--output must be an extensionless basename, got {}; apb2 appends .h5ad",
+            options.output,
         )
         return 2
     output = data.with_suffix(".h5ad") if options.output is None else Path(f"{options.output}.h5ad")
-    if options.rule_config is not None:
-        return _convert_from_rule_config(data, level, output, options, options.rule_config)
-    return _convert_from_packaged_rules(data, level, output, options)
+    checks = "strict" if options.strict else "standard"
+    try:
+        if options.rule_config is not None:
+            result = convert_from_rule_config(
+                data=data,
+                level=level,
+                output=output,
+                rule_config=options.rule_config,
+                parameters_path=options.params,
+                parameters_software=options.params_software,
+                checks=checks,
+            )
+        else:
+            if options.params is None:
+                logger.error("pass --params (it gives the software version) or --rule-config PATH")
+                return 1
+            result = convert_from_packaged_rules(
+                data=data,
+                level=level,
+                output=output,
+                parameters_path=options.params,
+                software=options.software,
+                parameters_software=options.params_software,
+                checks=checks,
+            )
+            logger.info(
+                "vendor={} software_version={}",
+                result.software,
+                result.version or "missing",
+            )
+    except _EXPECTED_FAILURES as error:
+        logger.error(str(error))
+        return 1
+    _log_result(output, result)
+    return 0
 
 
-def _convert_from_rule_config(
-    data: Path,
-    level: QuantificationLevel,
-    output: Path,
-    options: ConvertCliOptions,
-    rule_config: Path,
-) -> int:
-    """Compose one level of an explicit rule document and execute it."""
-    rules = load_document(rule_config)
-    parameters = (
-        parse_params(
-            options.params,
-            software=options.params_software or software_slug(rules.software_name),
-        )
-        if options.params is not None
-        else None
+def _log_result(output: Path, result: ConversionResult) -> None:
+    parsed = result.parsed
+    logger.info(
+        "wrote {}  shape=({}, {})  layers={}",
+        output,
+        parsed.obs.frame.height,
+        parsed.var.frame.height,
+        list(parsed.layers),
     )
-    rule = _rule_or_log(lambda: rules.rule(level, parameters))
-    if rule is None:
-        return 1
-    return _execute(data, output, rule, "rule_config", parameters, options.params, options)
-
-
-def _convert_from_packaged_rules(
-    data: Path,
-    level: QuantificationLevel,
-    output: Path,
-    options: ConvertCliOptions,
-) -> int:
-    """Detect the packaged document from the evidence and execute one level of it."""
-    if options.params is None:
-        logger.error("pass --params (it gives the software version) or --rule-config PATH")
-        return 1
-    headers = tuple(format_for(data).columns())
-    parser_slug = options.params_software or options.software or guess_software(headers)
-    if parser_slug is None:
-        logger.error(
-            f"could not auto-detect the vendor for {data}; pass --software SLUG "
-            "or --rule-config PATH"
-        )
-        return 1
-    parameters = parse_params(options.params, software=parser_slug)
-    try:
-        detected = DetectedSoftware(parameters, headers)
-    except (RuleUnavailableError, AmbiguousRuleError) as error:
-        logger.error(str(error))
-        return 1
-    if options.software is not None and detected.software != options.software:
-        logger.error(
-            f"--software {options.software!r} does not match the detected vendor "
-            f"{detected.software!r}"
-        )
-        return 1
-    logger.info("vendor={} software_version={}", detected.software, detected.version or "missing")
-    rule = _rule_or_log(lambda: load_document(detected.get_rule_path()).rule(level, parameters))
-    if rule is None:
-        return 1
-    method: _SelectionMethod = "software_version" if detected.version is not None else "columns"
-    return _execute(data, output, rule, method, parameters, options.params, options)
-
-
-def _rule_or_log(get: Callable[[], Rule]) -> Rule | None:
-    """Ask the rules door for a rule, or log why this file cannot provide it."""
-    try:
-        return get()
-    except RuleNotApplicable as error:
-        logger.error(str(error))
-        return None
-
-
-def _execute(
-    data: Path,
-    output: Path,
-    rule: Rule,
-    method: _SelectionMethod,
-    parameters: Parameters | None,
-    parameters_path: Path | None,
-    options: ConvertCliOptions,
-) -> int:
-    """Parse one composed rule and write it atomically with its provenance."""
-    try:
-        strategy = make_parse_strategy(rule, SingleFile(data), strict=options.strict)
-    except IncompatibleSourceError as error:
-        logger.error(str(error))
-        return 1
-    parsed = strategy.parse()
-    adata = as_anndata(parsed)
-    update_namespace(adata, {"rule_selection_method": method})
-    if parameters is not None:
-        update_namespace(
-            adata,
-            {
-                "search_parameters_version_status": (
-                    "missing" if parameters.software_version is None else "present"
-                ),
-                "search_parameters_path": str(parameters_path),
-                "search_parameters": json.dumps(parameters.model_dump(mode="json")),
-            },
-        )
-    write_atomically(output, adata.write_h5ad)
-    logger.info(f"wrote {output}  shape={adata.shape}  layers={list(parsed.layers)}")
-    return 0
-
-
-@app.command(name="export-schema")
-def export_schema_cmd() -> int:
-    """Regenerate the packaged JSON Schema artifact from the pydantic models."""
-    export_schema.write_artifact()
-    return 0
 
 
 def main() -> int:
     """Console-script entry point."""
-    rc = app()
-    return int(rc) if rc is not None else 0
+    result = app()
+    return int(result) if result is not None else 0
 
 
 if __name__ == "__main__":

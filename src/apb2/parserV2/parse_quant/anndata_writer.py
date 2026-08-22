@@ -33,7 +33,7 @@ from apb2.parserV2.parse_quant.data.parsed import FinalLayerTable, JsonValue, Pa
 from apb2.parserV2.parse_quant.numeric_text import NumberNotation, as_numbers, blank
 
 NAMESPACE = "anndata_proteomics"
-"""The uns namespace apb writes; unchanged while the legacy package is the parity oracle."""
+"""The established APB interoperability namespace."""
 
 PARSE_NAMESPACE = "parse"
 """The tool-owned child of the APB namespace written by parsing."""

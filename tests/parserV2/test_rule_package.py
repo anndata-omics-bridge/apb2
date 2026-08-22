@@ -1,10 +1,4 @@
-"""Schema 0.3: every packaged document migrates, and nothing it declares changed meaning.
-
-Two kinds of assertion. The migration invariants compare each 0.3 document against the
-unchanged 0.2 oracle declaration by declaration, so a transcription slip in one of twelve
-files cannot pass. The rest test what schema 0.3 newly decides: identity-only ``axis``,
-measurement ownership, the finite condition vocabulary, and the legacy paths it refuses.
-"""
+"""Schema 0.3 packaged-document, composition, and validation contracts."""
 
 from __future__ import annotations
 
@@ -16,7 +10,6 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from apb2 import export_schema
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.vendor_parse_rules.document import (
     LongRecognition,
@@ -26,7 +19,6 @@ from apb2.parserV2.vendor_parse_rules.document import (
     make_rule_document,
 )
 from apb2.parserV2.vendor_parse_rules.loader import PACKAGED, load_rule_document
-from apb2.parserV2.vendor_parse_rules.schema.axis import ColumnGroup, ComputedColumn
 from apb2.parserV2.vendor_parse_rules.schema.base import (
     SCHEMA_VERSION,
     QuantificationLevel,
@@ -35,7 +27,6 @@ from apb2.parserV2.vendor_parse_rules.schema.fragments import ColumnLabeledFragm
 from apb2.parserV2.vendor_parse_rules.schema.input import Input
 from apb2.parserV2.vendor_parse_rules.schema.measurements import (
     FactorLayer,
-    Layer,
     NumericLayer,
     RegexValuePattern,
     layer_required,
@@ -45,10 +36,7 @@ from apb2.parserV2.vendor_parse_rules.schema.rule import (
     WideRule,
     rule_json_schema,
 )
-from apb2.vendor_parse_rules import _recognition as legacy_recognition
-from apb2.vendor_parse_rules import model as legacy_model
-from apb2.vendor_parse_rules.rules import Rule as LegacyRule
-from apb2.vendor_parse_rules.rules import load_document as load_legacy_document
+from apb2.parserV2.vendor_parse_rules.schema_artifact import artifact_path
 from parserV2.fixtures import DocumentPair, document_pairs, level_pairs
 from parserV2.rule_inventory import EXPECTED_DOCUMENT_COUNT, EXPECTED_LEVEL_COUNT
 
@@ -64,124 +52,14 @@ _DOCUMENT_CASES = [pytest.param(pair, id=pair.key) for pair in document_pairs()]
 
 type MutatePayload = Callable[[dict[str, Any]], object]
 type V2Rule = LongRule | WideRule
-type LegacyConfig = legacy_model.LongRule | legacy_model.WideRule
 
 
-def _computed_facts(
-    computed: list[ComputedColumn] | list[legacy_model.ComputedColumn],
-) -> list[tuple[str, str, tuple[str, ...], str | None]]:
-    return [
-        (column.how, column.name, tuple(column.inputs), getattr(column, "separator", None))
-        for column in computed
-    ]
-
-
-def _v2_column_facts(group: ColumnGroup) -> dict[str, Any]:
-    return {
-        "select": dict(group.select),
-        "optional_select": dict(group.optional_select),
-        "types": dict(group.types),
-        "computed": _computed_facts(group.computed),
-    }
-
-
-def _legacy_column_facts(group: legacy_model.ColumnGroup) -> dict[str, Any]:
-    return {
-        "select": dict(group.select),
-        "optional_select": dict(group.optional_select),
-        "types": dict(group.types),
-        "computed": _computed_facts(group.computed),
-    }
-
-
-def _layer_facts(
-    layer: Layer | legacy_model.Layer,
-    *,
-    required: bool,
-) -> dict[str, Any]:
-    numeric = isinstance(layer, NumericLayer | legacy_model.NumericLayer)
-    return {
-        "name": layer.name,
-        "source": layer.source,
-        "required": required,
-        "encoding_mode": layer.encoding_mode,
-        "missing_values": list(layer.missing_values) if numeric else [],
-        "categories": {} if numeric else dict(layer.categories),
-        "value_pattern": getattr(layer.value_pattern, "pattern", None) if numeric else None,
-    }
-
-
-def _schema_facts(rule: V2Rule | LegacyConfig) -> dict[str, Any]:
-    return {
-        "file_version": rule.file_version,
-        "software_name": rule.software_name,
-        "software_version_pattern": rule.software_version_pattern,
-        "quantification_level": rule.quantification_level,
-        "shape": rule.shape,
-    }
-
-
-def _v2_facts(rule: V2Rule) -> dict[str, Any]:
-    """Every declaration the migrated rule makes, addressed through its own owners."""
-    groups = (
-        {"obs": rule.columns.obs, "var": rule.columns.var}
-        if isinstance(rule, LongRule)
-        else {"var": rule.columns.var}
-    )
-    return {
-        "schema": _schema_facts(rule),
-        "obs_keys": list(rule.axis.obs_keys),
-        "var_keys": list(rule.axis.var_keys),
-        "columns": {axis: _v2_column_facts(group) for axis, group in groups.items()},
-        "column_roles": rule.column_roles.model_dump(),
-        "layers": [
-            _layer_facts(
-                layer,
-                required=layer_required(rule.measurements.primary_layer, layer),
-            )
-            for layer in rule.measurements.layers
-        ],
-        "modifications": None if rule.modifications is None else rule.modifications.model_dump(),
-        "fragments": None if rule.fragments is None else rule.fragments.model_dump(),
-        "requires_search_parameters": dict(rule.requires_search_parameters),
-    }
-
-
-def _legacy_facts(rule: LegacyConfig) -> dict[str, Any]:
-    """The same declarations, read where schema 0.2 kept them."""
-    groups = (
-        {"obs": rule.columns.obs, "var": rule.columns.var}
-        if isinstance(rule, legacy_model.LongRule)
-        else {"var": rule.columns.var}
-    )
-    return {
-        "schema": _schema_facts(rule),
-        "obs_keys": list(rule.axis.obs_keys),
-        "var_keys": list(rule.axis.var_keys),
-        "columns": {axis: _legacy_column_facts(group) for axis, group in groups.items()},
-        "column_roles": rule.column_roles.model_dump(),
-        "layers": [
-            _layer_facts(layer, required=legacy_model.layer_required(rule, layer))
-            for layer in rule.layers
-        ],
-        "modifications": None if rule.modifications is None else rule.modifications.model_dump(),
-        "fragments": None if rule.fragments is None else rule.fragments.model_dump(),
-        "requires_search_parameters": dict(rule.requires_search_parameters),
-    }
-
-
-def _facts_without_promotion(rule: V2Rule) -> dict[str, Any]:
-    """The migrated facts minus what naming a different primary layer necessarily changes."""
-    facts = _v2_facts(rule)
-    facts["layers"] = [
-        {name: value for name, value in layer.items() if name != "required"}
-        for layer in facts["layers"]
-    ]
-    return facts
-
-
-def _legacy_rule(pair: DocumentPair, level: QuantificationLevel) -> LegacyRule:
-    return load_legacy_document(pair.legacy_path).declared(level)
+def _without_primary_layer(rule: V2Rule) -> dict[str, Any]:
+    payload = rule.model_dump(mode="json")
+    measurements = payload["measurements"]
+    assert isinstance(measurements, dict)
+    measurements.pop("primary_layer")
+    return payload
 
 
 # --------------------------------------------------------------------------- migration parity
@@ -195,29 +73,15 @@ def test_the_migration_kept_every_document_and_every_level() -> None:
 
 
 @pytest.mark.parametrize(("pair", "level"), _LEVEL_CASES)
-def test_every_migrated_level_declares_what_the_oracle_declared(
+def test_measurement_ownership_is_separate_from_axis_identity(
     pair: DocumentPair, level: QuantificationLevel
 ) -> None:
-    migrated = load_rule_document(pair.parser_v2_path).declared(level).declaration
-    oracle = _legacy_rule(pair, level).config
+    rule = load_rule_document(pair.parser_v2_path).declared(level).declaration
 
-    assert _v2_facts(migrated) == _legacy_facts(oracle)
-
-
-@pytest.mark.parametrize(("pair", "level"), _LEVEL_CASES)
-def test_measurement_ownership_moved_without_changing_its_values(
-    pair: DocumentPair, level: QuantificationLevel
-) -> None:
-    migrated = load_rule_document(pair.parser_v2_path).declared(level).declaration
-    oracle = _legacy_rule(pair, level).config
-
-    assert migrated.measurements.primary_layer == oracle.axis.x_layer
-    assert migrated.measurements.duplicates.mode == oracle.axis.duplicates.mode
-    assert [layer.name for layer in migrated.measurements.layers] == [
-        layer.name for layer in oracle.layers
-    ]
-    assert not hasattr(migrated.axis, "x_layer")
-    assert not hasattr(migrated.axis, "duplicates")
+    assert rule.measurements.primary_layer
+    assert rule.measurements.duplicates.mode in {"error", "keep_first", "aggregate"}
+    assert not hasattr(rule.axis, "x_layer")
+    assert not hasattr(rule.axis, "duplicates")
 
 
 @pytest.mark.parametrize(("pair", "level"), _LEVEL_CASES)
@@ -235,23 +99,6 @@ def test_the_primary_layer_names_exactly_one_layer_and_is_required(
     assert layer_required(rule.measurements.primary_layer, primary[0])
     # Promotion changes what is required, never the authored order.
     assert names == [layer.name for layer in rule.measurements.layers]
-
-
-@pytest.mark.parametrize(("pair", "level"), _LEVEL_CASES)
-def test_recognition_agrees_with_the_oracle_on_a_real_vendor_header(
-    pair: DocumentPair, level: QuantificationLevel
-) -> None:
-    header = pair.header()
-    if not header:
-        pytest.skip(f"no cached export for {pair.key}")
-    migrated = load_rule_document(pair.parser_v2_path).declared(level).recognition
-    oracle = _legacy_rule(pair, level).recognition
-
-    assert migrated.matches(header) == oracle.matches(list(header))
-    assert migrated.layer_source_columns(header) == oracle.layer_source_columns(list(header))
-    if isinstance(migrated, LongRecognition):
-        assert isinstance(oracle, legacy_recognition.LongRecognition)
-        assert migrated.required_headers == oracle.required_headers
 
 
 @pytest.mark.parametrize(("pair", "level"), _LEVEL_CASES)
@@ -336,7 +183,7 @@ def test_diann_v2_swaps_only_the_primary_layer_for_dda_evidence() -> None:
     )
     # Everything except which layer is primary -- and therefore which layer promotion made
     # required -- is the same declaration under either evidence.
-    assert _facts_without_promotion(dda) == _facts_without_promotion(dia)
+    assert _without_primary_layer(dda) == _without_primary_layer(dia)
 
 
 def test_a_level_without_a_gate_is_applicable_without_any_evidence() -> None:
@@ -658,10 +505,6 @@ def test_both_rule_shapes_are_represented_by_the_packaged_generation() -> None:
 
 
 def test_the_published_artifact_is_the_schema_the_models_declare() -> None:
-    committed = json.loads(
-        export_schema.artifact_path("apb2.parserV2.vendor_parse_rules.documents").read_text(
-            encoding="utf-8"
-        )
-    )
+    committed = json.loads(artifact_path().read_text(encoding="utf-8"))
 
     assert committed == rule_json_schema()

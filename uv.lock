@@ -123,7 +123,6 @@ dependencies = [
     { name = "packaging" },
     { name = "pandas" },
     { name = "polars" },
-    { name = "pyarrow" },
     { name = "pydantic" },
     { name = "pyyaml" },
 ]
@@ -155,7 +154,6 @@ requires-dist = [
     { name = "packaging", specifier = ">=24" },
     { name = "pandas", specifier = ">=2.2" },
     { name = "polars", specifier = ">=1.43,<2" },
-    { name = "pyarrow", specifier = ">=18" },
     { name = "pydantic", specifier = ">=2.10" },
     { name = "pyyaml", specifier = ">=6" },
 ]

@@ -1,5 +1,14 @@
 # Changes
 
+- 2026-08-22: `apb2 convert` now runs Parser V2 exclusively. The CLI is a thin Cyclopts/Loguru
+  adapter over `parserV2/conversion.py`; packaged-rule selection inspects only source metadata and
+  headers before the selected parser performs the single full read. Search-parameter parsing and
+  UniMod lookup now live under `parserV2/search_parameters/`, and complete parameter plus rule
+  selection provenance is written under `uns["anndata_proteomics"]["parse"]`. The legacy parser,
+  rule, parameter, output, serialization, and temporary `parser_v2.py` modules were deleted;
+  production `src/apb2` now contains only the CLI, package markers, and `parserV2`. `export-schema`
+  is no longer a user command; its developer artifact generator remains in the V2 rule package.
+
 - 2026-08-22: Parser V2's small shared modules now sit with the concepts that own them rather than
   in a generic helper package: the layer-table column convention is in `data/layer_columns.py`,
   resolved-plan JSON is in `parameters/plan_json.py`, and the concrete axis algorithms are named

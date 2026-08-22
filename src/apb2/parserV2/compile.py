@@ -552,6 +552,19 @@ def source_evidence(
     return delimited_input.detected_evidence(bound.path, bound.format, accepts)
 
 
+def source_recognition_evidence(
+    source: InputSource,
+    bound: BoundTable,
+    accepts: delimited_input.HeaderPredicate,
+) -> SourceEvidence:
+    """Observe only schema/header evidence for packaged-rule recognition."""
+    if isinstance(bound.format, ParquetFormatContract):
+        return parquet_input.schema_evidence(bound.path)
+    if isinstance(source, DelimitedFile):
+        return delimited_input.stated_evidence(source, bound.format, accepts)
+    return delimited_input.detected_header_evidence(bound.path, bound.format, accepts)
+
+
 def make_reader(
     bound: BoundTable,
     evidence: SourceEvidence,

@@ -873,14 +873,14 @@ def test_a_missing_modification_source_makes_the_level_incompatible() -> None:
         facade.resolve_source(delimited(header))
 
 
-def test_resolution_is_the_only_facade_call_the_compiler_needs() -> None:
+def test_the_facade_exposes_only_resolution_and_header_only_construction() -> None:
     public = {
         name
         for name in dir(ParseRuleFacade)
         if not name.startswith("_") and callable(getattr(ParseRuleFacade, name, None))
     }
 
-    assert public == {"resolve_source"}
+    assert public == {"from_declared_rule", "resolve_source"}
     assert isinstance(ParseRuleFacade.working_parameters, property)
     assert ParseRuleFacade.__slots__ == ("_configuration",)
 

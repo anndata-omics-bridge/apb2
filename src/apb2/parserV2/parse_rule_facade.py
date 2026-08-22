@@ -107,6 +107,7 @@ from apb2.parserV2.parse_quant.parameters.working import (
     WorkingMeasurements,
     WorkingParseConfiguration,
 )
+from apb2.parserV2.search_parameters.unimod import resolve as resolve_accession
 from apb2.parserV2.vendor_parse_rules.document import (
     EffectiveRule,
     RuleDocument,
@@ -141,7 +142,6 @@ from apb2.parserV2.vendor_parse_rules.schema.measurements import (
     layer_required,
 )
 from apb2.parserV2.vendor_parse_rules.schema.rule import LongRule, WideRule
-from apb2.unimod_registry.registry import resolve as resolve_accession
 
 _EMPTY_RATIO = 0.001
 _POPULATED_RATIO = 0.5
@@ -182,6 +182,17 @@ class ParseRuleFacade:
     ) -> None:
         effective = document.rule(level, parameter_evidence)
         self._configuration = self._project_effective_rule(effective)
+
+    @classmethod
+    def from_declared_rule(
+        cls,
+        document: RuleDocument,
+        level: QuantificationLevel,
+    ) -> ParseRuleFacade:
+        """Construct the header-only recognition view, without a gate or override."""
+        facade = cls.__new__(cls)
+        facade._configuration = cls._project_effective_rule(document.declared(level))
+        return facade
 
     @property
     def working_parameters(self) -> WorkingParseConfiguration:
