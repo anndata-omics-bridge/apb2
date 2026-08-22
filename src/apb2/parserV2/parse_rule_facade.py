@@ -107,7 +107,7 @@ from apb2.parserV2.parse_quant.parameters.working import (
     WorkingMeasurements,
     WorkingParseConfiguration,
 )
-from apb2.parserV2.search_parameters.unimod import resolve as resolve_accession
+from apb2.parserV2.vendor_params.parsers.shared.unimod import resolve as resolve_accession
 from apb2.parserV2.vendor_parse_rules.document import (
     EffectiveRule,
     RuleDocument,

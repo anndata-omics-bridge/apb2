@@ -26,22 +26,39 @@ exhaustive = True
 containers =
     apb2.parserV2
 layers =
-    conversion
+    conversion_facade
     detect_document
     compile
     parse_rule_facade
-    parse_quant | search_parameters | vendor_parse_rules
+    parse_quant | vendor_params | vendor_parse_rules
 
-[importlinter:contract:search-parameter-directory-nesting-is-the-import-rule]
-name = search parameter dispatch descends through vendor parsers to common values
+[importlinter:contract:vendor-parameter-directory-nesting-is-the-import-rule]
+name = vendor parameter dispatch descends into its parser package
 type = layers
 exhaustive = True
 containers =
-    apb2.parserV2.search_parameters
+    apb2.parserV2.vendor_params
 layers =
     registry
-    alphadia | alphapept | diann | maxquant | metamorpheus | msaid | peaks | sage | spectronaut | wombat
-    fragpipe
+    parsers
+
+[importlinter:contract:vendor-parameter-parsers-descend-into-shared-values]
+name = vendor parameter parsers depend only on their shared inward child
+type = layers
+exhaustive = True
+containers =
+    apb2.parserV2.vendor_params.parsers
+layers =
+    alphadia | alphapept | diann | fragpipe | maxquant | metamorpheus | msaid | peaks | sage | spectronaut | wombat
+    shared
+
+[importlinter:contract:shared-vendor-parameter-code-is-inward-only]
+name = shared vendor parameter parsing descends into model and UniMod values
+type = layers
+exhaustive = True
+containers =
+    apb2.parserV2.vendor_params.parsers.shared
+layers =
     common
     model | unimod
 

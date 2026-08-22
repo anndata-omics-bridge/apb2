@@ -16,7 +16,9 @@ PARSER_V2 = Path("src/apb2/parserV2")
 APB2 = PARSER_V2.parent
 PARSE_QUANT = PARSER_V2 / "parse_quant"
 RULES = PARSER_V2 / "vendor_parse_rules"
-SEARCH_PARAMETERS = PARSER_V2 / "search_parameters"
+VENDOR_PARAMS = PARSER_V2 / "vendor_params"
+VENDOR_PARAM_PARSERS = VENDOR_PARAMS / "parsers"
+VENDOR_PARAM_SHARED = VENDOR_PARAM_PARSERS / "shared"
 RULE_SCHEMA = RULES / "schema"
 
 
@@ -71,10 +73,9 @@ def test_the_top_level_production_tree_is_only_the_cli_and_parser_v2() -> None:
 
 def test_the_cli_imports_only_parser_v2_from_apb2() -> None:
     imported = _imported_modules(APB2 / "cli.py")
+    internal = {name for name in imported if name.startswith("apb2")}
 
-    assert all(
-        not name.startswith("apb2.") or name.startswith("apb2.parserV2.") for name in imported
-    )
+    assert internal == {"apb2.parserV2"}
 
 
 @pytest.mark.parametrize(
@@ -85,7 +86,7 @@ def test_the_parse_package_never_imports_the_rule_package_or_its_parent(path: Pa
     root_names = {f"apb2.parserV2.{module.stem}" for module in _root_modules()}
 
     assert not any(name.startswith("apb2.parserV2.vendor_parse_rules") for name in imported)
-    assert not any(name.startswith("apb2.parserV2.search_parameters") for name in imported)
+    assert not any(name.startswith("apb2.parserV2.vendor_params") for name in imported)
     assert not (imported & root_names)
 
 
@@ -94,7 +95,7 @@ def test_the_rule_package_imports_nothing_above_itself(path: Path) -> None:
     imported = _imported_modules(path)
 
     assert not any(name.startswith("apb2.parserV2.parse_quant") for name in imported)
-    assert not any(name.startswith("apb2.parserV2.search_parameters") for name in imported)
+    assert not any(name.startswith("apb2.parserV2.vendor_params") for name in imported)
     assert not any(
         name.startswith("apb2.") and not name.startswith("apb2.parserV2.vendor_parse_rules")
         for name in imported
@@ -103,8 +104,8 @@ def test_the_rule_package_imports_nothing_above_itself(path: Path) -> None:
 
 @pytest.mark.parametrize(
     "path",
-    _modules(SEARCH_PARAMETERS),
-    ids=lambda path: str(path.relative_to(SEARCH_PARAMETERS)),
+    _modules(VENDOR_PARAMS),
+    ids=lambda path: str(path.relative_to(VENDOR_PARAMS)),
 )
 def test_the_parameter_package_imports_nothing_above_itself(path: Path) -> None:
     imported = _imported_modules(path)
@@ -112,7 +113,37 @@ def test_the_parameter_package_imports_nothing_above_itself(path: Path) -> None:
     assert not any(name.startswith("apb2.parserV2.parse_quant") for name in imported)
     assert not any(name.startswith("apb2.parserV2.vendor_parse_rules") for name in imported)
     assert not any(
-        name.startswith("apb2.") and not name.startswith("apb2.parserV2.search_parameters")
+        name.startswith("apb2.") and not name.startswith("apb2.parserV2.vendor_params")
+        for name in imported
+    )
+
+
+@pytest.mark.parametrize(
+    "path",
+    _modules(VENDOR_PARAM_PARSERS),
+    ids=lambda path: str(path.relative_to(VENDOR_PARAM_PARSERS)),
+)
+def test_vendor_parameter_parsers_never_import_their_parent(path: Path) -> None:
+    imported = _imported_modules(path)
+
+    assert not any(
+        name.startswith("apb2.parserV2.vendor_params")
+        and not name.startswith("apb2.parserV2.vendor_params.parsers")
+        for name in imported
+    )
+
+
+@pytest.mark.parametrize(
+    "path",
+    _modules(VENDOR_PARAM_SHARED),
+    ids=lambda path: str(path.relative_to(VENDOR_PARAM_SHARED)),
+)
+def test_shared_vendor_parameter_code_never_imports_a_vendor_parser(path: Path) -> None:
+    imported = _imported_modules(path)
+
+    assert not any(
+        name.startswith("apb2.parserV2.vendor_params.parsers")
+        and not name.startswith("apb2.parserV2.vendor_params.parsers.shared")
         for name in imported
     )
 
@@ -139,7 +170,7 @@ def test_only_a_parent_module_knows_both_children() -> None:
 
     assert both <= {
         "compile.py",
-        "conversion.py",
+        "conversion_facade.py",
         "detect_document.py",
         "parse_rule_facade.py",
     }

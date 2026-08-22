@@ -1,10 +1,12 @@
 # Changes
 
 - 2026-08-22: `apb2 convert` now runs Parser V2 exclusively. The CLI is a thin Cyclopts/Loguru
-  adapter over `parserV2/conversion.py`; packaged-rule selection inspects only source metadata and
-  headers before the selected parser performs the single full read. Search-parameter parsing and
-  UniMod lookup now live under `parserV2/search_parameters/`, and complete parameter plus rule
-  selection provenance is written under `uns["anndata_proteomics"]["parse"]`. The legacy parser,
+  adapter over `parserV2/conversion_facade.py`; packaged-rule selection inspects only source
+  metadata and headers before the selected parser performs the single full read. Vendor-parameter
+  parsing retains its established name under `parserV2/vendor_params/`; its shared Pydantic model,
+  parsing primitives, and UniMod lookup live below `vendor_params/parsers/shared/`. Complete
+  parameter plus rule selection provenance is written under
+  `uns["anndata_proteomics"]["parse"]`. The legacy parser,
   rule, parameter, output, serialization, and temporary `parser_v2.py` modules were deleted;
   production `src/apb2` now contains only the CLI, package markers, and `parserV2`. `export-schema`
   is no longer a user command; its developer artifact generator remains in the V2 rule package.

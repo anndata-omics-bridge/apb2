@@ -9,7 +9,7 @@ import anndata
 import pytest
 
 from apb2.cli import ConvertCliOptions, convert
-from apb2.parserV2.parse_quant.anndata_writer import AnnDataLayerContractError
+from apb2.parserV2.conversion_facade import ConversionError
 
 _DOCUMENT = {
     "schema_version": "0.3",
@@ -59,7 +59,7 @@ def test_convert_with_rule_config_preserves_the_complete_parameter_record(tmp_pa
     report.write_text(_TSV, encoding="utf-8")
     rule_config = tmp_path / "rules.json"
     rule_config.write_text(json.dumps(_DOCUMENT), encoding="utf-8")
-    parameters = Path(__file__).parent / "search_parameters" / "params" / "wombat_params.yaml"
+    parameters = Path(__file__).parent / "vendor_params" / "params" / "wombat_params.yaml"
 
     exit_code = convert(
         report,
@@ -154,9 +154,9 @@ def test_convert_reports_an_expected_writer_failure(
     rule_config.write_text(json.dumps(_DOCUMENT), encoding="utf-8")
 
     def fail_write(**_arguments: object) -> None:
-        raise AnnDataLayerContractError("empty primary layer")
+        raise ConversionError("empty primary layer")
 
-    monkeypatch.setattr("apb2.cli.convert_from_rule_config", fail_write)
+    monkeypatch.setattr("apb2.cli.conversion_facade.convert_from_rule_config", fail_write)
 
     assert (
         convert(
@@ -179,7 +179,7 @@ def test_convert_does_not_hide_an_unexpected_failure(
     def fail_unexpectedly(**_arguments: object) -> None:
         raise RuntimeError("implementation defect")
 
-    monkeypatch.setattr("apb2.cli.convert_from_rule_config", fail_unexpectedly)
+    monkeypatch.setattr("apb2.cli.conversion_facade.convert_from_rule_config", fail_unexpectedly)
 
     with pytest.raises(RuntimeError, match="implementation defect"):
         convert(

@@ -9,15 +9,15 @@ from typing import Never
 import anndata
 import pytest
 
-from apb2.parserV2 import conversion as conversion_module
+from apb2.parserV2 import conversion_facade
 from apb2.parserV2 import detect_document as detection_module
-from apb2.parserV2.conversion import convert_from_packaged_rules
+from apb2.parserV2.conversion_facade import ConversionError, convert_from_packaged_rules
 from apb2.parserV2.detect_document import AmbiguousRuleError, detect_rule_document
 from apb2.parserV2.detect_document import guess_software as guess_packaged_software
 from apb2.parserV2.parse_quant import delimited_input
 from apb2.parserV2.parse_quant.parameters.source import SingleFile
-from apb2.parserV2.search_parameters.model import Parameters
-from apb2.parserV2.search_parameters.registry import parse_params
+from apb2.parserV2.vendor_params.parsers.shared.model import Parameters
+from apb2.parserV2.vendor_params.registry import parse_params
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from parserV2.fixtures import DocumentPair, document_pairs
 
@@ -89,8 +89,8 @@ def test_parameter_parser_selection_precedence(
         selected.append(software)
         raise _StopAfterParserSelection
 
-    monkeypatch.setattr(conversion_module, "guess_software", infer)
-    monkeypatch.setattr(conversion_module, "parse_params", stop_after_selection)
+    monkeypatch.setattr(conversion_facade, "guess_software", infer)
+    monkeypatch.setattr(conversion_facade, "parse_params", stop_after_selection)
 
     with pytest.raises(_StopAfterParserSelection):
         convert_from_packaged_rules(
@@ -104,6 +104,48 @@ def test_parameter_parser_selection_precedence(
         )
 
     assert selected == [expected]
+
+
+def test_expected_subsystem_failure_becomes_one_conversion_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_parse_and_write(**_arguments: object) -> Never:
+        raise OSError("cannot write target")
+
+    monkeypatch.setattr(conversion_facade, "_parse_and_write", fail_parse_and_write)
+
+    with pytest.raises(ConversionError, match="cannot write target"):
+        conversion_facade.convert_from_rule_config(
+            data=tmp_path / "source.tsv",
+            level="ion",
+            output=tmp_path / "out.h5ad",
+            rule_config=_diann_v2().parser_v2_path,
+            parameters_path=None,
+            parameters_software=None,
+            checks="standard",
+        )
+
+
+def test_unexpected_subsystem_failure_remains_visible(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_parse_and_write(**_arguments: object) -> Never:
+        raise RuntimeError("implementation defect")
+
+    monkeypatch.setattr(conversion_facade, "_parse_and_write", fail_parse_and_write)
+
+    with pytest.raises(RuntimeError, match="implementation defect"):
+        conversion_facade.convert_from_rule_config(
+            data=tmp_path / "source.tsv",
+            level="ion",
+            output=tmp_path / "out.h5ad",
+            rule_config=_diann_v2().parser_v2_path,
+            parameters_path=None,
+            parameters_software=None,
+            checks="standard",
+        )
 
 
 def test_duplicate_packaged_matches_are_reported_as_ambiguous(
