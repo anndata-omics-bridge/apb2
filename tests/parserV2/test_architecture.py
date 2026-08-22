@@ -104,7 +104,7 @@ _RUNTIME_MODULES = (
     PARSE_QUANT / "parser.py",
     PARSE_QUANT / "decomposition.py",
     PARSE_QUANT / "fragments.py",
-    PARSE_QUANT / "columns.py",
+    PARSE_QUANT / "axis_columns.py",
     PARSE_QUANT / "duplicates.py",
     PARSE_QUANT / "modifications.py",
 )

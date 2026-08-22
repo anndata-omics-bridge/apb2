@@ -37,7 +37,7 @@ from apb2.parserV2.parse_quant.anndata_writer import (
     StandardAnnDataLayerContract,
     StrictAnnDataLayerContract,
 )
-from apb2.parserV2.parse_quant.columns import (
+from apb2.parserV2.parse_quant.axis_columns import (
     BooleanAxisCoercer,
     CoalesceColumn,
     DerivedSequenceColumn,
@@ -110,6 +110,7 @@ from apb2.parserV2.parse_quant.parameters.measurements import (
     RegexNumericAnnDataEncodingConfig,
     RegexNumericRawValuePresenceConfig,
 )
+from apb2.parserV2.parse_quant.parameters.plan_json import PLAN_JSON_KEY, resolved_plan_json
 from apb2.parserV2.parse_quant.parameters.resolved import ResolvedLevelPlan
 from apb2.parserV2.parse_quant.parameters.source import (
     DecompositionConfig,
@@ -419,7 +420,9 @@ class ParseRuleCompiler:
                 for config in resolved.raw_value_presence
             },
             writer=make_parsed_level_writer(self.output, resolved),
-            provenance=dict(resolved.provenance),
+            # The plan is provenance too: what the rule permitted is already in
+            # ``rule_json``, and this is what this source actually resolved to.
+            provenance={**resolved.provenance, PLAN_JSON_KEY: resolved_plan_json(resolved)},
         )
 
 

@@ -95,8 +95,8 @@ containers =
 layers =
     (parser) | (decomposition) | (duplicates)
     contracts
-    columns | modifications | fragments | delimited_input | parquet_input | anndata_writer | parquet_writer
-    errors | layer_labels | numeric_text
+    axis_columns | modifications | fragments | delimited_input | parquet_input | anndata_writer | parquet_writer
+    errors | numeric_text
     data | parameters
 
 [importlinter:contract:parse-quant-children-are-independent]
@@ -152,7 +152,7 @@ forbidden_modules =
     apb2.parserV2.parse_quant.contracts
     apb2.parserV2.parse_quant.decomposition
     apb2.parserV2.parse_quant.duplicates
-    apb2.parserV2.parse_quant.columns
+    apb2.parserV2.parse_quant.axis_columns
     apb2.parserV2.parse_quant.modifications
     apb2.parserV2.parse_quant.fragments
     apb2.parserV2.parse_quant.delimited_input
@@ -172,7 +172,7 @@ forbidden_modules =
     apb2.parserV2.parse_quant.contracts
     apb2.parserV2.parse_quant.decomposition
     apb2.parserV2.parse_quant.duplicates
-    apb2.parserV2.parse_quant.columns
+    apb2.parserV2.parse_quant.axis_columns
     apb2.parserV2.parse_quant.modifications
     apb2.parserV2.parse_quant.fragments
     apb2.parserV2.parse_quant.data.raw

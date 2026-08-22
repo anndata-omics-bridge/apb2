@@ -54,8 +54,9 @@ class ModificationNormalizer(Protocol):
 
     ``sources`` are the exact columns, in order, that the orchestrator selects from the raw
     var frame and hands over as a series tuple; the result maps each declared derived name
-    to its series. It is a read-only property because that is all the client does with it,
-    and because a configured strategy has no reason to be mutable.
+    to its series and includes the fixed ``unknown_mod_tokens`` list column. It is a read-only
+    property because that is all the client does with it, and because a configured strategy
+    has no reason to be mutable.
     """
 
     @property

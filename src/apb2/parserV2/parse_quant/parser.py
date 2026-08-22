@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from pathlib import Path
+from typing import cast
 
 import polars as pl
 
@@ -32,6 +33,7 @@ from apb2.parserV2.parse_quant.contracts import (
     RawValuePresence,
     SourceDecomposer,
 )
+from apb2.parserV2.parse_quant.data.layer_columns import observation_labels
 from apb2.parserV2.parse_quant.data.parsed import (
     FinalLayerTable,
     JsonValue,
@@ -46,10 +48,10 @@ from apb2.parserV2.parse_quant.data.raw import (
     RawToFinalKeyMap,
     VarRaw,
 )
-from apb2.parserV2.parse_quant.layer_labels import observation_labels
 from apb2.parserV2.parse_quant.parameters.working import QuantificationLevel
 
 _EXAMPLE_LIMIT = 5
+_UNKNOWN_MOD_TOKENS = "unknown_mod_tokens"
 
 
 class CanonicalKeyCollisionError(ValueError):
@@ -112,14 +114,17 @@ class Parser:
         raw = self._decomposer.decompose(source)
 
         obs, obs_map = self._prepare_obs(raw.obs)
-        var, var_map = self._prepare_var(raw.var)
+        var, var_map, unknown_mod_tokens = self._prepare_var(raw.var)
         layers = self._prepare_layers(raw.layers, obs_map, var_map)
+        uns = dict(self._provenance)
+        if unknown_mod_tokens:
+            uns[_UNKNOWN_MOD_TOKENS] = list(unknown_mod_tokens)
 
         return ParsedLevel(
             obs=obs,
             var=var,
             primary_layer_name=raw.layers.primary_layer_name,
-            uns=dict(self._provenance),
+            uns=uns,
             layers=layers,
         )
 
@@ -138,18 +143,23 @@ class Parser:
         )
         return ObsFinal(frame=frame, key_columns=self._obs_plan.keys.final_key_columns), mapping
 
-    def _prepare_var(self, raw: VarRaw) -> tuple[VarFinal, RawToFinalKeyMap]:
+    def _prepare_var(self, raw: VarRaw) -> tuple[VarFinal, RawToFinalKeyMap, tuple[str, ...]]:
         derived = self._normalize_modification_columns(
             raw.frame,
             self._modification_normalizers,
         )
+        unknown_mod_tokens = self._distinct_unknown_modification_tokens(derived)
         frame, mapping = self._prepare_axis(
             raw.frame,
             raw.raw_key_columns,
             derived,
             self._var_plan,
         )
-        return VarFinal(frame=frame, key_columns=self._var_plan.keys.final_key_columns), mapping
+        return (
+            VarFinal(frame=frame, key_columns=self._var_plan.keys.final_key_columns),
+            mapping,
+            unknown_mod_tokens,
+        )
 
     @staticmethod
     def _prepare_axis(
@@ -208,6 +218,17 @@ class Parser:
             columns = tuple(frame.get_column(name) for name in normalizer.sources)
             derived.update(normalizer.normalize(columns))
         return derived
+
+    @staticmethod
+    def _distinct_unknown_modification_tokens(
+        derived: Mapping[str, pl.Series],
+    ) -> tuple[str, ...]:
+        """Collect unresolved vendor tokens once, in first-observed order."""
+        values = derived.get(_UNKNOWN_MOD_TOKENS)
+        if values is None:
+            return ()
+        rows = cast(list[list[str] | None], values.to_list())
+        return tuple(dict.fromkeys(token for row in rows if row for token in row))
 
     @staticmethod
     def _materialize_axis_columns(

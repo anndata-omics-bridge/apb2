@@ -35,6 +35,9 @@ from apb2.parserV2.parse_quant.numeric_text import NumberNotation, as_numbers, b
 NAMESPACE = "anndata_proteomics"
 """The uns namespace apb writes; unchanged while the legacy package is the parity oracle."""
 
+PARSE_NAMESPACE = "parse"
+"""The tool-owned child of the APB namespace written by parsing."""
+
 KEY_SEPARATOR = "_"
 UNKNOWN_FACTOR_CODE = -1
 _EXAMPLE_LIMIT = 5
@@ -343,8 +346,8 @@ class AnnDataWriter:
 
     @staticmethod
     def _write_namespace(adata: AnnData, namespace: dict[str, JsonValue]) -> None:
-        """Store the parse provenance where every apb reader already looks for it."""
-        adata.uns[NAMESPACE] = namespace
+        """Store parse metadata under its tool-owned APB child namespace."""
+        adata.uns[NAMESPACE] = {PARSE_NAMESPACE: namespace}
 
     @staticmethod
     def _write_atomically(target: Path, write: Callable[[Path], None]) -> None:

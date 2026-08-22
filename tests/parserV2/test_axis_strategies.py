@@ -13,7 +13,7 @@ import pytest
 from apb2.parse_quant.modifications import normalize_sequence as legacy_normalize
 from apb2.parserV2 import compile as composition
 from apb2.parserV2.compile import make_modification_normalizer
-from apb2.parserV2.parse_quant.columns import (
+from apb2.parserV2.parse_quant.axis_columns import (
     AxisCoercionError,
     BooleanAxisCoercer,
     CoalesceColumn,
@@ -404,18 +404,23 @@ def test_a_numeric_token_matches_on_mass_target_and_position() -> None:
 
 
 @pytest.mark.parametrize(
-    ("policy", "expected"),
+    ("policy", "expected", "unknown_tokens"),
     [
-        ("preserve", "PEPM[weird]IDE"),
-        ("drop", "PEPMIDE"),
+        ("preserve", "PEPM[weird]IDE", ("weird",)),
+        ("drop", "PEPMIDE", ()),
     ],
 )
 def test_an_unknown_token_follows_the_declared_policy(
-    policy: UnknownModificationPolicy, expected: str
+    policy: UnknownModificationPolicy,
+    expected: str,
+    unknown_tokens: tuple[str, ...],
 ) -> None:
     rules = token_rules(policy=policy)
 
-    assert normalize_token_regex("PEPM(weird)IDE", rules).proforma_sequence == expected
+    result = normalize_token_regex("PEPM(weird)IDE", rules)
+
+    assert result.proforma_sequence == expected
+    assert result.unknown_tokens == unknown_tokens
 
 
 def test_an_unknown_token_can_be_declared_an_error() -> None:
@@ -428,6 +433,13 @@ def test_parallel_site_lists_are_paired_index_wise() -> None:
 
     assert result.stripped_sequence == "PEPMIDE"
     assert result.proforma_sequence == "PEPM[UNIMOD:35]IDE"
+
+
+def test_a_preserved_unknown_site_list_token_is_returned_for_reporting() -> None:
+    result = normalize_site_list("PEPMIDE", "Mystery@M", "4", site_rules())
+
+    assert result.proforma_sequence == "PEPM[Mystery@M]IDE"
+    assert result.unknown_tokens == ("Mystery@M",)
 
 
 def test_site_zero_is_the_n_terminus_whatever_the_site_base_is() -> None:
@@ -478,17 +490,25 @@ def test_two_modifications_on_one_residue_concatenate() -> None:
 
 def test_a_normalizer_returns_its_declared_derived_columns_and_keeps_row_order() -> None:
     normalizer = make_modification_normalizer(token_regex())
-    sequences = pl.Series("Modified.Sequence", ["PEPM(ox)IDE", "OTHER", "PEPM(ox)IDE", None])
+    sequences = pl.Series(
+        "Modified.Sequence",
+        ["PEPM(ox)IDE", "PEPM(weird)IDE", "PEPM(ox)IDE", None],
+    )
 
     derived = normalizer.normalize((sequences,))
 
-    assert set(derived) == {"proforma_sequence", "stripped_sequence"}
+    assert set(derived) == {
+        "proforma_sequence",
+        "stripped_sequence",
+        "unknown_mod_tokens",
+    }
     assert derived["proforma_sequence"].to_list() == [
         "PEPM[UNIMOD:35]IDE",
-        "OTHER",
+        "PEPM[weird]IDE",
         "PEPM[UNIMOD:35]IDE",
         "",
     ]
+    assert derived["unknown_mod_tokens"].to_list() == [[], ["weird"], [], []]
     assert all(series.len() == sequences.len() for series in derived.values())
 
 

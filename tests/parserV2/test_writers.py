@@ -21,6 +21,7 @@ import pytest
 
 from apb2.parserV2.parse_quant.anndata_writer import (
     NAMESPACE,
+    PARSE_NAMESPACE,
     AnnDataLayerContractError,
     AnnDataWriter,
     FactorAnnDataEncoder,
@@ -119,6 +120,7 @@ def test_the_manifest_states_what_every_file_is(tmp_path: Path) -> None:
     parsed = level(
         var_keys=("Feature", "Charge"),
         var=pl.DataFrame({"Feature": ["F1"], "Charge": [2]}),
+        uns={"software_name": "Synthetic", "unknown_mod_tokens": ["Mystery@M"]},
         layers={
             "Intensity": pl.DataFrame({"Feature": ["F1"], "Charge": [2], "obs_0": [1.0]}),
             "Q Value": pl.DataFrame({"Feature": ["F1"], "Charge": [2], "obs_0": [0.01]}),
@@ -137,7 +139,10 @@ def test_the_manifest_states_what_every_file_is(tmp_path: Path) -> None:
         "key_columns": ["Feature", "Charge"],
         "columns": ["Feature", "Charge"],
     }
-    assert manifest["uns"] == {"software_name": "Synthetic"}
+    assert manifest["uns"] == {
+        "software_name": "Synthetic",
+        "unknown_mod_tokens": ["Mystery@M"],
+    }
     layers = manifest["layers"]
     assert isinstance(layers, dict)
     assert layers["Q Value"] == {
@@ -558,15 +563,23 @@ def test_axis_dtypes_are_normalized_to_what_hdf5_accepts(tmp_path: Path) -> None
     assert stored.var["Mass"].tolist()[0] == 1.5
 
 
-def test_the_provenance_is_written_under_the_apb_namespace(tmp_path: Path) -> None:
-    parsed = level(uns={"software_name": "Synthetic", "quantification_level": "ion"})
+def test_the_provenance_is_written_under_the_parse_tool_namespace(tmp_path: Path) -> None:
+    parsed = level(
+        uns={
+            "software_name": "Synthetic",
+            "quantification_level": "ion",
+            "unknown_mod_tokens": ["Mystery@M"],
+        }
+    )
     target = tmp_path / "ion.h5ad"
 
     writer_for(parsed).write(parsed, target)
     stored = anndata.read_h5ad(target)
 
-    assert stored.uns[NAMESPACE]["software_name"] == "Synthetic"
-    assert stored.uns[NAMESPACE]["quantification_level"] == "ion"
+    parse_namespace = stored.uns[NAMESPACE][PARSE_NAMESPACE]
+    assert parse_namespace["software_name"] == "Synthetic"
+    assert parse_namespace["quantification_level"] == "ion"
+    assert list(parse_namespace["unknown_mod_tokens"]) == ["Mystery@M"]
 
 
 def test_a_failed_write_leaves_the_previous_file_and_no_scratch_behind(

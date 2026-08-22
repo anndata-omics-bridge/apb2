@@ -19,6 +19,7 @@ from dataclasses import dataclass
 import polars as pl
 
 from apb2.parserV2.parse_quant.contracts import FragmentTableSeparator, SourceDecomposer
+from apb2.parserV2.parse_quant.data.layer_columns import observation_labels
 from apb2.parserV2.parse_quant.data.raw import (
     DecomposedDataRaw,
     LayersRaw,
@@ -27,7 +28,6 @@ from apb2.parserV2.parse_quant.data.raw import (
     VarRaw,
 )
 from apb2.parserV2.parse_quant.data.source import LevelSourceTable
-from apb2.parserV2.parse_quant.layer_labels import observation_labels
 from apb2.parserV2.parse_quant.parameters.axis import AxisSourcePlan
 from apb2.parserV2.parse_quant.parameters.source import LongRawLayerSource, WideRawLayerPlan
 

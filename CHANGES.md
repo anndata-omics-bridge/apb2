@@ -1,5 +1,31 @@
 # Changes
 
+- 2026-08-22: Parser V2's small shared modules now sit with the concepts that own them rather than
+  in a generic helper package: the layer-table column convention is in `data/layer_columns.py`,
+  resolved-plan JSON is in `parameters/plan_json.py`, and the concrete axis algorithms are named
+  explicitly by `axis_columns.py`. Import contracts and architecture tests enforce the new paths.
+
+- 2026-08-22: A compiled parser now records the plan it was built from.
+  `parameters/plan_json.py` serializes
+  one `ResolvedLevelPlan` as JSON text — every field, sets given a stable order, unknown shapes
+  refused rather than stringified — and the composition root stores it in the parse provenance
+  under `plan_json`, beside `rule_json`. It reaches `uns['anndata_proteomics']['parse']['plan_json']`
+  in a written `.h5ad` and the `uns` block of a Parquet dataset's `manifest.json`, so a result
+  states which columns were projected at which dtype, which dialect and notation won, which
+  optional columns and layers the source withheld, and what the encoders were told.
+
+- 2026-08-22: Parser V2 now retains every modification token preserved after a failed map lookup,
+  reports the distinct tokens in first-observed order through `ParsedLevel.uns["unknown_mod_tokens"]`,
+  and persists the same diagnostic through both AnnData and Parquet output. AnnData stores all
+  parser-owned metadata under `uns["anndata_proteomics"]["parse"]`; inline-token and parallel
+  site-list modification inputs share this behavior.
+
+- 2026-08-21: Every working parse parameter in `parse_quant/parameters/working.py` now documents
+  what its fields actually hold, with worked examples taken from packaged rules (MaxQuant,
+  PEAKS, FragPipe, DIA-NN, Spectronaut) and a four-line reproducer. The module also states why
+  a layer carries both a presence and an AnnData encoding declaration, and that presence runs in
+  every parse while only the AnnData writer builds an encoder. Docstrings only; no behaviour changed.
+
 - 2026-08-21: Parser V2's schema-0.3 declarations are split by ownership under the inward-only
   `vendor_parse_rules/schema/` child package; its marker exports nothing, schema modules never
   import the parent document or loader, and consumers import the exact declaring module. The
@@ -49,7 +75,7 @@
   the specification's worked AlphaDIA example holds assertion for assertion. `delimited_input.py`
   resolves a dialect by asking which candidate exposes a usable header (ambiguity is reported, not
   guessed) and detects the decimal mark from the file's own values; `parquet_input.py` keeps the
-  physical schema. `columns.py`, `modifications.py`, `fragments.py`, `decomposition.py`, and
+  physical schema. `axis_columns.py`, `modifications.py`, `fragments.py`, `decomposition.py`, and
   `duplicates.py` hold the configured leaf algorithms: the ported modification domain reproduces
   the unchanged implementation exactly on 24 000 real vendor sequences across all 12 documents,
   long and wide input reduce to one raw contract with repeated cells intact, and per-layer presence

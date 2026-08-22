@@ -22,8 +22,8 @@ from dataclasses import dataclass
 import polars as pl
 
 from apb2.parserV2.parse_quant.contracts import RawValuePresence
+from apb2.parserV2.parse_quant.data.layer_columns import presence_labels
 from apb2.parserV2.parse_quant.data.raw import RawLayerTable
-from apb2.parserV2.parse_quant.layer_labels import presence_labels
 from apb2.parserV2.parse_quant.numeric_text import NumberNotation, absent, as_numbers, blank
 
 _EXAMPLE_LIMIT = 5

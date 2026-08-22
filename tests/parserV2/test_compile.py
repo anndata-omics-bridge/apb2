@@ -40,7 +40,7 @@ from apb2.parserV2.parse_quant.anndata_writer import (
     StandardAnnDataLayerContract,
     StrictAnnDataLayerContract,
 )
-from apb2.parserV2.parse_quant.columns import (
+from apb2.parserV2.parse_quant.axis_columns import (
     BooleanAxisCoercer,
     CoalesceColumn,
     DerivedSequenceColumn,

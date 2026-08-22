@@ -14,11 +14,11 @@ from apb2.parserV2.compile import (
     make_fragment_table_separator,
     make_source_decomposer,
 )
+from apb2.parserV2.parse_quant.data.layer_columns import observation_labels
 from apb2.parserV2.parse_quant.data.raw import DecomposedDataRaw
 from apb2.parserV2.parse_quant.data.source import LevelSourceTable
 from apb2.parserV2.parse_quant.decomposition import DelimitedFragmentSourceDecomposer
 from apb2.parserV2.parse_quant.fragments import PackedLengthError
-from apb2.parserV2.parse_quant.layer_labels import observation_labels
 from apb2.parserV2.parse_quant.parameters.axis import AxisKeyPlan, AxisSourcePlan
 from apb2.parserV2.parse_quant.parameters.source import (
     ColumnLabeledFragmentSeparationConfig,

@@ -80,6 +80,7 @@ class ModifiedSequence:
 
     stripped_sequence: str
     proforma_sequence: str
+    unknown_tokens: tuple[str, ...]
 
 
 # ------------------------------------------------------------------------ ProForma rendering
@@ -361,12 +362,14 @@ def _apply_unknown_policy(
     location: ModificationLocation,
     stripped_length: int,
     unknown_tokens: dict[int, str],
+    unknown_token_list: list[str],
 ) -> None:
     """Apply the declared unknown-token policy to one unmatched token."""
     if policy == "error":
         raise UnknownModificationError(f"unknown modification token: {raw_token!r}")
     if policy == "drop":
         return
+    unknown_token_list.append(raw_token)
     location.record_unknown_token(unknown_tokens, raw_token, stripped_length)
 
 
@@ -479,6 +482,7 @@ def normalize_token_regex(modified_sequence: str, config: TokenRegexRules) -> Mo
     stripped = "".join(residues)
     occurrences: list[ModificationOccurrence] = []
     unknown_tokens: dict[int, str] = {}
+    unknown_token_list: list[str] = []
     for token in pending:
         entry = _matched_entry(
             config.entries,
@@ -495,10 +499,12 @@ def normalize_token_regex(modified_sequence: str, config: TokenRegexRules) -> Mo
             token.location,
             len(stripped),
             unknown_tokens,
+            unknown_token_list,
         )
     return ModifiedSequence(
         stripped_sequence=stripped,
         proforma_sequence=render_proforma(stripped, occurrences, unknown_tokens),
+        unknown_tokens=tuple(unknown_token_list),
     )
 
 
@@ -541,6 +547,7 @@ def normalize_site_list(
     }
     occurrences: list[ModificationOccurrence] = []
     unknown_tokens: dict[int, str] = {}
+    unknown_token_list: list[str] = []
     for raw_token, raw_site in zip(tokens, raw_sites, strict=True):
         if not _INTEGER_SITE.fullmatch(raw_site.strip()):
             raise PackedSiteMismatchError(
@@ -553,11 +560,17 @@ def normalize_site_list(
             occurrences.append(location.occurrence(entry, raw_token))
             continue
         _apply_unknown_policy(
-            config.unknown_policy, raw_token, location, len(stripped), unknown_tokens
+            config.unknown_policy,
+            raw_token,
+            location,
+            len(stripped),
+            unknown_tokens,
+            unknown_token_list,
         )
     return ModifiedSequence(
         stripped_sequence=stripped,
         proforma_sequence=render_proforma(stripped, occurrences, unknown_tokens),
+        unknown_tokens=tuple(unknown_token_list),
     )
 
 
@@ -582,13 +595,18 @@ def _normalize_once_per_distinct[K: Hashable](
 def _derived(
     results: list[ModifiedSequence], proforma_output: str, stripped_output: str
 ) -> dict[str, pl.Series]:
-    """The two derived columns, in the order a rule reads them."""
+    """The normalized sequence columns and unresolved vendor tokens."""
     return {
         proforma_output: pl.Series(
             proforma_output, [result.proforma_sequence for result in results], dtype=pl.String
         ),
         stripped_output: pl.Series(
             stripped_output, [result.stripped_sequence for result in results], dtype=pl.String
+        ),
+        "unknown_mod_tokens": pl.Series(
+            "unknown_mod_tokens",
+            [list(result.unknown_tokens) for result in results],
+            dtype=pl.List(pl.String),
         ),
     }
 

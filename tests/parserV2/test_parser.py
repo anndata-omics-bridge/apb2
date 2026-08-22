@@ -20,7 +20,7 @@ from apb2.parserV2.compile import (
     make_source_decomposer,
     policy_for,
 )
-from apb2.parserV2.parse_quant.columns import (
+from apb2.parserV2.parse_quant.axis_columns import (
     CoalesceColumn,
     IntegerAxisCoercer,
     ProformaIonColumn,
@@ -199,7 +199,13 @@ def test_parse_runs_its_collaborators_in_the_documented_order() -> None:
 
         def normalize(self, columns: tuple[pl.Series, ...], /) -> dict[str, pl.Series]:
             calls.append("normalize")
-            return {}
+            return {
+                "unknown_mod_tokens": pl.Series(
+                    "unknown_mod_tokens",
+                    [["Mystery@M", "Mystery@M", "Other@C"]],
+                    dtype=pl.List(pl.String),
+                )
+            }
 
     class Presence:
         def present(self, values: pl.Series, /) -> pl.Series:
@@ -229,6 +235,7 @@ def test_parse_runs_its_collaborators_in_the_documented_order() -> None:
 
     assert calls == ["read", "decompose", "normalize", "resolve", "present"]
     assert parsed.primary_layer_name == "Intensity"
+    assert parsed.uns["unknown_mod_tokens"] == ["Mystery@M", "Other@C"]
 
 
 def test_convert_writes_the_result_it_is_given_and_parses_nothing(tmp_path: Path) -> None:
