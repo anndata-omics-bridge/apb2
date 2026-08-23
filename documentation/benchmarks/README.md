@@ -32,6 +32,31 @@ and `X` with `rtol=1e-9`. A performance result is not reported if parity fails. 
 every raw run, exact commands, package versions, machine details, repository commits and statuses,
 summary statistics, and the parity coverage.
 
+### Result, 2026-08-23
+
+Apple M4 Pro, 48 GiB RAM, macOS 26.5.2, Python 3.13.9, AnnData 0.13.2, pandas 3.0.5,
+Polars 1.43.2, and NumPy 2.5.2. Both commands came from the same virtual environment. The measured
+repositories were clean at `apb@7a2cd96` and `apb2@294da9b`.
+
+| converter | measured wall times | median wall | median user | median system | median peak RSS | output |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| APB | 4.86, 4.78, 4.79, 5.18, 5.00 s | 4.86 s | 4.57 s | 0.26 s | 1,598 MiB | 45.5 MiB |
+| APB2 | 2.31, 2.29, 2.29, 2.40, 2.44 s | **2.31 s** | 6.27 s | 0.90 s | **858 MiB** | 45.5 MiB |
+
+For this DIA-NN v1 ion conversion, **APB2 is 2.10 times faster by median wall time and uses 46.3%
+less median peak resident memory**. APB2 spends more aggregate user and system CPU time while
+finishing sooner, consistent with Polars using parallel work to reduce latency. The output files
+differ by 1,040 bytes because their provenance differs; byte identity is not the correctness
+criterion.
+
+Correctness was checked after every pair. The 6 observation rows, 72,804 variable rows, all 1 obs
+and 11 var metadata columns, the five named layers, and `X` agree after alignment by authored keys.
+That is 2,620,944 equal matrix cells. This establishes the result for this one representative
+DIA-NN v1 ion workload; it is not yet a claim about other DIA-NN versions, levels, or vendors.
+
+The complete machine-readable record is
+[`results/diann_v1_ion_2026-08-23.json`](results/diann_v1_ion_2026-08-23.json).
+
 ## `long_table_conversion.py` — which engine for the parse core?
 
 Times the steps `parse_quant/table_conversion.py` performs on a long-format vendor export:

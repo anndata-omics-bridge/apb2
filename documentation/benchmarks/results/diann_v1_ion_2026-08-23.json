@@ -1,0 +1,214 @@
+{
+  "method": {
+    "warmups_per_tool": 1,
+    "measured_repeats_per_tool": 5,
+    "run_order": "alternating by repeat",
+    "filesystem_cache": "warm after discarded warm-up",
+    "timed_scope": "CLI startup through completed .h5ad write",
+    "excluded_scope": "output deletion, .h5ad loading, and parity checks"
+  },
+  "environment": {
+    "timestamp_utc": "2026-08-23T19:33:45.958715+00:00",
+    "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "processor": "Apple M4 Pro",
+    "memory_bytes": 51539607552,
+    "python": "3.13.9",
+    "packages": {
+      "apb2": "0.1.0",
+      "anndata-proteomics": "0.1.0",
+      "anndata": "0.13.2",
+      "pandas": "3.0.5",
+      "polars": "1.43.2",
+      "numpy": "2.5.2"
+    },
+    "git": {
+      "apb": {
+        "commit": "7a2cd9692e47a1ba122700e765f8e59d981fdaf4",
+        "status": ""
+      },
+      "apb2": {
+        "commit": "294da9b0b7089e64d0ebe9ed2128107e18bda0bd",
+        "status": ""
+      }
+    },
+    "data": "/Users/wolski/projects/anndata_bridge/apb/test_data_download/json_dir/Results_quant_ion_DIA_AIF/dcfb0316d24e51357eaffc5f9e638bd28da609fe/input_file.txt",
+    "data_bytes": 229148700,
+    "parameters": "/Users/wolski/projects/anndata_bridge/apb/test_data_download/json_dir/Results_quant_ion_DIA_AIF/dcfb0316d24e51357eaffc5f9e638bd28da609fe/param_0..txt",
+    "level": "ion",
+    "software": "diann",
+    "commands": {
+      "apb": [
+        "/Users/wolski/projects/anndata_bridge/apb2/.venv/bin/apb",
+        "convert",
+        "/Users/wolski/projects/anndata_bridge/apb/test_data_download/json_dir/Results_quant_ion_DIA_AIF/dcfb0316d24e51357eaffc5f9e638bd28da609fe/input_file.txt",
+        "ion",
+        "--params",
+        "/Users/wolski/projects/anndata_bridge/apb/test_data_download/json_dir/Results_quant_ion_DIA_AIF/dcfb0316d24e51357eaffc5f9e638bd28da609fe/param_0..txt",
+        "--software",
+        "diann",
+        "--output",
+        "/tmp/apb-diann-v1-ion/apb/ion"
+      ],
+      "apb2": [
+        "/Users/wolski/projects/anndata_bridge/apb2/.venv/bin/apb2",
+        "convert",
+        "/Users/wolski/projects/anndata_bridge/apb/test_data_download/json_dir/Results_quant_ion_DIA_AIF/dcfb0316d24e51357eaffc5f9e638bd28da609fe/input_file.txt",
+        "ion",
+        "--params",
+        "/Users/wolski/projects/anndata_bridge/apb/test_data_download/json_dir/Results_quant_ion_DIA_AIF/dcfb0316d24e51357eaffc5f9e638bd28da609fe/param_0..txt",
+        "--software",
+        "diann",
+        "--output",
+        "/tmp/apb-diann-v1-ion/apb2/ion"
+      ]
+    }
+  },
+  "measurements": [
+    {
+      "tool": "apb",
+      "repeat": 1,
+      "order": 1,
+      "wall_seconds": 4.86,
+      "user_seconds": 4.57,
+      "system_seconds": 0.26,
+      "maximum_rss_bytes": 1674084352,
+      "output_bytes": 47725180
+    },
+    {
+      "tool": "apb2",
+      "repeat": 1,
+      "order": 2,
+      "wall_seconds": 2.31,
+      "user_seconds": 6.27,
+      "system_seconds": 0.9,
+      "maximum_rss_bytes": 903888896,
+      "output_bytes": 47726220
+    },
+    {
+      "tool": "apb2",
+      "repeat": 2,
+      "order": 1,
+      "wall_seconds": 2.29,
+      "user_seconds": 6.33,
+      "system_seconds": 0.9,
+      "maximum_rss_bytes": 886243328,
+      "output_bytes": 47726220
+    },
+    {
+      "tool": "apb",
+      "repeat": 2,
+      "order": 2,
+      "wall_seconds": 4.78,
+      "user_seconds": 4.54,
+      "system_seconds": 0.23,
+      "maximum_rss_bytes": 1677148160,
+      "output_bytes": 47725180
+    },
+    {
+      "tool": "apb",
+      "repeat": 3,
+      "order": 1,
+      "wall_seconds": 4.79,
+      "user_seconds": 4.54,
+      "system_seconds": 0.23,
+      "maximum_rss_bytes": 1674018816,
+      "output_bytes": 47725180
+    },
+    {
+      "tool": "apb2",
+      "repeat": 3,
+      "order": 2,
+      "wall_seconds": 2.29,
+      "user_seconds": 6.14,
+      "system_seconds": 0.88,
+      "maximum_rss_bytes": 920076288,
+      "output_bytes": 47726220
+    },
+    {
+      "tool": "apb2",
+      "repeat": 4,
+      "order": 1,
+      "wall_seconds": 2.4,
+      "user_seconds": 6.35,
+      "system_seconds": 0.92,
+      "maximum_rss_bytes": 899317760,
+      "output_bytes": 47726220
+    },
+    {
+      "tool": "apb",
+      "repeat": 4,
+      "order": 2,
+      "wall_seconds": 5.18,
+      "user_seconds": 4.82,
+      "system_seconds": 0.32,
+      "maximum_rss_bytes": 1675476992,
+      "output_bytes": 47725180
+    },
+    {
+      "tool": "apb",
+      "repeat": 5,
+      "order": 1,
+      "wall_seconds": 5.0,
+      "user_seconds": 4.71,
+      "system_seconds": 0.27,
+      "maximum_rss_bytes": 1675460608,
+      "output_bytes": 47725180
+    },
+    {
+      "tool": "apb2",
+      "repeat": 5,
+      "order": 2,
+      "wall_seconds": 2.44,
+      "user_seconds": 6.19,
+      "system_seconds": 0.94,
+      "maximum_rss_bytes": 888422400,
+      "output_bytes": 47726220
+    }
+  ],
+  "summary": [
+    {
+      "tool": "apb",
+      "repeats": 5,
+      "median_wall_seconds": 4.86,
+      "minimum_wall_seconds": 4.78,
+      "maximum_wall_seconds": 5.18,
+      "median_user_seconds": 4.57,
+      "median_system_seconds": 0.26,
+      "median_maximum_rss_bytes": 1675460608,
+      "median_output_bytes": 47725180
+    },
+    {
+      "tool": "apb2",
+      "repeats": 5,
+      "median_wall_seconds": 2.31,
+      "minimum_wall_seconds": 2.29,
+      "maximum_wall_seconds": 2.44,
+      "median_user_seconds": 6.27,
+      "median_system_seconds": 0.9,
+      "median_maximum_rss_bytes": 899317760,
+      "median_output_bytes": 47726220
+    }
+  ],
+  "comparison": {
+    "median_wall_speedup_apb2_over_apb": 2.103896103896104,
+    "median_rss_reduction_fraction": 0.4632414777727797
+  },
+  "parity": {
+    "observation_key": "Run",
+    "variable_key": "ProForma_ion",
+    "observations": 6,
+    "variables": 72804,
+    "named_layers": [
+      "Ms1_Area",
+      "Precursor_Normalised",
+      "Precursor_Quantity",
+      "Q_Value",
+      "RT"
+    ],
+    "compared_matrices": 6,
+    "compared_matrix_cells": 2620944,
+    "obs_metadata_columns": 1,
+    "var_metadata_columns": 11
+  }
+}

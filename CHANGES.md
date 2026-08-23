@@ -4,7 +4,9 @@
   `docs/architecture_converter.md`. `documentation/benchmarks/diann_cli_conversion.py` measures
   complete `apb convert` versus `apb2 convert` subprocesses through `.h5ad` writing, records every
   run and its environment, and refuses to report performance unless the persisted quantities and
-  axis metadata agree.
+  axis metadata agree. On the first DIA-NN v1 ion case, APB2 was 2.10 times faster by median wall
+  time and used 46.3% less median peak resident memory across five measured runs per converter;
+  all 2,620,944 compared matrix cells and every axis metadata value agreed.
 - 2026-08-22: `apb2 convert --output` refuses only a basename that already ends in `.h5ad`,
   the extension it appends, instead of any name `Path.suffix` finds a dot in. A dotted basename is
   legal — `ion.apb2` beside `ion` is how a caller comparing two converters names the pair — and
