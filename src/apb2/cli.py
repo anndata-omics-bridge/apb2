@@ -29,6 +29,9 @@ class ConvertCliOptions:
 
 DEFAULT_CONVERT_CLI_OPTIONS = ConvertCliOptions()
 
+OUTPUT_SUFFIX = ".h5ad"
+"""What ``convert`` appends to the basename it is given."""
+
 
 @app.command
 def convert(
@@ -41,16 +44,25 @@ def convert(
     --params is the vendor parameter file and is required unless --rule-config is given.
     --software disambiguates packaged rule detection. --params-software selects the
     parameter parser independently for compound workflows. --rule-config selects an
-    explicit schema-0.3 document. --output is an extensionless basename; apb2 appends
-    .h5ad. --strict promotes layer-contract warnings to errors.
+    explicit schema-0.3 document. --output is a basename apb2 appends .h5ad to; the name
+    may contain dots, it simply must not already end in .h5ad. --strict promotes
+    layer-contract warnings to errors.
     """
-    if options.output is not None and options.output.suffix:
+    # Only the extension this command appends is refused, and only to stop a doubled
+    # ``.h5ad.h5ad``. A dotted basename is a legal name — ``ion.apb2`` beside ``ion`` is how a
+    # caller comparing two converters spells the pair — and rejecting it is not this check's job.
+    if options.output is not None and options.output.suffix == OUTPUT_SUFFIX:
         logger.error(
-            "--output must be an extensionless basename, got {}; apb2 appends .h5ad",
+            "--output must not already end in {}; apb2 appends it, got {}",
+            OUTPUT_SUFFIX,
             options.output,
         )
         return 2
-    output = data.with_suffix(".h5ad") if options.output is None else Path(f"{options.output}.h5ad")
+    output = (
+        data.with_suffix(OUTPUT_SUFFIX)
+        if options.output is None
+        else Path(f"{options.output}{OUTPUT_SUFFIX}")
+    )
     checks = "strict" if options.strict else "standard"
     try:
         if options.rule_config is not None:

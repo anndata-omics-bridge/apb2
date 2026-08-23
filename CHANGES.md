@@ -1,5 +1,15 @@
 # Changes
 
+- 2026-08-22: `apb2 convert --output` refuses only a basename that already ends in `.h5ad`,
+  the extension it appends, instead of any name `Path.suffix` finds a dot in. A dotted basename is
+  legal — `ion.apb2` beside `ion` is how a caller comparing two converters names the pair — and
+  rejecting it made every such conversion fail with an argument error.
+- 2026-08-22: The AnnData writer's namespace key is `apb`, matching APB, so a converted object
+  carries `uns['apb']['parse']`. The parse provenance also states `produced_by` and the
+  `column_roles` the rule declares, which is what lets `apb annotate`, `apb fasta` and
+  `apb proteobench` run on an apb2 object: they read the level and the role columns as data
+  instead of validating a schema-0.3 rule document with APB's own model. Verified end to end on
+  the cached MaxQuant ion fixture — all three steps succeed, and `apb summary` renders the object.
 - 2026-08-22: `apb2 convert` now runs Parser V2 exclusively. The CLI is a thin Cyclopts/Loguru
   adapter over `parserV2/conversion_facade.py`; packaged-rule selection inspects only source
   metadata and headers before the selected parser performs the single full read. Vendor-parameter

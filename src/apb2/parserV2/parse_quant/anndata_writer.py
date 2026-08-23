@@ -32,11 +32,11 @@ from loguru import logger
 from apb2.parserV2.parse_quant.data.parsed import FinalLayerTable, JsonValue, ParsedLevel
 from apb2.parserV2.parse_quant.numeric_text import NumberNotation, as_numbers, blank
 
-NAMESPACE = "anndata_proteomics"
-"""The established APB interoperability namespace."""
+NAMESPACE = "apb"
+"""The one uns key APB owns. Every APB tool writes a child of it, never a key beside it."""
 
 PARSE_NAMESPACE = "parse"
-"""The tool-owned child of the APB namespace written by parsing."""
+"""Parsing's own child of that namespace, and the section every later step reads from."""
 
 KEY_SEPARATOR = "_"
 UNKNOWN_FACTOR_CODE = -1

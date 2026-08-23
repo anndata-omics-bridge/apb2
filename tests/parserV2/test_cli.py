@@ -10,6 +10,7 @@ import pytest
 
 from apb2.cli import ConvertCliOptions, convert
 from apb2.parserV2.conversion_facade import ConversionError
+from apb2.parserV2.parse_quant.anndata_writer import NAMESPACE, PARSE_NAMESPACE
 
 _DOCUMENT = {
     "schema_version": "0.3",
@@ -49,7 +50,7 @@ def test_convert_with_rule_config_writes_h5ad(tmp_path: Path) -> None:
     assert exit_code == 0
     written = anndata.read_h5ad(tmp_path / "out.h5ad")
     assert written.shape == (2, 2)
-    namespace = written.uns["anndata_proteomics"]["parse"]
+    namespace = written.uns[NAMESPACE][PARSE_NAMESPACE]
     assert namespace["rule_selection_method"] == "rule_config"
     assert namespace["software_name"] == "CliTest"
 
@@ -73,14 +74,33 @@ def test_convert_with_rule_config_preserves_the_complete_parameter_record(tmp_pa
     )
 
     assert exit_code == 0
-    namespace = anndata.read_h5ad(tmp_path / "out.h5ad").uns["anndata_proteomics"]["parse"]
+    namespace = anndata.read_h5ad(tmp_path / "out.h5ad").uns[NAMESPACE][PARSE_NAMESPACE]
     record = json.loads(str(namespace["search_parameters"]))
     assert record["software_name"] == "Wombat"
     assert record["software_version"] == "0.9.8"
     assert namespace["search_parameters_path"] == str(parameters)
 
 
-def test_convert_rejects_output_with_suffix(tmp_path: Path) -> None:
+def test_convert_accepts_a_dotted_basename_and_appends_its_own_suffix(tmp_path: Path) -> None:
+    """A basename may contain dots: ``ion.apb2`` beside ``ion`` names two converters' outputs."""
+    report = tmp_path / "report.tsv"
+    report.write_text(_TSV, encoding="utf-8")
+    rule_config = tmp_path / "rules.json"
+    rule_config.write_text(json.dumps(_DOCUMENT), encoding="utf-8")
+
+    exit_code = convert(
+        report,
+        "ion",
+        ConvertCliOptions(rule_config=rule_config, output=tmp_path / "ion.apb2"),
+    )
+
+    assert exit_code == 0
+    assert (tmp_path / "ion.apb2.h5ad").is_file()
+
+
+def test_convert_rejects_output_that_already_carries_the_appended_suffix(
+    tmp_path: Path,
+) -> None:
     report = tmp_path / "report.tsv"
     report.write_text(_TSV, encoding="utf-8")
 

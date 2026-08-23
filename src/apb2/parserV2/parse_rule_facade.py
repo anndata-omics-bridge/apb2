@@ -143,6 +143,14 @@ from apb2.parserV2.vendor_parse_rules.schema.measurements import (
 )
 from apb2.parserV2.vendor_parse_rules.schema.rule import LongRule, WideRule
 
+PRODUCER = "apb2"
+"""What this package writes as ``uns['apb']['parse']['produced_by']``.
+
+Which tool converted the object, stated by the tool. A reader that wants a rule document
+renders it only for a producer whose schema it can validate; sniffing the payload's shape
+would be a worse answer than asking who wrote it.
+"""
+
 _EMPTY_RATIO = 0.001
 _POPULATED_RATIO = 0.5
 _STRIPPED_OUTPUT = "stripped_sequence"
@@ -551,8 +559,22 @@ class ParseRuleFacade:
 
     @staticmethod
     def _project_provenance(rule: LongRule | WideRule) -> Mapping[str, JsonValue]:
+        """What the parse section records: who wrote it, the rule, and the facts steps read.
+
+        ``produced_by`` and ``column_roles`` are not decoration. A later APB step needs the
+        quantification level and one ``var`` column per semantic role, and must not have to
+        validate a schema-0.3 document to learn a column name — a reader of another generation
+        cannot. Stating both as data is what lets ``apb fasta`` and ``apb proteobench`` run on
+        an object this parser wrote.
+        """
         return {
+            "produced_by": PRODUCER,
             "rule_json": json.dumps(rule.model_dump(mode="json")),
+            "column_roles": {
+                name: column
+                for name in ("protein_assignment", "fasta_accessions")
+                if (column := getattr(rule.column_roles, name)) is not None
+            },
             "schema_version": rule.schema_version,
             "software_name": rule.software_name,
             "shape": rule.shape,

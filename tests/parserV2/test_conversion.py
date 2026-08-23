@@ -15,6 +15,7 @@ from apb2.parserV2.conversion_facade import ConversionError, convert_from_packag
 from apb2.parserV2.detect_document import AmbiguousRuleError, detect_rule_document
 from apb2.parserV2.detect_document import guess_software as guess_packaged_software
 from apb2.parserV2.parse_quant import delimited_input
+from apb2.parserV2.parse_quant.anndata_writer import NAMESPACE, PARSE_NAMESPACE
 from apb2.parserV2.parse_quant.parameters.source import SingleFile
 from apb2.parserV2.vendor_params.parsers.shared.model import Parameters
 from apb2.parserV2.vendor_params.registry import parse_params
@@ -57,7 +58,7 @@ def test_packaged_conversion_detects_parses_and_writes_with_provenance(tmp_path:
     assert result.software == "diann"
     assert target.is_file()
     stored = anndata.read_h5ad(target)
-    namespace = stored.uns["anndata_proteomics"]["parse"]
+    namespace = stored.uns[NAMESPACE][PARSE_NAMESPACE]
     expected = parse_params(parameters_path, software="diann").model_dump(mode="json")
     assert json.loads(str(namespace["search_parameters"])) == expected
     assert namespace["search_parameters_path"] == str(parameters_path)
