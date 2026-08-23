@@ -1,5 +1,10 @@
 # Changes
 
+- 2026-08-23: The approved converter architecture is now versioned at
+  `docs/architecture_converter.md`. `documentation/benchmarks/diann_cli_conversion.py` measures
+  complete `apb convert` versus `apb2 convert` subprocesses through `.h5ad` writing, records every
+  run and its environment, and refuses to report performance unless the persisted quantities and
+  axis metadata agree.
 - 2026-08-22: `apb2 convert --output` refuses only a basename that already ends in `.h5ad`,
   the extension it appends, instead of any name `Path.suffix` finds a dot in. A dotted basename is
   legal — `ion.apb2` beside `ion` is how a caller comparing two converters names the pair — and

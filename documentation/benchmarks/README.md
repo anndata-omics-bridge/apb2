@@ -1,5 +1,37 @@
 # Benchmarks
 
+## `diann_cli_conversion.py` — APB versus APB2 through `.h5ad`
+
+This is the user-visible converter benchmark. It invokes `apb convert` and `apb2 convert` as
+separate processes from the same APB2 virtual environment and times the entire command: application
+startup, parameter and rule selection, vendor-table reading, conversion, AnnData construction, and
+the completed `.h5ad` write.
+
+The current case is the cached DIA-NN v1 ion report used by the cross-generation integration tests.
+It is 229,148,700 bytes, has 325,788 source rows, and converts to 6 observations by 72,804 variables
+with five named layers. Run one discarded warm-up and five measured pairs:
+
+```bash
+diann_data=../apb/test_data_download/json_dir/Results_quant_ion_DIA_AIF/dcfb0316d24e51357eaffc5f9e638bd28da609fe/input_file.txt
+diann_params=../apb/test_data_download/json_dir/Results_quant_ion_DIA_AIF/dcfb0316d24e51357eaffc5f9e638bd28da609fe/param_0..txt
+
+.venv/bin/python documentation/benchmarks/diann_cli_conversion.py \
+    "$diann_data" "$diann_params" \
+    --warmups 1 --repeats 5 \
+    --output-directory /tmp/apb-diann-v1-ion \
+    --result-json documentation/benchmarks/results/diann_v1_ion_2026-08-23.json
+```
+
+Measured order alternates between pairs to reduce order and thermal bias. Input pages are warm after
+the discarded run. macOS `/usr/bin/time -lp` supplies wall, user, system, and maximum-RSS values.
+Deleting the previous output and checking it are outside the timed interval.
+
+Every pair is then read back. The benchmark aligns observations by `Run` and variables by
+`ProForma_ion`, checks all obs and var metadata, and compares every cell in every persisted layer
+and `X` with `rtol=1e-9`. A performance result is not reported if parity fails. The JSON record keeps
+every raw run, exact commands, package versions, machine details, repository commits and statuses,
+summary statistics, and the parity coverage.
+
 ## `long_table_conversion.py` — which engine for the parse core?
 
 Times the steps `parse_quant/table_conversion.py` performs on a long-format vendor export:

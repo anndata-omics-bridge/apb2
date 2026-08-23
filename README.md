@@ -25,6 +25,10 @@ Parser V2.
 The CLI imports only `apb2.parserV2`. Programmatic Parser V2 callers may also select the Parquet
 writer without passing through the AnnData adapter.
 
+The converter's controlling design, dependency boundaries, rule-schema decisions, algorithms, and
+implementation contracts are documented in
+[`docs/architecture_converter.md`](docs/architecture_converter.md).
+
 ## Development
 
 ```bash
