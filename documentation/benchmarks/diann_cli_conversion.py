@@ -248,8 +248,10 @@ def assert_output_parity(apb_output: Path, apb2_output: Path) -> ParitySummary:
     _assert_axis_metadata(expected.obs, actual.obs, obs_positions, "obs")
     _assert_axis_metadata(expected.var, actual.var, var_positions, "var")
 
-    expected_layers = tuple(expected.layers.keys())
-    actual_layers = tuple(actual.layers.keys())
+    # AnnData 0.13 exposes ``layers[None]`` as an in-memory alias of ``X``. It is not a
+    # persisted HDF5 layer, so compare only named layers here and compare ``X`` once below.
+    expected_layers = tuple(name for name in expected.layers if isinstance(name, str))
+    actual_layers = tuple(name for name in actual.layers if isinstance(name, str))
     if set(expected_layers) != set(actual_layers):
         raise AssertionError(f"AnnData layers differ: {expected_layers} != {actual_layers}")
 
@@ -270,7 +272,7 @@ def assert_output_parity(apb_output: Path, apb2_output: Path) -> ParitySummary:
         variable_key=VAR_KEY,
         observations=expected.n_obs,
         variables=expected.n_vars,
-        named_layers=tuple(name for name in expected_layers if isinstance(name, str)),
+        named_layers=expected_layers,
         compared_matrices=len(matrix_names),
         compared_matrix_cells=compared_cells,
         obs_metadata_columns=expected.obs.shape[1],
