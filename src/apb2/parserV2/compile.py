@@ -20,8 +20,9 @@ declared candidates. Each of those is reported as what it is.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Literal
 
@@ -31,6 +32,7 @@ from apb2.parserV2.parse_quant.anndata_writer import (
     AnnDataLayerEncoder,
     AnnDataWriter,
     FactorAnnDataEncoder,
+    MuDataWriter,
     OccupancyPolicy,
     PlainNumericAnnDataEncoder,
     RegexNumericAnnDataEncoder,
@@ -356,11 +358,18 @@ def make_parsed_level_writer(
     """Consume the output choice once. A Parquet compile constructs no encoder at all."""
     if isinstance(output, ParquetOutput):
         return ParquetWriter()
+    return make_anndata_writer(resolved, output.checks)
+
+
+def make_anndata_writer(
+    resolved: ResolvedLevelPlan, checks: Literal["standard", "strict"]
+) -> AnnDataWriter:
+    """Construct the configured AnnData adapter for one resolved level."""
     retained = tuple(config.layer_name for config in resolved.raw_value_presence)
     encodings = {config.layer_name: config for config in resolved.ann_data.layer_encodings}
     return AnnDataWriter(
         encoders={name: make_anndata_layer_encoder(encodings[name]) for name in retained},
-        contract=make_anndata_layer_contract_checker(resolved.ann_data, output.checks),
+        contract=make_anndata_layer_contract_checker(resolved.ann_data, checks),
     )
 
 
@@ -397,20 +406,19 @@ def _runtime_phase(
 # ------------------------------------------------------------------- the fixed compilation
 
 
-@dataclass(frozen=True, slots=True)
-class ParseRuleCompiler:
-    """One level's compilation: bind, resolve once, construct, inject."""
-
-    facade: ParseRuleFacade
-    output: OutputDeclaration
-
-    def compile(self, source: InputSource) -> Parser:
-        """Build one fully initialized parser for this level and this source."""
-        working = self.facade.working_parameters
-        bound = bind_source(source, working.input)
-        evidence = source_evidence(source, bound, header_predicate(working))
-        resolved = self.facade.resolve_source(evidence)
-        return Parser(
+def _compile_level[WriterT: ParsedLevelWriter](
+    facade: ParseRuleFacade,
+    source: InputSource,
+    writer_from: Callable[[ResolvedLevelPlan], WriterT],
+) -> tuple[Parser, WriterT]:
+    """Resolve one source once, then construct its parser and configured writer together."""
+    working = facade.working_parameters
+    bound = bind_source(source, working.input)
+    evidence = source_evidence(source, bound, header_predicate(working))
+    resolved = facade.resolve_source(evidence)
+    writer = writer_from(resolved)
+    return (
+        Parser(
             level=resolved.level,
             input_reader=make_reader(bound, evidence, resolved.read),
             decomposer=make_source_decomposer(
@@ -426,11 +434,40 @@ class ParseRuleCompiler:
                 config.layer_name: make_raw_value_presence(config)
                 for config in resolved.raw_value_presence
             },
-            writer=make_parsed_level_writer(self.output, resolved),
+            writer=writer,
             # The plan is provenance too: what the rule permitted is already in
             # ``rule_json``, and this is what this source actually resolved to.
             provenance={**resolved.provenance, PLAN_JSON_KEY: resolved_plan_json(resolved)},
+        ),
+        writer,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class ParseRuleCompiler:
+    """One level's compilation: bind, resolve once, construct, inject."""
+
+    facade: ParseRuleFacade
+    output: OutputDeclaration
+
+    def compile(self, source: InputSource) -> Parser:
+        """Build one fully initialized parser for this level and this source."""
+        parser, _writer = _compile_level(
+            self.facade,
+            source,
+            partial(make_parsed_level_writer, self.output),
         )
+        return parser
+
+
+def _requested_levels(
+    levels: Iterable[QuantificationLevel],
+) -> tuple[QuantificationLevel, ...]:
+    """Return requested levels once, in the canonical parsing order."""
+    asked = set(levels)
+    # Annotated because a generator widens a literal; the rule and parsing packages spell this
+    # vocabulary separately and the values are structurally identical.
+    return tuple(candidate for candidate in LEVELS if candidate in asked)
 
 
 def compile_parsers(
@@ -447,15 +484,9 @@ def compile_parsers(
     or the source cannot satisfy is skipped without affecting the others; a request that
     satisfies nothing was the wrong source, and says so.
     """
-    asked = set(levels)
-    # Annotated because a generator widens a literal; the two packages spell this level
-    # vocabulary separately and the values are the same.
-    requested: tuple[QuantificationLevel, ...] = tuple(
-        candidate for candidate in LEVELS if candidate in asked
-    )
     parsers: list[Parser] = []
     skipped: dict[str, str] = {}
-    for level in requested:
+    for level in _requested_levels(levels):
         try:
             facade = ParseRuleFacade(document, level, parameter_evidence)
             parsers.append(ParseRuleCompiler(facade=facade, output=output).compile(source))
@@ -466,6 +497,34 @@ def compile_parsers(
             f"no requested level of {document.path} is satisfied by {source!r}: {skipped}"
         )
     return parsers
+
+
+def compile_mudata_parsers(
+    *,
+    document: RuleDocument,
+    levels: Iterable[QuantificationLevel],
+    parameter_evidence: SearchParameterEvidence,
+    source: InputSource,
+    checks: Literal["standard", "strict"],
+) -> tuple[list[Parser], MuDataWriter]:
+    """Compile compatible parsers and retain their exact configured AnnData adapters."""
+    parsers: list[Parser] = []
+    writers: dict[QuantificationLevel, AnnDataWriter] = {}
+    skipped: dict[str, str] = {}
+    writer_from = partial(make_anndata_writer, checks=checks)
+    for level in _requested_levels(levels):
+        try:
+            facade = ParseRuleFacade(document, level, parameter_evidence)
+            parser, writer = _compile_level(facade, source, writer_from)
+            parsers.append(parser)
+            writers[level] = writer
+        except (RuleNotApplicable, IncompatibleSourceError) as reason:
+            skipped[level] = str(reason)
+    if not parsers:
+        raise NoCompatibleLevelError(
+            f"no requested level of {document.path} is satisfied by {source!r}: {skipped}"
+        )
+    return parsers, MuDataWriter(level_writers=writers)
 
 
 def header_predicate(

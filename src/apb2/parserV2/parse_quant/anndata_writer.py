@@ -21,13 +21,15 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Protocol
+from typing import Literal, Protocol
 
+import mudata
 import numpy as np
 import pandas as pd
 import polars as pl
 from anndata import AnnData
 from loguru import logger
+from mudata import MuData
 
 from apb2.parserV2.parse_quant.data.parsed import FinalLayerTable, JsonValue, ParsedLevel
 from apb2.parserV2.parse_quant.numeric_text import NumberNotation, as_numbers, blank
@@ -42,9 +44,32 @@ KEY_SEPARATOR = "_"
 UNKNOWN_FACTOR_CODE = -1
 _EXAMPLE_LIMIT = 5
 
+type ParsedLevelName = Literal["ion", "peptidoform", "peptide", "protein", "fragment"]
+"""The modality names this output adapter can persist, in parsing's canonical vocabulary."""
+
+LEVEL_ORDER: tuple[ParsedLevelName, ...] = (
+    "ion",
+    "peptidoform",
+    "peptide",
+    "protein",
+    "fragment",
+)
+
+LEVEL_VAR_PREFIXES: Mapping[ParsedLevelName, str] = {
+    "ion": "ion:",
+    "peptidoform": "pfm:",
+    "peptide": "pep:",
+    "protein": "prt:",
+    "fragment": "frg:",
+}
+
 
 class AnnDataLayerContractError(ValueError):
     """An encoded layer carries too few values to be a usable quantitative layer."""
+
+
+class MuDataLevelError(ValueError):
+    """Parsed levels and their configured AnnData writers do not form one container."""
 
 
 class AnnDataLayerEncoder(Protocol):
@@ -306,6 +331,17 @@ class StrictAnnDataLayerContract:
 # ----------------------------------------------------------------------------- the adapter
 
 
+@dataclass(slots=True)
+class ParsedLevels:
+    """One or more parsed quantification levels and their shared parse provenance."""
+
+    levels: dict[ParsedLevelName, ParsedLevel]
+    # {"ion": ion_parsed_level, "protein": protein_parsed_level}
+
+    uns: dict[str, JsonValue]
+    # {"produced_by": "apb2", "rule_selection_method": "software_version"}
+
+
 @dataclass(frozen=True, slots=True)
 class AnnDataWriter:
     """Encode, check, allocate, and write one parsed level as an ``.h5ad`` file."""
@@ -313,7 +349,8 @@ class AnnDataWriter:
     encoders: Mapping[str, AnnDataLayerEncoder]
     contract: AnnDataLayerContractChecker
 
-    def write(self, parsed: ParsedLevel, target: Path, /) -> None:
+    def to_anndata(self, parsed: ParsedLevel, /) -> AnnData:
+        """Encode and materialize one parsed level without writing it."""
         encoded = {
             name: self.encoders[name].encode(self._value_block(layer))
             for name, layer in parsed.layers.items()
@@ -329,8 +366,11 @@ class AnnDataWriter:
             var=self._make_axis_frame(parsed.var.frame, parsed.var.key_columns),
             layers=arrays,
         )
-        self._write_namespace(adata, dict(parsed.uns))
-        self._write_atomically(target, adata.write_h5ad)
+        _write_parse_namespace(adata, dict(parsed.uns))
+        return adata
+
+    def write(self, parsed: ParsedLevel, target: Path, /) -> None:
+        _write_atomically(target, self.to_anndata(parsed).write_h5ad)
 
     @staticmethod
     def _value_block(layer: FinalLayerTable) -> pl.DataFrame:
@@ -402,15 +442,47 @@ class AnnDataWriter:
         ]
         return pd.Index(labels, name=name)
 
-    @staticmethod
-    def _write_namespace(adata: AnnData, namespace: dict[str, JsonValue]) -> None:
-        """Store parse metadata under its tool-owned APB child namespace."""
-        adata.uns[NAMESPACE] = {PARSE_NAMESPACE: namespace}
 
-    @staticmethod
-    def _write_atomically(target: Path, write: Callable[[Path], None]) -> None:
-        """Write beside the destination and replace it only after a complete write."""
-        with TemporaryDirectory(dir=target.parent, prefix=f".{target.name}.") as scratch:
-            staged = Path(scratch) / target.name
-            write(staged)
-            staged.replace(target)
+@dataclass(frozen=True, slots=True)
+class MuDataWriter:
+    """Materialize configured parsed levels as one shared-observation MuData file."""
+
+    level_writers: Mapping[ParsedLevelName, AnnDataWriter]
+
+    def write(self, parsed: ParsedLevels, target: Path, /) -> None:
+        if not parsed.levels:
+            raise MuDataLevelError("no parsed levels supplied")
+        parsed_names = set(parsed.levels)
+        writer_names = set(self.level_writers)
+        if parsed_names != writer_names:
+            raise MuDataLevelError(
+                "parsed levels and configured writers differ: "
+                f"parsed={sorted(parsed_names)}, writers={sorted(writer_names)}"
+            )
+
+        modalities: dict[str, AnnData] = {}
+        for level in LEVEL_ORDER:
+            if level not in parsed.levels:
+                continue
+            adata = self.level_writers[level].to_anndata(parsed.levels[level])
+            prefix = LEVEL_VAR_PREFIXES[level]
+            adata.var_names = [f"{prefix}{name}" for name in adata.var_names]
+            modalities[level] = adata
+
+        with mudata.set_options(pull_on_update=False):
+            result = MuData(modalities, axis=0)
+        _write_parse_namespace(result, parsed.uns)
+        _write_atomically(target, result.write_h5mu)
+
+
+def _write_parse_namespace(target: AnnData | MuData, namespace: Mapping[str, JsonValue]) -> None:
+    """Store parse metadata under its tool-owned APB child namespace."""
+    target.uns[NAMESPACE] = {PARSE_NAMESPACE: dict(namespace)}
+
+
+def _write_atomically(target: Path, write: Callable[[Path], None]) -> None:
+    """Write beside the destination and replace it only after a complete write."""
+    with TemporaryDirectory(dir=target.parent, prefix=f".{target.name}.") as scratch:
+        staged = Path(scratch) / target.name
+        write(staged)
+        staged.replace(target)

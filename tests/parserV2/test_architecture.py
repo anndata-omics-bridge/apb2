@@ -314,8 +314,12 @@ def test_the_registries_live_only_in_the_composition_root() -> None:
 def test_only_the_annData_adapter_reaches_for_a_storage_backend() -> None:
     for path in _modules(PARSE_QUANT):
         imported = _imported_modules(path)
-        backends = {"pandas", "numpy", "anndata"} & {name.split(".")[0] for name in imported}
-        expected = {"pandas", "numpy", "anndata"} if path.name == "anndata_writer.py" else set()
+        backends = {"pandas", "numpy", "anndata", "mudata"} & {
+            name.split(".")[0] for name in imported
+        }
+        expected = (
+            {"pandas", "numpy", "anndata", "mudata"} if path.name == "anndata_writer.py" else set()
+        )
         assert backends <= expected, f"{path} imports {backends}"
 
 

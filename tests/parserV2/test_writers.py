@@ -14,6 +14,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 import anndata
+import mudata
 import numpy as np
 import pandas as pd
 import polars as pl
@@ -25,7 +26,10 @@ from apb2.parserV2.parse_quant.anndata_writer import (
     AnnDataLayerContractError,
     AnnDataWriter,
     FactorAnnDataEncoder,
+    MuDataLevelError,
+    MuDataWriter,
     OccupancyPolicy,
+    ParsedLevels,
     PlainNumericAnnDataEncoder,
     RegexNumericAnnDataEncoder,
     StandardAnnDataLayerContract,
@@ -657,6 +661,72 @@ def test_the_anndata_writer_satisfies_the_parser_owned_writer_contract(
     writer.write(parsed, tmp_path / "ion.h5ad")
 
     assert (tmp_path / "ion.h5ad").is_file()
+
+
+def test_mudata_writer_materializes_each_level_with_its_configured_anndata_writer(
+    tmp_path: Path,
+) -> None:
+    ion = level(
+        uns={"software_name": "Synthetic", "quantification_level": "ion"},
+    )
+    protein = level(
+        var=pl.DataFrame({"Protein": ["P1"]}),
+        var_keys=("Protein",),
+        layers={"Intensity": pl.DataFrame({"Protein": ["P1"], "obs_0": [10.0], "obs_1": [20.0]})},
+        uns={"software_name": "Synthetic", "quantification_level": "protein"},
+    )
+    target = tmp_path / "levels.h5mu"
+
+    MuDataWriter(level_writers={"ion": writer_for(ion), "protein": writer_for(protein)}).write(
+        ParsedLevels(
+            levels={"ion": ion, "protein": protein},
+            uns={
+                "produced_by": "apb2",
+                "rule_selection_method": "rule_config",
+                "quantification_levels": ["ion", "protein"],
+            },
+        ),
+        target,
+    )
+
+    stored = mudata.read_h5mu(target)
+    assert list(stored.mod) == ["ion", "protein"]
+    assert stored["ion"].shape == (2, 2)
+    assert stored["protein"].shape == (2, 1)
+    assert list(stored["ion"].var_names) == ["ion:F1", "ion:F2"]
+    assert list(stored["protein"].var_names) == ["prt:P1"]
+    assert list(stored["ion"].var["Feature"].astype("string")) == ["F1", "F2"]
+    assert stored.uns[NAMESPACE][PARSE_NAMESPACE]["rule_selection_method"] == "rule_config"
+    assert stored["ion"].uns[NAMESPACE][PARSE_NAMESPACE]["quantification_level"] == "ion"
+
+
+def test_mudata_writer_accepts_one_level_but_rejects_no_levels(tmp_path: Path) -> None:
+    ion = level()
+    writer = MuDataWriter(level_writers={"ion": writer_for(ion)})
+
+    writer.write(
+        ParsedLevels(levels={"ion": ion}, uns={"produced_by": "apb2"}),
+        tmp_path / "ion.h5mu",
+    )
+
+    assert list(mudata.read_h5mu(tmp_path / "ion.h5mu").mod) == ["ion"]
+    with pytest.raises(MuDataLevelError, match="no parsed levels"):
+        MuDataWriter(level_writers={}).write(
+            ParsedLevels(levels={}, uns={}),
+            tmp_path / "empty.h5mu",
+        )
+
+
+def test_mudata_writer_requires_one_configured_writer_per_parsed_level(
+    tmp_path: Path,
+) -> None:
+    ion = level()
+
+    with pytest.raises(MuDataLevelError, match=r"parsed=.*ion.*writers"):
+        MuDataWriter(level_writers={}).write(
+            ParsedLevels(levels={"ion": ion}, uns={}),
+            tmp_path / "levels.h5mu",
+        )
 
 
 def test_one_array_is_allocated_for_each_encoded_layer(

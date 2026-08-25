@@ -4,8 +4,7 @@
 and nothing else. ProteoBench's checked-in expected files are a **foreign text format** —
 ``NaN``, ``""``, ``"1.0%"``, ``"[-20.0 ppm, 20.0 ppm]"``, ``"KR"``, ``"Automatic
 calibration"``. Interpreting that format is a parity-test concern, so the interpretation
-lives here instead of running on every vendor parse inside ``model.py``; see
-``TODO/Archive/TODO_vendor_params_boundary.md``.
+lives here instead of running on every vendor parse inside ``model.py``.
 
 Both sides of every comparison go through the same formatters, so a reported difference is a
 difference in meaning rather than in spelling. The legacy ``Parameters.from_series`` /

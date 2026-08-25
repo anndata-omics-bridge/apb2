@@ -5,11 +5,11 @@
 > historical context. This document is the implementation baseline.
 >
 > **Scope:** rules-driven parsing of one quantification level from one bound physical source into
-> a storage-neutral, Polars-based `ParsedLevel`, followed by an injected writer that may persist
-> that result as AnnData or Parquet.
+> a storage-neutral, Polars-based `ParsedLevel`; single-level AnnData/Parquet persistence; and
+> output-adapter composition of one or more parsed levels as MuData.
 >
-> **Out of scope:** FASTA annotation, protein inference, MuData assembly, unrelated APB commands,
-> and byte-for-byte reconstruction of vendor input.
+> **Out of scope:** FASTA annotation, protein inference, unrelated APB commands, and byte-for-byte
+> reconstruction of vendor input.
 
 ## How to read this document
 
@@ -49,7 +49,10 @@ variable-key columns | observation value columns
 It does not create pandas indexes, coordinate arrays, dense NumPy matrices, or AnnData objects.
 `ParquetWriter` writes the parsed frames directly. `AnnDataWriter` alone performs layer encoding,
 orientation change, NumPy allocation, pandas-index construction, AnnData contract checks, and
-AnnData I/O.
+AnnData I/O. When the CLI omits `LEVEL`, existing parsers still return one `ParsedLevel` each;
+`ParsedLevels` collects them and `MuDataWriter` loops over the corresponding configured
+`AnnDataWriter` values to assemble `MuData(axis=0)`. MuData is therefore storage composition, not
+a multi-level parsing algorithm.
 
 The identity model uses explicit columns rather than temporary integer IDs:
 
@@ -115,6 +118,7 @@ The specification stays close to V5. These are the only intentional changes:
 | Parser V2 owns its boundary errors: rule applicability in `vendor_parse_rules/document.py`, shared parse/source errors in `parse_quant/errors.py`, and strategy-local errors beside their raiser | V5 named error categories but did not assign them to the folder dependency graph; importing the existing top-level `apb2.errors` would be an upward dependency | Keep catchable errors at the boundary that defines their meaning without creating a generic cross-package error module |
 | `parserV2` has an explicit downward import graph: `parse_quant/data` owns pipeline values, `parse_quant/parameters` owns working and source-resolved parameters, `parse_quant/contracts.py` owns Parser-consumed Protocols, reader and writer modules live directly in `parse_quant`, parent-level `parse_rule_facade.py` translates `RuleDocument` into parameters, and the inward-only `vendor_parse_rules/schema/` child owns Pydantic storage declarations | V5 named implementation areas but did not assign concrete modules or prohibit child-to-parent and sibling-child imports | Make directory nesting express dependency direction: a module owned by one child moves into that child; only genuine cross-child composition stays in the parent |
 | One-class private helpers are private methods; module-level `make_*` and `*_for` names are reserved for construction and selection | V5 showed several one-client parser and writer helpers as free functions | Put implementation details with their sole owner, reduce module namespace and forwarding code, and keep the construction boundary visible |
+| Omitted CLI level composes compatible `ParsedLevel` values as MuData | The initial specification explicitly excluded MuData assembly | Match APB's compound-conversion contract without changing parsing: one parser per level, one output-adapter loop, and one `.h5mu` container |
 
 No other architectural novelty is introduced. In particular, this specification does not restore
 the V4 reverse path, temporary IDs, parser-side arrays, a Builder, a generic dataframe facade, or a
@@ -200,6 +204,21 @@ select one effective rule and one physical source
     -> return ParsedLevel
     -> serialize only when the caller supplies that ParsedLevel to convert()
 ```
+
+Omitting the CLI level changes only the outer composition:
+
+```text
+compile_parsers(document.levels)
+    -> for each compatible Parser: parse() -> ParsedLevel
+    -> ParsedLevels({level: parsed_level, ...}, shared_uns)
+    -> MuDataWriter loops over levels
+    -> each level's configured AnnDataWriter.to_anndata(parsed_level)
+    -> prefix modality var_names and assemble MuData(axis=0)
+    -> atomic .h5mu write
+```
+
+Each selected parser still performs its own ordinary single-level read and parse. Sharing a full
+source read across levels is a separate performance design and is not implied by MuData output.
 
 ### 2.1 Dependency direction
 
@@ -728,7 +747,7 @@ into a path without validation.
 
 ```python
 class AnnDataWriter:
-    def write(self, parsed: ParsedLevel, target: Path, /) -> None:
+    def to_anndata(self, parsed: ParsedLevel, /) -> AnnData:
         encoded: dict[str, pl.DataFrame] = {}
         for name, layer in parsed.layers.items():
             n_key_columns = len(layer.var_key_columns)
@@ -751,13 +770,16 @@ class AnnDataWriter:
             var=var,
             layers=arrays,
         )
-        self._write_namespace(adata, dict(parsed.uns))
-        self._write_atomically(target, adata.write_h5ad)
+        _write_parse_namespace(adata, parsed.uns)
+        return adata
+
+    def write(self, parsed: ParsedLevel, target: Path, /) -> None:
+        _write_atomically(target, self.to_anndata(parsed).write_h5ad)
 ```
 
-`_write_namespace()` writes `{ "parse": parsed.uns }` below the APB-owned top-level key
-`"anndata_proteomics"`. Parsing never replaces that top-level namespace with its own fields:
-`anndata_proteomics` may also contain sibling namespaces owned by other APB tools.
+`_write_parse_namespace()` writes `{ "parse": parsed.uns }` below the APB-owned top-level key
+`"apb"`. Parsing never replaces that top-level namespace with its own fields: `apb` may also
+contain sibling namespaces owned by other APB tools.
 
 `AnnDataWriter._make_axis_frame()` converts Polars to pandas and normalizes extension dtypes to values
 supported by AnnData/HDF5. It retains every authored key as an ordinary column. For one string key,
@@ -768,12 +790,10 @@ concatenation; JSON escaping and the type tag distinguish values such as embedde
 strings, integers, and booleans. This string is an AnnData storage requirement only; parsing never
 uses it for joins, grouping, or identity.
 
-`_make_axis_frame()`, `_write_namespace()`, and `_write_atomically()` are private static methods on
-`AnnDataWriter` while that writer is their only client. They are not module-level forwarding
-functions. If atomic replacement later has two genuine writer clients, the shared operation may
-remain a shared private function in `parse_quant/anndata_writer.py` or move to another module
-directly in `parse_quant/`. It must not move into `data/` or `parameters/`, because either child
-would then need to import upward to use it.
+`_make_axis_frame()` remains a private static method because it has one class client.
+`_write_parse_namespace()` and `_write_atomically()` are module-private functions because both
+AnnData and MuData writing use them. They remain in `parse_quant/anndata_writer.py`; neither belongs
+in `data/` or `parameters/`, because either child would then need to import upward to use it.
 
 AnnData encoders implement:
 
@@ -792,6 +812,28 @@ and warns for other suspicious layers; strict checking raises for every suspicio
 If no sibling is populated, occupancy alone does not distinguish an empty experiment from a parse
 failure and does not invent that conclusion.
 
+### 6.3 MuData
+
+`ParsedLevels` is the output-boundary collection, not another parsed-data model:
+
+```python
+@dataclass(slots=True)
+class ParsedLevels:
+    levels: dict[ParsedLevelName, ParsedLevel]
+    uns: dict[str, JsonValue]
+```
+
+`MuDataWriter` holds the configured `AnnDataWriter` for each included level. It iterates the
+canonical level order, calls `to_anndata()` for each `ParsedLevel`, prefixes only the AnnData
+storage `var_names` (`ion:`, `pfm:`, `pep:`, `prt:`, `frg:`), constructs `MuData(modalities,
+axis=0)` with `pull_on_update=False`, writes shared provenance to `mdata.uns["apb"]["parse"]`, and
+atomically writes `.h5mu`. The authored unprefixed key remains an ordinary modality `.var` column.
+
+One modality is valid; zero modalities is an error. The parsed-level names and configured writer
+names must match exactly. Level-specific rule JSON and resolved-plan provenance remain inside each
+modality; the MuData root contains only shared producer, selection, parameter, and ordered-level
+facts.
+
 ## 7. Architectural roles and construction
 
 1. `RuleDocument` is the public API over one loaded `rules.json`. It retains its private `_shell`,
@@ -806,6 +848,8 @@ failure and does not invent that conclusion.
    returns `ParsedLevel`.
 5. `ParquetWriter` and `AnnDataWriter` are output adapters implementing the workflow-owned
    `ParsedLevelWriter` contract.
+6. `MuDataWriter` is the concrete compound-output adapter. The parent composition root gives it
+   the configured `AnnDataWriter` for every included level; parsing does not see it.
 
 ```mermaid
 classDiagram
@@ -877,7 +921,9 @@ classDiagram
     class WideSourceDecomposer
     class DelimitedFragmentSourceDecomposer
     class AnnDataWriter
+    class MuDataWriter
     class ParquetWriter
+    class ParsedLevels
     class ParsedLevel
     class DecomposedDataRaw
     class ObsRaw
@@ -908,6 +954,9 @@ classDiagram
     ParsedLevelWriter <|.. ParquetWriter
     AnnDataWriter *-- AnnDataLayerEncoder
     AnnDataWriter *-- AnnDataLayerContractChecker
+    MuDataWriter *-- AnnDataWriter : one configured writer per level
+    MuDataWriter --> ParsedLevels : writes
+    ParsedLevels *-- ParsedLevel : one or more
     DecomposedDataRaw *-- ObsRaw
     DecomposedDataRaw *-- VarRaw
     DecomposedDataRaw *-- LayersRaw
@@ -1464,7 +1513,7 @@ in the rendered ProForma identity and is also reported independently. `Parser` c
 tokens in first-observed order into `ParsedLevel.uns["unknown_mod_tokens"]`; it omits that key when
 no unknown token occurred. Both writers persist the diagnostic through their existing
 `ParsedLevel.uns` path. `ParsedLevel.uns` is the content of the parser tool namespace: AnnData stores
-it below `adata.uns["anndata_proteomics"]["parse"]`, while Parquet stores it in the parser-owned
+it below `adata.uns["apb"]["parse"]`, while Parquet stores it in the parser-owned
 dataset manifest.
 
 `RawValuePresence.present()` returns a non-null Boolean series with the same length and row order as
@@ -1489,6 +1538,10 @@ shape contracts are checked at each collaborator boundary.
 | `ParsedLevelWriter` | Persist one parsed level | AnnData, Parquet |
 | `AnnDataLayerEncoder` | Encode one layer value block for AnnData | plain numeric, regex numeric, factor |
 | `AnnDataLayerContractChecker` | Enforce encoded required/occupancy policy | standard, strict |
+
+`MuDataWriter` is not another `ParsedLevelWriter`: its input is `ParsedLevels`, not one
+`ParsedLevel`, and only the CLI-facing parent workflow consumes it. Adding a one-implementation
+Protocol would create an unused abstraction rather than a boundary.
 
 The parser does not receive broad `ObsTransformation`, `VarTransformation`,
 `LayerTransformation`, or `DecomposedDataTransformation` objects. Those names would hide the
@@ -2693,9 +2746,16 @@ The compiler may inspect declaration/configuration unions because it is the comp
 must consume each discriminator at one registry and must not pass the tag into the constructed
 strategy.
 
-Several levels may share physical binding and header inspection, but each obtains its own
+For MuData, `compile_mudata_parsers()` runs the same fixed sequence per compatible level with an
+`AnnDataWriter` constructor. The shared `_compile_level()` operation returns the parser and the
+exact writer it just injected, allowing the parent composition root to retain the same writer by
+level without exposing `Parser._writer` or resolving the level twice. It returns the ordinary
+parser list plus one configured `MuDataWriter`; no public compiled-parser wrapper is introduced.
+
+Each level performs its own physical binding and header inspection and obtains its own
 `ResolvedLevelPlan`, `LevelReadPlan`, strategies, and parser. No level receives the whole source
-table merely because another level needs additional columns.
+table merely because another level needs additional columns. Sharing the full read is not part of
+MuData output.
 
 #### E.2 Source binding outcomes
 
@@ -3080,7 +3140,7 @@ apb2/src/apb2/parserV2/
 │   ├── __init__.py             # parse package marker; no adapter re-exports
 │   ├── delimited_input.py       # binding, evidence, configured Polars text reader
 │   ├── parquet_input.py         # binding, evidence, configured Polars Parquet reader
-│   ├── anndata_writer.py        # AnnDataWriter, encoders, contract checker
+│   ├── anndata_writer.py        # ParsedLevels, AnnData/MuData writers, encoders, checks
 │   ├── parquet_writer.py        # ParquetWriter and manifest persistence
 │   ├── errors.py               # shared parse/source boundary errors
 │   ├── numeric_text.py         # shared interpretation of numeric measurement tokens
@@ -3131,6 +3191,7 @@ The boundary ownership behind that tree is:
 | physical input -> Parser | `LevelSourceTable` in `parse_quant/data/source.py` | `BoundInputReader` in `parse_quant/contracts.py` | `parse_quant/delimited_input.py` or `parquet_input.py` |
 | physical shape -> Parser algorithm | raw types in `parse_quant/data/raw.py` | `SourceDecomposer` and `FragmentTableSeparator` in `parse_quant/contracts.py` | `parse_quant/decomposition.py` and `fragments.py` |
 | Parser -> persistence | `ParsedLevel` in `parse_quant/data/parsed.py` | `ParsedLevelWriter` in `parse_quant/contracts.py` | `parse_quant/anndata_writer.py` or `parquet_writer.py` |
+| parsed levels -> compound persistence | `ParsedLevels` in `parse_quant/anndata_writer.py` | concrete parent workflow; no one-implementation Protocol | `MuDataWriter` in `parse_quant/anndata_writer.py` |
 | validated rule -> compilation | `ResolvedLevelPlan` in `parse_quant/parameters/resolved.py` | no Protocol: one concrete facade API | parent-level `parse_rule_facade.py` |
 
 `BoundInputReader`, `ParsedLevelWriter`, `SourceDecomposer`, `FragmentTableSeparator`,
@@ -3202,7 +3263,7 @@ The parse-owned boundary modules are likewise narrow:
 - `parse_quant/delimited_input.py` and `parquet_input.py` alone translate external physical sources
   into `LevelSourceTable` and `SourceEvidence` values;
 - `parse_quant/anndata_writer.py` and `parquet_writer.py` alone translate `ParsedLevel` into their
-  external storage backends;
+  external storage backends; `anndata_writer.py` additionally composes `ParsedLevels` into MuData;
 - `parse_quant/errors.py` owns only errors shared by two or more parse-owned/root consumers, such as
   `IncompatibleSourceError` and `AmbiguousDialectError`; `RuleNotApplicable` belongs to the new
   rule document, while packed-length, duplicate, aggregate, canonical-collision, encoding,
@@ -3300,4 +3361,6 @@ Implementation may begin when the following statements are accepted together:
    source, parameter, or parsed-result values, and conform structurally to Parser-owned contracts;
    and
 9. one-class private helpers are private methods, while free construction functions remain at the
-   explicit composition boundary.
+   explicit composition boundary; and
+10. omitting CLI `LEVEL` collects compatible single-level results in `ParsedLevels` and lets the
+    AnnData/MuData adapter perform the only multi-level loop and `.h5mu` write.

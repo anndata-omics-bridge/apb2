@@ -1,5 +1,18 @@
 # Changes
 
+- 2026-08-25: Removed every pointer from this repo into the workspace's archived planning folder —
+  two in `vendor_params/parsers/shared/model.py` (the module docstring and the `scan_window`
+  comment), one in `tests/parserV2/vendor_params/proteobench_params.py`, and one in a 2026-08-20
+  entry below. The facts they cited are now stated in place: the removed `mode="before"` coercers
+  must not come back, and splitting `scan_window` into two fields is an open schema question.
+  Documentation only.
+
+- 2026-08-25: Omitting `LEVEL` from `apb2 convert` now compiles and parses every compatible level
+  and writes them as one shared-observation `.h5mu`. Parsing remains single-level: `ParsedLevels`
+  is an output-boundary collection and `MuDataWriter` loops over the exact configured
+  `AnnDataWriter` for each modality. Explicit levels continue to write `.h5ad`; modality variable
+  indexes receive the established per-level prefixes while authored keys remain ordinary `.var`
+  columns, and shared provenance is written under `uns["apb"]["parse"]` at the MuData root.
 - 2026-08-24: Numeric and integer axis columns now use the physical number notation resolved from
   the input contract and source evidence. The resolved level plan retains that notation, and the
   compiler injects it into configured axis coercers exactly as it already does for measurement
@@ -168,7 +181,7 @@
   oracle relocated to the test-only `tests/proteobench_params.py`, plus a snapshot test over all
   87 cached vendor parameter files; 70 -> 261 tests. Verified: across those 87 files the only
   changes are the removed `unparsed_parameters` and 171 modifications gaining the `mod_type` the
-  parser already knew. Plan and full record: `TODO/Archive/TODO_vendor_params_boundary.md`.
+  parser already knew.
 
 - 2026-08-17: TODO items 13 + 14 — `vendor_parse_rules/` has one entry point,
   `load_document(path) -> Document`, and `Document.rule(level, parameters)` returns the

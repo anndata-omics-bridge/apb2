@@ -108,6 +108,7 @@ forbidden_modules =
     pandas
     numpy
     anndata
+    mudata
     pyarrow
 
 [importlinter:contract:writers-see-only-a-parsed-level]

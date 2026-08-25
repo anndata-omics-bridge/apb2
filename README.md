@@ -10,6 +10,12 @@ Use a packaged rule selected from the vendor parameter file and source header:
 apb2 convert DATA LEVEL --params PARAMETER_FILE [--software VENDOR] [--output BASENAME]
 ```
 
+Omit `LEVEL` to convert every compatible level into one shared-observation MuData container:
+
+```bash
+apb2 convert DATA --params PARAMETER_FILE [--software VENDOR] [--output BASENAME]
+```
+
 Use an explicit schema-0.3 rule document, with optional search-parameter evidence:
 
 ```bash
@@ -18,9 +24,10 @@ apb2 convert DATA LEVEL --rule-config RULES_JSON [--params PARAMETER_FILE] \
 ```
 
 `LEVEL` is one of `ion`, `peptidoform`, `peptide`, `protein`, or `fragment`. The output basename
-must not have an extension; `apb2` appends `.h5ad`. `--strict` promotes layer-contract warnings to
-errors. The command performs conversion only—FASTA annotation and protein inference are outside
-Parser V2.
+must not already carry the suffix APB2 appends: `.h5ad` with an explicit level, `.h5mu` without
+one. A no-level conversion writes MuData even when only one level is compatible. `--strict`
+promotes layer-contract warnings to errors. The command performs conversion only—FASTA annotation
+and protein inference are outside Parser V2.
 
 The CLI imports only `apb2.parserV2`. Programmatic Parser V2 callers may also select the Parquet
 writer without passing through the AnnData adapter.
