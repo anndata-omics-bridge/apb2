@@ -14,6 +14,13 @@ The closest `AGENTS.md` wins. Explicit user instructions override this file.
 | Tests | `.venv/bin/pytest -q` |
 | Build | `uv build && .venv/bin/twine check dist/*` |
 | Full gate | `make check` |
+| Integration test | `make -C ../apb_studio corpus-routine` — 10 named fixtures through the real CLIs; see the workspace `AGENTS.md` |
+
+Keep integration scope equal to the tool being changed. For `apb2 convert`, run only
+`make -C ../apb_studio corpus-routine CORPUS_PIPELINE=apb2-convert`; do not run annotation,
+FASTA, ProteoBench, the other converter, or a full corpus pipeline unless the user explicitly
+requests broader coverage. Apply the same rule to FASTA work: run only a FASTA-focused workflow or
+test target. If no such target exists, report that fact instead of substituting a broader pipeline.
 
 ## Code conventions
 

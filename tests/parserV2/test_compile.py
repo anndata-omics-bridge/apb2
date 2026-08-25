@@ -19,11 +19,11 @@ from apb2.parserV2.compile import (
     NoCompatibleLevelError,
     ParquetOutput,
     ParseRuleCompiler,
-    axis_coercer_for,
     compile_parsers,
     header_predicate,
     make_anndata_layer_contract_checker,
     make_anndata_layer_encoder,
+    make_axis_coercer,
     make_column_computer,
     make_fragment_table_separator,
     make_modification_normalizer,
@@ -69,6 +69,7 @@ from apb2.parserV2.parse_quant.fragments import (
     PositionalFragmentTableSeparator,
 )
 from apb2.parserV2.parse_quant.modifications import SiteListNormalizer, TokenRegexNormalizer
+from apb2.parserV2.parse_quant.numeric_text import NumberNotation
 from apb2.parserV2.parse_quant.parameters.axis import (
     AxisKeyPlan,
     AxisLogicalType,
@@ -108,12 +109,14 @@ from apb2.parserV2.parse_quant.parameters.source import (
 from apb2.parserV2.parse_quant.parquet_writer import ParquetWriter
 from apb2.parserV2.parse_quant.parser import Parser
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
+from apb2.parserV2.vendor_parse_rules.document import make_rule_document
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
-from apb2.parserV2.vendor_parse_rules.schema.base import LEVELS
+from apb2.parserV2.vendor_parse_rules.schema.base import LEVELS, SCHEMA_VERSION
 from parserV2 import synthetic
 from parserV2.fixtures import DocumentPair, document_pairs, level_pairs
 
 DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
+DOT_NUMBERS = NumberNotation(decimal_mark=".", thousands_marks=())
 AXIS = AxisSourcePlan(
     keys=AxisKeyPlan(raw_key_columns=("a",), key_input_columns=("A",), final_key_columns=("A",)),
     payload_sources=(),
@@ -129,7 +132,7 @@ def entries() -> tuple[str, ...]:
 
 @pytest.mark.parametrize("logical_type", get_args(AxisLogicalType.__value__))
 def test_every_declared_logical_type_names_one_coercer(logical_type: AxisLogicalType) -> None:
-    coercer = axis_coercer_for(logical_type)
+    coercer = make_axis_coercer(logical_type, DOT)
 
     assert type(coercer) in {
         StringAxisCoercer,
@@ -137,11 +140,15 @@ def test_every_declared_logical_type_names_one_coercer(logical_type: AxisLogical
         NumberAxisCoercer,
         BooleanAxisCoercer,
     }
-    assert not dataclasses.fields(coercer) if dataclasses.is_dataclass(coercer) else True
+    assert not hasattr(coercer, "logical_type")
+    if isinstance(coercer, (IntegerAxisCoercer, NumberAxisCoercer)):
+        assert coercer.notation == DOT_NUMBERS
 
 
 def test_the_four_coercers_are_four_different_implementations() -> None:
-    selected = {type(axis_coercer_for(logical)) for logical in get_args(AxisLogicalType.__value__)}
+    selected = {
+        type(make_axis_coercer(logical, DOT)) for logical in get_args(AxisLogicalType.__value__)
+    }
 
     assert len(selected) == 4
 
@@ -440,6 +447,58 @@ def test_one_level_compiles_into_a_complete_parser(tmp_path: Path) -> None:
     assert parser.level == "ion"
     assert parsed.obs.frame.to_dicts() == [{"sample": "A"}]
     assert parsed.layers["Quantity"].values.get_column("obs_0").to_list() == ["1.5"]
+
+
+def test_compilation_injects_the_detected_number_notation_into_axis_coercers(
+    tmp_path: Path,
+) -> None:
+    document = make_rule_document(
+        tmp_path / "rules.json",
+        {
+            "schema_version": SCHEMA_VERSION,
+            "file_version": "1",
+            "software_name": "Localized",
+            "software_version_pattern": "^1$",
+            "input": {
+                "shape": "long",
+                "extensions": [".tsv"],
+                "numbers": {
+                    "mode": "detect",
+                    "decimal_candidates": [".", ","],
+                    "thousands_candidates": [",", ".", " "],
+                },
+            },
+            "base": {
+                "axis": {"obs_keys": ["sample"], "var_keys": ["Feature"]},
+                "columns": {
+                    "obs": {"select": {"sample": "Sample"}},
+                    "var": {
+                        "select": {"Feature": "Feature", "Score": "Score"},
+                        "types": {"Score": "number"},
+                    },
+                },
+                "measurements": {
+                    "primary_layer": "Quantity",
+                    "duplicates": {"mode": "error"},
+                    "layers": [{"name": "Quantity", "source": "Quantity"}],
+                },
+            },
+            "levels": {"ion": {}},
+        },
+    )
+    path = written(
+        tmp_path,
+        ("Sample", "Feature", "Score", "Quantity"),
+        ("A", "F1", "23,451117", "10,5"),
+    )
+
+    parser = ParseRuleCompiler(
+        facade=synthetic.facade(document),
+        output=ParquetOutput(),
+    ).compile(SingleFile(path=path))
+    parsed = parser.parse()
+
+    assert parsed.var.frame.get_column("Score").to_list() == [23.451117]
 
 
 def test_compilation_resolves_the_source_exactly_once(

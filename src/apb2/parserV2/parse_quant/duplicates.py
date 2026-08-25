@@ -37,10 +37,10 @@ class AggregateTypeError(TypeError):
     """A numeric aggregate received values that are not numbers."""
 
 
-def _sentinel(numbers: pl.Series, missing_values: tuple[float, ...]) -> pl.Series:
+def _sentinel(numbers: pl.Expr, missing_values: tuple[float, ...]) -> pl.Expr:
     """Whether each readable number is one the vendor writes to mean "not measured"."""
     if not missing_values:
-        return pl.Series(numbers.name, [False] * numbers.len(), dtype=pl.Boolean)
+        return pl.lit(value=False)
     return numbers.is_in(list(missing_values)).fill_null(value=False)
 
 
@@ -52,8 +52,8 @@ class NullOnlyRawValuePresence:
     factor label, including an empty one, is a label and claims its cell.
     """
 
-    def present(self, values: pl.Series, /) -> pl.Series:
-        return ~absent(values)
+    def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr:
+        return ~absent(values, dtype)
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,9 +63,9 @@ class PlainNumericRawValuePresence:
     missing_values: tuple[float, ...]
     number_format: NumberNotation
 
-    def present(self, values: pl.Series, /) -> pl.Series:
-        numbers = as_numbers(values, self.number_format)
-        return ~(blank(values) | _sentinel(numbers, self.missing_values))
+    def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr:
+        numbers = as_numbers(values, dtype, self.number_format)
+        return ~(blank(values, dtype) | _sentinel(numbers, self.missing_values))
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,10 +76,10 @@ class RegexNumericRawValuePresence:
     pattern: str
     number_format: NumberNotation
 
-    def present(self, values: pl.Series, /) -> pl.Series:
+    def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr:
         extracted = values.cast(pl.String, strict=False).str.extract(self.pattern, 1)
-        numbers = as_numbers(extracted, self.number_format)
-        return ~(blank(values) | _sentinel(numbers, self.missing_values))
+        numbers = as_numbers(extracted, pl.String(), self.number_format)
+        return ~(blank(values, dtype) | _sentinel(numbers, self.missing_values))
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,7 +103,7 @@ def _masked(layer: RawLayerTable, presence: RawValuePresence) -> _MaskedLayer:
     masks = presence_labels(len(values), reserved=layer.values.columns)
     frame = layer.values.with_columns(
         [
-            presence.present(layer.values.get_column(value)).alias(mask)
+            presence.present(pl.col(value), layer.values.schema[value]).alias(mask)
             for value, mask in zip(values, masks, strict=True)
         ]
     )

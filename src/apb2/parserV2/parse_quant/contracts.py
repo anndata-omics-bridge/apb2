@@ -12,8 +12,8 @@ Shape laws, checked at each collaborator boundary rather than trusted:
 
 - every series a coercer, computer, or normalizer returns has its input's length and row
   order; the orchestrator assigns the declared output name;
-- ``RawValuePresence.present`` returns a non-null Boolean series of that same length and
-  order, and never a converted measurement value;
+- ``RawValuePresence.present`` returns a Boolean expression that evaluates to one non-null mask
+  value per input row, in input order, and never a converted measurement value;
 - a duplicate policy preserves the raw var-key columns and the input group order.
 """
 
@@ -90,7 +90,7 @@ class ColumnComputer(Protocol):
 class RawValuePresence(Protocol):
     """Mark the raw layer scalars that semantically claim a cell, without converting them."""
 
-    def present(self, values: pl.Series, /) -> pl.Series: ...
+    def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr: ...
 
 
 class DuplicatePolicy(Protocol):

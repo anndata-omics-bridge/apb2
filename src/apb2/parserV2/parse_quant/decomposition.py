@@ -34,6 +34,7 @@ from apb2.parserV2.parse_quant.parameters.source import LongRawLayerSource, Wide
 _OCCURRENCE = "_occurrence"
 _VAR_SLOT = "_var_slot"
 _OBS_SLOT = "_obs_slot"
+_PIVOT_SEPARATOR = "::"
 
 
 def _value_column(label: str, dtype: pl.DataType, *, observed: bool) -> pl.Expr:
@@ -83,51 +84,116 @@ class LongSourceDecomposer:
         obs_frame = _axis_frame(frame, self.obs)
         var_frame = _axis_frame(frame, self.var)
         labels = observation_labels(obs_frame.height, reserved=var_frame.columns)
+        source_columns = tuple(dict.fromkeys(source.source_column for source in self.layer_sources))
+        source_aliases = dict(
+            zip(
+                source_columns,
+                self._pivot_value_aliases(len(source_columns), reserved=frame.columns),
+                strict=True,
+            )
+        )
+        pivoted = self._pivot_layers(
+            frame,
+            obs_frame,
+            var_frame,
+            labels,
+            source_aliases,
+        )
         return DecomposedDataRaw(
             obs=ObsRaw(frame=obs_frame, raw_key_columns=self.obs.keys.raw_key_columns),
             var=VarRaw(frame=var_frame, raw_key_columns=self.var.keys.raw_key_columns),
             layers=LayersRaw(
                 primary_layer_name=self.primary_layer_name,
                 values=tuple(
-                    self._layer(frame, obs_frame, var_frame, labels, source)
+                    self._layer(
+                        pivoted,
+                        labels,
+                        source,
+                        source_aliases[source.source_column],
+                        source_dtype=frame.schema[source.source_column],
+                        several_sources=len(source_aliases) > 1,
+                    )
                     for source in self.layer_sources
                 ),
             ),
         )
 
-    def _layer(
+    def _pivot_layers(
         self,
         frame: pl.DataFrame,
         obs_frame: pl.DataFrame,
         var_frame: pl.DataFrame,
         labels: tuple[str, ...],
-        source: LongRawLayerSource,
-    ) -> RawLayerTable:
-        """Turn one long value column into a wide layer, repeated cells intact."""
+        source_aliases: dict[str, str],
+    ) -> pl.DataFrame:
+        """Place, count, pivot, and order every distinct physical layer source once."""
         var_keys = self.var.keys.raw_key_columns
         obs_keys = self.obs.keys.raw_key_columns
         slots = obs_frame.select(list(obs_keys)).with_columns(
             pl.Series(_OBS_SLOT, list(labels), dtype=pl.String)
         )
-        placed = frame.join(
-            slots, on=list(obs_keys), how="inner", nulls_equal=True, maintain_order="left"
+        identity_columns = tuple(dict.fromkeys((*obs_keys, *var_keys)))
+        projected = frame.select(
+            [
+                *identity_columns,
+                *(pl.col(source).alias(alias) for source, alias in source_aliases.items()),
+            ]
         )
-        # The occurrence counter exists only so the pivot cannot collapse a repeated cell.
-        # It is dropped again below and never reaches a caller.
+        placed = projected.join(
+            slots,
+            on=list(obs_keys),
+            how="inner",
+            nulls_equal=True,
+            maintain_order="left",
+        )
         counted = placed.with_columns(
             (pl.cum_count(_OBS_SLOT).over([*var_keys, _OBS_SLOT]) - 1).alias(_OCCURRENCE)
         )
         pivoted = counted.pivot(
             on=_OBS_SLOT,
             index=[*var_keys, _OCCURRENCE],
-            values=source.source_column,
+            values=list(source_aliases.values()),
+            separator=_PIVOT_SEPARATOR,
         )
-        dtype = frame.schema[source.source_column]
+        return _ordered_by_axis(pivoted, var_frame, var_keys)
+
+    @staticmethod
+    def _pivot_value_aliases(count: int, reserved: tuple[str, ...] | list[str]) -> tuple[str, ...]:
+        """Collision-free local names for physical value columns during the shared pivot."""
+        taken = set(reserved)
+        prefix = "_layer_value"
+        while True:
+            aliases = tuple(f"{prefix}_{index}" for index in range(count))
+            if not taken.intersection(aliases):
+                return aliases
+            prefix += "_"
+
+    def _layer(
+        self,
+        pivoted: pl.DataFrame,
+        labels: tuple[str, ...],
+        source: LongRawLayerSource,
+        source_alias: str,
+        *,
+        source_dtype: pl.DataType,
+        several_sources: bool,
+    ) -> RawLayerTable:
+        """Project one logical wide layer from the shared, already ordered pivot."""
+        var_keys = self.var.keys.raw_key_columns
         present = set(pivoted.columns)
-        values = _ordered_by_axis(pivoted, var_frame, var_keys).select(
+        pivot_labels = tuple(
+            f"{source_alias}{_PIVOT_SEPARATOR}{label}" if several_sources else label
+            for label in labels
+        )
+        values = pivoted.select(
             [
                 *var_keys,
-                *(_value_column(label, dtype, observed=label in present) for label in labels),
+                *(
+                    _value_column(pivot_label, source_dtype, observed=pivot_label in present).alias(
+                        label
+                    )
+                    for pivot_label, label in zip(pivot_labels, labels, strict=True)
+                ),
             ]
         )
         return RawLayerTable(layer_name=source.name, raw_var_key_columns=var_keys, values=values)

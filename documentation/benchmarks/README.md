@@ -242,6 +242,33 @@ Reading is 5% of the parse. Decomposition — the long-to-wide pivot over 325 78
 and the axis work that follows it runs on 6 and 72 804 rows rather than on 325 788, which is
 what putting it after decomposition buys.
 
+### Spectronaut optimization result, 2026-08-24
+
+The unchanged commit and the optimized implementation were run in isolated processes with the
+same `parser_v2_stages.py` command, one discarded warm-up, and three measured repetitions. Input:
+the cached 695 MiB Spectronaut ion export, 719,230 rows, 51 projected columns, 6 observations,
+124,267 variables, and 20 named layers.
+
+| Stage | unchanged median | optimized median | effect |
+| --- | ---: | ---: | ---: |
+| projected read | 0.216 s | 0.211 s | unchanged |
+| decomposition | 5.726 s | 0.351 s | 16.3× faster |
+| whole `parse()` | 7.029 s | 1.620 s | 4.34× faster |
+| write `.h5ad` | 3.706 s | 0.817 s | 4.54× faster |
+| process peak RSS | 7,137 MiB | 6,416 MiB | 10.1% lower |
+
+The decomposition result comes from sharing the long-table join, occurrence count, multi-value
+pivot, and sort across all layer sources. The writer result comes from per-layer Polars expression
+evaluation and pre-encoding only the repeated axis strings that AnnData itself would categorize.
+Category dictionary order follows Polars' stable column-local order; decoded values remain equal.
+
+A post-change cProfile run took 3.64 s end to end. Modification normalization remained the largest
+single component at 1.54 s, of which 1.04 s was the complete token algorithm and 0.40 s materialized
+its derived columns. It was deliberately left alone: residue localization, terminal handling,
+mass/target matching, unknown-token policy, and ProForma rendering do not have a complete generic
+replacement in a few string expressions, and a vendor-specific partial fast path would duplicate
+the algorithm.
+
 **Allocation, measured rather than asserted.** The Parquet write allocates **no** dense array
 for 5 layers. The AnnData write allocates **exactly 5**, all `(72804, 6)`: one per encoded layer
 and nothing else.

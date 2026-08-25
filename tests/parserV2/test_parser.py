@@ -44,6 +44,7 @@ from apb2.parserV2.parse_quant.data.raw import (
 )
 from apb2.parserV2.parse_quant.data.source import LevelSourceTable
 from apb2.parserV2.parse_quant.duplicates import DuplicateCellError
+from apb2.parserV2.parse_quant.numeric_text import NumberNotation
 from apb2.parserV2.parse_quant.parameters.axis import AxisKeyPlan, AxisSourcePlan
 from apb2.parserV2.parse_quant.parameters.measurements import (
     DuplicateMode,
@@ -62,6 +63,7 @@ from apb2.parserV2.parse_quant.parser import (
 )
 
 DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
+DOT_NUMBERS = NumberNotation(decimal_mark=".", thousands_marks=())
 NULL_ONLY = make_raw_value_presence(
     NullOnlyRawValuePresenceConfig(kind="null_only", layer_name="Intensity")
 )
@@ -90,7 +92,7 @@ def selected(name: str, source: str, *, integer: bool = False) -> SelectedAxisCo
     return SelectedAxisColumn(
         name=name,
         source=source,
-        coercer=IntegerAxisCoercer() if integer else StringAxisCoercer(),
+        coercer=IntegerAxisCoercer(DOT_NUMBERS) if integer else StringAxisCoercer(),
     )
 
 
@@ -208,14 +210,15 @@ def test_parse_runs_its_collaborators_in_the_documented_order() -> None:
             }
 
     class Presence:
-        def present(self, values: pl.Series, /) -> pl.Series:
+        def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr:
+            del dtype
             calls.append("present")
             return values.is_not_null()
 
     class Policy:
         def resolve(self, layer: RawLayerTable, presence: RawValuePresence, /) -> RawLayerTable:
             calls.append("resolve")
-            presence.present(layer.values.get_column("obs_0"))
+            presence.present(pl.col("obs_0"), layer.values.schema["obs_0"])
             return layer
 
     parser = Parser(

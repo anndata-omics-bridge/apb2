@@ -299,6 +299,7 @@ def test_a_resolved_plan_is_one_atomic_value_for_one_physical_source() -> None:
     )
     plan = ResolvedLevelPlan(
         level="ion",
+        number_format=DOT,
         read=LevelReadPlan(
             projected_columns=("sequence", "charge", "intensity"),
             text_sources=frozenset({"sequence", "charge"}),
@@ -455,7 +456,8 @@ class _Computer:
 
 
 class _Presence:
-    def present(self, values: pl.Series, /) -> pl.Series:
+    def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr:
+        del dtype
         return values.is_not_null()
 
 
@@ -486,7 +488,10 @@ def test_the_intended_collaborators_satisfy_their_client_owned_contracts() -> No
     assert normalizer.sources == ("sequence",)
     assert coercer.coerce(pl.Series("x", [1]), name="x", source="x").to_list() == [1]
     assert computer.inputs == ("ProForma_peptidoform", "Charge")
-    assert presence.present(pl.Series("x", [1.0, None])).to_list() == [True, False]
+    presence_values = pl.Series("x", [1.0, None])
+    assert presence_values.to_frame().select(
+        presence.present(pl.col("x"), presence_values.dtype).alias("x")
+    ).to_series().to_list() == [True, False]
     assert decomposer is not None
     assert policy is not None
     assert writer is not None

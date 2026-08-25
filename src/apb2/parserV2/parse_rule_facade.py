@@ -601,6 +601,7 @@ class ParseRuleFacade:
         numbers = _resolved_numbers(evidence)
         return ResolvedLevelPlan(
             level=working.level,
+            number_format=numbers,
             read=read,
             decomposition=self._decomposition(layers),
             obs=obs,

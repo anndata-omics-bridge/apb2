@@ -44,6 +44,7 @@ from apb2.parserV2.parse_quant.modifications import (
     normalize_token_regex,
     render_proforma,
 )
+from apb2.parserV2.parse_quant.numeric_text import NumberNotation
 from apb2.parserV2.parse_quant.parameters.axis import (
     ModificationMapEntry,
     ModificationTokenPosition,
@@ -73,6 +74,9 @@ ACETYL = ModificationMapEntry(
     position="N-term",
     mass_delta=42.010565,
 )
+
+DOT_NUMBERS = NumberNotation(decimal_mark=".", thousands_marks=())
+COMMA_NUMBERS = NumberNotation(decimal_mark=",", thousands_marks=(".", " "))
 
 
 def token_rules(
@@ -178,7 +182,7 @@ def test_string_coercion_keeps_the_exact_vendor_token() -> None:
 def test_integer_coercion_reads_integers_and_keeps_nulls_missing() -> None:
     values = pl.Series("Charge", ["2", "03", None])
 
-    coerced = IntegerAxisCoercer().coerce(values, name="Charge", source="charge")
+    coerced = IntegerAxisCoercer(DOT_NUMBERS).coerce(values, name="Charge", source="charge")
 
     assert coerced.to_list() == [2, 3, None]
     assert coerced.dtype == pl.Int64
@@ -189,7 +193,7 @@ def test_integer_coercion_names_the_column_the_source_and_the_tokens(token: str)
     values = pl.Series("Charge", [token, "2"])
 
     with pytest.raises(AxisCoercionError) as error:
-        IntegerAxisCoercer().coerce(values, name="Charge", source="charge")
+        IntegerAxisCoercer(DOT_NUMBERS).coerce(values, name="Charge", source="charge")
 
     assert "Charge" in str(error.value)
     assert "charge" in str(error.value)
@@ -197,12 +201,30 @@ def test_integer_coercion_names_the_column_the_source_and_the_tokens(token: str)
 
 
 def test_number_coercion_rejects_non_finite_and_unreadable_tokens() -> None:
-    assert NumberAxisCoercer().coerce(
+    assert NumberAxisCoercer(DOT_NUMBERS).coerce(
         pl.Series("Mass", ["1.5", None]), name="Mass", source="mass"
     ).to_list() == [1.5, None]
     for token in ("nan", "inf", "abc"):
         with pytest.raises(AxisCoercionError):
-            NumberAxisCoercer().coerce(pl.Series("Mass", [token]), name="Mass", source="mass")
+            NumberAxisCoercer(DOT_NUMBERS).coerce(
+                pl.Series("Mass", [token]), name="Mass", source="mass"
+            )
+
+
+def test_numeric_axis_coercers_honor_the_resolved_number_notation() -> None:
+    numbers = NumberAxisCoercer(COMMA_NUMBERS).coerce(
+        pl.Series("Score", ["23,451117", "100.000.000,5", "1 234,25"]),
+        name="Score",
+        source="score",
+    )
+    integers = IntegerAxisCoercer(COMMA_NUMBERS).coerce(
+        pl.Series("Charge", ["2,0", "1.000,0"]),
+        name="Charge",
+        source="charge",
+    )
+
+    assert numbers.to_list() == [23.451117, 100_000_000.5, 1234.25]
+    assert integers.to_list() == [2, 1000]
 
 
 def test_boolean_coercion_accepts_only_the_canonical_spellings() -> None:
@@ -229,7 +251,7 @@ def test_a_coercion_error_lists_at_most_five_distinct_examples() -> None:
     values = pl.Series("Charge", [f"bad{index % 8}" for index in range(40)])
 
     with pytest.raises(AxisCoercionError) as error:
-        IntegerAxisCoercer().coerce(values, name="Charge", source="charge")
+        IntegerAxisCoercer(DOT_NUMBERS).coerce(values, name="Charge", source="charge")
 
     assert str(error.value).count("bad") == 5
     assert "40 invalid" in str(error.value)
@@ -238,8 +260,8 @@ def test_a_coercion_error_lists_at_most_five_distinct_examples() -> None:
 def test_every_coercer_satisfies_the_parser_owned_contract() -> None:
     coercers: tuple[AxisValueCoercer, ...] = (
         StringAxisCoercer(),
-        IntegerAxisCoercer(),
-        NumberAxisCoercer(),
+        IntegerAxisCoercer(DOT_NUMBERS),
+        NumberAxisCoercer(DOT_NUMBERS),
         BooleanAxisCoercer(),
     )
 

@@ -1,5 +1,22 @@
 # Changes
 
+- 2026-08-24: Numeric and integer axis columns now use the physical number notation resolved from
+  the input contract and source evidence. The resolved level plan retains that notation, and the
+  compiler injects it into configured axis coercers exactly as it already does for measurement
+  encoders. Locale-formatted Spectronaut metadata such as `PG.Cscore = "23,451117"` therefore
+  parses under the existing decimal/thousands candidates instead of failing a direct Polars cast.
+- 2026-08-24: Parser V2's measured Spectronaut ion conversion is substantially faster without
+  changing parsed values. Long decomposition now performs one join, occurrence count, multi-value
+  pivot, and ordering pass for all 20 physical layers instead of repeating them per layer; duplicate
+  presence and AnnData numeric encoding evaluate Polars expressions across each layer frame rather
+  than collecting one Series operation at a time. The AnnData writer dictionary-encodes repeated
+  `obs` and `var` strings before handing them to AnnData, avoiding AnnData's Python natural-sort
+  pass while reproducing its cardinality decision, so unique identity columns remain strings and
+  nulls remain missing. On the 719,230-row, 695 MiB Spectronaut fixture, median decomposition fell
+  from 5.726 s to 0.351 s, whole parse from 7.029 s to 1.620 s, AnnData writing from 3.706 s to
+  0.817 s, and peak RSS from 7,137 MiB to 6,416 MiB. Category dictionary order is now Polars'
+  stable column-local order; decoded annotations are unchanged. Factor-valued measurement layers
+  retain their explicit rule-configured encoding path.
 - 2026-08-23: The approved converter architecture is now versioned at
   `docs/architecture_converter.md`. `documentation/benchmarks/diann_cli_conversion.py` measures
   complete `apb convert` versus `apb2 convert` subprocesses through `.h5ad` writing, records every

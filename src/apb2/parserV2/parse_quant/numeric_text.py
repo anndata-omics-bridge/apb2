@@ -39,9 +39,13 @@ class NumberNotation:
     thousands_marks: tuple[str, ...]
 
 
-def as_numbers(values: pl.Series, notation: NumberNotation) -> pl.Series:
-    """Read these values as numbers, interpreting text under one written notation."""
-    if values.dtype.is_numeric():
+def as_numbers(
+    values: pl.Expr,
+    dtype: pl.DataType,
+    notation: NumberNotation,
+) -> pl.Expr:
+    """Read one column expression as numbers under its declared physical dtype and notation."""
+    if dtype.is_numeric():
         return values.cast(pl.Float64, strict=False)
     text = values.cast(pl.String, strict=False).replace(_BOOLEAN_SPELLINGS)
     for mark in notation.thousands_marks:
@@ -51,20 +55,20 @@ def as_numbers(values: pl.Series, notation: NumberNotation) -> pl.Series:
     return text.cast(pl.Float64, strict=False)
 
 
-def blank(values: pl.Series) -> pl.Series:
+def blank(values: pl.Expr, dtype: pl.DataType) -> pl.Expr:
     """Whether each value holds nothing: null, ``NaN``, or text that is only whitespace."""
-    if values.dtype.is_numeric():
-        return absent(values)
+    if dtype.is_numeric():
+        return absent(values, dtype)
     text = values.cast(pl.String, strict=False).str.strip_chars()
     return text.is_null() | (text == "")
 
 
-def absent(values: pl.Series) -> pl.Series:
+def absent(values: pl.Expr, dtype: pl.DataType) -> pl.Expr:
     """Whether each value is missing, counting ``NaN`` as the float spelling of null.
 
     A vendor writing ``NaN`` in a measurement column has written "not a number", and summing
     it would poison the whole cell rather than reporting one absent contribution.
     """
-    if values.dtype.is_float():
+    if dtype.is_float():
         return values.is_null() | values.is_nan().fill_null(value=True)
     return values.is_null()

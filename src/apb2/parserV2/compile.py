@@ -172,14 +172,6 @@ type OutputDeclaration = AnnDataOutput | ParquetOutput
 
 # ----------------------------------------------------------------------------- registries
 
-_AXIS_COERCERS: Mapping[AxisLogicalType, AxisValueCoercer] = {
-    "string": StringAxisCoercer(),
-    "integer": IntegerAxisCoercer(),
-    "number": NumberAxisCoercer(),
-    "boolean": BooleanAxisCoercer(),
-}
-"""One coercion per declared logical axis-column type; every coercer is stateless."""
-
 _DUPLICATE_POLICIES: Mapping[DuplicateMode, DuplicatePolicy] = {
     "error": ErrorOnDuplicates(),
     "keep_first": KeepFirstDuplicate(),
@@ -188,9 +180,18 @@ _DUPLICATE_POLICIES: Mapping[DuplicateMode, DuplicatePolicy] = {
 """One policy per executable duplicate mode; schema 0.3 declares no others."""
 
 
-def axis_coercer_for(logical_type: AxisLogicalType) -> AxisValueCoercer:
-    """Select the coercion one declared logical type names."""
-    return _AXIS_COERCERS[logical_type]
+def make_axis_coercer(
+    logical_type: AxisLogicalType,
+    number_format: NumericTextFormat,
+) -> AxisValueCoercer:
+    """Construct the coercion one logical type names under this source's number notation."""
+    if logical_type == "integer":
+        return IntegerAxisCoercer(notation=_notation(number_format))
+    if logical_type == "number":
+        return NumberAxisCoercer(notation=_notation(number_format))
+    if logical_type == "boolean":
+        return BooleanAxisCoercer()
+    return StringAxisCoercer()
 
 
 def policy_for(mode: DuplicateMode) -> DuplicatePolicy:
@@ -363,23 +364,29 @@ def make_parsed_level_writer(
     )
 
 
-def make_axis_runtime_plan(resolved: ResolvedAxisColumnPlan) -> AxisRuntimePlan:
+def make_axis_runtime_plan(
+    resolved: ResolvedAxisColumnPlan,
+    number_format: NumericTextFormat,
+) -> AxisRuntimePlan:
     """Turn one resolved axis plan into configured behaviour, phase by phase."""
     return AxisRuntimePlan(
         keys=resolved.source.keys,
-        key_phase=_runtime_phase(resolved.key_phase),
-        output_phase=_runtime_phase(resolved.output_phase),
+        key_phase=_runtime_phase(resolved.key_phase, number_format),
+        output_phase=_runtime_phase(resolved.output_phase, number_format),
         outputs=resolved.outputs,
     )
 
 
-def _runtime_phase(phase: AxisMaterializationConfig) -> AxisPhaseRuntimePlan:
+def _runtime_phase(
+    phase: AxisMaterializationConfig,
+    number_format: NumericTextFormat,
+) -> AxisPhaseRuntimePlan:
     return AxisPhaseRuntimePlan(
         selections=tuple(
             SelectedAxisColumn(
                 name=selection.name,
                 source=selection.source,
-                coercer=axis_coercer_for(selection.logical_type),
+                coercer=make_axis_coercer(selection.logical_type, number_format),
             )
             for selection in phase.selections
         ),
@@ -409,8 +416,8 @@ class ParseRuleCompiler:
             decomposer=make_source_decomposer(
                 resolved.decomposition, resolved.obs.source, resolved.var.source
             ),
-            obs_plan=make_axis_runtime_plan(resolved.obs),
-            var_plan=make_axis_runtime_plan(resolved.var),
+            obs_plan=make_axis_runtime_plan(resolved.obs, resolved.number_format),
+            var_plan=make_axis_runtime_plan(resolved.var, resolved.number_format),
             modification_normalizers=tuple(
                 make_modification_normalizer(config) for config in resolved.modifications
             ),

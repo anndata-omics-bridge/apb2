@@ -62,19 +62,11 @@ class AnnDataLayerContractChecker(Protocol):
 # --------------------------------------------------------------------------------- encoders
 
 
-def _unreadable_examples(values: pl.Series, numbers: pl.Series) -> list[str]:
-    """Non-blank tokens this notation could not read, for the line that reports them."""
-    failed = values.filter(~blank(values) & numbers.is_null())
-    return [str(token) for token in failed.unique(maintain_order=True).head(_EXAMPLE_LIMIT)]
-
-
-def _masked(numbers: pl.Series, missing_values: tuple[float, ...]) -> pl.Series:
+def _masked(numbers: pl.Expr, missing_values: tuple[float, ...]) -> pl.Expr:
     """Blank out the values the vendor writes to mean "not measured"."""
     if not missing_values:
         return numbers
-    return pl.select(
-        pl.when(numbers.is_in(list(missing_values))).then(None).otherwise(numbers)
-    ).to_series()
+    return pl.when(numbers.is_in(list(missing_values))).then(None).otherwise(numbers)
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,20 +85,83 @@ class PlainNumericAnnDataEncoder:
     number_format: NumberNotation
 
     def encode(self, values: pl.DataFrame, /) -> pl.DataFrame:
-        encoded: list[pl.Series] = []
+        columns = tuple(values.columns)
+        if not columns:
+            return values
+        number_labels = self._temporary_labels("_number", len(columns), reserved=columns)
+        mask_labels = self._temporary_labels(
+            "_unreadable",
+            len(columns),
+            reserved=(*columns, *number_labels),
+        )
+        prepared = values.with_columns(
+            [
+                as_numbers(pl.col(column), values.schema[column], self.number_format).alias(label)
+                for column, label in zip(columns, number_labels, strict=True)
+            ]
+        ).with_columns(
+            [
+                (
+                    ~blank(pl.col(column), values.schema[column]) & pl.col(number_label).is_null()
+                ).alias(mask_label)
+                for column, number_label, mask_label in zip(
+                    columns,
+                    number_labels,
+                    mask_labels,
+                    strict=True,
+                )
+            ]
+        )
+        has_unreadable = prepared.select(
+            [pl.col(label).any().alias(label) for label in mask_labels]
+        ).row(0)
         unreadable: list[str] = []
-        for column in values.columns:
-            raw = values.get_column(column)
-            numbers = as_numbers(raw, self.number_format)
-            unreadable.extend(_unreadable_examples(raw, numbers))
-            encoded.append(_masked(numbers, self.missing_values).rename(column))
+        for column, mask_label, has_any in zip(
+            columns,
+            mask_labels,
+            has_unreadable,
+            strict=True,
+        ):
+            if has_any:
+                unreadable.extend(
+                    self._unreadable_examples(
+                        prepared.get_column(column),
+                        prepared.get_column(mask_label),
+                    )
+                )
         if unreadable:
             logger.warning(
                 f"layer {self.layer_name!r} declares plain numeric values; "
                 f"{len(set(unreadable))} distinct unreadable token(s) became missing, "
                 f"examples={sorted(set(unreadable))[:_EXAMPLE_LIMIT]}"
             )
-        return pl.DataFrame(encoded)
+        return prepared.select(
+            [
+                _masked(pl.col(label), self.missing_values).alias(column)
+                for column, label in zip(columns, number_labels, strict=True)
+            ]
+        )
+
+    @staticmethod
+    def _temporary_labels(
+        prefix: str,
+        count: int,
+        *,
+        reserved: tuple[str, ...],
+    ) -> tuple[str, ...]:
+        """One collision-free temporary name per observation column."""
+        taken = set(reserved)
+        while True:
+            labels = tuple(f"{prefix}_{index}" for index in range(count))
+            if not taken.intersection(labels):
+                return labels
+            prefix += "_"
+
+    @staticmethod
+    def _unreadable_examples(values: pl.Series, invalid: pl.Series) -> list[str]:
+        """Distinct unreadable tokens for the bounded warning emitted on the cold path."""
+        failed = values.filter(invalid)
+        return [str(token) for token in failed.unique(maintain_order=True).head(_EXAMPLE_LIMIT)]
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,17 +174,16 @@ class RegexNumericAnnDataEncoder:
     number_format: NumberNotation
 
     def encode(self, values: pl.DataFrame, /) -> pl.DataFrame:
-        return pl.DataFrame(
+        return values.select(
             [
                 _masked(
                     as_numbers(
-                        values.get_column(column)
-                        .cast(pl.String, strict=False)
-                        .str.extract(self.pattern, 1),
+                        pl.col(column).cast(pl.String, strict=False).str.extract(self.pattern, 1),
+                        pl.String(),
                         self.number_format,
                     ),
                     self.missing_values,
-                ).rename(column)
+                ).alias(column)
                 for column in values.columns
             ]
         )
@@ -306,6 +360,10 @@ class AnnDataWriter:
             return pd.Series(values.to_list(), dtype="Int64")
         if dtype.is_float():
             return pd.Series(values.to_numpy(), dtype="float64")
+        if (dtype == pl.String or dtype == pl.Null) and (
+            values.drop_nulls().n_unique() < values.len()
+        ):
+            return values.cast(pl.Categorical).to_pandas()
         return pd.Series(values.to_list(), dtype="string")
 
     @staticmethod

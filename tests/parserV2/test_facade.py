@@ -802,8 +802,10 @@ def test_a_grouped_number_notation_leaves_every_value_as_text() -> None:
         number_format=NumericTextFormat(decimal_mark=",", thousands_marks=(".",)),
     )
 
-    read = facade.resolve_source(grouped).read
+    resolved = facade.resolve_source(grouped)
+    read = resolved.read
 
+    assert resolved.number_format == grouped.number_format
     assert read.native_numeric_sources == frozenset()
     assert read.text_sources == set(read.projected_columns)
 
@@ -902,6 +904,7 @@ def test_a_resolved_plan_carries_every_field_the_compiler_destructures() -> None
 
     assert {field.name for field in dataclasses.fields(ResolvedLevelPlan)} == {
         "level",
+        "number_format",
         "read",
         "decomposition",
         "obs",

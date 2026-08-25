@@ -57,13 +57,22 @@ def layer(frame: pl.DataFrame, *, keys: tuple[str, ...] = ("Feature",)) -> RawLa
     return RawLayerTable(layer_name="L", raw_var_key_columns=keys, values=frame)
 
 
+def presence_mask(strategy: RawValuePresence, values: pl.Series) -> pl.Series:
+    """Evaluate one presence expression as the duplicate resolver does."""
+    return (
+        values.to_frame()
+        .select(strategy.present(pl.col(values.name), values.dtype).alias(values.name))
+        .to_series()
+    )
+
+
 # ------------------------------------------------------------------------------- presence
 
 
 def test_null_only_presence_asks_nothing_of_the_value_itself() -> None:
     values = pl.Series("obs_0", [1.0, 0.0, None])
 
-    mask = NULL_ONLY.present(values)
+    mask = presence_mask(NULL_ONLY, values)
 
     assert mask.to_list() == [True, True, False]
     assert mask.dtype == pl.Boolean
@@ -73,7 +82,7 @@ def test_null_only_presence_asks_nothing_of_the_value_itself() -> None:
 def test_a_declared_sentinel_claims_nothing_without_replacing_the_value() -> None:
     values = pl.Series("obs_0", [12.0, 0.0, None])
 
-    assert ZERO_SENTINEL.present(values).to_list() == [True, False, False]
+    assert presence_mask(ZERO_SENTINEL, values).to_list() == [True, False, False]
     # The strategy returned a mask; the value it was asked about is untouched.
     assert values.to_list() == [12.0, 0.0, None]
 
@@ -81,14 +90,14 @@ def test_a_declared_sentinel_claims_nothing_without_replacing_the_value() -> Non
 def test_blank_text_is_the_written_spelling_of_a_missing_number() -> None:
     values = pl.Series("obs_0", ["12", "", "   ", None])
 
-    assert ZERO_SENTINEL.present(values).to_list() == [True, False, False, False]
+    assert presence_mask(ZERO_SENTINEL, values).to_list() == [True, False, False, False]
 
 
 def test_a_nonblank_token_that_cannot_be_read_stays_present() -> None:
     values = pl.Series("obs_0", ["12", "not a number"])
 
     # Keep-first must not be able to hide this; the AnnData encoder is where it fails.
-    assert ZERO_SENTINEL.present(values).to_list() == [True, True]
+    assert presence_mask(ZERO_SENTINEL, values).to_list() == [True, True]
 
 
 def test_a_localized_sentinel_is_recognized_under_its_own_notation() -> None:
@@ -102,13 +111,13 @@ def test_a_localized_sentinel_is_recognized_under_its_own_notation() -> None:
     )
     values = pl.Series("obs_0", ["1.000", "1.000,5", "0", None])
 
-    assert presence.present(values).to_list() == [False, True, False, False]
+    assert presence_mask(presence, values).to_list() == [False, True, False, False]
 
 
 def test_regex_presence_reads_the_number_inside_a_structured_token() -> None:
     values = pl.Series("obs_0", ["site:1.5", "site:0", "", None, "unstructured"])
 
-    assert ASCORE.present(values).to_list() == [True, False, False, False, True]
+    assert presence_mask(ASCORE, values).to_list() == [True, False, False, False, True]
 
 
 def test_every_presence_strategy_returns_a_mask_of_its_input_shape() -> None:
@@ -116,7 +125,7 @@ def test_every_presence_strategy_returns_a_mask_of_its_input_shape() -> None:
     values = pl.Series("obs_0", ["1", None, "2", ""])
 
     for strategy in strategies:
-        mask = strategy.present(values)
+        mask = presence_mask(strategy, values)
         assert mask.len() == values.len()
         assert mask.dtype == pl.Boolean
         assert mask.null_count() == 0

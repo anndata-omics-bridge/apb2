@@ -207,6 +207,68 @@ def test_a_multi_column_obs_key_becomes_several_columns_of_one_raw_axis() -> Non
     assert layers_of(raw)["Intensity"].to_dicts() == [{"Feature": "F1", "obs_0": 1.0, "obs_1": 2.0}]
 
 
+def test_long_decomposition_pivots_distinct_layer_sources_together(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, ...]] = []
+    original_pivot = pl.DataFrame.pivot
+
+    def counted_pivot(
+        self: pl.DataFrame,
+        on: str,
+        *,
+        index: list[str],
+        values: str | list[str],
+        separator: str = "_",
+    ) -> pl.DataFrame:
+        calls.append((values,) if isinstance(values, str) else tuple(values))
+        return original_pivot(
+            self,
+            on=on,
+            index=index,
+            values=values,
+            separator=separator,
+        )
+
+    monkeypatch.setattr(pl.DataFrame, "pivot", counted_pivot)
+    table = LevelSourceTable(
+        frame=pl.DataFrame(
+            {
+                "run": ["A", "B"],
+                "Feature": ["F1", "F1"],
+                "intensity": [1.0, 2.0],
+                "status": ["found", "transferred"],
+                "empty": pl.Series([None, None], dtype=pl.Float64),
+            }
+        )
+    )
+
+    raw = make_source_decomposer(
+        long_config(
+            ("Intensity", "intensity"),
+            ("Intensity_Copy", "intensity"),
+            ("Status", "status"),
+            ("Empty", "empty"),
+            primary="Intensity",
+        ),
+        axis(("run",)),
+        axis(("Feature",)),
+    ).decompose(table)
+    layers = layers_of(raw)
+
+    assert len(calls) == 1
+    assert len(calls[0]) == 3
+    assert layers["Intensity"].equals(layers["Intensity_Copy"])
+    assert layers["Status"].to_dicts() == [
+        {"Feature": "F1", "obs_0": "found", "obs_1": "transferred"}
+    ]
+    assert layers["Empty"].schema == {
+        "Feature": pl.String,
+        "obs_0": pl.Float64,
+        "obs_1": pl.Float64,
+    }
+
+
 # ------------------------------------------------------------------------- repeated cells
 
 

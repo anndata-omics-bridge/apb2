@@ -15,6 +15,8 @@ from dataclasses import dataclass
 
 import polars as pl
 
+from apb2.parserV2.parse_quant.numeric_text import NumberNotation, as_numbers
+
 _EXAMPLE_LIMIT = 5
 _INT64_MIN = -(2**63)
 _INT64_MAX = 2**63 - 1
@@ -46,6 +48,15 @@ def _require_valid(values: pl.Series, invalid: pl.Series, name: str, source: str
     )
 
 
+def _read_numbers(values: pl.Series, notation: NumberNotation) -> pl.Series:
+    """Evaluate the shared physical-number grammar for one small axis series."""
+    return (
+        values.to_frame()
+        .select(as_numbers(pl.col(values.name), values.dtype, notation).alias(values.name))
+        .to_series()
+    )
+
+
 class StringAxisCoercer:
     """Keep identifier text exactly as the vendor wrote it."""
 
@@ -54,21 +65,27 @@ class StringAxisCoercer:
         return values.cast(pl.String)
 
 
+@dataclass(frozen=True, slots=True)
 class NumberAxisCoercer:
     """Read floating-point values, rejecting every invalid non-missing token."""
 
+    notation: NumberNotation
+
     def coerce(self, values: pl.Series, *, name: str, source: str) -> pl.Series:
-        parsed = values.cast(pl.Float64, strict=False)
+        parsed = _read_numbers(values, self.notation)
         invalid = values.is_not_null() & ~parsed.is_finite().fill_null(value=False)
         _require_valid(values, invalid, name, source)
         return parsed
 
 
+@dataclass(frozen=True, slots=True)
 class IntegerAxisCoercer:
     """Read integers, rejecting fractions and values outside the 64-bit range."""
 
+    notation: NumberNotation
+
     def coerce(self, values: pl.Series, *, name: str, source: str) -> pl.Series:
-        parsed = values.cast(pl.Float64, strict=False)
+        parsed = _read_numbers(values, self.notation)
         finite = parsed.is_finite().fill_null(value=False)
         integral = (parsed % 1 == 0).fill_null(value=False)
         in_range = ((parsed >= _INT64_MIN) & (parsed <= _INT64_MAX)).fill_null(value=False)

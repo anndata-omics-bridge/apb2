@@ -19,7 +19,11 @@ from apb2.parserV2.parse_quant.parameters.measurements import (
     DuplicateMode,
     RawValuePresenceConfig,
 )
-from apb2.parserV2.parse_quant.parameters.source import DecompositionConfig, LevelReadPlan
+from apb2.parserV2.parse_quant.parameters.source import (
+    DecompositionConfig,
+    LevelReadPlan,
+    NumericTextFormat,
+)
 from apb2.parserV2.parse_quant.parameters.working import JsonValue, QuantificationLevel
 
 
@@ -28,6 +32,7 @@ class ResolvedLevelPlan:
     """Everything ``ParseRuleCompiler`` needs to construct one parser."""
 
     level: QuantificationLevel
+    number_format: NumericTextFormat
     read: LevelReadPlan
     decomposition: DecompositionConfig
     obs: ResolvedAxisColumnPlan

@@ -563,6 +563,47 @@ def test_axis_dtypes_are_normalized_to_what_hdf5_accepts(tmp_path: Path) -> None
     assert stored.var["Mass"].tolist()[0] == 1.5
 
 
+def test_only_repeated_axis_strings_are_dictionary_encoded(tmp_path: Path) -> None:
+    var = pl.DataFrame(
+        {
+            "ProForma_ion": ["ONE/2", "TWO/2", "THREE/2", "FOUR/2"],
+            "Condition": ["treated", None, "control", "treated"],
+            "All_Null": pl.Series([None, None, None, None], dtype=pl.Null),
+        }
+    )
+    parsed = level(
+        var=var,
+        var_keys=("ProForma_ion",),
+        layers={
+            "Intensity": pl.DataFrame(
+                {
+                    "ProForma_ion": var.get_column("ProForma_ion"),
+                    "obs_0": [1.0, 2.0, 3.0, 4.0],
+                    "obs_1": [5.0, 6.0, 7.0, 8.0],
+                }
+            )
+        },
+    )
+    target = tmp_path / "ion.h5ad"
+
+    writer_for(parsed).write(parsed, target)
+    stored = anndata.read_h5ad(target)
+
+    assert not isinstance(stored.var["ProForma_ion"].dtype, pd.CategoricalDtype)
+    assert stored.var["ProForma_ion"].tolist() == var.get_column("ProForma_ion").to_list()
+    assert isinstance(stored.var["Condition"].dtype, pd.CategoricalDtype)
+    assert stored.var["Condition"].astype("string").tolist() == [
+        "treated",
+        pd.NA,
+        "control",
+        "treated",
+    ]
+    assert stored.var["Condition"].cat.categories.tolist() == ["treated", "control"]
+    assert isinstance(stored.var["All_Null"].dtype, pd.CategoricalDtype)
+    assert stored.var["All_Null"].isna().all()
+    assert stored.var["All_Null"].cat.categories.empty
+
+
 def test_the_provenance_is_written_under_the_parse_tool_namespace(tmp_path: Path) -> None:
     parsed = level(
         uns={
