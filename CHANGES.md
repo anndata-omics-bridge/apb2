@@ -1,5 +1,23 @@
 # Changes
 
+- 2026-08-26: Added the user-facing MkDocs Material site for vendor conversion, result-format
+  reading and writing, the CLI, and the Python API. The repository README links to the rendered
+  GitHub Pages site and its source index; the complete converter architecture remains intact as
+  the site's architecture reference. A strict documentation build is part of `make check`, and a
+  dedicated GitHub Actions workflow publishes `public/` from `main`.
+
+- 2026-08-25: Added one storage-neutral `ParsedLevels` result-I/O boundary and
+  `apb2 reformat SOURCE TARGET`. Explicit `reader_for(format).read(path)` and
+  `writer_for(format).write(parsed, path)` adapters cover h5ad, h5mu, APB2 Parquet directory
+  datasets, and DuckDB; path-inferred convenience functions delegate to the same registry.
+  Parquet/DuckDB preserve Polars schemas, nulls, ordering, aligned frames, sparse-coordinate
+  frames, and both provenance scopes exactly. h5ad/h5mu use the stored resolved plan for the
+  deliberate numeric/factor matrix projection and persist a versioned envelope beside
+  `uns["apb"]["parse"]`. Parser remains a one-level strategy with its existing
+  `parse()`/`convert(parsed, target)` contract. DuckDB and its dynamically loaded PyArrow
+  interchange are runtime dependencies; MuData 0.4 supplies the stable non-pulling container
+  semantics used by h5mu.
+
 - 2026-08-25: Removed every pointer from this repo into the workspace's archived planning folder —
   two in `vendor_params/parsers/shared/model.py` (the module docstring and the `scan_window`
   comment), one in `tests/parserV2/vendor_params/proteobench_params.py`, and one in a 2026-08-20

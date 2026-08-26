@@ -311,15 +311,18 @@ def test_the_registries_live_only_in_the_composition_root() -> None:
         assert not tables, f"{path} holds a tag table: {tables}"
 
 
-def test_only_the_annData_adapter_reaches_for_a_storage_backend() -> None:
+def test_only_physical_result_adapters_reach_for_storage_backends() -> None:
     for path in _modules(PARSE_QUANT):
         imported = _imported_modules(path)
-        backends = {"pandas", "numpy", "anndata", "mudata"} & {
+        backends = {"pandas", "numpy", "anndata", "mudata", "scipy", "duckdb"} & {
             name.split(".")[0] for name in imported
         }
-        expected = (
-            {"pandas", "numpy", "anndata", "mudata"} if path.name == "anndata_writer.py" else set()
-        )
+        expected_by_module = {
+            "anndata_reader.py": {"pandas", "numpy", "anndata", "mudata", "scipy"},
+            "anndata_writer.py": {"pandas", "numpy", "anndata", "mudata", "scipy"},
+            "duckdb_io.py": {"duckdb"},
+        }
+        expected = expected_by_module.get(path.name, set())
         assert backends <= expected, f"{path} imports {backends}"
 
 

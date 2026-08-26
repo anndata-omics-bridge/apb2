@@ -126,6 +126,10 @@ class Parser:
             primary_layer_name=raw.layers.primary_layer_name,
             uns=uns,
             layers=layers,
+            obsm={},
+            varm={},
+            obsp={},
+            varp={},
         )
 
     def convert(self, parsed: ParsedLevel, target: Path, /) -> None:

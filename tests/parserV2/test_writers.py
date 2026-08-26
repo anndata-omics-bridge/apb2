@@ -29,7 +29,6 @@ from apb2.parserV2.parse_quant.anndata_writer import (
     MuDataLevelError,
     MuDataWriter,
     OccupancyPolicy,
-    ParsedLevels,
     PlainNumericAnnDataEncoder,
     RegexNumericAnnDataEncoder,
     StandardAnnDataLayerContract,
@@ -41,9 +40,11 @@ from apb2.parserV2.parse_quant.data.parsed import (
     JsonValue,
     ObsFinal,
     ParsedLevel,
+    ParsedLevels,
     VarFinal,
 )
 from apb2.parserV2.parse_quant.numeric_text import NumberNotation
+from apb2.parserV2.parse_quant.parquet_reader import ParquetReader
 from apb2.parserV2.parse_quant.parquet_writer import (
     MANIFEST_NAME,
     ParquetWriteError,
@@ -75,15 +76,24 @@ def level(
             )
         }
     )
+    metadata: dict[str, JsonValue] = {
+        "software_name": "Synthetic",
+        "quantification_level": "ion",
+    }
+    metadata.update(uns or {})
     return ParsedLevel(
         obs=ObsFinal(frame=obs_frame, key_columns=obs_keys),
         var=VarFinal(frame=var_frame, key_columns=var_keys),
         primary_layer_name=primary,
-        uns=dict(uns or {"software_name": "Synthetic"}),
+        uns=metadata,
         layers={
             name: FinalLayerTable(layer_name=name, var_key_columns=var_keys, values=frame)
             for name, frame in values.items()
         },
+        obsm={},
+        varm={},
+        obsp={},
+        varp={},
     )
 
 
@@ -98,6 +108,7 @@ def manifest_of(target: Path) -> dict[str, JsonValue]:
 
 def test_a_parquet_dataset_round_trips_every_value_and_dtype(tmp_path: Path) -> None:
     parsed = level(
+        obs=pl.DataFrame({"Run": ["A"]}),
         var=pl.DataFrame({"Feature": ["F1", "F2"], "Charge": [2, None], "Decoy": [True, None]}),
         layers={
             "Intensity": pl.DataFrame({"Feature": ["F1", "F2"], "obs_0": ["100.000,5", None]}),
@@ -107,14 +118,15 @@ def test_a_parquet_dataset_round_trips_every_value_and_dtype(tmp_path: Path) -> 
     target = tmp_path / "ion"
 
     ParquetWriter().write(parsed, target)
+    restored = ParquetReader().read(target).levels["ion"]
 
-    assert pl.read_parquet(target / "obs.parquet").to_dicts() == parsed.obs.frame.to_dicts()
-    assert pl.read_parquet(target / "var.parquet").schema == parsed.var.frame.schema
-    intensity = pl.read_parquet(target / "layers" / "Intensity.parquet")
+    assert restored.obs.frame.equals(parsed.obs.frame)
+    assert restored.var.frame.schema == parsed.var.frame.schema
+    intensity = restored.layers["Intensity"].values
     # The localized token is still the token: no encoder ran.
     assert intensity.get_column("obs_0").to_list() == ["100.000,5", None]
     assert intensity.schema["obs_0"] == pl.String
-    assert pl.read_parquet(target / "layers" / "Kind.parquet").get_column("obs_0").to_list() == [
+    assert restored.layers["Kind"].values.get_column("obs_0").to_list() == [
         "MBR",
         "MS/MS",
     ]
@@ -122,6 +134,7 @@ def test_a_parquet_dataset_round_trips_every_value_and_dtype(tmp_path: Path) -> 
 
 def test_the_manifest_states_what_every_file_is(tmp_path: Path) -> None:
     parsed = level(
+        obs=pl.DataFrame({"Run": ["A"]}),
         var_keys=("Feature", "Charge"),
         var=pl.DataFrame({"Feature": ["F1"], "Charge": [2]}),
         uns={"software_name": "Synthetic", "unknown_mod_tokens": ["Mystery@M"]},
@@ -135,59 +148,70 @@ def test_the_manifest_states_what_every_file_is(tmp_path: Path) -> None:
     ParquetWriter().write(parsed, target)
     manifest = manifest_of(target)
 
-    assert manifest["primary_layer"] == "Intensity"
-    assert manifest["layer_order"] == ["Intensity", "Q Value"]
-    assert manifest["obs"] == {"file": "obs.parquet", "key_columns": ["Run"], "columns": ["Run"]}
-    assert manifest["var"] == {
-        "file": "var.parquet",
-        "key_columns": ["Feature", "Charge"],
-        "columns": ["Feature", "Charge"],
-    }
-    assert manifest["uns"] == {
+    assert manifest["format_version"] == "2"
+    assert manifest["level_order"] == ["ion"]
+    levels = manifest["levels"]
+    assert isinstance(levels, dict)
+    ion = levels["ion"]
+    assert isinstance(ion, dict)
+    assert ion["primary_layer"] == "Intensity"
+    assert ion["layer_order"] == ["Intensity", "Q Value"]
+    assert ion["uns"] == {
         "software_name": "Synthetic",
+        "quantification_level": "ion",
         "unknown_mod_tokens": ["Mystery@M"],
     }
-    layers = manifest["layers"]
+    layers = ion["layers"]
     assert isinstance(layers, dict)
     assert layers["Q Value"] == {
-        "file": "layers/Q_Value.parquet",
+        "file": "Q_Value.parquet",
+        "columns": ["Feature", "Charge", "obs_0"],
+        "schema": [{"name": "String"}, {"name": "Int64"}, {"name": "Float64"}],
         "var_key_columns": ["Feature", "Charge"],
-        "observation_columns": ["obs_0"],
     }
-    assert (target / "layers" / "Q_Value.parquet").is_file()
+    assert (target / "levels" / "ion" / "layers" / "Q_Value.parquet").is_file()
 
 
 def test_a_layer_name_is_mapped_to_a_file_name_never_interpolated(tmp_path: Path) -> None:
     parsed = level(
+        obs=pl.DataFrame({"Run": ["A"]}),
+        var=pl.DataFrame({"Feature": ["F1"]}),
         layers={
             "../escape": pl.DataFrame({"Feature": ["F1"], "obs_0": [1.0]}),
             "..%escape": pl.DataFrame({"Feature": ["F1"], "obs_0": [2.0]}),
             "Intensity": pl.DataFrame({"Feature": ["F1"], "obs_0": [3.0]}),
-        }
+        },
     )
     target = tmp_path / "ion"
 
     ParquetWriter().write(parsed, target)
-    layers = manifest_of(target)["layers"]
+    manifest = manifest_of(target)
+    levels = manifest["levels"]
+    assert isinstance(levels, dict)
+    ion = levels["ion"]
+    assert isinstance(ion, dict)
+    layers = ion["layers"]
 
     assert isinstance(layers, dict)
-    files = sorted(path.name for path in (target / "layers").iterdir())
+    layer_directory = target / "levels" / "ion" / "layers"
+    files = sorted(path.name for path in layer_directory.iterdir())
     assert files == ["Intensity.parquet", "escape.parquet", "escape_1.parquet"]
     assert not (tmp_path / "escape.parquet").exists()
     for name, entry in layers.items():
         assert isinstance(entry, dict)
-        assert str(entry["file"]).startswith("layers/")
+        assert Path(str(entry["file"])).name == str(entry["file"])
         assert name not in files or name.endswith("Intensity")
 
 
 def test_writing_over_an_existing_dataset_leaves_only_the_new_one(tmp_path: Path) -> None:
     target = tmp_path / "ion"
     ParquetWriter().write(level(), target)
-    (target / "layers" / "Stale.parquet").write_bytes(b"stale")
+    layer_directory = target / "levels" / "ion" / "layers"
+    (layer_directory / "Stale.parquet").write_bytes(b"stale")
 
     ParquetWriter().write(level(), target)
 
-    assert sorted(path.name for path in (target / "layers").iterdir()) == ["Intensity.parquet"]
+    assert sorted(path.name for path in layer_directory.iterdir()) == ["Intensity.parquet"]
     assert sorted(path.name for path in tmp_path.iterdir()) == ["ion"]
 
 
@@ -206,13 +230,17 @@ def test_a_failure_part_way_through_leaves_the_previous_dataset_intact(
 ) -> None:
     target = tmp_path / "ion"
     ParquetWriter().write(level(), target)
-    before = pl.read_parquet(target / "obs.parquet").to_dicts()
-    broken = level(layers={"Intensity": pl.DataFrame({"Feature": ["F1"], "obs_0": [object()]})})
+    before = (target / MANIFEST_NAME).read_bytes()
+    broken = level(
+        obs=pl.DataFrame({"Run": ["A"]}),
+        var=pl.DataFrame({"Feature": ["F1"]}),
+        layers={"Intensity": pl.DataFrame({"Feature": ["F1"], "obs_0": [object()]})},
+    )
 
     with pytest.raises(Exception, match=r".*"):
         ParquetWriter().write(broken, target)
 
-    assert pl.read_parquet(target / "obs.parquet").to_dicts() == before
+    assert (target / MANIFEST_NAME).read_bytes() == before
     assert sorted(path.name for path in tmp_path.iterdir()) == ["ion"]
 
 

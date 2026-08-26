@@ -193,7 +193,7 @@ def test_the_plan_reaches_the_manifest_of_a_written_parquet_dataset(tmp_path: Pa
     parser.convert(parser.parse(), target)
 
     manifest = json.loads((target / MANIFEST_NAME).read_text(encoding="utf-8"))
-    assert json.loads(manifest["uns"][PLAN_JSON_KEY])["level"] == "ion"
+    assert json.loads(manifest["levels"]["ion"]["uns"][PLAN_JSON_KEY])["level"] == "ion"
 
 
 # ------------------------------------------------------------------------- packaged coverage

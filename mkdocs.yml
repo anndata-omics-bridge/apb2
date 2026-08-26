@@ -1,0 +1,32 @@
+site_name: APB2
+site_description: Rules-driven proteomics vendor-table conversion and result-format I/O.
+site_url: https://anndata-omics-bridge.github.io/apb2/
+repo_url: https://github.com/anndata-omics-bridge/apb2
+repo_name: anndata-omics-bridge/apb2
+docs_dir: docs
+site_dir: public
+
+theme:
+  name: material
+  features:
+    - content.code.copy
+    - navigation.sections
+    - navigation.top
+
+nav:
+  - Home: index.md
+  - Convert vendor results: conversion.md
+  - Read and write results: result_io.md
+  - CLI reference: cli.md
+  - Python API: api.md
+  - Architecture: architecture_converter.md
+
+markdown_extensions:
+  - admonition
+  - tables
+  - pymdownx.highlight
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format

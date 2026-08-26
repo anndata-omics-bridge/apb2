@@ -121,6 +121,17 @@ def convert(
     return 0
 
 
+@app.command
+def reformat(source: Path, target: Path) -> int:
+    """Convert one APB2-authored result between h5ad, h5mu, Parquet, and DuckDB."""
+    try:
+        conversion_facade.reformat_result(source, target)
+    except (conversion_facade.ReformatError, OSError) as error:
+        logger.error(str(error))
+        return 1
+    return 0
+
+
 def _log_result(output: Path, result: conversion_facade.ConversionSummary) -> None:
     for level in result.levels:
         logger.info(

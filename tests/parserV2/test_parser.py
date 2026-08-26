@@ -273,6 +273,10 @@ def test_convert_writes_the_result_it_is_given_and_parses_nothing(tmp_path: Path
         primary_layer_name="Intensity",
         uns={},
         layers={},
+        obsm={},
+        varm={},
+        obsp={},
+        varp={},
     )
 
     parser.convert(parsed, tmp_path / "out")
@@ -672,6 +676,10 @@ def test_a_parsed_level_is_a_direct_composition_and_keeps_no_key_map() -> None:
         "primary_layer_name",
         "uns",
         "layers",
+        "obsm",
+        "varm",
+        "obsp",
+        "varp",
     }
     assert parsed.uns == {"software_name": "Synthetic", "quantification_level": "ion"}
     assert isinstance(parsed.obs.frame, pl.DataFrame)

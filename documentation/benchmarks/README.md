@@ -1,5 +1,33 @@
 # Benchmarks
 
+## `result_io.py` — result-format adapters and crossings
+
+This benchmark constructs storage-neutral `ParsedLevels` values, verifies every result after
+reading it, and measures the public Parquet, DuckDB, and h5mu writers and readers. It also measures
+Parquet-to-DuckDB and DuckDB-to-h5mu through `ParsedLevels`; there is no backend-to-backend shortcut.
+
+```bash
+.venv/bin/python documentation/benchmarks/result_io.py \
+    --observations 12 --variables 10000 --layers 3 --repeats 3
+```
+
+### Result, 2026-08-25
+
+Apple M4 Pro, Python 3.13.9, Polars 1.43.2, DuckDB 1.5.5, MuData 0.4.1, and PyArrow 25.0.1;
+median of three measured runs after one discarded warm-up. The one-level value has 12 observations,
+10,000 variables, and three dense layers. The two-level value adds a protein level with 2,500
+variables.
+
+| result | Parquet write / read | DuckDB write / read | h5mu write / read | Parquet → DuckDB | DuckDB → h5mu |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| one level | **0.0048 / 0.0053 s** | 0.0335 / 0.0082 s | 0.0724 / 0.0623 s | 0.0391 s | 0.0832 s |
+| two levels | **0.0075 / 0.0084 s** | 0.0495 / 0.0113 s | 0.1023 / 0.0827 s | 0.0582 s | 0.1147 s |
+
+The corresponding one-level files are 0.45 MiB Parquet, 2.01 MiB DuckDB, and 5.28 MiB h5mu; the
+two-level files are 0.54 MiB, 4.01 MiB, and 6.66 MiB. This synthetic, highly compressible workload
+primarily verifies adapter overhead and scaling direction. It does not replace vendor conversion
+benchmarks or claim the same ratios for sparse or string-heavy results.
+
 ## `diann_cli_conversion.py` — APB versus APB2 through `.h5ad`
 
 This is the user-visible converter benchmark. It invokes `apb convert` and `apb2 convert` as
@@ -75,10 +103,10 @@ same direction, on the wrong workload.)
 
 ### Running it
 
-`polars` and `duckdb` are in the `bench` dependency group, not in the runtime dependencies:
+Polars and DuckDB are runtime dependencies of the result-I/O boundary:
 
 ```bash
-uv sync --group dev --group bench
+uv sync --group dev
 .venv/bin/python documentation/benchmarks/long_table_conversion.py --table path/to/input_file.tsv
 ```
 

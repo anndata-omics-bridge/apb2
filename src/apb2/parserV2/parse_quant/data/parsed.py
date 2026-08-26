@@ -13,12 +13,22 @@ same value, not duplicated behaviour.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 import polars as pl
 
 # Ruff RUF036 wants ``None`` last; the specification's ordering is otherwise identical.
 type JsonScalar = bool | int | float | str | None
 type JsonValue = JsonScalar | list[JsonValue] | dict[str, JsonValue]
+type ParsedLevelName = Literal["ion", "peptidoform", "peptide", "protein", "fragment"]
+
+LEVEL_ORDER: tuple[ParsedLevelName, ...] = (
+    "ion",
+    "peptidoform",
+    "peptide",
+    "protein",
+    "fragment",
+)
 
 
 @dataclass(slots=True)
@@ -83,3 +93,26 @@ class ParsedLevel:
 
     layers: dict[str, FinalLayerTable]
     # {"Intensity": intensity_final, "QValue": q_value_final}
+
+    obsm: dict[str, pl.DataFrame]
+    # {"sample_covariates": pl.DataFrame({"batch": ["A", "B", "A"]})}
+
+    varm: dict[str, pl.DataFrame]
+    # {"protein_scores": pl.DataFrame({"score": [0.91, 0.73]})}
+
+    obsp: dict[str, pl.DataFrame]
+    # {"sample_graph": pl.DataFrame({"row": [0, 1], "column": [1, 0], "value": [0.8, 0.8]})}
+
+    varp: dict[str, pl.DataFrame]
+    # {"similarity": pl.DataFrame({"row": [0], "column": [1], "value": [0.6]})}
+
+
+@dataclass(slots=True)
+class ParsedLevels:
+    """One or more parsed quantification levels and their shared provenance."""
+
+    levels: dict[ParsedLevelName, ParsedLevel]
+    # {"ion": ion_parsed_level, "protein": protein_parsed_level}
+
+    uns: dict[str, JsonValue]
+    # {"produced_by": "apb2", "rule_selection_method": "software_version"}

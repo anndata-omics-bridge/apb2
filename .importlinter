@@ -78,10 +78,12 @@ exhaustive = True
 containers =
     apb2.parserV2.parse_quant
 layers =
-    (parser) | (decomposition) | (duplicates)
+    result_io | (parser) | (decomposition) | (duplicates)
     contracts
-    axis_columns | modifications | fragments | delimited_input | parquet_input | anndata_writer | parquet_writer
-    errors | numeric_text
+    axis_columns | modifications | fragments | delimited_input | parquet_input | anndata_reader | anndata_writer | parquet_reader | parquet_writer | duckdb_io
+    result_validation
+    result_metadata | numeric_text
+    errors
     data | parameters
 
 [importlinter:contract:parse-quant-children-are-independent]
@@ -110,13 +112,17 @@ forbidden_modules =
     anndata
     mudata
     pyarrow
+    duckdb
 
 [importlinter:contract:writers-see-only-a-parsed-level]
 name = an output adapter knows the parsed result, the notation, and its own backend
 type = forbidden
 source_modules =
+    apb2.parserV2.parse_quant.anndata_reader
     apb2.parserV2.parse_quant.anndata_writer
+    apb2.parserV2.parse_quant.parquet_reader
     apb2.parserV2.parse_quant.parquet_writer
+    apb2.parserV2.parse_quant.duckdb_io
 forbidden_modules =
     apb2.parserV2.parse_quant.parser
     apb2.parserV2.parse_quant.contracts

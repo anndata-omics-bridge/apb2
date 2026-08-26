@@ -1,7 +1,7 @@
 VENV_BIN := .venv/bin
 
 .DEFAULT_GOAL := help
-.PHONY: help sync format format-check lint typecheck deps test build check clean
+.PHONY: help sync format format-check lint typecheck deps test build docs docs-serve check clean
 
 help:  ## Show developer commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -34,9 +34,15 @@ build:  ## Build and validate source and wheel distributions
 	uv build
 	$(VENV_BIN)/twine check dist/*
 
+docs:  ## Build user documentation with strict warnings
+	uv run --frozen --group docs mkdocs build --strict
+
+docs-serve:  ## Serve user documentation locally
+	uv run --frozen --group docs mkdocs serve
+
 check:  ## Run every merge-blocking quality gate
 	uv lock --check
-	$(MAKE) format-check lint typecheck deps test build
+	$(MAKE) format-check lint typecheck deps test build docs
 
 clean:  ## Remove generated build and quality artifacts
-	$(VENV_BIN)/python -c "import shutil; [shutil.rmtree(path, ignore_errors=True) for path in ('build', 'dist', '.pytest_cache', '.ruff_cache')]"
+	$(VENV_BIN)/python -c "import shutil; [shutil.rmtree(path, ignore_errors=True) for path in ('build', 'dist', 'public', '.pytest_cache', '.ruff_cache')]"

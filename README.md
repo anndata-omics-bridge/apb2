@@ -2,6 +2,9 @@
 
 Convert proteomics software output to AnnData (rules-driven parser, second generation)
 
+Read the rendered [APB2 documentation](https://anndata-omics-bridge.github.io/apb2/) or its
+[source index](docs/index.md).
+
 ## Convert
 
 Use a packaged rule selected from the vendor parameter file and source header:
@@ -29,8 +32,31 @@ one. A no-level conversion writes MuData even when only one level is compatible.
 promotes layer-contract warnings to errors. The command performs conversion only—FASTA annotation
 and protein inference are outside Parser V2.
 
-The CLI imports only `apb2.parserV2`. Programmatic Parser V2 callers may also select the Parquet
-writer without passing through the AnnData adapter.
+## Reformat a parsed result
+
+Change only the persisted format; no vendor parsing or annotation runs:
+
+```bash
+apb2 reformat SOURCE TARGET
+```
+
+The suffix selects h5ad, h5mu, an APB2 Parquet directory dataset, or DuckDB. Programmatic callers
+use the same explicit adapter boundary:
+
+```python
+from pathlib import Path
+
+from apb2.parserV2.parse_quant.result_io import ResultFormat, reader_for, writer_for
+
+parsed = reader_for(ResultFormat.PARQUET).read(Path("result.parquet"))
+writer_for(ResultFormat.DUCKDB).write(parsed, Path("result.duckdb"))
+```
+
+`read_parsed_levels(source)` and `write_parsed_levels(parsed, target)` are path-inferred
+conveniences. Parquet and DuckDB preserve Polars result values exactly; h5ad and h5mu apply the
+stored numeric/factor matrix projection.
+
+The CLI imports only `apb2.parserV2`.
 
 The converter's controlling design, dependency boundaries, rule-schema decisions, algorithms, and
 implementation contracts are documented in
@@ -41,10 +67,13 @@ implementation contracts are documented in
 ```bash
 uv sync --group dev
 make check
+make docs
 .venv/bin/pre-commit install --hook-type pre-commit --hook-type pre-push
 ```
 
 All Python commands run from the synchronized project `.venv`.
+`make docs-serve` serves the user documentation locally. GitHub Actions publishes the strict
+MkDocs build to GitHub Pages from `main`.
 
 The rule JSON Schema is a packaged artifact. Developers regenerate it from the Parser V2 rule
 package rather than through a user-facing CLI command:

@@ -5,8 +5,8 @@
 > historical context. This document is the implementation baseline.
 >
 > **Scope:** rules-driven parsing of one quantification level from one bound physical source into
-> a storage-neutral, Polars-based `ParsedLevel`; single-level AnnData/Parquet persistence; and
-> output-adapter composition of one or more parsed levels as MuData.
+> a storage-neutral, Polars-based `ParsedLevel`; composition as `ParsedLevels`; and result I/O
+> through h5ad, h5mu, Parquet-directory, and DuckDB adapters.
 >
 > **Out of scope:** FASTA annotation, protein inference, unrelated APB commands, and byte-for-byte
 > reconstruction of vendor input.
@@ -37,6 +37,10 @@ ParsedLevel(
     primary_layer_name="Intensity",
     uns={...},
     layers={"Intensity": FinalLayerTable(...)},
+    obsm={},
+    varm={},
+    obsp={},
+    varp={},
 )
 ```
 
@@ -46,13 +50,21 @@ The parser keeps measurements as wide Polars DataFrames until parsing is finishe
 variable-key columns | observation value columns
 ```
 
-It does not create pandas indexes, coordinate arrays, dense NumPy matrices, or AnnData objects.
+It does not create pandas indexes, NumPy/SciPy matrices, or AnnData objects.
 `ParquetWriter` writes the parsed frames directly. `AnnDataWriter` alone performs layer encoding,
 orientation change, NumPy allocation, pandas-index construction, AnnData contract checks, and
 AnnData I/O. When the CLI omits `LEVEL`, existing parsers still return one `ParsedLevel` each;
 `ParsedLevels` collects them and `MuDataWriter` loops over the corresponding configured
 `AnnDataWriter` values to assemble `MuData(axis=0)`. MuData is therefore storage composition, not
-a multi-level parsing algorithm.
+a multi-level parsing algorithm. The same `ParsedLevels` value is the result-I/O boundary:
+
+```python
+parsed = reader_for(input_format).read(source)
+writer_for(output_format).write(parsed, target)
+```
+
+Parquet and DuckDB preserve the Polars result exactly. AnnData and MuData deliberately project raw
+layer strings to configured numeric/factor matrices. No format crossing bypasses `ParsedLevels`.
 
 The identity model uses explicit columns rather than temporary integer IDs:
 
@@ -119,6 +131,8 @@ The specification stays close to V5. These are the only intentional changes:
 | `parserV2` has an explicit downward import graph: `parse_quant/data` owns pipeline values, `parse_quant/parameters` owns working and source-resolved parameters, `parse_quant/contracts.py` owns Parser-consumed Protocols, reader and writer modules live directly in `parse_quant`, parent-level `parse_rule_facade.py` translates `RuleDocument` into parameters, and the inward-only `vendor_parse_rules/schema/` child owns Pydantic storage declarations | V5 named implementation areas but did not assign concrete modules or prohibit child-to-parent and sibling-child imports | Make directory nesting express dependency direction: a module owned by one child moves into that child; only genuine cross-child composition stays in the parent |
 | One-class private helpers are private methods; module-level `make_*` and `*_for` names are reserved for construction and selection | V5 showed several one-client parser and writer helpers as free functions | Put implementation details with their sole owner, reduce module namespace and forwarding code, and keep the construction boundary visible |
 | Omitted CLI level composes compatible `ParsedLevel` values as MuData | The initial specification explicitly excluded MuData assembly | Match APB's compound-conversion contract without changing parsing: one parser per level, one output-adapter loop, and one `.h5mu` container |
+| Result I/O operates on `ParsedLevels` through format-selected readers and writers | V5 specified only parser-owned one-level writing | Give later tools and `apb2 reformat` one storage-neutral boundary; keep `Parser.convert()` unchanged because Parser still owns one level |
+| `ParsedLevel` includes axis-aligned and sparse pairwise Polars frames | V5 stopped at axes, layers, and `uns` | Carry the AnnData/MuData slots later tools need without importing their containers into computation |
 
 No other architectural novelty is introduced. In particular, this specification does not restore
 the V4 reverse path, temporary IDs, parser-side arrays, a Builder, a generic dataframe facade, or a
@@ -184,6 +198,22 @@ flowchart TB
     WRITER -->|"ParquetWriter"| PARQUET
     WRITER -->|"AnnDataWriter"| ENCODE --> ADATA
 ```
+
+Persisted-result crossing is a second, storage-only pipeline:
+
+```mermaid
+flowchart LR
+    PATH_IN["Path<br/>.h5ad | .h5mu | .parquet | .duckdb"]
+    FORMAT_IN(["reader_for(input_format).read(source)"])
+    LEVELS["ParsedLevels<br/>Polars axes + layers + aligned/pairwise frames + provenance"]
+    FORMAT_OUT(["writer_for(output_format).write(parsed, target)"])
+    PATH_OUT["Path<br/>.h5ad | .h5mu | .parquet | .duckdb"]
+
+    PATH_IN --> FORMAT_IN --> LEVELS --> FORMAT_OUT --> PATH_OUT
+```
+
+The input and output formats are consumed at this composition boundary. Neither reader nor writer
+retains the enum or asks what another adapter is.
 
 The required order is:
 
@@ -267,10 +297,11 @@ under `vendor_parse_rules/` imports a parent module or `parse_quant`.
 
 The computational modules—`parser.py`, `decomposition.py`, `fragments.py`, `axis_columns.py`,
 `duplicates.py`, and `modifications.py`—import neither Pydantic models, physical readers, writers,
-`anndata`, pandas, NumPy, nor PyArrow storage APIs. The four explicitly named boundary modules also
-live directly in `parse_quant/`: `delimited_input.py`, `parquet_input.py`, `anndata_writer.py`, and
-`parquet_writer.py`. Their external dependencies remain confined to those modules. Child modules
-under `parse_quant/data/` and `parse_quant/parameters/` never import upward into any of them.
+`anndata`, pandas, NumPy, nor PyArrow storage APIs. Physical boundary modules live directly in
+`parse_quant/`: the delimited and vendor-Parquet inputs, the AnnData/MuData and result-Parquet
+readers and writers, and DuckDB I/O. Their backend dependencies remain confined to those modules.
+`result_io.py` composes the result adapters. Child modules under `parse_quant/data/` and
+`parse_quant/parameters/` never import upward into any of them.
 
 `parse_rule_facade.py` therefore cannot live inside `vendor_parse_rules`. It is a parent-level
 module because it consumes `vendor_parse_rules.RuleDocument` and produces values from
@@ -716,30 +747,39 @@ own backend values.
 
 ### 6.1 Parquet
 
-`ParquetWriter` persists:
+The parser-owned `ParquetWriter` persists one level by composing the collection writer. The
+result-I/O `ParquetLevelsWriter` persists:
 
 - `parsed.obs.frame` plus `parsed.obs.key_columns` metadata;
 - `parsed.var.frame` plus `parsed.var.key_columns` metadata;
 - every `FinalLayerTable.values` plus `var_key_columns` metadata;
-- `primary_layer_name` and `uns`.
+- `primary_layer_name`, per-level `uns`, and shared `ParsedLevels.uns`;
+- every `obsm`/`varm` aligned frame; and
+- every `obsp`/`varp` sparse-coordinate frame.
 
 It preserves Polars values and dtypes. It does not create AnnData encoders, pandas objects, or
 NumPy matrices. The target is an atomic directory dataset:
 
 ```text
-target/
-    obs.parquet
-    var.parquet
-    layers/
-        Intensity.parquet
-        QValue.parquet
+target.parquet/
     manifest.json
+    levels/
+        ion/
+            obs.parquet
+            var.parquet
+            layers/
+            obsm/
+            varm/
+            obsp/
+            varp/
+        protein/
+            ...
 ```
 
-`manifest.json` records the axis key columns, ordered observation storage-column labels, each
-layer's var-key columns, the primary layer, `uns`, schema version, and ordered layer names. A layer
-name is encoded to a safe file name and mapped explicitly in the manifest; it is never interpolated
-into a path without validation.
+`manifest.json` version 2 records level and table order, axis keys, each layer's var keys, primary
+layers, both provenance scopes, every table's ordered logical Polars schema, and explicit
+logical-to-physical names. A user-authored name is never interpolated into a path without that
+mapping. `ParquetReader` accepts this APB2 dataset only; a vendor `.parquet` file is not a result.
 
 ### 6.2 AnnData
 
@@ -826,13 +866,86 @@ class ParsedLevels:
 `MuDataWriter` holds the configured `AnnDataWriter` for each included level. It iterates the
 canonical level order, calls `to_anndata()` for each `ParsedLevel`, prefixes only the AnnData
 storage `var_names` (`ion:`, `pfm:`, `pep:`, `prt:`, `frg:`), constructs `MuData(modalities,
-axis=0)` with `pull_on_update=False`, writes shared provenance to `mdata.uns["apb"]["parse"]`, and
+axis=0)` under MuData's non-pulling update semantics, writes shared provenance to
+`mdata.uns["apb"]["parse"]`, and
 atomically writes `.h5mu`. The authored unprefixed key remains an ordinary modality `.var` column.
 
 One modality is valid; zero modalities is an error. The parsed-level names and configured writer
 names must match exactly. Level-specific rule JSON and resolved-plan provenance remain inside each
 modality; the MuData root contains only shared producer, selection, parameter, and ordered-level
 facts.
+
+### 6.4 Shared result-I/O capability
+
+The result-I/O client owns two Protocols. Concrete adapters conform structurally and do not import
+the Protocol declarations:
+
+```python
+class ParsedLevelsReader(Protocol):
+    def read(self, source: Path, /) -> ParsedLevels: ...
+
+
+class ParsedLevelsWriter(Protocol):
+    def write(self, parsed: ParsedLevels, target: Path, /) -> None: ...
+```
+
+The primary API selects explicitly by one composition-boundary enum:
+
+```python
+parsed = reader_for(input_format).read(source)
+writer_for(output_format).write(parsed, target)
+```
+
+`ResultFormat` contains `H5AD`, `H5MU`, `PARQUET`, and `DUCKDB`. One registry consumes it. Concrete
+adapters retain no format tag and contain no format switch. The optional path conveniences
+`read_parsed_levels(source)` and `write_parsed_levels(parsed, target)` infer the same enum from
+`.h5ad`, `.h5mu`, `.parquet`, or `.duckdb` and delegate to the primary API.
+
+An h5ad adapter still operates on `ParsedLevels`: its reader returns exactly one level and its
+writer rejects any other cardinality before staging. This keeps one format-crossing pipeline while
+preserving the parser-owned `ParsedLevelWriter` capability used by `Parser.convert()`.
+
+### 6.5 DuckDB and the h5 result envelope
+
+One DuckDB file contains fixed metadata plus one physical table per axis, layer, aligned frame, or
+pairwise coordinate frame. Logical names map to generated `data_000000`-style table names. No
+logical/vendor name is interpolated into SQL. The writer stages a complete database beside the
+target; the reader opens it read-only and closes it before returning the Polars value. DuckDB asks
+Polars for Arrow record batches when registering a frame, so PyArrow is an explicit runtime
+dependency even though APB2 does not import it directly.
+
+h5ad/h5mu store a versioned JSON result envelope at `uns["apb"]["result"]`, beside the existing
+parse provenance at `uns["apb"]["parse"]`. The envelope distinguishes shared and per-level
+provenance, records ordered logical names and axis keys, and maps names that HDF5 cannot represent
+directly to safe physical keys. An h5 reader requires that envelope; it is deliberately not a
+general third-party AnnData importer.
+
+The h5 collection writers reconstruct the standard matrix encoders and occupancy contract from
+the stored `plan_json`. They do not reload `rules.json`, import its Pydantic models, or resolve a
+source again. A result already read from h5 is marked as matrix-projected, so a second h5 write
+uses numeric identity encoding and is idempotent—including factor layers that are now numeric
+codes.
+
+### 6.6 Fidelity laws
+
+Parquet and DuckDB are lossless result formats:
+
+```text
+read(write(parsed)) == parsed
+```
+
+The equality includes level/table order, Polars schemas, null versus NaN, logical names, every
+known slot, and both provenance scopes. Parquet↔DuckDB crossings obey the same law.
+
+h5ad and h5mu implement the configured matrix projection. Their law is:
+
+```text
+read(write(parsed)) == ann_data_projection(parsed)
+ann_data_projection(ann_data_projection(parsed)) == ann_data_projection(parsed)
+```
+
+Raw numeric strings and factor labels are intentionally not recoverable after that projection.
+Crossing from h5 into Parquet or DuckDB preserves the represented projected values exactly.
 
 ## 7. Architectural roles and construction
 
@@ -850,6 +963,8 @@ facts.
    `ParsedLevelWriter` contract.
 6. `MuDataWriter` is the concrete compound-output adapter. The parent composition root gives it
    the configured `AnnDataWriter` for every included level; parsing does not see it.
+7. `result_io.py` is the result-I/O composition boundary. It selects immutable h5ad, h5mu,
+   Parquet, or DuckDB readers and writers and owns the storage-only `reformat` use case.
 
 ```mermaid
 classDiagram
@@ -908,6 +1023,14 @@ classDiagram
         <<protocol>>
         +write(parsed, target) None
     }
+    class ParsedLevelsReader {
+        <<protocol>>
+        +read(source) ParsedLevels
+    }
+    class ParsedLevelsWriter {
+        <<protocol>>
+        +write(parsed, target) None
+    }
     class AnnDataLayerEncoder {
         <<protocol>>
         +encode(values) pl.DataFrame
@@ -923,6 +1046,14 @@ classDiagram
     class AnnDataWriter
     class MuDataWriter
     class ParquetWriter
+    class H5adReader
+    class H5muReader
+    class H5adWriter
+    class H5muWriter
+    class ParquetReader
+    class ParquetLevelsWriter
+    class DuckDBReader
+    class DuckDBWriter
     class ParsedLevels
     class ParsedLevel
     class DecomposedDataRaw
@@ -952,6 +1083,14 @@ classDiagram
     DelimitedFragmentSourceDecomposer *-- FragmentTableSeparator
     ParsedLevelWriter <|.. AnnDataWriter
     ParsedLevelWriter <|.. ParquetWriter
+    ParsedLevelsReader <|.. H5adReader
+    ParsedLevelsReader <|.. H5muReader
+    ParsedLevelsReader <|.. ParquetReader
+    ParsedLevelsReader <|.. DuckDBReader
+    ParsedLevelsWriter <|.. H5adWriter
+    ParsedLevelsWriter <|.. H5muWriter
+    ParsedLevelsWriter <|.. ParquetLevelsWriter
+    ParsedLevelsWriter <|.. DuckDBWriter
     AnnDataWriter *-- AnnDataLayerEncoder
     AnnDataWriter *-- AnnDataLayerContractChecker
     MuDataWriter *-- AnnDataWriter : one configured writer per level
@@ -1004,12 +1143,16 @@ flowchart TB
         subgraph PARSE_PACKAGE["parse_quant/ — never imports up or sideways"]
             DELIMITED_INPUT["delimited_input.py<br/>physical text -> LevelSourceTable"]
             PARQUET_INPUT["parquet_input.py<br/>physical Parquet -> LevelSourceTable"]
-            ANNDATA_WRITER["anndata_writer.py<br/>ParsedLevel -> AnnData"]
-            PARQUET_WRITER["parquet_writer.py<br/>ParsedLevel -> Parquet dataset"]
+            RESULT_IO["result_io.py<br/>format registry + reformat use case"]
+            ANNDATA_READER["anndata_reader.py<br/>h5ad/h5mu -> ParsedLevels"]
+            ANNDATA_WRITER["anndata_writer.py<br/>ParsedLevel(s) -> h5ad/h5mu"]
+            PARQUET_READER["parquet_reader.py<br/>dataset -> ParsedLevels"]
+            PARQUET_WRITER["parquet_writer.py<br/>ParsedLevel(s) -> dataset"]
+            DUCKDB_IO["duckdb_io.py<br/>DuckDB <-> ParsedLevels"]
             ERRORS["errors.py<br/>shared parse/source boundary errors"]
             SOURCE_DATA["data/source.py<br/>LevelSourceTable"]
             RAW_DATA["data/raw.py<br/>raw axes, layers, key map"]
-            PARSED_DATA["data/parsed.py<br/>final axes, layers, ParsedLevel"]
+            PARSED_DATA["data/parsed.py<br/>final axes, slots, ParsedLevel(s)"]
             PARAMETERS["parameters/<br/>working and source-resolved values"]
             CONTRACTS["contracts.py<br/>Parser-consumed Protocols and runtime plans"]
             PARSE["Parser, decomposers, columns,<br/>modifications, duplicate policies"]
@@ -1039,6 +1182,7 @@ flowchart TB
     COMPILE --> ANNDATA_WRITER
     COMPILE --> PARQUET_WRITER
     COMPILE --> ERRORS
+    CONVERSION --> RESULT_IO
 
     FACADE --> RULES
     FACADE --> PARAMETERS
@@ -1060,7 +1204,15 @@ flowchart TB
     CONTRACTS --> RAW_DATA
     CONTRACTS --> PARSED_DATA
     ANNDATA_WRITER --> PARSED_DATA
+    ANNDATA_READER --> PARSED_DATA
     PARQUET_WRITER --> PARSED_DATA
+    PARQUET_READER --> PARSED_DATA
+    DUCKDB_IO --> PARSED_DATA
+    RESULT_IO --> ANNDATA_READER
+    RESULT_IO --> ANNDATA_WRITER
+    RESULT_IO --> PARQUET_READER
+    RESULT_IO --> PARQUET_WRITER
+    RESULT_IO --> DUCKDB_IO
 
     RULES --> PYDANTIC
     PARAM_FOUNDATION --> PYDANTIC
@@ -1070,7 +1222,10 @@ flowchart TB
     ANNDATA_WRITER --> POLARS
     PARQUET_WRITER --> POLARS
     ANNDATA_WRITER --> STORAGE
+    ANNDATA_READER --> STORAGE
     PARQUET_WRITER --> STORAGE
+    PARQUET_READER --> STORAGE
+    DUCKDB_IO --> STORAGE
 ```
 
 Every project-internal arrow either stays at one directory level, points from a module to one of its
@@ -1090,19 +1245,22 @@ failures into one `ConversionError` for the CLI.
 evidence. The top-level `apb2/cli.py` imports only `apb2.parserV2.*`; no child package imports
 `conversion_facade.py` or `detect_document.py`.
 
-The four I/O modules sit directly in `parse_quant/` because they depend only on parse-owned data and
-parameters. The computation modules in the same directory do not import them. Only
-`anndata_writer.py` imports pandas, NumPy, and AnnData; only the physical input and Parquet output
-modules import their corresponding external storage APIs.
+The physical I/O modules sit directly in `parse_quant/` because they depend only on parse-owned
+data, storage metadata, and—for source input only—source parameters. Computation modules do not
+import them. `anndata_reader.py` and `anndata_writer.py` alone import pandas, NumPy, SciPy,
+AnnData, or MuData; `duckdb_io.py` alone imports DuckDB and triggers the dynamic Polars-to-PyArrow
+interchange. `result_io.py` is above these adapters and is the only result-format registry.
 
 `BoundInputReader` and `ParsedLevelWriter` belong in `parse_quant/contracts.py` because `Parser` is
 the client that exercises both capabilities. Concrete readers and writers satisfy those Protocols
 structurally. Reader modules import only their `data/source.py`, exact source-parameter children,
 and the shared parse-owned `errors.py` when binding/inspection can fail;
-writer modules import only `data/parsed.py`. They do not import the Protocol, Parser, raw state, or
-any strategy. `compile.py` performs the typed wiring. `LevelSourceTable`, raw states, and
-`ParsedLevel` form one parsing-owned data model under `parse_quant/data`, separated into source,
-raw, and parsed lifecycle modules.
+writer/result-reader modules import only the parsed data value, result metadata/validation, and
+their physical backend. They do not import Parser, raw state, decomposition, rules, or vendor
+parameters. `compile.py` performs parser-owned writer wiring; `result_io.py` performs
+collection-adapter selection. `LevelSourceTable`, raw states, `ParsedLevel`, and `ParsedLevels`
+form one parsing-owned data model under `parse_quant/data`, separated into source, raw, and parsed
+lifecycle modules.
 
 `ParseRuleFacade` lives in parent-level `parse_rule_facade.py`. It consumes a validated
 `RuleDocument` and returns working or source-resolved values from `parse_quant/parameters`.
@@ -1164,6 +1322,20 @@ initialized and retains configuration only for its own level.
 `AnnDataOutput` and `ParquetOutput` are composition-boundary declarations. The compiler consumes
 the output choice once and injects a writer; `Parser` never receives or inspects an output tag.
 
+Persisted results use the collection boundary even when they contain one level:
+
+```python
+parsed = reader_for(ResultFormat.PARQUET).read(Path("result.parquet"))
+writer_for(ResultFormat.DUCKDB).write(parsed, Path("result.duckdb"))
+
+# Additional path-inferred conveniences:
+parsed = read_parsed_levels(Path("result.duckdb"))
+write_parsed_levels(parsed, Path("result.h5mu"))
+```
+
+The CLI exposes the same storage-only pipeline as `apb2 reformat SOURCE TARGET`. It has no rule,
+level, software, parameter, strictness, FASTA, or annotation option.
+
 ## 9. Architectural conclusion
 
 The implementation must preserve these invariants:
@@ -1185,7 +1357,10 @@ The implementation must preserve these invariants:
 - temporary key maps are discarded before `ParsedLevel` is returned;
 - parsing never coerces a layer for AnnData, creates a matrix, constructs a pandas index, or writes
   a backend object;
-- Parquet preserves parsed Polars values; AnnData alone owns encoding and array allocation;
+- Parquet and DuckDB preserve parsed Polars values; AnnData/MuData alone own encoding and array
+  allocation;
+- result adapters operate on `ParsedLevels`; every crossing goes through that value and never
+  through a backend-to-backend shortcut;
 - runtime strategies contain no Pydantic rule, vendor selector, level selector, layout switch,
   `how` switch, encoding switch, duplicate-mode switch, or output switch;
 - `Parser.parse()` computes and returns; `Parser.convert(parsed, target)` writes that supplied
@@ -1382,7 +1557,32 @@ class ParsedLevel:
 
     layers: dict[str, FinalLayerTable]
     # {"Intensity": intensity_final, "QValue": q_value_final}
+
+    obsm: dict[str, pl.DataFrame]
+    # {"sample_covariates": pl.DataFrame({"batch": ["A", "B", "A"]})}
+
+    varm: dict[str, pl.DataFrame]
+    # {"protein_scores": pl.DataFrame({"score": [0.91, 0.73]})}
+
+    obsp: dict[str, pl.DataFrame]
+    # sparse coordinates with exactly: row | column | value
+
+    varp: dict[str, pl.DataFrame]
+    # sparse coordinates with exactly: row | column | value
+
+
+@dataclass(slots=True)
+class ParsedLevels:
+    levels: dict[ParsedLevelName, ParsedLevel]
+    # {"ion": ion_level, "protein": protein_level}
+
+    uns: dict[str, JsonValue]
+    # shared result provenance, distinct from each ParsedLevel.uns
 ```
+
+Every `obsm` frame has the same row count and order as `obs.frame`; every `varm` frame aligns to
+`var.frame`. Pairwise frames use zero-based final-axis positions, contain unique coordinates, and
+must stay within the corresponding axis shape. Writers validate these laws before staging.
 
 The `RawToFinalKeyMap` frames have equal row count and order. `raw_keys` is unique by construction.
 `require_injective_key_mapping()` proves that valid `final_keys` rows are unique. Key-input columns
@@ -1494,6 +1694,14 @@ class ParsedLevelWriter(Protocol):
     def write(self, parsed: ParsedLevel, target: Path, /) -> None: ...
 
 
+class ParsedLevelsReader(Protocol):
+    def read(self, source: Path, /) -> ParsedLevels: ...
+
+
+class ParsedLevelsWriter(Protocol):
+    def write(self, parsed: ParsedLevels, target: Path, /) -> None: ...
+
+
 class AnnDataLayerEncoder(Protocol):
     def encode(self, values: pl.DataFrame, /) -> pl.DataFrame: ...
 
@@ -1536,12 +1744,14 @@ shape contracts are checked at each collaborator boundary.
 | `RawValuePresence` | Mark raw layer scalars that semantically claim a cell without converting them | null-only, plain numeric, regex numeric |
 | `DuplicatePolicy` | Resolve repeated values of each raw wide cell | error, keep first, numeric aggregate |
 | `ParsedLevelWriter` | Persist one parsed level | AnnData, Parquet |
+| `ParsedLevelsReader` | Read one APB2 result | h5ad, h5mu, Parquet dataset, DuckDB |
+| `ParsedLevelsWriter` | Persist one APB2 result collection | h5ad, h5mu, Parquet dataset, DuckDB |
 | `AnnDataLayerEncoder` | Encode one layer value block for AnnData | plain numeric, regex numeric, factor |
 | `AnnDataLayerContractChecker` | Enforce encoded required/occupancy policy | standard, strict |
 
-`MuDataWriter` is not another `ParsedLevelWriter`: its input is `ParsedLevels`, not one
-`ParsedLevel`, and only the CLI-facing parent workflow consumes it. Adding a one-implementation
-Protocol would create an unused abstraction rather than a boundary.
+`MuDataWriter` is not a `ParsedLevelWriter`: its input is `ParsedLevels`, not one `ParsedLevel`.
+The collection Protocol is justified by four physical reader/writer families and is owned by the
+result-I/O client. Parser retains the smaller one-level capability.
 
 The parser does not receive broad `ObsTransformation`, `VarTransformation`,
 `LayerTransformation`, or `DecomposedDataTransformation` objects. Those names would hide the
@@ -3035,6 +3245,12 @@ orientation, primary-layer-to-`X` selection, required/occupancy checks, single-k
 compatibility, collision-free multi-key string indexes, pandas dtype normalization, and atomic
 write behavior.
 
+Result-I/O tests use a two-level fixture with composite metadata, numeric-looking strings, factors,
+nulls, NaN, Unicode and colliding logical names, aligned frames, and sparse coordinate frames.
+They verify exact Parquet/DuckDB self-round-trips and crossings; canonical, idempotent h5ad/h5mu
+projection; every directed columnar↔h5 crossing; target preservation on validation failure; and
+rejection of vendor Parquet files without an APB2 result manifest.
+
 `Parser.convert(parsed, target)` tests use a supplied `ParsedLevel` and prove that the reader and
 parser collaborators are not called.
 
@@ -3045,10 +3261,10 @@ run `lint-imports`. When the first Parser V2 package skeleton is created, `.impo
 
 - an exhaustive `layers` contract for the `parserV2` container, with `conversion`,
   `detect_document`, `compile`, and `parse_rule_facade` above the independent
-  `parse_quant | search_parameters | vendor_parse_rules` children;
+  `parse_quant | vendor_params | vendor_parse_rules` children;
 - an exhaustive `layers` contract for the `parse_quant` container, with modules directly in
   `parse_quant` above the independent `data | parameters` children;
-- a `forbidden` contract preventing computation modules from importing the four I/O modules; and
+- a `forbidden` contract preventing computation modules from importing physical I/O modules; and
 - `forbidden` contracts limiting readers to source data, source parameters, and shared parse errors,
   and writers to parsed data.
 
@@ -3069,8 +3285,9 @@ static checks must verify:
 - `parse_quant/delimited_input.py` and `parquet_input.py` import only `data/source.py`, the exact
   `parameters/` modules needed for binding/read evidence, shared `errors.py` when required, and
   external input libraries;
-  `parse_quant/anndata_writer.py` and `parquet_writer.py` import only `data/parsed.py` and their
-  external backend libraries; none imports Parser, raw data, contracts, or strategies;
+  result readers and writers import only `data/parsed.py`, result metadata/validation, shared
+  result errors, and their external backend libraries; none imports Parser, raw data, contracts,
+  or parsing strategies;
 - `parse_rule_facade.py` is the projection boundary between `vendor_parse_rules` and
   `parse_quant.parameters`; `compile.py` owns runtime strategy construction; `detect_document.py`
   owns header-only rule selection; and `conversion_facade.py` owns the complete CLI-facing workflow;
@@ -3140,15 +3357,21 @@ apb2/src/apb2/parserV2/
 │   ├── __init__.py             # parse package marker; no adapter re-exports
 │   ├── delimited_input.py       # binding, evidence, configured Polars text reader
 │   ├── parquet_input.py         # binding, evidence, configured Polars Parquet reader
-│   ├── anndata_writer.py        # ParsedLevels, AnnData/MuData writers, encoders, checks
-│   ├── parquet_writer.py        # ParquetWriter and manifest persistence
-│   ├── errors.py               # shared parse/source boundary errors
+│   ├── anndata_reader.py        # APB2 h5ad/h5mu -> ParsedLevels
+│   ├── anndata_writer.py        # ParsedLevel(s) -> h5ad/h5mu; encoders and checks
+│   ├── parquet_reader.py        # APB2 Parquet dataset -> ParsedLevels
+│   ├── parquet_writer.py        # ParsedLevel(s) -> APB2 Parquet dataset
+│   ├── duckdb_io.py             # DuckDB <-> ParsedLevels
+│   ├── result_io.py             # format registry, path inference, reformat use case
+│   ├── result_metadata.py       # versioned physical-name/schema metadata
+│   ├── result_validation.py     # backend-independent result invariants
+│   ├── errors.py                # shared parse/source/result boundary errors
 │   ├── numeric_text.py         # shared interpretation of numeric measurement tokens
 │   ├── data/
 │   │   ├── __init__.py         # data package marker; no broad re-exports
 │   │   ├── source.py           # LevelSourceTable
 │   │   ├── raw.py              # raw axes/layers, decomposition result, key map
-│   │   ├── parsed.py           # final axes/layers and ParsedLevel
+│   │   ├── parsed.py           # final axes/layers, ParsedLevel, and ParsedLevels
 │   │   └── layer_columns.py    # positional layer-column naming invariant
 │   ├── parameters/
 │   │   ├── __init__.py         # parameter package marker; no broad re-exports
@@ -3191,7 +3414,7 @@ The boundary ownership behind that tree is:
 | physical input -> Parser | `LevelSourceTable` in `parse_quant/data/source.py` | `BoundInputReader` in `parse_quant/contracts.py` | `parse_quant/delimited_input.py` or `parquet_input.py` |
 | physical shape -> Parser algorithm | raw types in `parse_quant/data/raw.py` | `SourceDecomposer` and `FragmentTableSeparator` in `parse_quant/contracts.py` | `parse_quant/decomposition.py` and `fragments.py` |
 | Parser -> persistence | `ParsedLevel` in `parse_quant/data/parsed.py` | `ParsedLevelWriter` in `parse_quant/contracts.py` | `parse_quant/anndata_writer.py` or `parquet_writer.py` |
-| parsed levels -> compound persistence | `ParsedLevels` in `parse_quant/anndata_writer.py` | concrete parent workflow; no one-implementation Protocol | `MuDataWriter` in `parse_quant/anndata_writer.py` |
+| parsed result -> format-neutral persistence | `ParsedLevels` in `parse_quant/data/parsed.py` | `ParsedLevelsReader` and `ParsedLevelsWriter` in `parse_quant/result_io.py` | h5ad/h5mu, Parquet, and DuckDB result adapters |
 | validated rule -> compilation | `ResolvedLevelPlan` in `parse_quant/parameters/resolved.py` | no Protocol: one concrete facade API | parent-level `parse_rule_facade.py` |
 
 `BoundInputReader`, `ParsedLevelWriter`, `SourceDecomposer`, `FragmentTableSeparator`,
@@ -3262,8 +3485,11 @@ The parse-owned boundary modules are likewise narrow:
 
 - `parse_quant/delimited_input.py` and `parquet_input.py` alone translate external physical sources
   into `LevelSourceTable` and `SourceEvidence` values;
-- `parse_quant/anndata_writer.py` and `parquet_writer.py` alone translate `ParsedLevel` into their
-  external storage backends; `anndata_writer.py` additionally composes `ParsedLevels` into MuData;
+- the AnnData/MuData, result-Parquet, and DuckDB adapters alone translate between `ParsedLevels`
+  and their external storage backends; parser-owned one-level writers continue accepting
+  `ParsedLevel` where that is the client's exact capability;
+- `parse_quant/result_io.py` is the only result-format registry and owns the storage-only
+  `reformat` workflow; every crossing materializes `ParsedLevels` between adapters;
 - `parse_quant/errors.py` owns only errors shared by two or more parse-owned/root consumers, such as
   `IncompatibleSourceError` and `AmbiguousDialectError`; `RuleNotApplicable` belongs to the new
   rule document, while packed-length, duplicate, aggregate, canonical-collision, encoding,
@@ -3363,4 +3589,6 @@ Implementation may begin when the following statements are accepted together:
 9. one-class private helpers are private methods, while free construction functions remain at the
    explicit composition boundary; and
 10. omitting CLI `LEVEL` collects compatible single-level results in `ParsedLevels` and lets the
-    AnnData/MuData adapter perform the only multi-level loop and `.h5mu` write.
+    AnnData/MuData adapter perform the only multi-level loop and `.h5mu` write;
+11. result readers and writers operate on `ParsedLevels`, with exact Parquet/DuckDB fidelity and
+    explicit canonical h5ad/h5mu projection.
