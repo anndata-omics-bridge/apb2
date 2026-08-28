@@ -1,5 +1,8 @@
 # Changes
 
+- 2026-08-28: Added the missing `LICENSE` file (MIT) and declared `license-files`, without which
+  uv_build shipped wheels carrying no licence text.
+
 - 2026-08-26: Added the user-facing MkDocs Material site for vendor conversion, result-format
   reading and writing, the CLI, and the Python API. The repository README links to the rendered
   GitHub Pages site and its source index; the complete converter architecture remains intact as
