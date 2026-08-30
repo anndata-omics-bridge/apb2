@@ -5,7 +5,7 @@ states, and serializes to JSON for ``uns``. It does not interpret vendor text. E
 parser reads its own format and hands over values of exactly the declared types — a
 ``MassTolerance``, a ``Probability``, a ``list[SearchedModification]`` — so there is one place
 per concept rather than a parser that stringifies and a validator that parses the string back.
-See ``TODO/Archive/TODO_vendor_params_boundary.md`` for the round trip this replaced.
+The ``mode="before"`` coercers that used to re-parse those strings are gone; do not reintroduce one.
 """
 
 from __future__ import annotations
@@ -161,8 +161,8 @@ class Parameters(_Strict):
     abundance_normalization_ions: str | bool | None = None
     predictors_library: str | None = None
     # Two vendors report unrelated quantities here: DIA-NN a scan-window radius in scans,
-    # Spectronaut an ion-mobility extraction window that can read "Dynamic". Splitting them
-    # is a schema question recorded in TODO/Archive/TODO_vendor_params_boundary.md §9.
+    # Spectronaut an ion-mobility extraction window that can read "Dynamic". Splitting them into
+    # two fields is an open schema question; the union is deliberate until it is answered.
     scan_window: NonNegativeInt | str | None = None
 
     @field_validator(

@@ -235,7 +235,7 @@
         }
       },
       "column_roles": {
-        "protein_assignment": "PG_ProteinAccessions",
+        "protein_assignment": "PG_ProteinGroups",
         "fasta_accessions": "PG_ProteinAccessions"
       }
     },
@@ -311,12 +311,20 @@
                 "EG_ModifiedSequence"
               ],
               "how": "stripped_sequence"
+            },
+            {
+              "name": "ProForma_ion",
+              "inputs": [
+                "ProForma_peptidoform",
+                "FG_Charge"
+              ],
+              "how": "proforma_ion"
             }
           ]
         }
       },
       "column_roles": {
-        "protein_assignment": "PG_ProteinAccessions",
+        "protein_assignment": "PG_ProteinGroups",
         "fasta_accessions": "PG_ProteinAccessions"
       }
     },
@@ -390,7 +398,7 @@
         }
       },
       "column_roles": {
-        "protein_assignment": "PG_ProteinAccessions",
+        "protein_assignment": "PG_ProteinGroups",
         "fasta_accessions": "PG_ProteinAccessions"
       }
     }

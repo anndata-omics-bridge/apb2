@@ -19,6 +19,7 @@ from apb2.parserV2.compile import (
     NoCompatibleLevelError,
     ParquetOutput,
     ParseRuleCompiler,
+    compile_mudata_parsers,
     compile_parsers,
     header_predicate,
     make_anndata_layer_contract_checker,
@@ -32,14 +33,6 @@ from apb2.parserV2.compile import (
     make_source_decomposer,
     policy_for,
 )
-from apb2.parserV2.parse_quant.anndata_writer import (
-    AnnDataWriter,
-    FactorAnnDataEncoder,
-    PlainNumericAnnDataEncoder,
-    RegexNumericAnnDataEncoder,
-    StandardAnnDataLayerContract,
-    StrictAnnDataLayerContract,
-)
 from apb2.parserV2.parse_quant.axis_columns import (
     BooleanAxisCoercer,
     CoalesceColumn,
@@ -51,6 +44,7 @@ from apb2.parserV2.parse_quant.axis_columns import (
     ProformaIonColumn,
     StringAxisCoercer,
 )
+from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation
 from apb2.parserV2.parse_quant.decomposition import (
     DelimitedFragmentSourceDecomposer,
     LongSourceDecomposer,
@@ -68,8 +62,17 @@ from apb2.parserV2.parse_quant.fragments import (
     ColumnLabeledFragmentTableSeparator,
     PositionalFragmentTableSeparator,
 )
+from apb2.parserV2.parse_quant.io.anndata_writer import (
+    AnnDataWriter,
+    FactorAnnDataEncoder,
+    MuDataWriter,
+    PlainNumericAnnDataEncoder,
+    RegexNumericAnnDataEncoder,
+    StandardAnnDataLayerContract,
+    StrictAnnDataLayerContract,
+)
+from apb2.parserV2.parse_quant.io.parquet_writer import ParquetWriter
 from apb2.parserV2.parse_quant.modifications import SiteListNormalizer, TokenRegexNormalizer
-from apb2.parserV2.parse_quant.numeric_text import NumberNotation
 from apb2.parserV2.parse_quant.parameters.axis import (
     AxisKeyPlan,
     AxisLogicalType,
@@ -106,7 +109,6 @@ from apb2.parserV2.parse_quant.parameters.source import (
     WideRawLayerPlan,
     WideRawLayerSource,
 )
-from apb2.parserV2.parse_quant.parquet_writer import ParquetWriter
 from apb2.parserV2.parse_quant.parser import Parser
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.vendor_parse_rules.document import make_rule_document
@@ -562,6 +564,25 @@ def test_several_levels_return_a_list_in_canonical_order() -> None:
 
     assert [parser.level for parser in parsers] == ["ion", "protein"]
     assert LEVELS.index("ion") < LEVELS.index("protein")
+
+
+def test_mudata_compilation_retains_each_parsers_configured_anndata_writer() -> None:
+    pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1")
+    document = load_rule_document(pair.parser_v2_path)
+    path = pair.data_path()
+    assert path is not None
+
+    parsers, writer = compile_mudata_parsers(
+        document=document,
+        levels=("protein", "ion"),
+        parameter_evidence=synthetic.NO_EVIDENCE,
+        source=SingleFile(path=path),
+        checks="standard",
+    )
+
+    assert isinstance(writer, MuDataWriter)
+    assert [parser.level for parser in parsers] == ["ion", "protein"]
+    assert list(writer.level_writers) == ["ion", "protein"]
 
 
 def test_an_incompatible_level_does_not_poison_the_compatible_ones() -> None:

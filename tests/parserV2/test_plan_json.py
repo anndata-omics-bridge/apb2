@@ -18,8 +18,9 @@ import anndata
 import pytest
 
 from apb2.parserV2.compile import AnnDataOutput, ParquetOutput, ParseRuleCompiler
-from apb2.parserV2.parse_quant.anndata_writer import NAMESPACE, PARSE_NAMESPACE
 from apb2.parserV2.parse_quant.errors import IncompatibleSourceError
+from apb2.parserV2.parse_quant.io.anndata_writer import NAMESPACE, PARSE_NAMESPACE
+from apb2.parserV2.parse_quant.io.parquet_writer import MANIFEST_NAME
 from apb2.parserV2.parse_quant.parameters.plan_json import (
     PLAN_JSON_KEY,
     as_json_value,
@@ -31,7 +32,6 @@ from apb2.parserV2.parse_quant.parameters.source import (
     NumericTextFormat,
     SingleFile,
 )
-from apb2.parserV2.parse_quant.parquet_writer import MANIFEST_NAME
 from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
 from parserV2 import synthetic
 from parserV2.fixtures import DocumentPair, level_pairs
@@ -193,7 +193,7 @@ def test_the_plan_reaches_the_manifest_of_a_written_parquet_dataset(tmp_path: Pa
     parser.convert(parser.parse(), target)
 
     manifest = json.loads((target / MANIFEST_NAME).read_text(encoding="utf-8"))
-    assert json.loads(manifest["uns"][PLAN_JSON_KEY])["level"] == "ion"
+    assert json.loads(manifest["levels"]["ion"]["uns"][PLAN_JSON_KEY])["level"] == "ion"
 
 
 # ------------------------------------------------------------------------- packaged coverage

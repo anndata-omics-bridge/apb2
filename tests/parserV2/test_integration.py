@@ -8,6 +8,7 @@ reads its own parameter model and hands Parser V2 the two fields schema 0.3 perm
 
 from __future__ import annotations
 
+import json
 import tempfile
 from pathlib import Path
 
@@ -40,8 +41,8 @@ from apb2.parserV2.detect_document import (
     software_slug,
 )
 from apb2.parserV2.parse_quant.data.parsed import ParsedLevel
+from apb2.parserV2.parse_quant.io.parquet_writer import MANIFEST_NAME
 from apb2.parserV2.parse_quant.parameters.source import SingleFile
-from apb2.parserV2.parse_quant.parquet_writer import MANIFEST_NAME
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.vendor_params.parsers.shared.model import Parameters
 from apb2.parserV2.vendor_params.registry import parse_params
@@ -280,7 +281,12 @@ def test_parsing_once_and_writing_twice_never_reads_again(tmp_path: Path) -> Non
     assert stored.shape == (parsed.obs.frame.height, parsed.var.frame.height)
     # The same parsed value reached both backends, and Parquet stored it as parsing left
     # it: this source is Parquet, so its measurements were never text to begin with.
-    written = pl.read_parquet(tmp_path / "protein" / "layers" / "PG_MaxLFQ.parquet")
+    manifest = json.loads((tmp_path / "protein" / MANIFEST_NAME).read_text(encoding="utf-8"))
+    level = manifest["levels"]["protein"]
+    layer = level["layers"]["PG_MaxLFQ"]
+    written = pl.read_parquet(
+        tmp_path / "protein" / "levels" / level["directory"] / "layers" / layer["file"]
+    )
     assert written.schema == parsed.layers["PG_MaxLFQ"].values.schema
 
 

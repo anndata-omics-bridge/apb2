@@ -9,32 +9,42 @@ description = "Convert proteomics software output to AnnData (rules-driven parse
 readme = "README.md"
 requires-python = ">=3.13"
 license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     { name = "Witold Wolski", email = "wew@fgcz.ethz.ch" },
 ]
 dependencies = [
     "anndata>=0.11",
     "cyclopts>=3",
+    "duckdb>=1.4,<2",
     "loguru>=0.7",
+    "mudata>=0.4,<1",
     "numpy>=2",
     "packaging>=24",
     "pandas>=2.2",
     "polars>=1.43,<2",
     "pydantic>=2.10",
+    "pyarrow>=15",
     "pyyaml>=6",
+    "scipy>=1.15,<2",
 ]
+
+[project.urls]
+Documentation = "https://anndata-omics-bridge.github.io/apb2/"
+Repository = "https://github.com/anndata-omics-bridge/apb2"
 
 [project.scripts]
 apb2 = "apb2.cli:main"
 
 [tool.uv.sources]
-anndata-proteomics = { path = "../apb", editable = true }
+anndata-proteomics = { path = "../apb_legacy", editable = true }
 
 [dependency-groups]
 dev = [
     "anndata-proteomics",
     "build>=1.3,<2",
     "deptry>=0.24,<1",
+    "grimp>=3,<4",
     "import-linter>=2,<3",
     "pandas-stubs>=3.0.5.260730",
     "pre-commit>=4,<5",
@@ -44,13 +54,9 @@ dev = [
     "ruff>=0.15,<1",
     "twine>=6,<7",
 ]
-# Benchmark-only. documentation/benchmarks/long_table_conversion.py compares APB's
-# long-table conversion across dataframe engines. Polars is a runtime dependency and is
-# therefore not repeated here; DuckDB exists only for that comparison.
-bench = [
-    "duckdb>=1.4,<2",
+docs = [
+    "mkdocs-material>=9.7,<10",
 ]
-
 [tool.ruff]
 line-length = 100
 target-version = "py313"
@@ -108,6 +114,10 @@ xfail_strict = true
 
 [tool.deptry]
 known_first_party = ["apb2"]
-# documentation/ holds benchmark tooling, not the package. Its only extra import is polars,
-# declared in the `bench` dependency group; the runtime package must not depend on it.
+# documentation/ holds executable benchmark tooling, not importable package code.
 exclude = ["documentation", "tests", "venv", "[.]venv", "[.]direnv", "[.]git", "setup[.]py"]
+
+[tool.deptry.per_rule_ignores]
+# DuckDB asks Polars for Arrow record batches when a DataFrame is registered. Polars imports
+# PyArrow dynamically at that boundary, so no direct APB2 import exists for Deptry to observe.
+DEP002 = ["pyarrow"]

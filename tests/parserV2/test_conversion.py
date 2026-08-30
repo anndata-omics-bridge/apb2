@@ -7,15 +7,20 @@ from pathlib import Path
 from typing import Never
 
 import anndata
+import mudata
 import pytest
 
 from apb2.parserV2 import conversion_facade
 from apb2.parserV2 import detect_document as detection_module
-from apb2.parserV2.conversion_facade import ConversionError, convert_from_packaged_rules
+from apb2.parserV2.conversion_facade import (
+    ConversionError,
+    convert_all_from_packaged_rules,
+    convert_from_packaged_rules,
+)
 from apb2.parserV2.detect_document import AmbiguousRuleError, detect_rule_document
 from apb2.parserV2.detect_document import guess_software as guess_packaged_software
 from apb2.parserV2.parse_quant import delimited_input
-from apb2.parserV2.parse_quant.anndata_writer import NAMESPACE, PARSE_NAMESPACE
+from apb2.parserV2.parse_quant.io.anndata_writer import NAMESPACE, PARSE_NAMESPACE
 from apb2.parserV2.parse_quant.parameters.source import SingleFile
 from apb2.parserV2.vendor_params.parsers.shared.model import Parameters
 from apb2.parserV2.vendor_params.registry import parse_params
@@ -63,6 +68,36 @@ def test_packaged_conversion_detects_parses_and_writes_with_provenance(tmp_path:
     assert json.loads(str(namespace["search_parameters"])) == expected
     assert namespace["search_parameters_path"] == str(parameters_path)
     assert namespace["rule_selection_method"] in {"software_version", "columns"}
+
+
+def test_packaged_conversion_without_a_level_writes_every_compatible_modality(
+    tmp_path: Path,
+) -> None:
+    pair = _diann_v2()
+    data = pair.data_path()
+    assert data is not None
+    parameters_path = _parameter_file(pair)
+    target = tmp_path / "all.h5mu"
+
+    result = convert_all_from_packaged_rules(
+        data=data,
+        output=target,
+        parameters_path=parameters_path,
+        software=None,
+        parameters_software=None,
+        checks="standard",
+    )
+
+    stored = mudata.read_h5mu(target)
+    assert list(stored.mod) == [summary.level for summary in result.levels]
+    assert set(stored.mod) >= {"ion", "protein"}
+    namespace = stored.uns[NAMESPACE][PARSE_NAMESPACE]
+    assert list(namespace["quantification_levels"]) == list(stored.mod)
+    assert namespace["rule_selection_method"] in {"software_version", "columns"}
+    assert all(
+        modality.uns[NAMESPACE][PARSE_NAMESPACE]["search_parameters_path"] == str(parameters_path)
+        for modality in stored.mod.values()
+    )
 
 
 @pytest.mark.parametrize(

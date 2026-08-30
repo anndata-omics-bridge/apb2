@@ -5,6 +5,7 @@
 __pycache__/
 build/
 dist/
+public/
 *.egg-info/
 .import_linter_cache/
 *.h5ad

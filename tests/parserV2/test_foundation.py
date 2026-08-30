@@ -193,6 +193,10 @@ def test_a_parsed_level_composes_final_values_and_nothing_new() -> None:
                 values=pl.DataFrame({"ProForma_ion": ["F/2"], "A": [1.0], "B": [2.0]}),
             )
         },
+        obsm={},
+        varm={},
+        obsp={},
+        varp={},
     )
 
     assert set(vars(ParsedLevel).get("__slots__", ())) == {
@@ -201,6 +205,10 @@ def test_a_parsed_level_composes_final_values_and_nothing_new() -> None:
         "primary_layer_name",
         "uns",
         "layers",
+        "obsm",
+        "varm",
+        "obsp",
+        "varp",
     }
     assert isinstance(parsed.uns, dict)
     assert isinstance(parsed.layers, dict)

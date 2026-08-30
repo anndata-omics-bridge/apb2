@@ -125,7 +125,7 @@
         }
       },
       "column_roles": {
-        "protein_assignment": "Protein_Ids",
+        "protein_assignment": "Protein_Group",
         "fasta_accessions": "Protein_Ids"
       }
     },
@@ -247,7 +247,7 @@
         }
       },
       "column_roles": {
-        "protein_assignment": "Protein_Ids",
+        "protein_assignment": "Protein_Group",
         "fasta_accessions": "Protein_Ids"
       }
     }

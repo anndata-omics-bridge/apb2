@@ -1,5 +1,48 @@
 # Changes
 
+- 2026-08-30: Added explicit measurement and auxiliary result-layer roles across h5ad/h5mu,
+  Parquet, and DuckDB without changing their format versions. Older metadata defaults to
+  measurement; h5 occupancy compares measurement layers only, while every layer remains validated,
+  encoded, and persisted. Published the storage-neutral observation-label, quantitative projection,
+  and numeric-result helpers for downstream APB tools.
+
+- 2026-08-28: Added the missing `LICENSE` file (MIT) and declared `license-files`, without which
+  uv_build shipped wheels carrying no licence text.
+
+- 2026-08-26: Moved the persisted-result backends, format registry, metadata, validation, and
+  result-I/O errors into `parse_quant/io`, with the single directed sibling dependency `io -> data`.
+
+- 2026-08-26: Added the user-facing MkDocs Material site for vendor conversion, result-format
+  reading and writing, the CLI, and the Python API. The repository README links to the rendered
+  GitHub Pages site and its source index; the complete converter architecture remains intact as
+  the site's architecture reference. A strict documentation build is part of `make check`, and a
+  dedicated GitHub Actions workflow publishes `public/` from `main`.
+
+- 2026-08-25: Added one storage-neutral `ParsedLevels` result-I/O boundary and
+  `apb2 reformat SOURCE TARGET`. Explicit `reader_for(format).read(path)` and
+  `writer_for(format).write(parsed, path)` adapters cover h5ad, h5mu, APB2 Parquet directory
+  datasets, and DuckDB; path-inferred convenience functions delegate to the same registry.
+  Parquet/DuckDB preserve Polars schemas, nulls, ordering, aligned frames, sparse-coordinate
+  frames, and both provenance scopes exactly. h5ad/h5mu use the stored resolved plan for the
+  deliberate numeric/factor matrix projection and persist a versioned envelope beside
+  `uns["apb"]["parse"]`. Parser remains a one-level strategy with its existing
+  `parse()`/`convert(parsed, target)` contract. DuckDB and its dynamically loaded PyArrow
+  interchange are runtime dependencies; MuData 0.4 supplies the stable non-pulling container
+  semantics used by h5mu.
+
+- 2026-08-25: Removed every pointer from this repo into the workspace's archived planning folder —
+  two in `vendor_params/parsers/shared/model.py` (the module docstring and the `scan_window`
+  comment), one in `tests/parserV2/vendor_params/proteobench_params.py`, and one in a 2026-08-20
+  entry below. The facts they cited are now stated in place: the removed `mode="before"` coercers
+  must not come back, and splitting `scan_window` into two fields is an open schema question.
+  Documentation only.
+
+- 2026-08-25: Omitting `LEVEL` from `apb2 convert` now compiles and parses every compatible level
+  and writes them as one shared-observation `.h5mu`. Parsing remains single-level: `ParsedLevels`
+  is an output-boundary collection and `MuDataWriter` loops over the exact configured
+  `AnnDataWriter` for each modality. Explicit levels continue to write `.h5ad`; modality variable
+  indexes receive the established per-level prefixes while authored keys remain ordinary `.var`
+  columns, and shared provenance is written under `uns["apb"]["parse"]` at the MuData root.
 - 2026-08-24: Numeric and integer axis columns now use the physical number notation resolved from
   the input contract and source evidence. The resolved level plan retains that notation, and the
   compiler injects it into configured axis coercers exactly as it already does for measurement
@@ -102,8 +145,8 @@
   decompose, prepare each axis, reindex each layer — with identity and validity decided in one
   place: distinct raw keys collapsing into one valid final key raise `CanonicalKeyCollisionError`
   under every duplicate policy, while an incomplete final key removes its axis row and the layer
-  cells that pointed at it. `parquet_writer.py` persists a parsed level as a directory dataset
-  with a manifest, preserving every Polars value and dtype; `anndata_writer.py` is the only module
+  cells that pointed at it. `io/parquet_writer.py` persists a parsed level as a directory dataset
+  with a manifest, preserving every Polars value and dtype; `io/anndata_writer.py` is the only module
   that encodes, allocates, or touches pandas. `compile.py` consumes every declarative tag once and
   injects tag-free behaviour: `compile_parsers` returns one parser per compatible level in
   canonical order. All 12 packaged documents now compile and 16 of the 19 levels parse their real
@@ -168,7 +211,7 @@
   oracle relocated to the test-only `tests/proteobench_params.py`, plus a snapshot test over all
   87 cached vendor parameter files; 70 -> 261 tests. Verified: across those 87 files the only
   changes are the removed `unparsed_parameters` and 171 modifications gaining the `mod_type` the
-  parser already knew. Plan and full record: `TODO/Archive/TODO_vendor_params_boundary.md`.
+  parser already knew.
 
 - 2026-08-17: TODO items 13 + 14 — `vendor_parse_rules/` has one entry point,
   `load_document(path) -> Document`, and `Document.rule(level, parameters)` returns the

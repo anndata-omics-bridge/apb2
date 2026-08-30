@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 import polars as pl
 
-from apb2.parserV2.parse_quant.numeric_text import NumberNotation, as_numbers
+from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation, as_numbers
 
 _EXAMPLE_LIMIT = 5
 _INT64_MIN = -(2**63)

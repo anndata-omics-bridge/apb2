@@ -14,35 +14,45 @@ from collections.abc import Mapping
 from pathlib import Path
 
 import anndata
+import mudata
 import numpy as np
 import pandas as pd
 import polars as pl
 import pytest
 
-from apb2.parserV2.parse_quant.anndata_writer import (
+from apb2.parserV2.parse_quant.contracts import ParsedLevelWriter
+from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation
+from apb2.parserV2.parse_quant.data.parsed import (
+    AuxiliaryLayerRole,
+    FinalLayerTable,
+    JsonValue,
+    MeasurementLayerRole,
+    ObsFinal,
+    ParsedLevel,
+    ParsedLevels,
+    VarFinal,
+)
+from apb2.parserV2.parse_quant.io.anndata_writer import (
     NAMESPACE,
     PARSE_NAMESPACE,
-    AnnDataLayerContractError,
     AnnDataWriter,
     FactorAnnDataEncoder,
+    MuDataLevelError,
+    MuDataWriter,
     OccupancyPolicy,
     PlainNumericAnnDataEncoder,
     RegexNumericAnnDataEncoder,
     StandardAnnDataLayerContract,
     StrictAnnDataLayerContract,
 )
-from apb2.parserV2.parse_quant.contracts import ParsedLevelWriter
-from apb2.parserV2.parse_quant.data.parsed import (
-    FinalLayerTable,
-    JsonValue,
-    ObsFinal,
-    ParsedLevel,
-    VarFinal,
+from apb2.parserV2.parse_quant.io.errors import (
+    AnnDataLayerContractError,
+    InvalidResultError,
+    ResultIOError,
 )
-from apb2.parserV2.parse_quant.numeric_text import NumberNotation
-from apb2.parserV2.parse_quant.parquet_writer import (
+from apb2.parserV2.parse_quant.io.parquet_reader import ParquetReader
+from apb2.parserV2.parse_quant.io.parquet_writer import (
     MANIFEST_NAME,
-    ParquetWriteError,
     ParquetWriter,
 )
 
@@ -71,15 +81,24 @@ def level(
             )
         }
     )
+    metadata: dict[str, JsonValue] = {
+        "software_name": "Synthetic",
+        "quantification_level": "ion",
+    }
+    metadata.update(uns or {})
     return ParsedLevel(
         obs=ObsFinal(frame=obs_frame, key_columns=obs_keys),
         var=VarFinal(frame=var_frame, key_columns=var_keys),
         primary_layer_name=primary,
-        uns=dict(uns or {"software_name": "Synthetic"}),
+        uns=metadata,
         layers={
             name: FinalLayerTable(layer_name=name, var_key_columns=var_keys, values=frame)
             for name, frame in values.items()
         },
+        obsm={},
+        varm={},
+        obsp={},
+        varp={},
     )
 
 
@@ -89,11 +108,18 @@ def manifest_of(target: Path) -> dict[str, JsonValue]:
     return payload
 
 
+def test_a_final_layer_is_a_measurement_unless_its_role_is_explicit() -> None:
+    intensity = level().layers["Intensity"]
+
+    assert isinstance(intensity.role, MeasurementLayerRole)
+
+
 # ---------------------------------------------------------------------------------- Parquet
 
 
 def test_a_parquet_dataset_round_trips_every_value_and_dtype(tmp_path: Path) -> None:
     parsed = level(
+        obs=pl.DataFrame({"Run": ["A"]}),
         var=pl.DataFrame({"Feature": ["F1", "F2"], "Charge": [2, None], "Decoy": [True, None]}),
         layers={
             "Intensity": pl.DataFrame({"Feature": ["F1", "F2"], "obs_0": ["100.000,5", None]}),
@@ -103,14 +129,15 @@ def test_a_parquet_dataset_round_trips_every_value_and_dtype(tmp_path: Path) -> 
     target = tmp_path / "ion"
 
     ParquetWriter().write(parsed, target)
+    restored = ParquetReader().read(target).levels["ion"]
 
-    assert pl.read_parquet(target / "obs.parquet").to_dicts() == parsed.obs.frame.to_dicts()
-    assert pl.read_parquet(target / "var.parquet").schema == parsed.var.frame.schema
-    intensity = pl.read_parquet(target / "layers" / "Intensity.parquet")
+    assert restored.obs.frame.equals(parsed.obs.frame)
+    assert restored.var.frame.schema == parsed.var.frame.schema
+    intensity = restored.layers["Intensity"].values
     # The localized token is still the token: no encoder ran.
     assert intensity.get_column("obs_0").to_list() == ["100.000,5", None]
     assert intensity.schema["obs_0"] == pl.String
-    assert pl.read_parquet(target / "layers" / "Kind.parquet").get_column("obs_0").to_list() == [
+    assert restored.layers["Kind"].values.get_column("obs_0").to_list() == [
         "MBR",
         "MS/MS",
     ]
@@ -118,6 +145,7 @@ def test_a_parquet_dataset_round_trips_every_value_and_dtype(tmp_path: Path) -> 
 
 def test_the_manifest_states_what_every_file_is(tmp_path: Path) -> None:
     parsed = level(
+        obs=pl.DataFrame({"Run": ["A"]}),
         var_keys=("Feature", "Charge"),
         var=pl.DataFrame({"Feature": ["F1"], "Charge": [2]}),
         uns={"software_name": "Synthetic", "unknown_mod_tokens": ["Mystery@M"]},
@@ -131,59 +159,71 @@ def test_the_manifest_states_what_every_file_is(tmp_path: Path) -> None:
     ParquetWriter().write(parsed, target)
     manifest = manifest_of(target)
 
-    assert manifest["primary_layer"] == "Intensity"
-    assert manifest["layer_order"] == ["Intensity", "Q Value"]
-    assert manifest["obs"] == {"file": "obs.parquet", "key_columns": ["Run"], "columns": ["Run"]}
-    assert manifest["var"] == {
-        "file": "var.parquet",
-        "key_columns": ["Feature", "Charge"],
-        "columns": ["Feature", "Charge"],
-    }
-    assert manifest["uns"] == {
+    assert manifest["format_version"] == "2"
+    assert manifest["level_order"] == ["ion"]
+    levels = manifest["levels"]
+    assert isinstance(levels, dict)
+    ion = levels["ion"]
+    assert isinstance(ion, dict)
+    assert ion["primary_layer"] == "Intensity"
+    assert ion["layer_order"] == ["Intensity", "Q Value"]
+    assert ion["uns"] == {
         "software_name": "Synthetic",
+        "quantification_level": "ion",
         "unknown_mod_tokens": ["Mystery@M"],
     }
-    layers = manifest["layers"]
+    layers = ion["layers"]
     assert isinstance(layers, dict)
     assert layers["Q Value"] == {
-        "file": "layers/Q_Value.parquet",
+        "file": "Q_Value.parquet",
+        "columns": ["Feature", "Charge", "obs_0"],
+        "schema": [{"name": "String"}, {"name": "Int64"}, {"name": "Float64"}],
         "var_key_columns": ["Feature", "Charge"],
-        "observation_columns": ["obs_0"],
+        "role": "measurement",
     }
-    assert (target / "layers" / "Q_Value.parquet").is_file()
+    assert (target / "levels" / "ion" / "layers" / "Q_Value.parquet").is_file()
 
 
 def test_a_layer_name_is_mapped_to_a_file_name_never_interpolated(tmp_path: Path) -> None:
     parsed = level(
+        obs=pl.DataFrame({"Run": ["A"]}),
+        var=pl.DataFrame({"Feature": ["F1"]}),
         layers={
             "../escape": pl.DataFrame({"Feature": ["F1"], "obs_0": [1.0]}),
             "..%escape": pl.DataFrame({"Feature": ["F1"], "obs_0": [2.0]}),
             "Intensity": pl.DataFrame({"Feature": ["F1"], "obs_0": [3.0]}),
-        }
+        },
     )
     target = tmp_path / "ion"
 
     ParquetWriter().write(parsed, target)
-    layers = manifest_of(target)["layers"]
+    manifest = manifest_of(target)
+    levels = manifest["levels"]
+    assert isinstance(levels, dict)
+    ion = levels["ion"]
+    assert isinstance(ion, dict)
+    layers = ion["layers"]
 
     assert isinstance(layers, dict)
-    files = sorted(path.name for path in (target / "layers").iterdir())
+    layer_directory = target / "levels" / "ion" / "layers"
+    files = sorted(path.name for path in layer_directory.iterdir())
     assert files == ["Intensity.parquet", "escape.parquet", "escape_1.parquet"]
     assert not (tmp_path / "escape.parquet").exists()
     for name, entry in layers.items():
         assert isinstance(entry, dict)
-        assert str(entry["file"]).startswith("layers/")
+        assert Path(str(entry["file"])).name == str(entry["file"])
         assert name not in files or name.endswith("Intensity")
 
 
 def test_writing_over_an_existing_dataset_leaves_only_the_new_one(tmp_path: Path) -> None:
     target = tmp_path / "ion"
     ParquetWriter().write(level(), target)
-    (target / "layers" / "Stale.parquet").write_bytes(b"stale")
+    layer_directory = target / "levels" / "ion" / "layers"
+    (layer_directory / "Stale.parquet").write_bytes(b"stale")
 
     ParquetWriter().write(level(), target)
 
-    assert sorted(path.name for path in (target / "layers").iterdir()) == ["Intensity.parquet"]
+    assert sorted(path.name for path in layer_directory.iterdir()) == ["Intensity.parquet"]
     assert sorted(path.name for path in tmp_path.iterdir()) == ["ion"]
 
 
@@ -191,7 +231,7 @@ def test_a_target_that_is_not_a_directory_is_refused(tmp_path: Path) -> None:
     target = tmp_path / "ion"
     target.write_text("not a dataset", encoding="utf-8")
 
-    with pytest.raises(ParquetWriteError, match="not a directory"):
+    with pytest.raises(InvalidResultError, match="not a directory"):
         ParquetWriter().write(level(), target)
 
     assert target.read_text(encoding="utf-8") == "not a dataset"
@@ -202,18 +242,22 @@ def test_a_failure_part_way_through_leaves_the_previous_dataset_intact(
 ) -> None:
     target = tmp_path / "ion"
     ParquetWriter().write(level(), target)
-    before = pl.read_parquet(target / "obs.parquet").to_dicts()
-    broken = level(layers={"Intensity": pl.DataFrame({"Feature": ["F1"], "obs_0": [object()]})})
+    before = (target / MANIFEST_NAME).read_bytes()
+    broken = level(
+        obs=pl.DataFrame({"Run": ["A"]}),
+        var=pl.DataFrame({"Feature": ["F1"]}),
+        layers={"Intensity": pl.DataFrame({"Feature": ["F1"], "obs_0": [object()]})},
+    )
 
     with pytest.raises(Exception, match=r".*"):
         ParquetWriter().write(broken, target)
 
-    assert pl.read_parquet(target / "obs.parquet").to_dicts() == before
+    assert (target / MANIFEST_NAME).read_bytes() == before
     assert sorted(path.name for path in tmp_path.iterdir()) == ["ion"]
 
 
 def test_the_parquet_writer_imports_no_encoder_backend() -> None:
-    source = Path("src/apb2/parserV2/parse_quant/parquet_writer.py")
+    source = Path("src/apb2/parserV2/parse_quant/io/parquet_writer.py")
     tree = ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
     imported = {
         alias.name
@@ -349,11 +393,16 @@ def policy(*required: str, primary: str = "Intensity") -> OccupancyPolicy:
     )
 
 
-def test_a_missing_required_layer_is_a_contract_error() -> None:
-    checker = StandardAnnDataLayerContract(policy("Intensity", "QValue"))
+def test_anndata_layer_contract_errors_belong_to_the_result_io_error_hierarchy() -> None:
+    assert issubclass(AnnDataLayerContractError, ResultIOError)
 
-    with pytest.raises(AnnDataLayerContractError, match="QValue"):
-        checker.check({"Intensity": block([1.0])})
+
+def test_a_missing_required_auxiliary_layer_is_still_a_contract_error() -> None:
+    checker = StandardAnnDataLayerContract(policy("Intensity", "ObservationCount"))
+    encoded = {"Intensity": block([1.0])}
+
+    with pytest.raises(AnnDataLayerContractError, match="ObservationCount"):
+        checker.check(encoded, encoded)
 
 
 def test_an_empty_primary_layer_beside_a_populated_sibling_is_an_error() -> None:
@@ -364,24 +413,60 @@ def test_an_empty_primary_layer_beside_a_populated_sibling_is_an_error() -> None
     }
 
     with pytest.raises(AnnDataLayerContractError, match="effectively empty"):
-        checker.check(encoded)
+        checker.check(encoded, encoded)
 
 
-def test_an_empty_auxiliary_layer_only_warns_unless_the_check_is_strict() -> None:
+def test_an_empty_nonprimary_measurement_only_warns_unless_the_check_is_strict() -> None:
     encoded = {
         "Intensity": block([0.1, 0.2, 0.3, 0.4]),
         "QValue": block([None, None, None, None]),
     }
 
-    StandardAnnDataLayerContract(policy()).check(encoded)
+    StandardAnnDataLayerContract(policy()).check(encoded, encoded)
     with pytest.raises(AnnDataLayerContractError, match="QValue"):
-        StrictAnnDataLayerContract(policy()).check(encoded)
+        StrictAnnDataLayerContract(policy()).check(encoded, encoded)
+
+
+@pytest.mark.parametrize(
+    "checker",
+    [
+        StandardAnnDataLayerContract(policy()),
+        StrictAnnDataLayerContract(policy()),
+    ],
+)
+def test_a_populated_auxiliary_layer_does_not_make_an_empty_primary_suspicious(
+    checker: StandardAnnDataLayerContract | StrictAnnDataLayerContract,
+) -> None:
+    encoded = {
+        "Intensity": block([None, None, None, None]),
+        "ObservationCount": block([2.0, 3.0, 4.0, 5.0]),
+    }
+
+    checker.check(encoded, {"Intensity": encoded["Intensity"]})
+
+
+@pytest.mark.parametrize(
+    "checker",
+    [
+        StandardAnnDataLayerContract(policy()),
+        StrictAnnDataLayerContract(policy()),
+    ],
+)
+def test_an_empty_auxiliary_layer_is_not_an_occupancy_failure(
+    checker: StandardAnnDataLayerContract | StrictAnnDataLayerContract,
+) -> None:
+    encoded = {
+        "Intensity": block([0.1, 0.2, 0.3, 0.4]),
+        "ObservationCount": block([None, None, None, None]),
+    }
+
+    checker.check(encoded, {"Intensity": encoded["Intensity"]})
 
 
 def test_without_a_populated_sibling_occupancy_invents_no_conclusion() -> None:
     encoded = {"Intensity": block([None, None]), "QValue": block([None, None])}
 
-    StrictAnnDataLayerContract(policy()).check(encoded)
+    StrictAnnDataLayerContract(policy()).check(encoded, encoded)
 
 
 def test_a_factor_layer_of_unknown_codes_still_counts_as_populated() -> None:
@@ -390,7 +475,7 @@ def test_a_factor_layer_of_unknown_codes_still_counts_as_populated() -> None:
         "Match_Type": pl.DataFrame({"obs_0": [-1, -1, -1, -1]}),
     }
 
-    StrictAnnDataLayerContract(policy()).check(encoded)
+    StrictAnnDataLayerContract(policy()).check(encoded, encoded)
 
 
 # ------------------------------------------------------------------------------- the writer
@@ -413,6 +498,90 @@ def writer_for(
             else StandardAnnDataLayerContract(contract)
         ),
     )
+
+
+def test_an_auxiliary_layer_cannot_be_the_primary_matrix(tmp_path: Path) -> None:
+    parsed = level()
+    parsed.layers["Intensity"].role = AuxiliaryLayerRole()
+    target = tmp_path / "ion.h5ad"
+
+    with pytest.raises(InvalidResultError, match=r"primary layer.*is auxiliary"):
+        writer_for(parsed).write(parsed, target)
+
+    assert not target.exists()
+
+
+@pytest.mark.parametrize("checks", ["standard", "strict"])
+def test_writer_excludes_an_auxiliary_layer_from_occupancy_comparisons(
+    checks: str,
+    tmp_path: Path,
+) -> None:
+    parsed = level(
+        layers={
+            "Intensity": pl.DataFrame(
+                {
+                    "Feature": ["F1", "F2"],
+                    "obs_0": [None, None],
+                    "obs_1": [None, None],
+                }
+            ),
+            "ObservationCount": pl.DataFrame(
+                {
+                    "Feature": ["F1", "F2"],
+                    "obs_0": [2.0, 3.0],
+                    "obs_1": [4.0, 5.0],
+                }
+            ),
+        }
+    )
+    parsed.layers["ObservationCount"].role = AuxiliaryLayerRole()
+    target = tmp_path / f"{checks}.h5ad"
+
+    writer_for(parsed, checks=checks).write(parsed, target)
+
+    assert target.is_file()
+
+
+@pytest.mark.parametrize("checks", ["standard", "strict"])
+def test_writer_still_compares_the_primary_against_a_measurement_sibling(
+    checks: str,
+    tmp_path: Path,
+) -> None:
+    parsed = level(
+        layers={
+            "Intensity": pl.DataFrame(
+                {
+                    "Feature": ["F1", "F2"],
+                    "obs_0": [None, None],
+                    "obs_1": [None, None],
+                }
+            ),
+            "QValue": pl.DataFrame(
+                {
+                    "Feature": ["F1", "F2"],
+                    "obs_0": [0.1, 0.2],
+                    "obs_1": [0.3, 0.4],
+                }
+            ),
+        }
+    )
+    target = tmp_path / f"{checks}.h5ad"
+
+    with pytest.raises(AnnDataLayerContractError, match="Intensity"):
+        writer_for(parsed, checks=checks).write(parsed, target)
+
+    assert not target.exists()
+
+
+def test_the_parser_owned_anndata_writer_validates_layer_key_alignment(tmp_path: Path) -> None:
+    parsed = level()
+    parsed.layers["Intensity"].values = parsed.layers["Intensity"].values.reverse()
+    target = tmp_path / "ion.h5ad"
+
+    with pytest.raises(InvalidResultError, match="do not match var row-for-row"):
+        writer_for(parsed).write(parsed, target)
+
+    assert not target.exists()
 
 
 def test_the_written_object_is_observations_by_variables_with_the_primary_layer_as_x(
@@ -657,6 +826,72 @@ def test_the_anndata_writer_satisfies_the_parser_owned_writer_contract(
     writer.write(parsed, tmp_path / "ion.h5ad")
 
     assert (tmp_path / "ion.h5ad").is_file()
+
+
+def test_mudata_writer_materializes_each_level_with_its_configured_anndata_writer(
+    tmp_path: Path,
+) -> None:
+    ion = level(
+        uns={"software_name": "Synthetic", "quantification_level": "ion"},
+    )
+    protein = level(
+        var=pl.DataFrame({"Protein": ["P1"]}),
+        var_keys=("Protein",),
+        layers={"Intensity": pl.DataFrame({"Protein": ["P1"], "obs_0": [10.0], "obs_1": [20.0]})},
+        uns={"software_name": "Synthetic", "quantification_level": "protein"},
+    )
+    target = tmp_path / "levels.h5mu"
+
+    MuDataWriter(level_writers={"ion": writer_for(ion), "protein": writer_for(protein)}).write(
+        ParsedLevels(
+            levels={"ion": ion, "protein": protein},
+            uns={
+                "produced_by": "apb2",
+                "rule_selection_method": "rule_config",
+                "quantification_levels": ["ion", "protein"],
+            },
+        ),
+        target,
+    )
+
+    stored = mudata.read_h5mu(target)
+    assert list(stored.mod) == ["ion", "protein"]
+    assert stored["ion"].shape == (2, 2)
+    assert stored["protein"].shape == (2, 1)
+    assert list(stored["ion"].var_names) == ["ion:F1", "ion:F2"]
+    assert list(stored["protein"].var_names) == ["prt:P1"]
+    assert list(stored["ion"].var["Feature"].astype("string")) == ["F1", "F2"]
+    assert stored.uns[NAMESPACE][PARSE_NAMESPACE]["rule_selection_method"] == "rule_config"
+    assert stored["ion"].uns[NAMESPACE][PARSE_NAMESPACE]["quantification_level"] == "ion"
+
+
+def test_mudata_writer_accepts_one_level_but_rejects_no_levels(tmp_path: Path) -> None:
+    ion = level()
+    writer = MuDataWriter(level_writers={"ion": writer_for(ion)})
+
+    writer.write(
+        ParsedLevels(levels={"ion": ion}, uns={"produced_by": "apb2"}),
+        tmp_path / "ion.h5mu",
+    )
+
+    assert list(mudata.read_h5mu(tmp_path / "ion.h5mu").mod) == ["ion"]
+    with pytest.raises(MuDataLevelError, match="no parsed levels"):
+        MuDataWriter(level_writers={}).write(
+            ParsedLevels(levels={}, uns={}),
+            tmp_path / "empty.h5mu",
+        )
+
+
+def test_mudata_writer_requires_one_configured_writer_per_parsed_level(
+    tmp_path: Path,
+) -> None:
+    ion = level()
+
+    with pytest.raises(MuDataLevelError, match=r"parsed=.*ion.*writers"):
+        MuDataWriter(level_writers={}).write(
+            ParsedLevels(levels={"ion": ion}, uns={}),
+            tmp_path / "levels.h5mu",
+        )
 
 
 def test_one_array_is_allocated_for_each_encoded_layer(

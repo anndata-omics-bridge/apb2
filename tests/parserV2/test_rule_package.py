@@ -148,6 +148,58 @@ def test_the_maxquant_source_names_the_one_table_it_reads() -> None:
     assert source.file_name == "evidence.txt"
 
 
+@pytest.mark.parametrize(
+    ("document_key", "level", "protein_assignment", "fasta_accessions"),
+    [
+        pytest.param("diann/v1", "ion", "Protein_Group", "Protein_Ids", id="diann-v1-ion"),
+        pytest.param("diann/v1", "protein", "Protein_Group", "Protein_Ids", id="diann-v1-protein"),
+        pytest.param("diann/v2", "ion", "Protein_Group", "Protein_Ids", id="diann-v2-ion"),
+        pytest.param("diann/v2", "protein", "Protein_Group", "Protein_Ids", id="diann-v2-protein"),
+        pytest.param(
+            "spectronaut",
+            "ion",
+            "PG_ProteinGroups",
+            "PG_ProteinAccessions",
+            id="spectronaut-ion",
+        ),
+        pytest.param(
+            "spectronaut",
+            "fragment",
+            "PG_ProteinGroups",
+            "PG_ProteinAccessions",
+            id="spectronaut-fragment",
+        ),
+        pytest.param(
+            "spectronaut",
+            "protein",
+            "PG_ProteinGroups",
+            "PG_ProteinAccessions",
+            id="spectronaut-protein",
+        ),
+    ],
+)
+def test_protein_assignment_names_the_group_not_its_accessions(
+    document_key: str,
+    level: QuantificationLevel,
+    protein_assignment: str,
+    fasta_accessions: str,
+) -> None:
+    pair = next(candidate for candidate in document_pairs() if candidate.key == document_key)
+    roles = load_rule_document(pair.parser_v2_path).declared(level).declaration.column_roles
+
+    assert roles.protein_assignment == protein_assignment
+    assert roles.fasta_accessions == fasta_accessions
+
+
+def test_spectronaut_fragment_exposes_its_parent_ion_identity() -> None:
+    pair = next(candidate for candidate in document_pairs() if candidate.key == "spectronaut")
+    fragment = load_rule_document(pair.parser_v2_path).declared("fragment").declaration
+
+    computed = {column.name: column for column in fragment.columns.var.computed}
+
+    assert computed["ProForma_ion"].inputs == ["ProForma_peptidoform", "FG_Charge"]
+
+
 # ------------------------------------------------------------------- gates and overrides
 
 

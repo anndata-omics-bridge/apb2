@@ -16,11 +16,12 @@ forbidden_modules =
 # --------------------------------------------------------------------------- Parser V2
 #
 # Directory nesting is the import rule, not decoration. A module directly in a package may
-# import its children; a child may import neither its parent nor its sibling child. The
-# Parent modules compose children. Child packages are peers and may not import one another.
+# import its children; a child may not import its parent. Sibling dependencies must follow
+# the declared DAG, and each child may directly target at most one sibling. Parent modules
+# compose children when a responsibility genuinely crosses child boundaries.
 
 [importlinter:contract:parserv2-directory-nesting-is-the-import-rule]
-name = parserV2 children never import upward or sideways
+name = parserV2 children follow the declared inward dependency graph
 type = layers
 exhaustive = True
 containers =
@@ -72,7 +73,7 @@ forbidden_modules =
     apb2.parserV2.vendor_parse_rules.loader
 
 [importlinter:contract:parse-quant-directory-nesting-is-the-import-rule]
-name = parse_quant modules descend into data and parameters, never the other way
+name = parse_quant modules descend through io into data, with parameters independent
 type = layers
 exhaustive = True
 containers =
@@ -80,12 +81,13 @@ containers =
 layers =
     (parser) | (decomposition) | (duplicates)
     contracts
-    axis_columns | modifications | fragments | delimited_input | parquet_input | anndata_writer | parquet_writer
-    errors | numeric_text
+    axis_columns | modifications | fragments | delimited_input | parquet_input
+    errors
+    io
     data | parameters
 
-[importlinter:contract:parse-quant-children-are-independent]
-name = data and parameters never import a module directly in parse_quant
+[importlinter:contract:parse-quant-inward-children-never-import-upward]
+name = data and parameters never import a module directly above them
 type = forbidden
 source_modules =
     apb2.parserV2.parse_quant.data
@@ -94,6 +96,14 @@ forbidden_modules =
     apb2.parserV2.parse_rule_facade
     apb2.parserV2.compile
     apb2.parserV2.parse_quant.contracts
+
+[importlinter:contract:result-io-depends-on-no-second-child]
+name = result io depends on data and never on parameters
+type = forbidden
+source_modules =
+    apb2.parserV2.parse_quant.io
+forbidden_modules =
+    apb2.parserV2.parse_quant.parameters
 
 [importlinter:contract:parse-quant-computation-holds-no-storage-backend]
 name = parsing computation imports no Pydantic, pandas, NumPy, AnnData, or Arrow
@@ -108,14 +118,19 @@ forbidden_modules =
     pandas
     numpy
     anndata
+    mudata
     pyarrow
+    duckdb
 
-[importlinter:contract:writers-see-only-a-parsed-level]
-name = an output adapter knows the parsed result, the notation, and its own backend
+[importlinter:contract:result-adapters-see-only-parsed-results]
+name = result adapters know data values, io support, and their own backend
 type = forbidden
 source_modules =
-    apb2.parserV2.parse_quant.anndata_writer
-    apb2.parserV2.parse_quant.parquet_writer
+    apb2.parserV2.parse_quant.io.anndata_reader
+    apb2.parserV2.parse_quant.io.anndata_writer
+    apb2.parserV2.parse_quant.io.parquet_reader
+    apb2.parserV2.parse_quant.io.parquet_writer
+    apb2.parserV2.parse_quant.io.duckdb
 forbidden_modules =
     apb2.parserV2.parse_quant.parser
     apb2.parserV2.parse_quant.contracts

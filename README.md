@@ -2,12 +2,21 @@
 
 Convert proteomics software output to AnnData (rules-driven parser, second generation)
 
+Read the rendered [APB2 documentation](https://anndata-omics-bridge.github.io/apb2/) or its
+[source index](docs/index.md).
+
 ## Convert
 
 Use a packaged rule selected from the vendor parameter file and source header:
 
 ```bash
 apb2 convert DATA LEVEL --params PARAMETER_FILE [--software VENDOR] [--output BASENAME]
+```
+
+Omit `LEVEL` to convert every compatible level into one shared-observation MuData container:
+
+```bash
+apb2 convert DATA --params PARAMETER_FILE [--software VENDOR] [--output BASENAME]
 ```
 
 Use an explicit schema-0.3 rule document, with optional search-parameter evidence:
@@ -18,12 +27,36 @@ apb2 convert DATA LEVEL --rule-config RULES_JSON [--params PARAMETER_FILE] \
 ```
 
 `LEVEL` is one of `ion`, `peptidoform`, `peptide`, `protein`, or `fragment`. The output basename
-must not have an extension; `apb2` appends `.h5ad`. `--strict` promotes layer-contract warnings to
-errors. The command performs conversion only—FASTA annotation and protein inference are outside
-Parser V2.
+must not already carry the suffix APB2 appends: `.h5ad` with an explicit level, `.h5mu` without
+one. A no-level conversion writes MuData even when only one level is compatible. `--strict`
+promotes layer-contract warnings to errors. The command performs conversion only—FASTA annotation
+and protein inference are outside Parser V2.
 
-The CLI imports only `apb2.parserV2`. Programmatic Parser V2 callers may also select the Parquet
-writer without passing through the AnnData adapter.
+## Reformat a parsed result
+
+Change only the persisted format; no vendor parsing or annotation runs:
+
+```bash
+apb2 reformat SOURCE TARGET
+```
+
+The suffix selects h5ad, h5mu, an APB2 Parquet directory dataset, or DuckDB. Programmatic callers
+use the same explicit adapter boundary:
+
+```python
+from pathlib import Path
+
+from apb2.parserV2.parse_quant.io.formats import ResultFormat, reader_for, writer_for
+
+parsed = reader_for(ResultFormat.PARQUET).read(Path("result.parquet"))
+writer_for(ResultFormat.DUCKDB).write(parsed, Path("result.duckdb"))
+```
+
+`read_parsed_levels(source)` and `write_parsed_levels(parsed, target)` are path-inferred
+conveniences. Parquet and DuckDB preserve Polars result values exactly; h5ad and h5mu apply the
+stored numeric/factor matrix projection.
+
+The CLI imports only `apb2.parserV2`.
 
 The converter's controlling design, dependency boundaries, rule-schema decisions, algorithms, and
 implementation contracts are documented in
@@ -34,10 +67,13 @@ implementation contracts are documented in
 ```bash
 uv sync --group dev
 make check
+make docs
 .venv/bin/pre-commit install --hook-type pre-commit --hook-type pre-push
 ```
 
 All Python commands run from the synchronized project `.venv`.
+`make docs-serve` serves the user documentation locally. GitHub Actions publishes the strict
+MkDocs build to GitHub Pages from `main`.
 
 The rule JSON Schema is a packaged artifact. Developers regenerate it from the Parser V2 rule
 package rather than through a user-facing CLI command:
