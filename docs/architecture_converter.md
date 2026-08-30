@@ -128,11 +128,12 @@ The specification stays close to V5. These are the only intentional changes:
 | `ParseRuleFacade.resolve_source(SourceEvidence)` replaces `resolve_header(header)` | V5 expected a column-name sequence to produce numeric formats, read dtypes, and Parquet compatibility decisions | Pass the exact physical evidence required for one atomic resolved plan and remove hidden compiler side channels |
 | Vendor-parameter parsing retains the `vendor_params` name and lives in the independent `parserV2/vendor_params/` child; parent-level `conversion_facade.py` translates its complete `Parameters` record to rule-owned `SearchParameterEvidence` | The first specification placed `vendor_params` beside `parserV2` and required a second outer composition layer | Give the CLI one Parser V2-only boundary without renaming the established parameter model, remove the legacy top-level package, and keep both `parse_quant` and `vendor_parse_rules` independent of it |
 | Parser V2 owns its boundary errors: rule applicability in `vendor_parse_rules/document.py`, shared parse/source errors in `parse_quant/errors.py`, and strategy-local errors beside their raiser | V5 named error categories but did not assign them to the folder dependency graph; importing the existing top-level `apb2.errors` would be an upward dependency | Keep catchable errors at the boundary that defines their meaning without creating a generic cross-package error module |
-| `parserV2` has an explicit downward import graph: `parse_quant/data` owns pipeline values, `parse_quant/parameters` owns working and source-resolved parameters, `parse_quant/contracts.py` owns Parser-consumed Protocols, reader and writer modules live directly in `parse_quant`, parent-level `parse_rule_facade.py` translates `RuleDocument` into parameters, and the inward-only `vendor_parse_rules/schema/` child owns Pydantic storage declarations | V5 named implementation areas but did not assign concrete modules or prohibit child-to-parent and sibling-child imports | Make directory nesting express dependency direction: a module owned by one child moves into that child; only genuine cross-child composition stays in the parent |
+| `parserV2` has an explicit directed import graph: `parse_quant/data` owns pipeline values, `parse_quant/parameters` owns working and source-resolved parameters, `parse_quant/io` owns parsed-result adapters and depends only on `data`, `parse_quant/contracts.py` owns Parser-consumed Protocols, source readers remain parent modules, parent-level `parse_rule_facade.py` translates `RuleDocument` into parameters, and the inward-only `vendor_parse_rules/schema/` child owns Pydantic storage declarations | V5 named implementation areas but did not assign concrete modules or prohibit child-to-parent and cyclic/excess sibling imports | Make directory nesting express dependency direction: a module owned by one child moves into that child; sibling edges are one-way and limited to one direct target, while genuine multi-child composition stays in the parent |
 | One-class private helpers are private methods; module-level `make_*` and `*_for` names are reserved for construction and selection | V5 showed several one-client parser and writer helpers as free functions | Put implementation details with their sole owner, reduce module namespace and forwarding code, and keep the construction boundary visible |
 | Omitted CLI level composes compatible `ParsedLevel` values as MuData | The initial specification explicitly excluded MuData assembly | Match APB's compound-conversion contract without changing parsing: one parser per level, one output-adapter loop, and one `.h5mu` container |
 | Result I/O operates on `ParsedLevels` through format-selected readers and writers | V5 specified only parser-owned one-level writing | Give later tools and `apb2 reformat` one storage-neutral boundary; keep `Parser.convert()` unchanged because Parser still owns one level |
 | `ParsedLevel` includes axis-aligned and sparse pairwise Polars frames | V5 stopped at axes, layers, and `uns` | Carry the AnnData/MuData slots later tools need without importing their containers into computation |
+| Final layers distinguish measurement and auxiliary roles | V5 treated every retained numeric layer as an occupancy peer | Let downstream tools persist diagnostic matrices without allowing their density or sparsity to alter quantitative matrix-occupancy checks |
 
 No other architectural novelty is introduced. In particular, this specification does not restore
 the V4 reverse path, temporary IDs, parser-side arrays, a Builder, a generic dataframe facade, or a
@@ -253,22 +254,26 @@ source read across levels is a separate performance design and is not implied by
 ### 2.1 Dependency direction
 
 Directory nesting is an import rule, not decoration. For any package `A/` with child packages
-`A/B/` and `A/C/`:
+`A/B/`, `A/C/`, and `A/D/`:
 
 ```text
 A/*.py  ->  A/B/*     allowed: parent module imports downward
 A/*.py  ->  A/C/*     allowed: parent module imports downward
 A/B/*   ->  A/*.py    forbidden: child imports upward
 A/C/*   ->  A/*.py    forbidden: child imports upward
-A/B/*   ->  A/C/*     forbidden: sibling child imports sideways
-A/C/*   ->  A/B/*     forbidden: sibling child imports sideways
+A/B/*   ->  A/C/*     allowed when declared as one edge in the sibling DAG
+A/C/*   ->  A/D/*     allowed when declared as one edge in the sibling DAG
+A/C/*   ->  A/B/*     forbidden: reverse edge creates a cycle
+A/B/*   ->  A/D/*     forbidden here: B would directly target a second sibling
 ```
 
 A module placed directly in `A/` that merely forwards to `A/B/` belongs in `A/B/`. Placement follows
 ownership as well as imports: a parent-level module needs a responsibility owned by `A`, such as
 composing `A/B/` and `A/C/` or implementing `A`'s external boundary. An external dependency does
-not justify moving an `A/B`-owned module above `A/B/`. This gives `parserV2` the following
-direction:
+not justify moving an `A/B`-owned module above `A/B/`. Sibling edges must be acyclic, and every
+child may directly target at most one sibling. If a child needs two siblings, move the composition
+to `A/` or make the owned collaborators children of that package. This gives `parserV2` the
+following direction:
 
 ```text
 parserV2/*.py
@@ -291,28 +296,31 @@ vendor_params/parsers/shared/* -X-> vendor-specific parser modules forbidden
 ```
 
 The workflow owns the Protocols it consumes in `parse_quant/contracts.py`. Modules directly in
-`parse_quant/` may import its `data/` and `parameters/` children. No module anywhere under
-`parse_quant/` imports a module directly in `parserV2/` or imports `vendor_parse_rules`. No module
-under `vendor_parse_rules/` imports a parent module or `parse_quant`.
+`parse_quant/` may import its children. The one declared sibling edge inside that package is
+`io -> data`; `parameters` remains independent, and neither `data` nor `parameters` imports `io`.
+No module anywhere under `parse_quant/` imports a module directly in `parserV2/` or imports
+`vendor_parse_rules`. No module under `vendor_parse_rules/` imports a parent module or
+`parse_quant`.
 
 The computational modules—`parser.py`, `decomposition.py`, `fragments.py`, `axis_columns.py`,
 `duplicates.py`, and `modifications.py`—import neither Pydantic models, physical readers, writers,
-`anndata`, pandas, NumPy, nor PyArrow storage APIs. Physical boundary modules live directly in
-`parse_quant/`: the delimited and vendor-Parquet inputs, the AnnData/MuData and result-Parquet
-readers and writers, and DuckDB I/O. Their backend dependencies remain confined to those modules.
-`result_io.py` composes the result adapters. Child modules under `parse_quant/data/` and
-`parse_quant/parameters/` never import upward into any of them.
+`anndata`, pandas, NumPy, nor PyArrow storage APIs. Physical source readers live directly in
+`parse_quant/`; all parsed-result readers, writers, metadata, validation, and format selection live
+in `parse_quant/io/`. Their backend dependencies remain confined to those modules.
+`io/formats.py` composes the result adapters. `io/` imports only storage-neutral values and scalar
+interpretation from `data/`; it never imports `parameters/` or a module directly in `parse_quant/`.
 
 `parse_rule_facade.py` therefore cannot live inside `vendor_parse_rules`. It is a parent-level
 module because it consumes `vendor_parse_rules.RuleDocument` and produces values from
 `parse_quant.parameters`. `compile.py` is the other parent-level module because it composes the
-rule child and the parse child. The reader and writer modules do not bridge those children; they
-depend only on parse-owned values and therefore belong in `parse_quant`.
+rule child and the parse child. Adapter modules do not bridge those children: source readers that
+compose `data/` and `parameters/` belong directly in `parse_quant/`, while parsed-result adapters
+that need only `data/` belong in `parse_quant/io/`.
 
-Those adapter modules import only the exact downward data and parameter modules required by their
-signatures, plus their external framework. They do not import Parser, raw parse state, runtime
-strategies, or `parse_quant/contracts.py`. Structural typing proves conformance to the client-owned
-Protocols when `compile.py` performs the wiring.
+Those adapter modules import only the exact downward data modules required by their signatures,
+plus their external framework. They do not import Parser, raw parse state, runtime strategies,
+parsing parameters, or `parse_quant/contracts.py`. Structural typing proves conformance to the
+client-owned Protocols when `compile.py` performs the wiring.
 
 ## 3. Identity and join columns
 
@@ -743,7 +751,31 @@ class ParsedLevelWriter(Protocol):
 ```
 
 The writer receives the complete parsed result. It treats that result as read-only and creates its
-own backend values.
+own backend values. Before any backend allocation or staging, `io/validation.py` verifies that final
+axis keys are complete and unique, every layer declares the same var-key tuple as `VarFinal`, the
+key columns lead the layer in that order, and their values equal `VarFinal` row-for-row. A writer
+must never infer alignment from matching dimensions alone. It also requires the primary layer to
+have `MeasurementLayerRole`; an `AuxiliaryLayerRole` cannot define the primary quantitative matrix.
+
+Downstream APB tools use the public functions from their defining modules rather than importing
+adapter internals:
+
+```python
+from apb2.parserV2.parse_quant.data.layer_columns import observation_labels
+from apb2.parserV2.parse_quant.io.anndata_writer import (
+    numeric_result_level,
+    quantitative_layer_values,
+)
+
+observation_labels(count: int, reserved: Iterable[str]) -> tuple[str, ...]
+quantitative_layer_values(parsed: ParsedLevel, layer_name: str, /) -> pl.DataFrame
+numeric_result_level(parsed: ParsedLevel, /) -> ParsedLevel
+```
+
+The label helper establishes the collision-free positional observation columns used by wide layer
+tables. The projection helper interprets a stored layer through its APB2 encoding. The numeric-level
+helper validates every value column and returns a nonmutating shallow replacement marked for plain
+numeric output.
 
 ### 6.1 Parquet
 
@@ -752,7 +784,7 @@ result-I/O `ParquetLevelsWriter` persists:
 
 - `parsed.obs.frame` plus `parsed.obs.key_columns` metadata;
 - `parsed.var.frame` plus `parsed.var.key_columns` metadata;
-- every `FinalLayerTable.values` plus `var_key_columns` metadata;
+- every `FinalLayerTable.values` plus `var_key_columns` and layer-role metadata;
 - `primary_layer_name`, per-level `uns`, and shared `ParsedLevels.uns`;
 - every `obsm`/`varm` aligned frame; and
 - every `obsp`/`varp` sparse-coordinate frame.
@@ -776,8 +808,8 @@ target.parquet/
             ...
 ```
 
-`manifest.json` version 2 records level and table order, axis keys, each layer's var keys, primary
-layers, both provenance scopes, every table's ordered logical Polars schema, and explicit
+`manifest.json` version 2 records level and table order, axis keys, each layer's var keys and role,
+primary layers, both provenance scopes, every table's ordered logical Polars schema, and explicit
 logical-to-physical names. A user-authored name is never interpolated into a path without that
 mapping. `ParquetReader` accepts this APB2 dataset only; a vendor `.parquet` file is not a result.
 
@@ -795,7 +827,13 @@ class AnnDataWriter:
             raw_values = layer.values.select(value_columns)
             encoded[name] = self._encoders[name].encode(raw_values)
 
-        self._contract.check(encoded)
+        occupancy_candidates: dict[str, pl.DataFrame] = {}
+        for name, layer in parsed.layers.items():
+            occupancy_candidates.update(
+                layer.role.occupancy_candidates(name, encoded[name])
+            )
+
+        self._contract.check(encoded, occupancy_candidates)
         arrays = {
             name: frame.to_numpy().astype(np.float64, copy=False).T
             for name, frame in encoded.items()
@@ -832,7 +870,7 @@ uses it for joins, grouping, or identity.
 
 `_make_axis_frame()` remains a private static method because it has one class client.
 `_write_parse_namespace()` and `_write_atomically()` are module-private functions because both
-AnnData and MuData writing use them. They remain in `parse_quant/anndata_writer.py`; neither belongs
+AnnData and MuData writing use them. They remain in `parse_quant/io/anndata_writer.py`; neither belongs
 in `data/` or `parameters/`, because either child would then need to import upward to use it.
 
 AnnData encoders implement:
@@ -842,15 +880,19 @@ AnnData encoders implement:
 - factor-label mapping through the authored category map, retaining the current `-1` code for a
   null or unknown label.
 
-The encoded-layer checker evaluates required-layer and occupancy contracts after encoding, when a
-failed numeric interpretation is visible. These checks do not run for Parquet.
+The writer encodes every retained layer. The encoded-layer checker evaluates required-layer and
+occupancy contracts after encoding, when a failed numeric interpretation is visible. These checks
+do not run for Parquet.
 
-For the existing occupancy policy, a layer is suspicious only when it is below `empty_ratio` while
-a sibling reaches `populated_ratio`. The checker first verifies that the encoded mapping contains
-the primary and every resolved required name. Standard occupancy checking raises for the primary
-and warns for other suspicious layers; strict checking raises for every suspicious retained layer.
-If no sibling is populated, occupancy alone does not distinguish an empty experiment from a parse
-failure and does not invent that conclusion.
+For the existing occupancy policy, a measurement layer is suspicious only when it is below
+`empty_ratio` while a measurement sibling reaches `populated_ratio`. The checker first verifies
+that the complete encoded mapping contains the primary and every resolved required name, including
+any required auxiliary layer. Standard occupancy checking raises for the primary and warns for
+other suspicious measurement layers; strict checking raises for every suspicious measurement
+layer. Auxiliary layers remain encoded, required when declared, and written, but neither contribute
+occupancy evidence nor undergo an occupancy comparison. If no measurement sibling is populated,
+occupancy alone does not distinguish an empty experiment from a parse failure and does not invent
+that conclusion.
 
 ### 6.3 MuData
 
@@ -917,8 +959,12 @@ dependency even though APB2 does not import it directly.
 h5ad/h5mu store a versioned JSON result envelope at `uns["apb"]["result"]`, beside the existing
 parse provenance at `uns["apb"]["parse"]`. The envelope distinguishes shared and per-level
 provenance, records ordered logical names and axis keys, and maps names that HDF5 cannot represent
-directly to safe physical keys. An h5 reader requires that envelope; it is deliberately not a
-general third-party AnnData importer.
+directly to safe physical keys. It also records each layer's stable `"measurement"` or `"auxiliary"`
+role. Parquet and DuckDB record the same role in each layer's manifest entry. A reader treats an
+absent role as measurement, so results written before role metadata remain readable. This addition
+does not increment the existing formats: h5 envelope version 1, Parquet manifest version 2, and
+DuckDB manifest version 1. An h5 reader requires the envelope; it is deliberately not a general
+third-party AnnData importer.
 
 The h5 collection writers reconstruct the standard matrix encoders and occupancy contract from
 the stored `plan_json`. They do not reload `rules.json`, import its Pydantic models, or resolve a
@@ -934,8 +980,8 @@ Parquet and DuckDB are lossless result formats:
 read(write(parsed)) == parsed
 ```
 
-The equality includes level/table order, Polars schemas, null versus NaN, logical names, every
-known slot, and both provenance scopes. Parquet↔DuckDB crossings obey the same law.
+The equality includes level/table order, Polars schemas, null versus NaN, logical names, layer
+roles, every known slot, and both provenance scopes. Parquet↔DuckDB crossings obey the same law.
 
 h5ad and h5mu implement the configured matrix projection. Their law is:
 
@@ -963,7 +1009,7 @@ Crossing from h5 into Parquet or DuckDB preserves the represented projected valu
    `ParsedLevelWriter` contract.
 6. `MuDataWriter` is the concrete compound-output adapter. The parent composition root gives it
    the configured `AnnDataWriter` for every included level; parsing does not see it.
-7. `result_io.py` is the result-I/O composition boundary. It selects immutable h5ad, h5mu,
+7. `io/formats.py` is the result-I/O composition boundary. It selects immutable h5ad, h5mu,
    Parquet, or DuckDB readers and writers and owns the storage-only `reformat` use case.
 
 ```mermaid
@@ -1140,19 +1186,22 @@ flowchart TB
             RULES["document.py + loader.py<br/>↓ inward-only schema/ child"]
         end
 
-        subgraph PARSE_PACKAGE["parse_quant/ — never imports up or sideways"]
+        subgraph PARSE_PACKAGE["parse_quant/ — directed children; io -> data only"]
             DELIMITED_INPUT["delimited_input.py<br/>physical text -> LevelSourceTable"]
             PARQUET_INPUT["parquet_input.py<br/>physical Parquet -> LevelSourceTable"]
-            RESULT_IO["result_io.py<br/>format registry + reformat use case"]
-            ANNDATA_READER["anndata_reader.py<br/>h5ad/h5mu -> ParsedLevels"]
-            ANNDATA_WRITER["anndata_writer.py<br/>ParsedLevel(s) -> h5ad/h5mu"]
-            PARQUET_READER["parquet_reader.py<br/>dataset -> ParsedLevels"]
-            PARQUET_WRITER["parquet_writer.py<br/>ParsedLevel(s) -> dataset"]
-            DUCKDB_IO["duckdb_io.py<br/>DuckDB <-> ParsedLevels"]
+            subgraph RESULT_IO_PACKAGE["io/ — parsed-result storage boundary"]
+                RESULT_IO["formats.py<br/>format registry + reformat use case"]
+                ANNDATA_READER["anndata_reader.py<br/>h5ad/h5mu -> ParsedLevels"]
+                ANNDATA_WRITER["anndata_writer.py<br/>ParsedLevel(s) -> h5ad/h5mu"]
+                PARQUET_READER["parquet_reader.py<br/>dataset -> ParsedLevels"]
+                PARQUET_WRITER["parquet_writer.py<br/>ParsedLevel(s) -> dataset"]
+                DUCKDB_IO["duckdb.py<br/>DuckDB <-> ParsedLevels"]
+            end
             ERRORS["errors.py<br/>shared parse/source boundary errors"]
             SOURCE_DATA["data/source.py<br/>LevelSourceTable"]
             RAW_DATA["data/raw.py<br/>raw axes, layers, key map"]
             PARSED_DATA["data/parsed.py<br/>final axes, slots, ParsedLevel(s)"]
+            NUMERIC_DATA["data/numeric_text.py<br/>storage-neutral scalar interpretation"]
             PARAMETERS["parameters/<br/>working and source-resolved values"]
             CONTRACTS["contracts.py<br/>Parser-consumed Protocols and runtime plans"]
             PARSE["Parser, decomposers, columns,<br/>modifications, duplicate policies"]
@@ -1204,6 +1253,7 @@ flowchart TB
     CONTRACTS --> RAW_DATA
     CONTRACTS --> PARSED_DATA
     ANNDATA_WRITER --> PARSED_DATA
+    ANNDATA_WRITER --> NUMERIC_DATA
     ANNDATA_READER --> PARSED_DATA
     PARQUET_WRITER --> PARSED_DATA
     PARQUET_READER --> PARSED_DATA
@@ -1228,12 +1278,12 @@ flowchart TB
     DUCKDB_IO --> STORAGE
 ```
 
-Every project-internal arrow either stays at one directory level, points from a module to one of its
-child packages, or points from a `parserV2` parent module down into a child package. No arrow starts
-in `parse_quant/`, `vendor_params/`, or `vendor_parse_rules/` and ends in the parent or a
-sibling child. `compile.py` may import the rule and parse children because construction and
-dependency injection are its one responsibility. `parse_rule_facade.py` is the parent-level bridge
-between those two child packages: it
+Every project-internal arrow either stays at one directory level, points from a parent module into a
+child package, or is the declared `parse_quant.io -> parse_quant.data` sibling edge. No child imports
+upward, the sibling graph is acyclic, and each child directly targets at most one sibling.
+`compile.py` may import the rule and parse children because construction and dependency injection
+are its one responsibility. `parse_rule_facade.py` is the parent-level bridge between those two
+child packages: it
 imports the rule document and parsing parameter values, performs no parsing or I/O, and keeps the
 children independent.
 
@@ -1245,19 +1295,19 @@ failures into one `ConversionError` for the CLI.
 evidence. The top-level `apb2/cli.py` imports only `apb2.parserV2.*`; no child package imports
 `conversion_facade.py` or `detect_document.py`.
 
-The physical I/O modules sit directly in `parse_quant/` because they depend only on parse-owned
-data, storage metadata, and—for source input only—source parameters. Computation modules do not
-import them. `anndata_reader.py` and `anndata_writer.py` alone import pandas, NumPy, SciPy,
-AnnData, or MuData; `duckdb_io.py` alone imports DuckDB and triggers the dynamic Polars-to-PyArrow
-interchange. `result_io.py` is above these adapters and is the only result-format registry.
+Physical source readers sit directly in `parse_quant/` because they consume source parameters as
+well as parse-owned data. Parsed-result I/O sits in the `io/` child and depends only on the `data/`
+child. Computation modules do not import it. `io/anndata_reader.py` and `io/anndata_writer.py` alone import pandas, NumPy, SciPy,
+AnnData, or MuData; `io/duckdb.py` alone imports DuckDB and triggers the dynamic Polars-to-PyArrow
+interchange. `io/formats.py` is above these adapters and is the only result-format registry.
 
 `BoundInputReader` and `ParsedLevelWriter` belong in `parse_quant/contracts.py` because `Parser` is
 the client that exercises both capabilities. Concrete readers and writers satisfy those Protocols
 structurally. Reader modules import only their `data/source.py`, exact source-parameter children,
 and the shared parse-owned `errors.py` when binding/inspection can fail;
-writer/result-reader modules import only the parsed data value, result metadata/validation, and
+writer/result-reader modules import only the parsed data value, sibling I/O metadata/validation, and
 their physical backend. They do not import Parser, raw state, decomposition, rules, or vendor
-parameters. `compile.py` performs parser-owned writer wiring; `result_io.py` performs
+parameters. `compile.py` performs parser-owned writer wiring; `io/formats.py` performs
 collection-adapter selection. `LevelSourceTable`, raw states, `ParsedLevel`, and `ParsedLevels`
 form one parsing-owned data model under `parse_quant/data`, separated into source, raw, and parsed
 lifecycle modules.
@@ -1524,6 +1574,19 @@ class VarFinal:
     # ("ProForma_ion",)
 
 
+@dataclass(frozen=True, slots=True)
+class MeasurementLayerRole:
+    """A quantitative layer that participates in matrix occupancy checks."""
+
+
+@dataclass(frozen=True, slots=True)
+class AuxiliaryLayerRole:
+    """A numeric diagnostic layer that is exempt from matrix occupancy checks."""
+
+
+type FinalLayerRole = MeasurementLayerRole | AuxiliaryLayerRole
+
+
 @dataclass(slots=True)
 class FinalLayerTable:
     layer_name: str
@@ -1539,6 +1602,9 @@ class FinalLayerTable:
     #     "B": [120.0, 60.0],
     #     "C": [90.0, 70.0],
     # })
+
+    role: FinalLayerRole = field(default_factory=MeasurementLayerRole)
+    # MeasurementLayerRole()
 
 
 @dataclass(slots=True)
@@ -3117,7 +3183,7 @@ key.
 | duplicate-cell error | `ErrorOnDuplicates` | several raw values claim one raw measurement cell |
 | aggregate-type error | numeric aggregate policy | authored aggregate policy received nonnumeric raw values |
 | AnnData encoding error | layer encoder | raw scalar cannot be encoded under its declared AnnData contract |
-| layer-contract error | encoded-layer checker | primary/required occupancy is inconsistent with usable output |
+| `AnnDataLayerContractError` | encoded-layer checker | required names are absent or measurement-layer occupancy is inconsistent with usable h5 output; this error is part of the `ResultIOError` family |
 | writer error | output adapter | backend persistence failed after parsing succeeded |
 
 Strategies raise the error belonging to their own boundary. The parser does not catch one error
@@ -3237,19 +3303,20 @@ Tests must cover:
 
 #### G.5 Writer tests
 
-Parquet tests verify exact Polars values, dtypes, key metadata, primary layer, `uns`, safe layer file
-names, manifest order, and atomic directory replacement. Encoder construction must be absent.
+Parquet tests verify exact Polars values, dtypes, key metadata, primary layer, layer roles, `uns`,
+safe layer file names, manifest order, legacy missing-role defaults, and atomic directory replacement.
+Encoder construction must be absent.
 
 AnnData tests verify plain numeric, localized numeric, regex numeric, factor, missing sentinels,
-orientation, primary-layer-to-`X` selection, required/occupancy checks, single-key index
-compatibility, collision-free multi-key string indexes, pandas dtype normalization, and atomic
-write behavior.
+orientation, primary-layer-to-`X` selection, required-layer checks across all roles, measurement-only
+occupancy checks, auxiliary-primary rejection, single-key index compatibility, collision-free
+multi-key string indexes, pandas dtype normalization, and atomic write behavior.
 
 Result-I/O tests use a two-level fixture with composite metadata, numeric-looking strings, factors,
 nulls, NaN, Unicode and colliding logical names, aligned frames, and sparse coordinate frames.
-They verify exact Parquet/DuckDB self-round-trips and crossings; canonical, idempotent h5ad/h5mu
-projection; every directed columnar↔h5 crossing; target preservation on validation failure; and
-rejection of vendor Parquet files without an APB2 result manifest.
+They verify exact Parquet/DuckDB self-round-trips and crossings, including layer roles; canonical,
+idempotent h5ad/h5mu projection; every directed columnar↔h5 crossing; target preservation on
+validation failure; and rejection of vendor Parquet files without an APB2 result manifest.
 
 `Parser.convert(parsed, target)` tests use a supplied `ParsedLevel` and prove that the reader and
 parser collaborators are not called.
@@ -3263,15 +3330,17 @@ run `lint-imports`. When the first Parser V2 package skeleton is created, `.impo
   `detect_document`, `compile`, and `parse_rule_facade` above the independent
   `parse_quant | vendor_params | vendor_parse_rules` children;
 - an exhaustive `layers` contract for the `parse_quant` container, with modules directly in
-  `parse_quant` above the independent `data | parameters` children;
+  `parse_quant` above `io`, and with the single declared child edge `io -> data` while
+  `parameters` remains independent;
 - a `forbidden` contract preventing computation modules from importing physical I/O modules; and
 - `forbidden` contracts limiting readers to source data, source parameters, and shared parse errors,
   and writers to parsed data.
 
 The contracts are added with the package skeleton, not before it: Import Linter must check real
 modules rather than optional declarations that silently pass while the implementation is absent.
-Built-in contracts are sufficient; do not add a custom checker or wrapper script. The resulting
-static checks must verify:
+Built-in Import Linter contracts prove direction and isolation. One focused Grimp architecture test
+additionally proves the maximum-one direct sibling target, which a layers contract cannot express.
+Do not add a wrapper script. The resulting static checks must verify:
 
 - every parsing and I/O module is under `parserV2/parse_quant` and imports neither
   `vendor_parse_rules` nor any parent module;
@@ -3279,22 +3348,23 @@ static checks must verify:
   AnnData, nor PyArrow storage objects;
 - no module under `parse_quant/`, `vendor_params/`, or `vendor_parse_rules/` imports a module
   directly in `parserV2/`, and none of the three child packages imports another;
-- no module under `parse_quant/data/` or `parse_quant/parameters/` imports its parent package or a
-  sibling child package; imports remain within that child subtree or point to permitted external
-  libraries;
+- the complete child graph inside `parse_quant/` is exactly `io -> data`; every child has at most
+  one direct sibling target, and no child imports upward;
+- no module under `parse_quant/data/` or `parse_quant/parameters/` imports a sibling or its parent;
+  imports remain within that child subtree or point to permitted external libraries;
 - `parse_quant/delimited_input.py` and `parquet_input.py` import only `data/source.py`, the exact
   `parameters/` modules needed for binding/read evidence, shared `errors.py` when required, and
   external input libraries;
-  result readers and writers import only `data/parsed.py`, result metadata/validation, shared
-  result errors, and their external backend libraries; none imports Parser, raw data, contracts,
-  or parsing strategies;
+  result readers and writers under `parse_quant/io/` import only `data/parsed.py`, I/O-owned
+  metadata, validation, errors, and their external backend libraries; none imports Parser, raw
+  data, contracts, parameters, or parsing strategies;
 - `parse_rule_facade.py` is the projection boundary between `vendor_parse_rules` and
   `parse_quant.parameters`; `compile.py` owns runtime strategy construction; `detect_document.py`
   owns header-only rule selection; and `conversion_facade.py` owns the complete CLI-facing workflow;
 - only parent-level Parser V2 composition modules import `vendor_params`; `conversion_facade.py`
   constructs `SearchParameterEvidence` before calling the facade;
-- `parse_quant/input_adapters/` and `output_adapters/` child packages do not exist, because their
-  implementations would need forbidden sibling imports into `data/` and `parameters/`;
+- source input adapters remain parent modules because they compose `data/` and `parameters/`;
+  parsed-result adapters live in `io/`, whose sole sibling dependency is `data/`;
 - `parserV2/__init__.py` does not eagerly import `compile.py` or an adapter;
 - `BoundInputReader` and `ParsedLevelWriter` are declared once in `parse_quant/contracts.py`;
   concrete adapters do not import those Protocols, and strict type checking at composition proves
@@ -3357,22 +3427,25 @@ apb2/src/apb2/parserV2/
 │   ├── __init__.py             # parse package marker; no adapter re-exports
 │   ├── delimited_input.py       # binding, evidence, configured Polars text reader
 │   ├── parquet_input.py         # binding, evidence, configured Polars Parquet reader
-│   ├── anndata_reader.py        # APB2 h5ad/h5mu -> ParsedLevels
-│   ├── anndata_writer.py        # ParsedLevel(s) -> h5ad/h5mu; encoders and checks
-│   ├── parquet_reader.py        # APB2 Parquet dataset -> ParsedLevels
-│   ├── parquet_writer.py        # ParsedLevel(s) -> APB2 Parquet dataset
-│   ├── duckdb_io.py             # DuckDB <-> ParsedLevels
-│   ├── result_io.py             # format registry, path inference, reformat use case
-│   ├── result_metadata.py       # versioned physical-name/schema metadata
-│   ├── result_validation.py     # backend-independent result invariants
-│   ├── errors.py                # shared parse/source/result boundary errors
-│   ├── numeric_text.py         # shared interpretation of numeric measurement tokens
+│   ├── errors.py                # shared parse/source boundary errors
 │   ├── data/
 │   │   ├── __init__.py         # data package marker; no broad re-exports
+│   │   ├── layer_columns.py    # positional layer-column naming invariant
+│   │   ├── numeric_text.py     # storage-neutral numeric-token interpretation
 │   │   ├── source.py           # LevelSourceTable
 │   │   ├── raw.py              # raw axes/layers, decomposition result, key map
-│   │   ├── parsed.py           # final axes/layers, ParsedLevel, and ParsedLevels
-│   │   └── layer_columns.py    # positional layer-column naming invariant
+│   │   └── parsed.py           # final axes/layers, ParsedLevel, and ParsedLevels
+│   ├── io/
+│   │   ├── __init__.py         # empty marker; no broad re-exports
+│   │   ├── anndata_reader.py   # APB2 h5ad/h5mu -> ParsedLevels
+│   │   ├── anndata_writer.py   # ParsedLevel(s) -> h5ad/h5mu; encoders and checks
+│   │   ├── duckdb.py           # DuckDB <-> ParsedLevels
+│   │   ├── errors.py           # result-I/O error family
+│   │   ├── formats.py          # format registry, path inference, reformat use case
+│   │   ├── metadata.py         # versioned physical-name/schema metadata
+│   │   ├── parquet_reader.py   # APB2 Parquet dataset -> ParsedLevels
+│   │   ├── parquet_writer.py   # ParsedLevel(s) -> APB2 Parquet dataset
+│   │   └── validation.py       # backend-independent result invariants
 │   ├── parameters/
 │   │   ├── __init__.py         # parameter package marker; no broad re-exports
 │   │   ├── working.py          # parameter-resolved, pre-source working values
@@ -3413,8 +3486,8 @@ The boundary ownership behind that tree is:
 | --- | --- | --- | --- |
 | physical input -> Parser | `LevelSourceTable` in `parse_quant/data/source.py` | `BoundInputReader` in `parse_quant/contracts.py` | `parse_quant/delimited_input.py` or `parquet_input.py` |
 | physical shape -> Parser algorithm | raw types in `parse_quant/data/raw.py` | `SourceDecomposer` and `FragmentTableSeparator` in `parse_quant/contracts.py` | `parse_quant/decomposition.py` and `fragments.py` |
-| Parser -> persistence | `ParsedLevel` in `parse_quant/data/parsed.py` | `ParsedLevelWriter` in `parse_quant/contracts.py` | `parse_quant/anndata_writer.py` or `parquet_writer.py` |
-| parsed result -> format-neutral persistence | `ParsedLevels` in `parse_quant/data/parsed.py` | `ParsedLevelsReader` and `ParsedLevelsWriter` in `parse_quant/result_io.py` | h5ad/h5mu, Parquet, and DuckDB result adapters |
+| Parser -> persistence | `ParsedLevel` in `parse_quant/data/parsed.py` | `ParsedLevelWriter` in `parse_quant/contracts.py` | `parse_quant/io/anndata_writer.py` or `parse_quant/io/parquet_writer.py` |
+| parsed result -> format-neutral persistence | `ParsedLevels` in `parse_quant/data/parsed.py` | `ParsedLevelsReader` and `ParsedLevelsWriter` in `parse_quant/io/formats.py` | h5ad/h5mu, Parquet, and DuckDB result adapters |
 | validated rule -> compilation | `ResolvedLevelPlan` in `parse_quant/parameters/resolved.py` | no Protocol: one concrete facade API | parent-level `parse_rule_facade.py` |
 
 `BoundInputReader`, `ParsedLevelWriter`, `SourceDecomposer`, `FragmentTableSeparator`,
@@ -3425,10 +3498,11 @@ capabilities. They therefore share one client-owned contract module.
 Concrete readers and writers do not import those Protocols. The delimited reader annotates its
 `read()` result with `parse_quant.data.source.LevelSourceTable`; a writer annotates its `write()`
 input with `parse_quant.data.parsed.ParsedLevel`. These are inward dependencies on exact data
-values from modules directly in `parse_quant` into its `data/` child. Structural typing proves that
-the adapters satisfy the Parser-owned contracts when `compile.py` injects them. `AnnDataLayerEncoder` and
+values: source adapters import downward from parent modules, while result adapters use the declared
+`io -> data` sibling edge. Structural typing proves that the adapters satisfy the Parser-owned
+contracts when `compile.py` injects them. `AnnDataLayerEncoder` and
 `AnnDataLayerContractChecker` are different: their client is `AnnDataWriter`, so they remain private
-to `parse_quant/anndata_writer.py`.
+to `parse_quant/io/anndata_writer.py`.
 
 Data placement follows pipeline state and boundary:
 
@@ -3440,6 +3514,8 @@ Data placement follows pipeline state and boundary:
   `ParsedLevel`. Parsing returns these values and output adapters consume them.
 - `parse_quant/data/layer_columns.py` owns the collision-free positional naming convention shared
   by raw and final layer tables. It is part of their tabular representation, not a generic helper.
+- `parse_quant/data/numeric_text.py` owns `NumberNotation` and the storage-neutral interpretation of
+  numeric tokens used consistently by computation and the AnnData projection.
 - `parse_quant/parameters` owns every storage-neutral value used to configure parsing: working
   declarations, source bindings and evidence, `AxisKeyPlan`, `InputContract`, `LevelReadPlan`,
   source/decomposition configurations, resolved axis/encoding/presence contracts, and
@@ -3485,18 +3561,19 @@ The parse-owned boundary modules are likewise narrow:
 
 - `parse_quant/delimited_input.py` and `parquet_input.py` alone translate external physical sources
   into `LevelSourceTable` and `SourceEvidence` values;
-- the AnnData/MuData, result-Parquet, and DuckDB adapters alone translate between `ParsedLevels`
-  and their external storage backends; parser-owned one-level writers continue accepting
-  `ParsedLevel` where that is the client's exact capability;
-- `parse_quant/result_io.py` is the only result-format registry and owns the storage-only
+- `parse_quant/io/` owns the AnnData/MuData, result-Parquet, and DuckDB adapters that translate
+  between `ParsedLevels` and external storage backends; parser-owned one-level writers continue
+  accepting `ParsedLevel` where that is the client's exact capability;
+- `parse_quant/io/formats.py` is the only result-format registry and owns the storage-only
   `reformat` workflow; every crossing materializes `ParsedLevels` between adapters;
 - `parse_quant/errors.py` owns only errors shared by two or more parse-owned/root consumers, such as
-  `IncompatibleSourceError` and `AmbiguousDialectError`; `RuleNotApplicable` belongs to the new
-  rule document, while packed-length, duplicate, aggregate, canonical-collision, encoding,
-  contract, and writer errors remain beside the operation that raises them;
+  `IncompatibleSourceError` and `AmbiguousDialectError`; `parse_quant/io/errors.py` owns the
+  result-I/O error family. `RuleNotApplicable` belongs to the rule document, while packed-length,
+  duplicate, aggregate, canonical-collision, encoding, and contract errors remain beside the
+  operation that raises them;
 - computation modules in `parse_quant` do not import these boundary modules;
-- child modules under `data/` and `parameters/` do not import upward into any module directly in
-  `parse_quant/`; and
+- `io/` imports only `data/`; `data/` and `parameters/` import neither a sibling nor an upward
+  module directly in `parse_quant/`; and
 - `__init__.py` files do not eagerly re-export the composition root. This prevents importing
   `parse_quant.data.parsed` from executing adapter imports and creating a package-initialization
   cycle.
@@ -3582,10 +3659,11 @@ Implementation may begin when the following statements are accepted together:
    allocation;
 7. the implementation lives in `parserV2`, with legacy code serving only as parity evidence or
    unchanged compliant reuse;
-8. imports follow the folder hierarchy: `parse_quant` and `vendor_parse_rules` never import upward
-   or sideways; readers and writers live directly in `parse_quant`, import only its exact child
-   source, parameter, or parsed-result values, and conform structurally to Parser-owned contracts;
-   and
+8. imports follow the folder hierarchy: children never import upward; sibling imports form an
+   acyclic graph with at most one direct sibling target per child; source readers live directly in
+   `parse_quant`, parsed-result adapters live in `parse_quant/io`, and every adapter imports only
+   its exact source, parameter, parsed-result, or I/O-owned values while conforming structurally to
+   client-owned Protocols; and
 9. one-class private helpers are private methods, while free construction functions remain at the
    explicit composition boundary; and
 10. omitting CLI `LEVEL` collects compatible single-level results in `ParsedLevels` and lets the

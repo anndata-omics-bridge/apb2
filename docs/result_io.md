@@ -27,7 +27,7 @@ Format selection is explicit in the primary API:
 ```python
 from pathlib import Path
 
-from apb2.parserV2.parse_quant.result_io import ResultFormat, reader_for, writer_for
+from apb2.parserV2.parse_quant.io.formats import ResultFormat, reader_for, writer_for
 
 source = Path("results.parquet")
 target = Path("results.duckdb")
@@ -45,7 +45,7 @@ Use the convenience functions when the paths already carry the format:
 ```python
 from pathlib import Path
 
-from apb2.parserV2.parse_quant.result_io import read_parsed_levels, write_parsed_levels
+from apb2.parserV2.parse_quant.io.formats import read_parsed_levels, write_parsed_levels
 
 parsed = read_parsed_levels(Path("results.duckdb"))
 write_parsed_levels(parsed, Path("results.h5mu"))
@@ -56,7 +56,7 @@ The programmatic equivalent of the CLI command is:
 ```python
 from pathlib import Path
 
-from apb2.parserV2.parse_quant.result_io import reformat
+from apb2.parserV2.parse_quant.io.formats import reformat
 
 reformat(Path("results.parquet"), Path("results.duckdb"))
 ```
@@ -67,25 +67,41 @@ reformat(Path("results.parquet"), Path("results.duckdb"))
 
 An APB2 Parquet result is a directory ending in `.parquet`, not one Parquet file. Its manifest
 records levels, ordered logical names, key columns, Polars schemas, aligned and pairwise values,
-and provenance. The reader deliberately rejects an ordinary vendor Parquet file.
+provenance, and each layer's role. The reader deliberately rejects an ordinary vendor Parquet file.
 
 ### DuckDB
 
 One `.duckdb` file contains generated physical tables and a versioned APB2 manifest. Logical names
-are metadata and are never interpolated into SQL identifiers.
+and layer roles are metadata and are never interpolated into SQL identifiers.
 
 ### h5ad and h5mu
 
 The h5 readers accept APB2-authored objects carrying the versioned result envelope under
 `uns["apb"]["result"]`. They are not general importers for arbitrary third-party AnnData or MuData.
+The result envelope records each logical layer's role.
 
 An h5ad writer requires exactly one level. An h5mu writer accepts one or more levels.
+
+### Layer roles and compatibility
+
+Every backend persists `"measurement"` or `"auxiliary"` with each layer and restores the matching
+`MeasurementLayerRole` or `AuxiliaryLayerRole`. A missing role field is read as measurement, which
+keeps results written before role metadata compatible. The role addition does not change the
+existing format versions: h5 result envelope version 1, Parquet manifest version 2, and DuckDB
+manifest version 1.
+
+Every layer retained in `ParsedLevel.layers` remains part of the persisted result and is validated,
+encoded, written, and read. Required-layer name checks still inspect the complete encoded mapping.
+For h5 output, only measurement layers enter the occupancy comparison. Auxiliary layers therefore
+cannot make a sparse measurement look populated, and their own sparsity does not trigger an
+occupancy failure. The primary layer must have the measurement role.
 
 ## Fidelity
 
 Parquet and DuckDB preserve the represented `ParsedLevels` value exactly, including:
 
 - level, frame, column, and layer order;
+- each layer's measurement or auxiliary role;
 - Polars dtypes;
 - null versus NaN;
 - string and numeric-looking-string values;

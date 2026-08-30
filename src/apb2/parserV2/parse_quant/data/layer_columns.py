@@ -23,7 +23,18 @@ class StorageLabelError(ValueError):
 
 
 def observation_labels(count: int, reserved: Iterable[str]) -> tuple[str, ...]:
-    """``count`` observation value-column labels, none colliding with a reserved name."""
+    """Create observation value-column labels that avoid reserved names.
+
+    Args:
+        count: Number of positional labels to create.
+        reserved: Names that the complete generated block must avoid.
+
+    Returns:
+        Exactly ``count`` labels in observation order.
+
+    Raises:
+        StorageLabelError: No collision-free prefix can be found.
+    """
     return _positional(_OBSERVATION_PREFIX, count, reserved)
 
 

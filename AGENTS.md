@@ -40,18 +40,25 @@ These rules are mandatory for Parser V2 and for every newly introduced or
 structurally refactored package. Existing legacy violations do not authorize new
 ones.
 
-For a package `A/` with child packages `A/B/` and `A/C/`:
+For a package `A/` with child packages `A/B/`, `A/C/`, and `A/D/`:
 
 - modules directly in `A/` may import from `A/B/` and `A/C/`;
-- code under `A/B/` or `A/C/` must not import modules directly in `A/`;
-- `A/B/` and `A/C/` must not import one another; and
+- child packages must not import modules directly in `A/`;
+- sibling-package imports must form a one-way directed acyclic graph;
+- each child package may directly depend on at most one sibling package; and
 - a module in `A/` owned only by `A/B/` moves into `A/B/`; genuine cross-child
   composition remains in `A/`.
 
+For example, `A/B/ -> A/C/ -> A/D/` is permitted; reverse edges and a second direct
+`A/B/ -> A/D/` edge are forbidden. If a child needs two siblings, move the composition
+to `A/` or make the owned collaborators children of that package.
+
 For Parser V2, rule storage and parsing are sibling children. Their facade and
 runtime composition belong in the parent; neither child imports the other or
-the parent. Physical readers and writers are parsing-owned and stay inside the
-parsing package, while computational modules do not import those I/O modules.
+the parent. Inside `parse_quant`, the one declared sibling edge is `io -> data`;
+`parameters` remains independent, and neither `data` nor `parameters` imports
+`io`. Physical readers and writers are parsing-owned, while computational modules
+do not import those I/O modules.
 Encode each concrete boundary in `.importlinter`; `make lint` and `make check`
 must execute `lint-imports`, so the prose rule is also a merge-blocking check.
 

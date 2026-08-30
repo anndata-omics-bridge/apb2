@@ -27,18 +27,6 @@ from pathlib import Path
 from typing import Literal
 
 from apb2.parserV2.parse_quant import delimited_input, parquet_input
-from apb2.parserV2.parse_quant.anndata_writer import (
-    AnnDataLayerContractChecker,
-    AnnDataLayerEncoder,
-    AnnDataWriter,
-    FactorAnnDataEncoder,
-    MuDataWriter,
-    OccupancyPolicy,
-    PlainNumericAnnDataEncoder,
-    RegexNumericAnnDataEncoder,
-    StandardAnnDataLayerContract,
-    StrictAnnDataLayerContract,
-)
 from apb2.parserV2.parse_quant.axis_columns import (
     BooleanAxisCoercer,
     CoalesceColumn,
@@ -63,6 +51,7 @@ from apb2.parserV2.parse_quant.contracts import (
     SelectedAxisColumn,
     SourceDecomposer,
 )
+from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation
 from apb2.parserV2.parse_quant.decomposition import (
     DelimitedFragmentSourceDecomposer,
     LongSourceDecomposer,
@@ -81,13 +70,25 @@ from apb2.parserV2.parse_quant.fragments import (
     ColumnLabeledFragmentTableSeparator,
     PositionalFragmentTableSeparator,
 )
+from apb2.parserV2.parse_quant.io.anndata_writer import (
+    AnnDataLayerContractChecker,
+    AnnDataLayerEncoder,
+    AnnDataWriter,
+    FactorAnnDataEncoder,
+    MuDataWriter,
+    OccupancyPolicy,
+    PlainNumericAnnDataEncoder,
+    RegexNumericAnnDataEncoder,
+    StandardAnnDataLayerContract,
+    StrictAnnDataLayerContract,
+)
+from apb2.parserV2.parse_quant.io.parquet_writer import ParquetWriter
 from apb2.parserV2.parse_quant.modifications import (
     SiteListNormalizer,
     SiteListRules,
     TokenRegexNormalizer,
     TokenRegexRules,
 )
-from apb2.parserV2.parse_quant.numeric_text import NumberNotation
 from apb2.parserV2.parse_quant.parameters.axis import (
     AxisLogicalType,
     AxisMaterializationConfig,
@@ -139,7 +140,6 @@ from apb2.parserV2.parse_quant.parameters.working import (
     WideSourceLayout,
     WorkingParseConfiguration,
 )
-from apb2.parserV2.parse_quant.parquet_writer import ParquetWriter
 from apb2.parserV2.parse_quant.parser import Parser
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.vendor_parse_rules.document import (

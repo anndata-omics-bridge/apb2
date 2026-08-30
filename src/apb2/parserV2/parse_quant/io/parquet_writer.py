@@ -19,8 +19,8 @@ from apb2.parserV2.parse_quant.data.parsed import (
     ParsedLevelName,
     ParsedLevels,
 )
-from apb2.parserV2.parse_quant.errors import InvalidResultError
-from apb2.parserV2.parse_quant.result_metadata import (
+from apb2.parserV2.parse_quant.io.errors import InvalidResultError
+from apb2.parserV2.parse_quant.io.metadata import (
     PARQUET_FORMAT,
     PARQUET_FORMAT_VERSION,
     PARQUET_LEVELS_DIRECTORY,
@@ -28,16 +28,12 @@ from apb2.parserV2.parse_quant.result_metadata import (
     safe_names,
     table_metadata,
 )
-from apb2.parserV2.parse_quant.result_validation import validate_parsed_levels
+from apb2.parserV2.parse_quant.io.validation import validate_parsed_levels
 
 FORMAT = PARQUET_FORMAT
 FORMAT_VERSION = PARQUET_FORMAT_VERSION
 MANIFEST_NAME = PARQUET_MANIFEST_NAME
 LEVELS_DIRECTORY = PARQUET_LEVELS_DIRECTORY
-
-
-class ParquetWriteError(OSError):
-    """Persisting a result failed; staging did not alter the previous target."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,6 +113,7 @@ def _write_layers(layers: Mapping[str, FinalLayerTable], directory: Path) -> dic
         result[name] = {
             **table_metadata(layer.values, names[name]),
             "var_key_columns": list(layer.var_key_columns),
+            "role": layer.role.persisted_name(),
         }
     return result
 
@@ -145,7 +142,7 @@ def _level_name(parsed: ParsedLevel) -> ParsedLevelName:
 
 def _replace_directory(staged: Path, target: Path, scratch: Path) -> None:
     if target.exists() and not target.is_dir():
-        raise ParquetWriteError(
+        raise InvalidResultError(
             f"{target} exists and is not a directory; an APB2 Parquet result is a directory"
         )
     previous = scratch / f"{target.name}.previous"

@@ -1,7 +1,16 @@
 # Changes
 
+- 2026-08-30: Added explicit measurement and auxiliary result-layer roles across h5ad/h5mu,
+  Parquet, and DuckDB without changing their format versions. Older metadata defaults to
+  measurement; h5 occupancy compares measurement layers only, while every layer remains validated,
+  encoded, and persisted. Published the storage-neutral observation-label, quantitative projection,
+  and numeric-result helpers for downstream APB tools.
+
 - 2026-08-28: Added the missing `LICENSE` file (MIT) and declared `license-files`, without which
   uv_build shipped wheels carrying no licence text.
+
+- 2026-08-26: Moved the persisted-result backends, format registry, metadata, validation, and
+  result-I/O errors into `parse_quant/io`, with the single directed sibling dependency `io -> data`.
 
 - 2026-08-26: Added the user-facing MkDocs Material site for vendor conversion, result-format
   reading and writing, the CLI, and the Python API. The repository README links to the rendered
@@ -136,8 +145,8 @@
   decompose, prepare each axis, reindex each layer — with identity and validity decided in one
   place: distinct raw keys collapsing into one valid final key raise `CanonicalKeyCollisionError`
   under every duplicate policy, while an incomplete final key removes its axis row and the layer
-  cells that pointed at it. `parquet_writer.py` persists a parsed level as a directory dataset
-  with a manifest, preserving every Polars value and dtype; `anndata_writer.py` is the only module
+  cells that pointed at it. `io/parquet_writer.py` persists a parsed level as a directory dataset
+  with a manifest, preserving every Polars value and dtype; `io/anndata_writer.py` is the only module
   that encodes, allocates, or touches pandas. `compile.py` consumes every declarative tag once and
   injects tag-free behaviour: `compile_parsers` returns one parser per compatible level in
   canonical order. All 12 packaged documents now compile and 16 of the 19 levels parse their real

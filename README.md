@@ -46,7 +46,7 @@ use the same explicit adapter boundary:
 ```python
 from pathlib import Path
 
-from apb2.parserV2.parse_quant.result_io import ResultFormat, reader_for, writer_for
+from apb2.parserV2.parse_quant.io.formats import ResultFormat, reader_for, writer_for
 
 parsed = reader_for(ResultFormat.PARQUET).read(Path("result.parquet"))
 writer_for(ResultFormat.DUCKDB).write(parsed, Path("result.duckdb"))

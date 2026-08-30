@@ -26,19 +26,20 @@ from apb2.parserV2.parse_quant.data.parsed import (
     ParsedLevels,
     VarFinal,
 )
-from apb2.parserV2.parse_quant.errors import InvalidResultError
-from apb2.parserV2.parse_quant.result_metadata import (
+from apb2.parserV2.parse_quant.io.errors import InvalidResultError
+from apb2.parserV2.parse_quant.io.metadata import (
     MATRIX_PROJECTED_KEY,
     NAMESPACE,
     PARSE_NAMESPACE,
     RESULT_FORMAT,
     RESULT_FORMAT_VERSION,
     RESULT_NAMESPACE,
+    layer_role_from_metadata,
     object_mapping,
     string_list,
     string_value,
 )
-from apb2.parserV2.parse_quant.result_validation import validate_parsed_levels
+from apb2.parserV2.parse_quant.io.validation import validate_parsed_levels
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,6 +150,7 @@ def _layers(
             layer_name=name,
             var_key_columns=keys,
             values=pl.concat([var.select(keys), values], how="horizontal_extend"),
+            role=layer_role_from_metadata(entry, f"layer {name!r}"),
         )
     if set(order) != set(entries):
         raise InvalidResultError("layer order and layer metadata name different layers")

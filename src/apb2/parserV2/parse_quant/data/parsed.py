@@ -12,7 +12,7 @@ same value, not duplicated behaviour.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 import polars as pl
@@ -56,9 +56,57 @@ class VarFinal:
     # ("ProForma_ion",)
 
 
+@dataclass(frozen=True, slots=True)
+class MeasurementLayerRole:
+    """A quantitative layer that participates in matrix occupancy checks."""
+
+    def occupancy_candidates(
+        self,
+        layer_name: str,
+        encoded_values: pl.DataFrame,
+        /,
+    ) -> dict[str, pl.DataFrame]:
+        """Contribute this measurement to the occupancy comparison."""
+        return {layer_name: encoded_values}
+
+    def accepts_primary_layer(self) -> bool:
+        """A measurement may define the primary quantitative matrix."""
+        return True
+
+    def persisted_name(self) -> Literal["measurement"]:
+        """Return the stable storage name for this role."""
+        return "measurement"
+
+
+@dataclass(frozen=True, slots=True)
+class AuxiliaryLayerRole:
+    """A numeric diagnostic layer that is exempt from matrix occupancy checks."""
+
+    def occupancy_candidates(
+        self,
+        layer_name: str,
+        encoded_values: pl.DataFrame,
+        /,
+    ) -> dict[str, pl.DataFrame]:
+        """Exclude this auxiliary matrix from the occupancy comparison."""
+        del layer_name, encoded_values
+        return {}
+
+    def accepts_primary_layer(self) -> bool:
+        """An auxiliary matrix cannot define the primary quantitative matrix."""
+        return False
+
+    def persisted_name(self) -> Literal["auxiliary"]:
+        """Return the stable storage name for this role."""
+        return "auxiliary"
+
+
+type FinalLayerRole = MeasurementLayerRole | AuxiliaryLayerRole
+
+
 @dataclass(slots=True)
 class FinalLayerTable:
-    """One measurement aligned to the final axes, its raw scalars still unencoded."""
+    """One matrix layer aligned to the final axes, its raw scalars still unencoded."""
 
     layer_name: str
     # "Intensity"
@@ -73,6 +121,9 @@ class FinalLayerTable:
     #     "B": [120.0, 60.0],
     #     "C": [90.0, 70.0],
     # })
+
+    role: FinalLayerRole = field(default_factory=MeasurementLayerRole)
+    # MeasurementLayerRole()
 
 
 @dataclass(slots=True)

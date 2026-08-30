@@ -19,18 +19,19 @@ from apb2.parserV2.parse_quant.data.parsed import (
     ParsedLevels,
     VarFinal,
 )
-from apb2.parserV2.parse_quant.errors import InvalidResultError
-from apb2.parserV2.parse_quant.result_metadata import (
+from apb2.parserV2.parse_quant.io.errors import InvalidResultError
+from apb2.parserV2.parse_quant.io.metadata import (
     PARQUET_FORMAT,
     PARQUET_FORMAT_VERSION,
     PARQUET_LEVELS_DIRECTORY,
     PARQUET_MANIFEST_NAME,
+    layer_role_from_metadata,
     object_mapping,
     restore_table_schema,
     string_list,
     string_value,
 )
-from apb2.parserV2.parse_quant.result_validation import validate_parsed_levels
+from apb2.parserV2.parse_quant.io.validation import validate_parsed_levels
 
 FORMAT = PARQUET_FORMAT
 FORMAT_VERSION = PARQUET_FORMAT_VERSION
@@ -113,6 +114,7 @@ def _read_layers(directory: Path, level: object) -> dict[str, FinalLayerTable]:
                 string_list(entry.get("var_key_columns"), f"layer {name!r} var keys")
             ),
             values=_read_table(directory / "layers", entry),
+            role=layer_role_from_metadata(entry, f"layer {name!r}"),
         )
     if set(order) != set(entries):
         raise InvalidResultError("layer order and layer metadata name different layers")

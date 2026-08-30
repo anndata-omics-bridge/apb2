@@ -20,10 +20,21 @@ import pandas as pd
 import polars as pl
 import pytest
 
-from apb2.parserV2.parse_quant.anndata_writer import (
+from apb2.parserV2.parse_quant.contracts import ParsedLevelWriter
+from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation
+from apb2.parserV2.parse_quant.data.parsed import (
+    AuxiliaryLayerRole,
+    FinalLayerTable,
+    JsonValue,
+    MeasurementLayerRole,
+    ObsFinal,
+    ParsedLevel,
+    ParsedLevels,
+    VarFinal,
+)
+from apb2.parserV2.parse_quant.io.anndata_writer import (
     NAMESPACE,
     PARSE_NAMESPACE,
-    AnnDataLayerContractError,
     AnnDataWriter,
     FactorAnnDataEncoder,
     MuDataLevelError,
@@ -34,20 +45,14 @@ from apb2.parserV2.parse_quant.anndata_writer import (
     StandardAnnDataLayerContract,
     StrictAnnDataLayerContract,
 )
-from apb2.parserV2.parse_quant.contracts import ParsedLevelWriter
-from apb2.parserV2.parse_quant.data.parsed import (
-    FinalLayerTable,
-    JsonValue,
-    ObsFinal,
-    ParsedLevel,
-    ParsedLevels,
-    VarFinal,
+from apb2.parserV2.parse_quant.io.errors import (
+    AnnDataLayerContractError,
+    InvalidResultError,
+    ResultIOError,
 )
-from apb2.parserV2.parse_quant.numeric_text import NumberNotation
-from apb2.parserV2.parse_quant.parquet_reader import ParquetReader
-from apb2.parserV2.parse_quant.parquet_writer import (
+from apb2.parserV2.parse_quant.io.parquet_reader import ParquetReader
+from apb2.parserV2.parse_quant.io.parquet_writer import (
     MANIFEST_NAME,
-    ParquetWriteError,
     ParquetWriter,
 )
 
@@ -101,6 +106,12 @@ def manifest_of(target: Path) -> dict[str, JsonValue]:
     payload = json.loads((target / MANIFEST_NAME).read_text(encoding="utf-8"))
     assert isinstance(payload, dict)
     return payload
+
+
+def test_a_final_layer_is_a_measurement_unless_its_role_is_explicit() -> None:
+    intensity = level().layers["Intensity"]
+
+    assert isinstance(intensity.role, MeasurementLayerRole)
 
 
 # ---------------------------------------------------------------------------------- Parquet
@@ -168,6 +179,7 @@ def test_the_manifest_states_what_every_file_is(tmp_path: Path) -> None:
         "columns": ["Feature", "Charge", "obs_0"],
         "schema": [{"name": "String"}, {"name": "Int64"}, {"name": "Float64"}],
         "var_key_columns": ["Feature", "Charge"],
+        "role": "measurement",
     }
     assert (target / "levels" / "ion" / "layers" / "Q_Value.parquet").is_file()
 
@@ -219,7 +231,7 @@ def test_a_target_that_is_not_a_directory_is_refused(tmp_path: Path) -> None:
     target = tmp_path / "ion"
     target.write_text("not a dataset", encoding="utf-8")
 
-    with pytest.raises(ParquetWriteError, match="not a directory"):
+    with pytest.raises(InvalidResultError, match="not a directory"):
         ParquetWriter().write(level(), target)
 
     assert target.read_text(encoding="utf-8") == "not a dataset"
@@ -245,7 +257,7 @@ def test_a_failure_part_way_through_leaves_the_previous_dataset_intact(
 
 
 def test_the_parquet_writer_imports_no_encoder_backend() -> None:
-    source = Path("src/apb2/parserV2/parse_quant/parquet_writer.py")
+    source = Path("src/apb2/parserV2/parse_quant/io/parquet_writer.py")
     tree = ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
     imported = {
         alias.name
@@ -381,11 +393,16 @@ def policy(*required: str, primary: str = "Intensity") -> OccupancyPolicy:
     )
 
 
-def test_a_missing_required_layer_is_a_contract_error() -> None:
-    checker = StandardAnnDataLayerContract(policy("Intensity", "QValue"))
+def test_anndata_layer_contract_errors_belong_to_the_result_io_error_hierarchy() -> None:
+    assert issubclass(AnnDataLayerContractError, ResultIOError)
 
-    with pytest.raises(AnnDataLayerContractError, match="QValue"):
-        checker.check({"Intensity": block([1.0])})
+
+def test_a_missing_required_auxiliary_layer_is_still_a_contract_error() -> None:
+    checker = StandardAnnDataLayerContract(policy("Intensity", "ObservationCount"))
+    encoded = {"Intensity": block([1.0])}
+
+    with pytest.raises(AnnDataLayerContractError, match="ObservationCount"):
+        checker.check(encoded, encoded)
 
 
 def test_an_empty_primary_layer_beside_a_populated_sibling_is_an_error() -> None:
@@ -396,24 +413,60 @@ def test_an_empty_primary_layer_beside_a_populated_sibling_is_an_error() -> None
     }
 
     with pytest.raises(AnnDataLayerContractError, match="effectively empty"):
-        checker.check(encoded)
+        checker.check(encoded, encoded)
 
 
-def test_an_empty_auxiliary_layer_only_warns_unless_the_check_is_strict() -> None:
+def test_an_empty_nonprimary_measurement_only_warns_unless_the_check_is_strict() -> None:
     encoded = {
         "Intensity": block([0.1, 0.2, 0.3, 0.4]),
         "QValue": block([None, None, None, None]),
     }
 
-    StandardAnnDataLayerContract(policy()).check(encoded)
+    StandardAnnDataLayerContract(policy()).check(encoded, encoded)
     with pytest.raises(AnnDataLayerContractError, match="QValue"):
-        StrictAnnDataLayerContract(policy()).check(encoded)
+        StrictAnnDataLayerContract(policy()).check(encoded, encoded)
+
+
+@pytest.mark.parametrize(
+    "checker",
+    [
+        StandardAnnDataLayerContract(policy()),
+        StrictAnnDataLayerContract(policy()),
+    ],
+)
+def test_a_populated_auxiliary_layer_does_not_make_an_empty_primary_suspicious(
+    checker: StandardAnnDataLayerContract | StrictAnnDataLayerContract,
+) -> None:
+    encoded = {
+        "Intensity": block([None, None, None, None]),
+        "ObservationCount": block([2.0, 3.0, 4.0, 5.0]),
+    }
+
+    checker.check(encoded, {"Intensity": encoded["Intensity"]})
+
+
+@pytest.mark.parametrize(
+    "checker",
+    [
+        StandardAnnDataLayerContract(policy()),
+        StrictAnnDataLayerContract(policy()),
+    ],
+)
+def test_an_empty_auxiliary_layer_is_not_an_occupancy_failure(
+    checker: StandardAnnDataLayerContract | StrictAnnDataLayerContract,
+) -> None:
+    encoded = {
+        "Intensity": block([0.1, 0.2, 0.3, 0.4]),
+        "ObservationCount": block([None, None, None, None]),
+    }
+
+    checker.check(encoded, {"Intensity": encoded["Intensity"]})
 
 
 def test_without_a_populated_sibling_occupancy_invents_no_conclusion() -> None:
     encoded = {"Intensity": block([None, None]), "QValue": block([None, None])}
 
-    StrictAnnDataLayerContract(policy()).check(encoded)
+    StrictAnnDataLayerContract(policy()).check(encoded, encoded)
 
 
 def test_a_factor_layer_of_unknown_codes_still_counts_as_populated() -> None:
@@ -422,7 +475,7 @@ def test_a_factor_layer_of_unknown_codes_still_counts_as_populated() -> None:
         "Match_Type": pl.DataFrame({"obs_0": [-1, -1, -1, -1]}),
     }
 
-    StrictAnnDataLayerContract(policy()).check(encoded)
+    StrictAnnDataLayerContract(policy()).check(encoded, encoded)
 
 
 # ------------------------------------------------------------------------------- the writer
@@ -445,6 +498,90 @@ def writer_for(
             else StandardAnnDataLayerContract(contract)
         ),
     )
+
+
+def test_an_auxiliary_layer_cannot_be_the_primary_matrix(tmp_path: Path) -> None:
+    parsed = level()
+    parsed.layers["Intensity"].role = AuxiliaryLayerRole()
+    target = tmp_path / "ion.h5ad"
+
+    with pytest.raises(InvalidResultError, match=r"primary layer.*is auxiliary"):
+        writer_for(parsed).write(parsed, target)
+
+    assert not target.exists()
+
+
+@pytest.mark.parametrize("checks", ["standard", "strict"])
+def test_writer_excludes_an_auxiliary_layer_from_occupancy_comparisons(
+    checks: str,
+    tmp_path: Path,
+) -> None:
+    parsed = level(
+        layers={
+            "Intensity": pl.DataFrame(
+                {
+                    "Feature": ["F1", "F2"],
+                    "obs_0": [None, None],
+                    "obs_1": [None, None],
+                }
+            ),
+            "ObservationCount": pl.DataFrame(
+                {
+                    "Feature": ["F1", "F2"],
+                    "obs_0": [2.0, 3.0],
+                    "obs_1": [4.0, 5.0],
+                }
+            ),
+        }
+    )
+    parsed.layers["ObservationCount"].role = AuxiliaryLayerRole()
+    target = tmp_path / f"{checks}.h5ad"
+
+    writer_for(parsed, checks=checks).write(parsed, target)
+
+    assert target.is_file()
+
+
+@pytest.mark.parametrize("checks", ["standard", "strict"])
+def test_writer_still_compares_the_primary_against_a_measurement_sibling(
+    checks: str,
+    tmp_path: Path,
+) -> None:
+    parsed = level(
+        layers={
+            "Intensity": pl.DataFrame(
+                {
+                    "Feature": ["F1", "F2"],
+                    "obs_0": [None, None],
+                    "obs_1": [None, None],
+                }
+            ),
+            "QValue": pl.DataFrame(
+                {
+                    "Feature": ["F1", "F2"],
+                    "obs_0": [0.1, 0.2],
+                    "obs_1": [0.3, 0.4],
+                }
+            ),
+        }
+    )
+    target = tmp_path / f"{checks}.h5ad"
+
+    with pytest.raises(AnnDataLayerContractError, match="Intensity"):
+        writer_for(parsed, checks=checks).write(parsed, target)
+
+    assert not target.exists()
+
+
+def test_the_parser_owned_anndata_writer_validates_layer_key_alignment(tmp_path: Path) -> None:
+    parsed = level()
+    parsed.layers["Intensity"].values = parsed.layers["Intensity"].values.reverse()
+    target = tmp_path / "ion.h5ad"
+
+    with pytest.raises(InvalidResultError, match="do not match var row-for-row"):
+        writer_for(parsed).write(parsed, target)
+
+    assert not target.exists()
 
 
 def test_the_written_object_is_observations_by_variables_with_the_primary_layer_as_x(

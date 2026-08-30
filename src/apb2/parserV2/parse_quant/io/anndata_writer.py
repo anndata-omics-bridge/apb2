@@ -1,4 +1,4 @@
-"""The AnnData boundary: the only place a parsed value stops being what the vendor wrote.
+"""The AnnData result boundary: the only place parsed values stop being vendor scalars.
 
 Everything lossy or backend-specific happens here and only here. Layer text becomes float
 codes, missing sentinels become missing, wide frames become dense arrays, Polars becomes
@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Protocol, cast
@@ -31,6 +31,7 @@ from loguru import logger
 from mudata import MuData
 from scipy import sparse
 
+from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation, as_numbers, blank
 from apb2.parserV2.parse_quant.data.parsed import (
     LEVEL_ORDER,
     FinalLayerTable,
@@ -39,9 +40,11 @@ from apb2.parserV2.parse_quant.data.parsed import (
     ParsedLevelName,
     ParsedLevels,
 )
-from apb2.parserV2.parse_quant.errors import InvalidResultError
-from apb2.parserV2.parse_quant.numeric_text import NumberNotation, as_numbers, blank
-from apb2.parserV2.parse_quant.result_metadata import (
+from apb2.parserV2.parse_quant.io.errors import (
+    AnnDataLayerContractError,
+    InvalidResultError,
+)
+from apb2.parserV2.parse_quant.io.metadata import (
     MATRIX_PROJECTED_KEY,
     NAMESPACE,
     PARSE_NAMESPACE,
@@ -53,11 +56,13 @@ from apb2.parserV2.parse_quant.result_metadata import (
     string_list,
     string_value,
 )
-from apb2.parserV2.parse_quant.result_validation import validate_parsed_levels
+from apb2.parserV2.parse_quant.io.validation import validate_parsed_level, validate_parsed_levels
 
 KEY_SEPARATOR = "_"
 UNKNOWN_FACTOR_CODE = -1
 _EXAMPLE_LIMIT = 5
+_DERIVED_EMPTY_RATIO = 0.001
+_DERIVED_POPULATED_RATIO = 0.5
 
 LEVEL_VAR_PREFIXES: Mapping[ParsedLevelName, str] = {
     "ion": "ion:",
@@ -66,10 +71,6 @@ LEVEL_VAR_PREFIXES: Mapping[ParsedLevelName, str] = {
     "protein": "prt:",
     "fragment": "frg:",
 }
-
-
-class AnnDataLayerContractError(ValueError):
-    """An encoded layer carries too few values to be a usable quantitative layer."""
 
 
 class MuDataLevelError(InvalidResultError):
@@ -89,7 +90,17 @@ class AnnDataLayerEncoder(Protocol):
 class AnnDataLayerContractChecker(Protocol):
     """Enforce the required-layer and occupancy policy on the encoded layers."""
 
-    def check(self, encoded: Mapping[str, pl.DataFrame], /) -> None: ...
+    def check(
+        self,
+        encoded: Mapping[str, pl.DataFrame],
+        occupancy_candidates: Mapping[str, pl.DataFrame],
+        /,
+    ) -> None: ...
+
+
+def _layer_value_block(layer: FinalLayerTable, /) -> pl.DataFrame:
+    """Return observation values without the layer's leading variable keys."""
+    return layer.values.select(layer.values.columns[len(layer.var_key_columns) :])
 
 
 # --------------------------------------------------------------------------------- encoders
@@ -311,11 +322,16 @@ class StandardAnnDataLayerContract:
 
     policy: OccupancyPolicy
 
-    def check(self, encoded: Mapping[str, pl.DataFrame], /) -> None:
+    def check(
+        self,
+        encoded: Mapping[str, pl.DataFrame],
+        occupancy_candidates: Mapping[str, pl.DataFrame],
+        /,
+    ) -> None:
         _require_declared_layers(encoded, self.policy)
-        empty, reference = _suspicious(encoded, self.policy)
+        empty, reference = _suspicious(occupancy_candidates, self.policy)
         for name in empty:
-            message = _contract_message(name, reference, _occupancy(encoded[name]))
+            message = _contract_message(name, reference, _occupancy(occupancy_candidates[name]))
             if name == self.policy.primary_layer_name:
                 raise AnnDataLayerContractError(message)
             logger.warning(message)
@@ -327,12 +343,21 @@ class StrictAnnDataLayerContract:
 
     policy: OccupancyPolicy
 
-    def check(self, encoded: Mapping[str, pl.DataFrame], /) -> None:
+    def check(
+        self,
+        encoded: Mapping[str, pl.DataFrame],
+        occupancy_candidates: Mapping[str, pl.DataFrame],
+        /,
+    ) -> None:
         _require_declared_layers(encoded, self.policy)
-        empty, reference = _suspicious(encoded, self.policy)
+        empty, reference = _suspicious(occupancy_candidates, self.policy)
         if empty:
             raise AnnDataLayerContractError(
-                _contract_message(empty[0], reference, _occupancy(encoded[empty[0]]))
+                _contract_message(
+                    empty[0],
+                    reference,
+                    _occupancy(occupancy_candidates[empty[0]]),
+                )
             )
 
 
@@ -356,11 +381,15 @@ class AnnDataWriter:
         level_name: ParsedLevelName,
         shared_uns: Mapping[str, JsonValue],
     ) -> AnnData:
+        validate_parsed_level(level_name, parsed)
         encoded = {
-            name: self.encoders[name].encode(self._value_block(layer))
+            name: self.encoders[name].encode(_layer_value_block(layer))
             for name, layer in parsed.layers.items()
         }
-        self.contract.check(encoded)
+        occupancy_candidates: dict[str, pl.DataFrame] = {}
+        for name, layer in parsed.layers.items():
+            occupancy_candidates.update(layer.role.occupancy_candidates(name, encoded[name]))
+        self.contract.check(encoded, occupancy_candidates)
         arrays = {
             name: frame.to_numpy().astype(np.float64, copy=False).T
             for name, frame in encoded.items()
@@ -442,11 +471,6 @@ class AnnDataWriter:
                 shape=(axis_size, axis_size),
             )
         )
-
-    @staticmethod
-    def _value_block(layer: FinalLayerTable) -> pl.DataFrame:
-        """One layer's observation columns; its leading var keys are identity, not values."""
-        return layer.values.select(layer.values.columns[len(layer.var_key_columns) :])
 
     @staticmethod
     def _make_axis_frame(frame: pl.DataFrame, key_columns: tuple[str, ...]) -> pd.DataFrame:
@@ -583,6 +607,55 @@ class H5muWriter:
         MuDataWriter(level_writers=writers).write(parsed, target)
 
 
+def quantitative_layer_values(parsed: ParsedLevel, layer_name: str, /) -> pl.DataFrame:
+    """Project one stored layer to its quantitative values through the APB2 encoder.
+
+    Columnar APB2 results deliberately retain vendor scalars. Downstream quantitative tools
+    call this boundary instead of guessing how localized numbers, missing sentinels, regex
+    captures, or factor encodings should be interpreted.
+
+    Args:
+        parsed: One validated APB2 level.
+        layer_name: The logical layer to project.
+
+    Returns:
+        A Float64-compatible value block with one row per variable and one column per
+        observation. Variable-key columns are not included.
+
+    Raises:
+        AnnDataPlanError: The layer is absent or its stored encoding cannot be reconstructed.
+    """
+    try:
+        layer = parsed.layers[layer_name]
+    except KeyError as error:
+        raise AnnDataPlanError(f"level has no layer {layer_name!r}") from error
+    writer = _ann_data_writer_from_stored_plan(parsed)
+    return writer.encoders[layer_name].encode(_layer_value_block(layer))
+
+
+def numeric_result_level(parsed: ParsedLevel, /) -> ParsedLevel:
+    """Mark a level whose complete layer set is already numeric for future writers.
+
+    Every value column must have a numeric or Null Polars dtype. The returned level owns a
+    copied provenance mapping; the input level is not mutated. APB2 writers use the marker to
+    apply plain numeric encoders instead of reconstructing vendor encodings.
+
+    Args:
+        parsed: Storage-neutral result level to validate and mark.
+
+    Returns:
+        A shallow replacement with copied provenance and APB2's numeric marker.
+
+    Raises:
+        AnnDataPlanError: Any layer contains a nonnumeric value column.
+    """
+    for layer in parsed.layers.values():
+        _plain_numeric_encoder_for(layer)
+    provenance = dict(parsed.uns)
+    provenance[MATRIX_PROJECTED_KEY] = True
+    return replace(parsed, uns=provenance)
+
+
 def _level_name(parsed: ParsedLevel) -> ParsedLevelName:
     value = parsed.uns.get("quantification_level")
     if not isinstance(value, str) or value not in LEVEL_ORDER:
@@ -606,6 +679,7 @@ def _level_result_metadata(
                 "physical_name": layer_names[name],
                 "var_key_columns": list(layer.var_key_columns),
                 "value_columns": list(layer.values.columns[len(layer.var_key_columns) :]),
+                "role": layer.role.persisted_name(),
             }
             for name, layer in parsed.layers.items()
         },
@@ -642,8 +716,17 @@ def _collection_result_metadata(parsed: ParsedLevels) -> dict[str, JsonValue]:
 
 def _ann_data_writer_from_stored_plan(parsed: ParsedLevel) -> AnnDataWriter:
     raw_plan = parsed.uns.get("plan_json")
-    if not isinstance(raw_plan, str):
+    projected = parsed.uns.get(MATRIX_PROJECTED_KEY) is True
+    if not isinstance(raw_plan, str) and not projected:
         raise AnnDataPlanError("AnnData output requires parse provenance key 'plan_json'")
+    if not isinstance(raw_plan, str):
+        encoders = {
+            name: _plain_numeric_encoder_for(layer) for name, layer in parsed.layers.items()
+        }
+        return AnnDataWriter(
+            encoders=encoders,
+            contract=StandardAnnDataLayerContract(_derived_occupancy_policy(parsed)),
+        )
     try:
         plan = object_mapping(json.loads(raw_plan), "stored resolved plan")
     except json.JSONDecodeError as error:
@@ -653,14 +736,9 @@ def _ann_data_writer_from_stored_plan(parsed: ParsedLevel) -> AnnDataWriter:
     if not isinstance(raw_encodings, list):
         raise AnnDataPlanError("stored AnnData plan has no layer_encodings list")
     encoders: dict[str, AnnDataLayerEncoder] = {}
-    if parsed.uns.get(MATRIX_PROJECTED_KEY) is True:
+    if projected:
         encoders = {
-            name: PlainNumericAnnDataEncoder(
-                layer_name=name,
-                missing_values=(),
-                number_format=NumberNotation(decimal_mark=".", thousands_marks=()),
-            )
-            for name in parsed.layers
+            name: _plain_numeric_encoder_for(layer) for name, layer in parsed.layers.items()
         }
     else:
         for raw_encoding in raw_encodings:
@@ -674,12 +752,37 @@ def _ann_data_writer_from_stored_plan(parsed: ParsedLevel) -> AnnDataWriter:
         empty_ratio=_float_value(contract.get("empty_ratio"), "stored empty ratio"),
         populated_ratio=_float_value(contract.get("populated_ratio"), "stored populated ratio"),
     )
-    missing = [name for name in parsed.layers if name not in encoders]
-    if missing:
-        raise AnnDataPlanError(f"stored plan has no encoder for layer(s) {missing}")
+    for name, layer in parsed.layers.items():
+        if name not in encoders:
+            encoders[name] = _plain_numeric_encoder_for(layer)
     return AnnDataWriter(
         encoders={name: encoders[name] for name in parsed.layers},
         contract=StandardAnnDataLayerContract(policy),
+    )
+
+
+def _plain_numeric_encoder_for(layer: FinalLayerTable) -> PlainNumericAnnDataEncoder:
+    values = _layer_value_block(layer)
+    nonnumeric = [
+        name for name, dtype in values.schema.items() if dtype != pl.Null and not dtype.is_numeric()
+    ]
+    if nonnumeric:
+        raise AnnDataPlanError(
+            f"unplanned layer {layer.layer_name!r} is not already numeric in column(s) {nonnumeric}"
+        )
+    return PlainNumericAnnDataEncoder(
+        layer_name=layer.layer_name,
+        missing_values=(),
+        number_format=NumberNotation(decimal_mark=".", thousands_marks=()),
+    )
+
+
+def _derived_occupancy_policy(parsed: ParsedLevel) -> OccupancyPolicy:
+    return OccupancyPolicy(
+        primary_layer_name=parsed.primary_layer_name,
+        required_names=(parsed.primary_layer_name,),
+        empty_ratio=_DERIVED_EMPTY_RATIO,
+        populated_ratio=_DERIVED_POPULATED_RATIO,
     )
 
 

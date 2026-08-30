@@ -10,6 +10,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import grimp
 import pytest
 
 PARSER_V2 = Path("src/apb2/parserV2")
@@ -20,6 +21,13 @@ VENDOR_PARAMS = PARSER_V2 / "vendor_params"
 VENDOR_PARAM_PARSERS = VENDOR_PARAMS / "parsers"
 VENDOR_PARAM_SHARED = VENDOR_PARAM_PARSERS / "shared"
 RULE_SCHEMA = RULES / "schema"
+PARSE_QUANT_CHILDREN = frozenset(
+    {
+        "apb2.parserV2.parse_quant.data",
+        "apb2.parserV2.parse_quant.io",
+        "apb2.parserV2.parse_quant.parameters",
+    }
+)
 
 
 def _modules(root: Path) -> tuple[Path, ...]:
@@ -88,6 +96,35 @@ def test_the_parse_package_never_imports_the_rule_package_or_its_parent(path: Pa
     assert not any(name.startswith("apb2.parserV2.vendor_parse_rules") for name in imported)
     assert not any(name.startswith("apb2.parserV2.vendor_params") for name in imported)
     assert not (imported & root_names)
+
+
+def test_parse_quant_children_follow_the_declared_sibling_graph() -> None:
+    graph = grimp.build_graph("apb2")
+    edges: set[tuple[str, str]] = set()
+    for child in PARSE_QUANT_CHILDREN:
+        child_modules = {
+            module for module in graph.modules if module == child or module.startswith(f"{child}.")
+        }
+        imported_modules = set().union(
+            *(graph.find_modules_directly_imported_by(module) for module in child_modules)
+        )
+        targets = {
+            sibling
+            for sibling in PARSE_QUANT_CHILDREN - {child}
+            if any(
+                imported == sibling or imported.startswith(f"{sibling}.")
+                for imported in imported_modules
+            )
+        }
+        assert len(targets) <= 1, (child, targets)
+        edges.update((child, target) for target in targets)
+
+    assert edges == {
+        (
+            "apb2.parserV2.parse_quant.io",
+            "apb2.parserV2.parse_quant.data",
+        )
+    }
 
 
 @pytest.mark.parametrize("path", _modules(RULES), ids=lambda path: str(path.relative_to(RULES)))
@@ -320,7 +357,7 @@ def test_only_physical_result_adapters_reach_for_storage_backends() -> None:
         expected_by_module = {
             "anndata_reader.py": {"pandas", "numpy", "anndata", "mudata", "scipy"},
             "anndata_writer.py": {"pandas", "numpy", "anndata", "mudata", "scipy"},
-            "duckdb_io.py": {"duckdb"},
+            "duckdb.py": {"duckdb"},
         }
         expected = expected_by_module.get(path.name, set())
         assert backends <= expected, f"{path} imports {backends}"

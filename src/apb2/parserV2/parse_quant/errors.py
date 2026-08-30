@@ -1,9 +1,8 @@
-"""Errors two or more parse-owned boundaries raise about one physical source.
+"""Errors two or more parse-owned operations raise about one physical source.
 
 Only errors with several raisers live here. An error belonging to one operation stays beside
-that operation, so catching it cannot accidentally catch someone else's failure: packed-length,
-duplicate-cell, aggregate-type, canonical-collision, encoding, contract, and writer errors are
-all declared by the strategy that raises them.
+that operation, so catching it cannot accidentally catch someone else's failure. Result-I/O
+errors belong to the ``io`` child rather than this parent module.
 """
 
 from __future__ import annotations
@@ -22,15 +21,3 @@ class AmbiguousDialectError(ValueError):
 
     Never resolved by guessing. The caller binds an explicit dialect instead.
     """
-
-
-class ResultIOError(ValueError):
-    """A path or persisted result cannot satisfy the APB2 result-I/O contract."""
-
-
-class UnsupportedResultFormatError(ResultIOError):
-    """A path suffix does not name one of APB2's result formats."""
-
-
-class InvalidResultError(ResultIOError):
-    """A result value or persisted result violates its declared format contract."""

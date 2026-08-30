@@ -32,6 +32,7 @@ from apb2.parserV2.parse_quant.contracts import (
     ColumnComputer,
     ModificationNormalizer,
 )
+from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation
 from apb2.parserV2.parse_quant.modifications import (
     ModificationOccurrence,
     PackedSiteMismatchError,
@@ -44,7 +45,6 @@ from apb2.parserV2.parse_quant.modifications import (
     normalize_token_regex,
     render_proforma,
 )
-from apb2.parserV2.parse_quant.numeric_text import NumberNotation
 from apb2.parserV2.parse_quant.parameters.axis import (
     ModificationMapEntry,
     ModificationTokenPosition,

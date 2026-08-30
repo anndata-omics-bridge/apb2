@@ -22,15 +22,16 @@ from apb2.parserV2.parse_quant.data.parsed import (
     ParsedLevels,
     VarFinal,
 )
-from apb2.parserV2.parse_quant.errors import InvalidResultError
-from apb2.parserV2.parse_quant.result_metadata import (
+from apb2.parserV2.parse_quant.io.errors import InvalidResultError
+from apb2.parserV2.parse_quant.io.metadata import (
+    layer_role_from_metadata,
     object_mapping,
     restore_table_schema,
     string_list,
     string_value,
     table_metadata,
 )
-from apb2.parserV2.parse_quant.result_validation import validate_parsed_levels
+from apb2.parserV2.parse_quant.io.validation import validate_parsed_levels
 
 FORMAT = "apb2-parsed-levels-duckdb"
 FORMAT_VERSION = "1"
@@ -104,6 +105,7 @@ class DuckDBWriter:
                 name: {
                     **tables.write(layer.values),
                     "var_key_columns": list(layer.var_key_columns),
+                    "role": layer.role.persisted_name(),
                 }
                 for name, layer in parsed.layers.items()
             },
@@ -206,6 +208,7 @@ class DuckDBReader:
                     string_list(entry.get("var_key_columns"), f"layer {name!r} var keys")
                 ),
                 values=self._read_table(connection, entry),
+                role=layer_role_from_metadata(entry, f"layer {name!r}"),
             )
         if set(order) != set(entries):
             raise InvalidResultError("layer order and layer metadata name different layers")

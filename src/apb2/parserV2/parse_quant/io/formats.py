@@ -8,13 +8,13 @@ from typing import Protocol
 
 from loguru import logger
 
-from apb2.parserV2.parse_quant.anndata_reader import H5adReader, H5muReader
-from apb2.parserV2.parse_quant.anndata_writer import H5adWriter, H5muWriter
 from apb2.parserV2.parse_quant.data.parsed import ParsedLevels
-from apb2.parserV2.parse_quant.duckdb_io import DuckDBReader, DuckDBWriter
-from apb2.parserV2.parse_quant.errors import UnsupportedResultFormatError
-from apb2.parserV2.parse_quant.parquet_reader import ParquetReader
-from apb2.parserV2.parse_quant.parquet_writer import ParquetLevelsWriter
+from apb2.parserV2.parse_quant.io.anndata_reader import H5adReader, H5muReader
+from apb2.parserV2.parse_quant.io.anndata_writer import H5adWriter, H5muWriter
+from apb2.parserV2.parse_quant.io.duckdb import DuckDBReader, DuckDBWriter
+from apb2.parserV2.parse_quant.io.errors import UnsupportedResultFormatError
+from apb2.parserV2.parse_quant.io.parquet_reader import ParquetReader
+from apb2.parserV2.parse_quant.io.parquet_writer import ParquetLevelsWriter
 
 
 class ParsedLevelsReader(Protocol):

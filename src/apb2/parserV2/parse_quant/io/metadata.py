@@ -1,4 +1,4 @@
-"""JSON metadata shared by the lossless Parquet and DuckDB result adapters."""
+"""Versioned metadata and physical-name helpers shared by the result adapters."""
 
 from __future__ import annotations
 
@@ -8,8 +8,13 @@ from typing import Literal, cast
 
 import polars as pl
 
-from apb2.parserV2.parse_quant.data.parsed import JsonValue
-from apb2.parserV2.parse_quant.errors import InvalidResultError
+from apb2.parserV2.parse_quant.data.parsed import (
+    AuxiliaryLayerRole,
+    FinalLayerRole,
+    JsonValue,
+    MeasurementLayerRole,
+)
+from apb2.parserV2.parse_quant.io.errors import InvalidResultError
 
 NAMESPACE = "apb"
 PARSE_NAMESPACE = "parse"
@@ -46,6 +51,27 @@ _SIMPLE_DTYPES: Mapping[str, pl.DataType | type[pl.DataType]] = {
         pl.Categorical,
     )
 }
+_LAYER_ROLES_BY_NAME: Mapping[str, FinalLayerRole] = {
+    "measurement": MeasurementLayerRole(),
+    "auxiliary": AuxiliaryLayerRole(),
+}
+
+
+def layer_role_from_metadata(
+    metadata: Mapping[str, object],
+    context: str,
+    /,
+) -> FinalLayerRole:
+    """Restore one layer role, defaulting metadata written before roles to measurement."""
+    if "role" not in metadata:
+        return MeasurementLayerRole()
+    value = metadata["role"]
+    if not isinstance(value, str):
+        raise InvalidResultError(f"{context} role is not text")
+    try:
+        return _LAYER_ROLES_BY_NAME[value]
+    except KeyError as error:
+        raise InvalidResultError(f"{context} has unknown role {value!r}") from error
 
 
 def safe_names(names: Iterable[str], /, *, prefix: str, suffix: str) -> dict[str, str]:

@@ -11,7 +11,7 @@ import pytest
 
 from apb2.cli import ConvertCliOptions, convert
 from apb2.parserV2.conversion_facade import ConversionError
-from apb2.parserV2.parse_quant.anndata_writer import NAMESPACE, PARSE_NAMESPACE
+from apb2.parserV2.parse_quant.io.anndata_writer import NAMESPACE, PARSE_NAMESPACE
 
 _DOCUMENT = {
     "schema_version": "0.3",

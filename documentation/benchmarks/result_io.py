@@ -21,7 +21,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
     ParsedLevels,
     VarFinal,
 )
-from apb2.parserV2.parse_quant.result_io import ResultFormat, reader_for, reformat, writer_for
+from apb2.parserV2.parse_quant.io.formats import ResultFormat, reader_for, reformat, writer_for
 
 app = App(name="result-io-benchmark", help=__doc__)
 

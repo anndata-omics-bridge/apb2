@@ -24,11 +24,6 @@ from apb2.parserV2.detect_document import (
     search_parameter_evidence,
     software_slug,
 )
-from apb2.parserV2.parse_quant import result_io
-from apb2.parserV2.parse_quant.anndata_writer import (
-    AnnDataLayerContractError,
-    MuDataLevelError,
-)
 from apb2.parserV2.parse_quant.axis_columns import AxisCoercionError, ColumnComputationError
 from apb2.parserV2.parse_quant.data.layer_columns import StorageLabelError
 from apb2.parserV2.parse_quant.data.parsed import JsonValue, ParsedLevel, ParsedLevels
@@ -36,9 +31,11 @@ from apb2.parserV2.parse_quant.duplicates import AggregateTypeError, DuplicateCe
 from apb2.parserV2.parse_quant.errors import (
     AmbiguousDialectError,
     IncompatibleSourceError,
-    ResultIOError,
 )
 from apb2.parserV2.parse_quant.fragments import PackedLengthError
+from apb2.parserV2.parse_quant.io import formats
+from apb2.parserV2.parse_quant.io.anndata_writer import MuDataLevelError
+from apb2.parserV2.parse_quant.io.errors import AnnDataLayerContractError, ResultIOError
 from apb2.parserV2.parse_quant.modifications import (
     PackedSiteMismatchError,
     UnknownModificationError,
@@ -63,7 +60,7 @@ ReformatError = ResultIOError
 
 def reformat_result(source: Path, target: Path, /) -> None:
     """Run the storage-only result workflow behind the Parser V2 application facade."""
-    result_io.reformat(source, target)
+    formats.reformat(source, target)
 
 
 class ConversionError(ValueError):

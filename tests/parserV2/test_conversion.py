@@ -20,7 +20,7 @@ from apb2.parserV2.conversion_facade import (
 from apb2.parserV2.detect_document import AmbiguousRuleError, detect_rule_document
 from apb2.parserV2.detect_document import guess_software as guess_packaged_software
 from apb2.parserV2.parse_quant import delimited_input
-from apb2.parserV2.parse_quant.anndata_writer import NAMESPACE, PARSE_NAMESPACE
+from apb2.parserV2.parse_quant.io.anndata_writer import NAMESPACE, PARSE_NAMESPACE
 from apb2.parserV2.parse_quant.parameters.source import SingleFile
 from apb2.parserV2.vendor_params.parsers.shared.model import Parameters
 from apb2.parserV2.vendor_params.registry import parse_params

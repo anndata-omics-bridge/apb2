@@ -7,22 +7,29 @@ from collections.abc import Mapping
 from pathlib import Path
 
 import duckdb
+import numpy as np
 import polars as pl
 import pytest
 from polars.testing import assert_frame_equal
 
 from apb2.cli import reformat as reformat_command
 from apb2.parserV2.parse_quant.data.parsed import (
+    AuxiliaryLayerRole,
     FinalLayerTable,
+    MeasurementLayerRole,
     ObsFinal,
     ParsedLevel,
     ParsedLevels,
     VarFinal,
 )
-from apb2.parserV2.parse_quant.duckdb_io import METADATA_TABLE
-from apb2.parserV2.parse_quant.errors import InvalidResultError, UnsupportedResultFormatError
-from apb2.parserV2.parse_quant.parquet_writer import MANIFEST_NAME
-from apb2.parserV2.parse_quant.result_io import (
+from apb2.parserV2.parse_quant.io.anndata_writer import (
+    AnnDataPlanError,
+    numeric_result_level,
+    quantitative_layer_values,
+)
+from apb2.parserV2.parse_quant.io.duckdb import METADATA_TABLE
+from apb2.parserV2.parse_quant.io.errors import InvalidResultError, UnsupportedResultFormatError
+from apb2.parserV2.parse_quant.io.formats import (
     ParsedLevelsReader,
     ParsedLevelsWriter,
     ResultFormat,
@@ -33,6 +40,8 @@ from apb2.parserV2.parse_quant.result_io import (
     write_parsed_levels,
     writer_for,
 )
+from apb2.parserV2.parse_quant.io.metadata import MATRIX_PROJECTED_KEY
+from apb2.parserV2.parse_quant.io.parquet_writer import MANIFEST_NAME
 
 
 def _plan(layer_names: tuple[str, ...]) -> str:
@@ -110,6 +119,7 @@ def _level(name: str, feature_column: str) -> ParsedLevel:
                     "obs_1": ["MBR", None],
                 }
             ),
+            role=AuxiliaryLayerRole(),
         ),
     }
     return ParsedLevel(
@@ -173,6 +183,7 @@ def _assert_layer_mapping(
         got = actual[name]
         assert got.layer_name == wanted.layer_name
         assert got.var_key_columns == wanted.var_key_columns
+        assert got.role == wanted.role
         assert_frame_equal(got.values, wanted.values)
 
 
@@ -194,6 +205,64 @@ def test_columnar_formats_round_trip_exactly(result_format: ResultFormat, tmp_pa
     writer.write(rich_result(), target)
 
     _assert_result_equal(reader.read(target), rich_result())
+
+
+@pytest.mark.parametrize(
+    ("result_format", "suffix"),
+    [
+        (ResultFormat.H5AD, ".h5ad"),
+        (ResultFormat.H5MU, ".h5mu"),
+        (ResultFormat.PARQUET, ".parquet"),
+        (ResultFormat.DUCKDB, ".duckdb"),
+    ],
+)
+def test_measurement_and_auxiliary_roles_round_trip_through_every_result_format(
+    result_format: ResultFormat,
+    suffix: str,
+    tmp_path: Path,
+) -> None:
+    source = rich_result().levels["ion"]
+    parsed = ParsedLevels(levels={"ion": source}, uns={"selected": "ion"})
+    target = tmp_path / f"role{suffix}"
+
+    writer_for(result_format).write(parsed, target)
+    restored = reader_for(result_format).read(target).levels["ion"]
+
+    assert isinstance(restored.layers["Intensity"].role, MeasurementLayerRole)
+    assert isinstance(restored.layers["Status"].role, AuxiliaryLayerRole)
+
+
+def test_parquet_metadata_without_a_layer_role_defaults_to_measurement(tmp_path: Path) -> None:
+    target = tmp_path / "legacy.parquet"
+    writer_for(ResultFormat.PARQUET).write(rich_result(), target)
+    manifest_path = target / MANIFEST_NAME
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    del manifest["levels"]["ion"]["layers"]["Status"]["role"]
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    restored = reader_for(ResultFormat.PARQUET).read(target)
+
+    assert isinstance(restored.levels["ion"].layers["Status"].role, MeasurementLayerRole)
+
+
+@pytest.mark.parametrize(
+    ("persisted_role", "message"),
+    [("unknown", "unknown role"), (None, "role is not text")],
+)
+def test_parquet_reader_rejects_an_explicit_invalid_layer_role(
+    persisted_role: str | None,
+    message: str,
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "invalid-role.parquet"
+    writer_for(ResultFormat.PARQUET).write(rich_result(), target)
+    manifest_path = target / MANIFEST_NAME
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["levels"]["ion"]["layers"]["Status"]["role"] = persisted_role
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(InvalidResultError, match=message):
+        reader_for(ResultFormat.PARQUET).read(target)
 
 
 @pytest.mark.parametrize(
@@ -334,6 +403,69 @@ def test_writers_validate_aligned_and_pairwise_values_before_touching_target(
     assert target.read_bytes() == b"previous"
 
 
+def test_a_layer_with_permuted_var_keys_is_rejected_before_writing(tmp_path: Path) -> None:
+    parsed = rich_result()
+    parsed.levels["ion"].layers["Intensity"].values = (
+        parsed.levels["ion"].layers["Intensity"].values.reverse()
+    )
+    target = tmp_path / "result.duckdb"
+
+    with pytest.raises(InvalidResultError, match="do not match var row-for-row"):
+        writer_for(ResultFormat.DUCKDB).write(parsed, target)
+
+    assert not target.exists()
+
+
+def test_a_layer_with_a_different_var_key_is_rejected_before_writing(tmp_path: Path) -> None:
+    parsed = rich_result()
+    layer = parsed.levels["ion"].layers["Intensity"]
+    layer.values = layer.values.with_columns(pl.Series("Ion", ["different", "F2"]))
+    target = tmp_path / "result.duckdb"
+
+    with pytest.raises(InvalidResultError, match="do not match var row-for-row"):
+        writer_for(ResultFormat.DUCKDB).write(parsed, target)
+
+    assert not target.exists()
+
+
+def test_a_layer_whose_var_keys_are_not_leading_columns_is_rejected(tmp_path: Path) -> None:
+    parsed = rich_result()
+    layer = parsed.levels["protein"].layers["Intensity"]
+    layer.values = layer.values.select("Isoform", "Protein", "obs_0", "obs_1")
+    target = tmp_path / "result.duckdb"
+
+    with pytest.raises(InvalidResultError, match="must begin with var keys"):
+        writer_for(ResultFormat.DUCKDB).write(parsed, target)
+
+    assert not target.exists()
+
+
+def test_a_duplicate_final_axis_key_is_rejected_before_writing(tmp_path: Path) -> None:
+    parsed = rich_result()
+    parsed.levels["ion"].obs.frame = parsed.levels["ion"].obs.frame.with_columns(
+        pl.Series("Run", ["same", "same"])
+    )
+    target = tmp_path / "result.duckdb"
+
+    with pytest.raises(InvalidResultError, match="obs contains a duplicate key"):
+        writer_for(ResultFormat.DUCKDB).write(parsed, target)
+
+    assert not target.exists()
+
+
+def test_an_incomplete_final_axis_key_is_rejected_before_writing(tmp_path: Path) -> None:
+    parsed = rich_result()
+    parsed.levels["ion"].var.frame = parsed.levels["ion"].var.frame.with_columns(
+        pl.Series("Ion", ["F1", None])
+    )
+    target = tmp_path / "result.duckdb"
+
+    with pytest.raises(InvalidResultError, match="var contains an incomplete key"):
+        writer_for(ResultFormat.DUCKDB).write(parsed, target)
+
+    assert not target.exists()
+
+
 def test_a_vendor_parquet_file_is_not_an_apb2_result(tmp_path: Path) -> None:
     source = tmp_path / "vendor.parquet"
     pl.DataFrame({"Intensity": [1.0]}).write_parquet(source)
@@ -401,6 +533,153 @@ def test_h5_writer_requires_the_stored_matrix_plan_before_touching_target(tmp_pa
         writer_for(ResultFormat.H5MU).write(parsed, target)
 
     assert target.read_bytes() == b"previous"
+
+
+def test_quantitative_layer_projection_reuses_the_stored_vendor_encoding() -> None:
+    ion = _level("ion", "Ion")
+
+    projected = quantitative_layer_values(ion, "Intensity")
+
+    assert projected.to_dict(as_series=False) == {
+        "obs_0": [100.5, None],
+        "obs_1": [200.5, None],
+    }
+
+
+def test_numeric_result_level_accepts_numeric_and_null_values_without_mutating_input() -> None:
+    ion = _level("ion", "Ion")
+    ion.layers = {
+        "Intensity": FinalLayerTable(
+            layer_name="Intensity",
+            var_key_columns=("Ion",),
+            values=pl.DataFrame(
+                {
+                    "Ion": ["F1", "F2"],
+                    "obs_0": pl.Series([10, 20], dtype=pl.Int64),
+                    "obs_1": pl.Series([None, None], dtype=pl.Null),
+                }
+            ),
+        )
+    }
+    original_provenance = dict(ion.uns)
+
+    projected = numeric_result_level(ion)
+
+    assert ion.uns == original_provenance
+    assert MATRIX_PROJECTED_KEY not in ion.uns
+    assert projected is not ion
+    assert projected.layers is ion.layers
+    assert projected.uns is not ion.uns
+    assert projected.uns[MATRIX_PROJECTED_KEY] is True
+
+
+@pytest.mark.parametrize(
+    "invalid_values",
+    [
+        pl.Series("obs_0", [True, False], dtype=pl.Boolean),
+        pl.Series("obs_0", ["10", "20"], dtype=pl.String),
+    ],
+    ids=["boolean", "string"],
+)
+def test_numeric_result_level_rejects_nonnumeric_values(invalid_values: pl.Series) -> None:
+    ion = _level("ion", "Ion")
+    ion.layers = {
+        "Intensity": FinalLayerTable(
+            layer_name="Intensity",
+            var_key_columns=("Ion",),
+            values=pl.DataFrame(
+                {
+                    "Ion": ["F1", "F2"],
+                    "obs_0": invalid_values,
+                    "obs_1": [10.0, 20.0],
+                }
+            ),
+        )
+    }
+
+    with pytest.raises(AnnDataPlanError, match=r"not already numeric.*obs_0"):
+        numeric_result_level(ion)
+
+
+def test_h5_writer_accepts_an_added_numeric_layer_missing_from_the_parse_plan(
+    tmp_path: Path,
+) -> None:
+    parsed = rich_result()
+    ion = parsed.levels["ion"]
+    ion.layers["medpolish_from_fragment"] = FinalLayerTable(
+        layer_name="medpolish_from_fragment",
+        var_key_columns=ion.var.key_columns,
+        values=pl.DataFrame(
+            {
+                "Ion": ["F1", "F2"],
+                "obs_0": [10.0, 20.0],
+                "obs_1": [11.0, None],
+            }
+        ),
+    )
+    target = tmp_path / "result.h5mu"
+
+    write_parsed_levels(parsed, target)
+
+    restored = read_parsed_levels(target).levels["ion"]
+    np.testing.assert_allclose(
+        restored.layers["medpolish_from_fragment"].values.select("obs_0", "obs_1").to_numpy(),
+        np.array([[10.0, 11.0], [20.0, np.nan]]),
+        equal_nan=True,
+    )
+
+
+def test_h5_writer_accepts_a_planless_matrix_projected_derived_level(tmp_path: Path) -> None:
+    protein = _level("protein", "Protein")
+    protein.var = VarFinal(
+        frame=pl.DataFrame({"Protein": ["F1", "F2"]}),
+        key_columns=("Protein",),
+    )
+    protein.uns = {
+        "produced_by": "apb-aggregate",
+        "quantification_level": "protein",
+        MATRIX_PROJECTED_KEY: True,
+    }
+    protein.primary_layer_name = "medpolish_from_ion"
+    protein.layers = {
+        "medpolish_from_ion": FinalLayerTable(
+            layer_name="medpolish_from_ion",
+            var_key_columns=protein.var.key_columns,
+            values=pl.DataFrame(
+                {
+                    "Protein": ["F1", "F2"],
+                    "obs_0": [10.0, 20.0],
+                    "obs_1": [11.0, None],
+                }
+            ),
+        )
+    }
+    target = tmp_path / "protein.h5ad"
+
+    write_parsed_levels(ParsedLevels(levels={"protein": protein}, uns={}), target)
+
+    restored = read_parsed_levels(target).levels["protein"]
+    assert restored.primary_layer_name == "medpolish_from_ion"
+    assert restored.layers["medpolish_from_ion"].values.height == 2
+
+
+def test_h5_writer_rejects_an_unplanned_nonnumeric_layer(tmp_path: Path) -> None:
+    parsed = rich_result()
+    ion = parsed.levels["ion"]
+    ion.layers["derived_text"] = FinalLayerTable(
+        layer_name="derived_text",
+        var_key_columns=ion.var.key_columns,
+        values=pl.DataFrame(
+            {
+                "Ion": ["F1", "F2"],
+                "obs_0": ["one", "two"],
+                "obs_1": ["three", "four"],
+            }
+        ),
+    )
+
+    with pytest.raises(AnnDataPlanError, match=r"unplanned layer.*not already numeric"):
+        write_parsed_levels(parsed, tmp_path / "result.h5mu")
 
 
 def test_pairwise_coordinates_are_validated_independently(tmp_path: Path) -> None:

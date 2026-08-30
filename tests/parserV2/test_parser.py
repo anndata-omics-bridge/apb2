@@ -34,6 +34,7 @@ from apb2.parserV2.parse_quant.contracts import (
     RawValuePresence,
     SelectedAxisColumn,
 )
+from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation
 from apb2.parserV2.parse_quant.data.parsed import ObsFinal, ParsedLevel, VarFinal
 from apb2.parserV2.parse_quant.data.raw import (
     DecomposedDataRaw,
@@ -44,7 +45,6 @@ from apb2.parserV2.parse_quant.data.raw import (
 )
 from apb2.parserV2.parse_quant.data.source import LevelSourceTable
 from apb2.parserV2.parse_quant.duplicates import DuplicateCellError
-from apb2.parserV2.parse_quant.numeric_text import NumberNotation
 from apb2.parserV2.parse_quant.parameters.axis import AxisKeyPlan, AxisSourcePlan
 from apb2.parserV2.parse_quant.parameters.measurements import (
     DuplicateMode,

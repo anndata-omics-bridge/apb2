@@ -45,7 +45,7 @@ The corresponding Python API is:
 ```python
 from pathlib import Path
 
-from apb2.parserV2.parse_quant.result_io import ResultFormat, reader_for, writer_for
+from apb2.parserV2.parse_quant.io.formats import ResultFormat, reader_for, writer_for
 
 parsed = reader_for(ResultFormat.PARQUET).read(Path("results.parquet"))
 writer_for(ResultFormat.DUCKDB).write(parsed, Path("results.duckdb"))
