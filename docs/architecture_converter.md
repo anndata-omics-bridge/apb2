@@ -3420,8 +3420,8 @@ apb2/src/apb2/parserV2/
 │       │   ├── __init__.py     # package marker; no broad re-exports
 │       │   ├── model.py        # complete Pydantic Parameters record and ParamsError
 │       │   ├── common.py       # shared parameter-file parsing primitives
-│       │   ├── unimod.py       # UniMod lookup used by parsing and rule projection
-│       │   └── unimod_registry.toml # packaged UniMod data
+│       │   ├── unimod.py       # runtime UniMod registry used by parameter parsing
+│       │   └── unimod_registry.json # validated packaged UniMod document
 │       └── <vendor>.py         # one parser per supported parameter-file grammar
 ├── parse_quant/
 │   ├── __init__.py             # parse package marker; no adapter re-exports

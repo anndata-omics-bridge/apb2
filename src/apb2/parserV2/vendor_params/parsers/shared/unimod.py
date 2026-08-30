@@ -1,19 +1,17 @@
-"""Built-in canonical-modification registry.
+"""Built-in canonical-modification document and runtime registry.
 
-The TOML data file (``unimod_registry.toml``, sibling of this module) is
-the single source of truth for ``name``, ``target``, ``position`` and
-``mass_delta`` of each supported modification. Per-tool parsing-rule
-Parsing rules reference modifications by accession only; the runtime resolves
-them via this registry, raising an error if the accession is unknown.
+The JSON data file (``unimod_registry.json``, sibling of this module) is the single source of
+truth for the supported modifications. Its Pydantic document stays a passive storage boundary;
+the shared :class:`UnimodRegistry` owns the loaded table and every lookup over it.
 """
 
 from __future__ import annotations
 
 import math
-import tomllib
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from functools import lru_cache
 from importlib import resources
+from types import MappingProxyType
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -31,8 +29,8 @@ class UnimodEntry(BaseModel):
     mass_delta: float
 
 
-class UnimodRegistry(BaseModel):
-    """Top-level shape of the registry TOML file."""
+class _UnimodRegistryDocument(BaseModel):
+    """Top-level storage shape of the packaged registry JSON."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -60,91 +58,103 @@ class UnrecognizedUnimodMass:
     mass_delta: float
 
 
-_REGISTRY_TOML = resources.files("apb2.parserV2.vendor_params.parsers.shared").joinpath(
-    "unimod_registry.toml"
+class UnimodRegistry:
+    """Canonical Unimod entries and every supported lookup over them."""
+
+    __slots__ = ("_by_accession", "_by_name")
+
+    def __init__(self, entries: Iterable[UnimodEntry]) -> None:
+        """Index validated entries by accession, canonical name, and aliases.
+
+        Args:
+            entries: Validated canonical modification entries.
+
+        Raises:
+            ValueError: An accession or normalized name identifies multiple entries.
+        """
+        by_accession: dict[str, UnimodEntry] = {}
+        by_name: dict[str, UnimodEntry] = {}
+        for entry in entries:
+            if entry.accession in by_accession:
+                raise ValueError(f"duplicate accession in Unimod registry: {entry.accession!r}")
+            by_accession[entry.accession] = entry
+            for name in (entry.accession, entry.name, *entry.aliases):
+                normalized = name.strip().casefold()
+                previous = by_name.get(normalized)
+                if previous is not None and previous.accession != entry.accession:
+                    raise ValueError(
+                        f"duplicate normalized name in Unimod registry: {name!r} identifies "
+                        f"{previous.accession} and {entry.accession}"
+                    )
+                by_name[normalized] = entry
+        self._by_accession: Mapping[str, UnimodEntry] = MappingProxyType(by_accession)
+        self._by_name: Mapping[str, UnimodEntry] = MappingProxyType(by_name)
+
+    def resolve(self, accession: str) -> UnimodEntry:
+        """Return the canonical record for ``accession`` or raise ``KeyError``."""
+        entry = self._by_accession.get(accession)
+        if entry is None:
+            raise KeyError(
+                f"accession {accession!r} not found in unimod_registry.json; "
+                f"add it there before referencing it from a parsing rule"
+            )
+        return entry
+
+    def find_by_name(self, name: str) -> UnimodMatch | UnrecognizedUnimodName:
+        """Find a canonical modification by accession, name, or shared synonym."""
+        entry = self._by_name.get(name.strip().casefold())
+        if entry is None:
+            return UnrecognizedUnimodName(name)
+        return UnimodMatch(entry)
+
+    def find_by_mass(
+        self,
+        mass_delta: float,
+        *,
+        tolerance: float = 0.001,
+    ) -> UnimodMatch | UnrecognizedUnimodMass:
+        """Find one canonical modification by monoisotopic mass within tolerance.
+
+        Unknown masses return a tagged result. An ambiguous match raises because silently choosing
+        one identity would corrupt the search-parameter record.
+
+        Args:
+            mass_delta: Monoisotopic mass delta to match.
+            tolerance: Maximum absolute difference in daltons.
+
+        Returns:
+            A canonical match or an explicit unrecognized-mass result.
+
+        Raises:
+            ValueError: The tolerance is negative or several entries match.
+        """
+        if tolerance < 0:
+            raise ValueError("mass tolerance must be non-negative")
+
+        matches = [
+            entry
+            for entry in self._by_accession.values()
+            if math.isclose(
+                entry.mass_delta,
+                mass_delta,
+                rel_tol=0,
+                abs_tol=tolerance,
+            )
+        ]
+        if len(matches) > 1:
+            accessions = ", ".join(entry.accession for entry in matches)
+            raise ValueError(
+                f"mass delta {mass_delta} is ambiguous within {tolerance} Da: {accessions}"
+            )
+        if matches:
+            return UnimodMatch(matches[0])
+        return UnrecognizedUnimodMass(mass_delta)
+
+
+_REGISTRY_JSON = resources.files("apb2.parserV2.vendor_params.parsers.shared").joinpath(
+    "unimod_registry.json"
 )
-
-
-@lru_cache(maxsize=1)
-def load_registry() -> dict[str, UnimodEntry]:
-    """Load the bundled registry as ``{accession: UnimodEntry}``.
-
-    Cached after the first call so re-loads in tests are free.
-    """
-    data = tomllib.loads(_REGISTRY_TOML.read_text(encoding="utf-8"))
-    parsed = UnimodRegistry(**data)
-    by_accession: dict[str, UnimodEntry] = {}
-    for entry in parsed.entries:
-        if entry.accession in by_accession:
-            raise ValueError(f"duplicate accession in unimod_registry.toml: {entry.accession!r}")
-        by_accession[entry.accession] = entry
-    return by_accession
-
-
-# COMMENT want to have class here which implments the functions below. load_registry() returns this class.
-# name the class UnimodRegistry...
-
-
-def resolve(accession: str) -> UnimodEntry:
-    """Return the canonical record for ``accession`` or raise ``KeyError``."""
-    registry = load_registry()
-    if accession not in registry:
-        raise KeyError(
-            f"accession {accession!r} not found in unimod_registry.toml; "
-            f"add it there before referencing it from a parsing rule"
-        )
-    return registry[accession]
-
-
-def find_by_name(name: str) -> UnimodMatch | UnrecognizedUnimodName:
-    """Find a canonical modification by accession, name, or shared synonym.
-
-    Unknown names return a tagged result so parameter parsers can preserve
-    vendor-specific vocabulary without using nullable control flow.
-    """
-    normalized = name.strip().casefold()
-    registry = load_registry()
-
-    for accession, entry in registry.items():
-        known_names = {
-            accession.casefold(),
-            entry.name.casefold(),
-            *(alias.casefold() for alias in entry.aliases),
-        }
-        if normalized in known_names:
-            return UnimodMatch(entry)
-
-    return UnrecognizedUnimodName(name)
-
-
-def find_by_mass(
-    mass_delta: float,
-    *,
-    tolerance: float = 0.001,
-) -> UnimodMatch | UnrecognizedUnimodMass:
-    """Find one canonical modification by monoisotopic mass within tolerance.
-
-    Unknown masses return a tagged result. An ambiguous match raises because
-    silently choosing one identity would corrupt the search-parameter record.
-    """
-    if tolerance < 0:
-        raise ValueError("mass tolerance must be non-negative")
-
-    matches = [
-        entry
-        for entry in load_registry().values()
-        if math.isclose(
-            entry.mass_delta,
-            mass_delta,
-            rel_tol=0,
-            abs_tol=tolerance,
-        )
-    ]
-    if len(matches) > 1:
-        accessions = ", ".join(entry.accession for entry in matches)
-        raise ValueError(
-            f"mass delta {mass_delta} is ambiguous within {tolerance} Da: {accessions}"
-        )
-    if matches:
-        return UnimodMatch(matches[0])
-    return UnrecognizedUnimodMass(mass_delta)
+UNIMOD_REGISTRY = UnimodRegistry(
+    _UnimodRegistryDocument.model_validate_json(_REGISTRY_JSON.read_text(encoding="utf-8")).entries
+)
+"""Shared runtime registry loaded once from the packaged JSON document."""

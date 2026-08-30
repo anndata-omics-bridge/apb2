@@ -107,7 +107,7 @@ from apb2.parserV2.parse_quant.parameters.working import (
     WorkingMeasurements,
     WorkingParseConfiguration,
 )
-from apb2.parserV2.vendor_params.parsers.shared.unimod import resolve as resolve_accession
+from apb2.parserV2.vendor_params.parsers.shared.unimod import UNIMOD_REGISTRY
 from apb2.parserV2.vendor_parse_rules.document import (
     EffectiveRule,
     RuleDocument,
@@ -524,7 +524,7 @@ class ParseRuleFacade:
                 mass_delta=record.mass_delta,
             )
             for entry, record in (
-                (entry, resolve_accession(entry.accession)) for entry in declared.map
+                (entry, UNIMOD_REGISTRY.resolve(entry.accession)) for entry in declared.map
             )
         )
         if isinstance(declared, SiteListModifications):
