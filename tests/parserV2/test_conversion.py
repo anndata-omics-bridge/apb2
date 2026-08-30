@@ -25,28 +25,26 @@ from apb2.parserV2.parse_quant.parameters.source import SingleFile
 from apb2.parserV2.vendor_params.parsers.shared.model import Parameters
 from apb2.parserV2.vendor_params.registry import parse_params
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
-from parserV2.fixtures import DocumentPair, document_pairs
+from parserV2.fixtures import PackagedDocument, document_pairs
 
 
 class _StopAfterParserSelection(Exception):
     """End a precedence test immediately after the parameter parser is selected."""
 
 
-def _diann_v2() -> DocumentPair:
+def _diann_v2() -> PackagedDocument:
     return next(pair for pair in document_pairs() if pair.key == "diann/v2")
 
 
-def _parameter_file(pair: DocumentPair) -> Path:
-    data = pair.data_path()
-    assert data is not None
+def _parameter_file(pair: PackagedDocument) -> Path:
+    data = pair.required_data_path()
     (parameters,) = sorted(data.parent.glob("param_0.*"))
     return parameters
 
 
 def test_packaged_conversion_detects_parses_and_writes_with_provenance(tmp_path: Path) -> None:
     pair = _diann_v2()
-    data = pair.data_path()
-    assert data is not None
+    data = pair.required_data_path()
     parameters_path = _parameter_file(pair)
     target = tmp_path / "protein.h5ad"
 
@@ -74,8 +72,7 @@ def test_packaged_conversion_without_a_level_writes_every_compatible_modality(
     tmp_path: Path,
 ) -> None:
     pair = _diann_v2()
-    data = pair.data_path()
-    assert data is not None
+    data = pair.required_data_path()
     parameters_path = _parameter_file(pair)
     target = tmp_path / "all.h5mu"
 
@@ -188,8 +185,7 @@ def test_duplicate_packaged_matches_are_reported_as_ambiguous(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pair = _diann_v2()
-    data = pair.data_path()
-    assert data is not None
+    data = pair.required_data_path()
     document = load_rule_document(pair.parser_v2_path)
     parameters = parse_params(_parameter_file(pair), software="diann")
 
@@ -206,8 +202,7 @@ def test_source_only_rule_recognition_never_inspects_data_rows(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "spectronaut")
-    data = pair.data_path()
-    assert data is not None
+    data = pair.required_data_path()
 
     def refuse_row_inspection(*_arguments: object) -> Never:
         raise AssertionError("rule recognition may inspect only source metadata and headers")

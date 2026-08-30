@@ -11,38 +11,6 @@ resolution-markers = [
 ]
 
 [[package]]
-name = "ahocorapy"
-version = "1.8.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/19/b1/0dcfd841383d33e6e05a0a60da14109008bbf7f5ca2d4d6582430916492a/ahocorapy-1.8.0.tar.gz", hash = "sha256:931c05a90318fce3000baa0a0400f57934bb30b2ce54a6fff8b5a017812950aa", size = 13787, upload-time = "2026-07-21T12:17:43.235Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/85/27/d64eeec1361b27ca28a661d94505e89b35185182ee1a3851638b94887e17/ahocorapy-1.8.0-py2.py3-none-any.whl", hash = "sha256:787bb3c7bcf3b9ba87371ad53e5aac626c65c57ab2c67701bff9a813eb01d9e1", size = 10572, upload-time = "2026-07-21T12:17:41.96Z" },
-]
-
-[[package]]
-name = "ahocorasick-rs"
-version = "1.0.3"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/a5/40/691cb92a7053a01f5bd3fb1242a6bf876252cd05630eb3abddedec68e898/ahocorasick_rs-1.0.3.tar.gz", hash = "sha256:579d37070a7c21da9cd9988b9fb471297273b60cb4126586d6dcd99faafc5ca5", size = 103231, upload-time = "2025-10-08T15:39:30.049Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/8a/a5/2b84148c9379800ffaffae8a447c9fef661cac3e04432ffee5b0c9d66a4d/ahocorasick_rs-1.0.3-cp313-cp313-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl", hash = "sha256:9d57e2722df47694215274c8fd7116b22b21d374fb67ed61c87b5dfaecbd2a4d", size = 702897, upload-time = "2025-10-08T15:39:04.596Z" },
-    { url = "https://files.pythonhosted.org/packages/95/06/c52d10bb4fba1b650329e94f205d4ee154d206941dd54b28be093ea17525/ahocorasick_rs-1.0.3-cp313-cp313-macosx_10_12_x86_64.whl", hash = "sha256:8f138232cbb2edde8afed9815022bc011f82f4211b6a98370d4b379644bf8e1a", size = 380723, upload-time = "2025-10-08T15:39:08.504Z" },
-    { url = "https://files.pythonhosted.org/packages/f3/f1/c1504c23cd185bbbf76e48cad3183ac90ed5db30fa7dfbb7289c01306a47/ahocorasick_rs-1.0.3-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:09c4f94c2cc85f94cb4c75da24f3fb242cf382af4cb87022d1c3831580d5cb22", size = 359949, upload-time = "2025-10-08T15:39:10.157Z" },
-    { url = "https://files.pythonhosted.org/packages/b1/b3/73e5a9e9c17b519391447fa45ddb5da381d56b4a9bb35b87940b66d20b0a/ahocorasick_rs-1.0.3-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:a034948a591749ae3dd8ba8d27cf13383a4c1831796c647e9bedcecda3d7e5dd", size = 396673, upload-time = "2025-10-08T15:39:11.882Z" },
-    { url = "https://files.pythonhosted.org/packages/57/8c/fcd6a8f7ae789b2be7d1f33049998c8e30ffd8cf87807dbaae8502ae5a9e/ahocorasick_rs-1.0.3-cp313-cp313-win_amd64.whl", hash = "sha256:29b980c1b4ff10027d8f8cccea2b3583ff3d96741c7a177dc55085a6e8bf1035", size = 269477, upload-time = "2025-10-08T15:39:13.577Z" },
-    { url = "https://files.pythonhosted.org/packages/03/ce/2d1c577eef3b9b5c2829fa23cd60649b9141c6fe59f1e038df754073fa14/ahocorasick_rs-1.0.3-cp314-cp314-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl", hash = "sha256:06046d2aa4e0b15fb7aaefd7e26246d819c72ca7418ec3a6f98239f6a09ef462", size = 703263, upload-time = "2025-10-08T15:39:15.325Z" },
-    { url = "https://files.pythonhosted.org/packages/53/16/1115465e857c5dde793915b16de8e4ff96e64e09c8feec297033930edf23/ahocorasick_rs-1.0.3-cp314-cp314-macosx_10_12_x86_64.whl", hash = "sha256:071bf6929795a22454aeffbf6261076e0dd4a8f449e2fafe1faa19846056d3e7", size = 380789, upload-time = "2025-10-08T15:39:16.594Z" },
-    { url = "https://files.pythonhosted.org/packages/67/1a/2dd77a49fdd0af17606a0746c77ad3bed6b62735d6334a18f17800b510e3/ahocorasick_rs-1.0.3-cp314-cp314-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:9ea87a5daef701586fcb20835a001659240f5bff637408209db5d9d09378b6f6", size = 359764, upload-time = "2025-10-08T15:39:17.908Z" },
-    { url = "https://files.pythonhosted.org/packages/f4/ae/7831249077e953e6daffb1c032281550d30de62e537b7e25db2e1645c181/ahocorasick_rs-1.0.3-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:9c7b53e81c875551ae491206ece0f11b8c1bc7a1f45975c9674e0e216d35e4cf", size = 396496, upload-time = "2025-10-08T15:39:19.658Z" },
-    { url = "https://files.pythonhosted.org/packages/55/54/de5c3ceffb9977550db263ee1058dde94efb09ba416db1b3c8294c2d0f04/ahocorasick_rs-1.0.3-cp314-cp314-win_amd64.whl", hash = "sha256:8c5266fbc53efb9672e58ec5605faa1e13439a8d7f66333f92621b8a89739871", size = 269623, upload-time = "2025-10-08T15:39:21.697Z" },
-    { url = "https://files.pythonhosted.org/packages/bb/68/776d3eff744033af867d799876f1ec1abad8f388f011bc20c0aaed422a32/ahocorasick_rs-1.0.3-cp314-cp314t-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl", hash = "sha256:bc8267a6dd67f10dfa30f0d87ec161b4b319383b6c0ddb0b56395160d6d8ec09", size = 701959, upload-time = "2025-10-08T15:39:23.123Z" },
-    { url = "https://files.pythonhosted.org/packages/46/9d/809ac0764db44e57e8cf32fb386588defed374c909c426a0fac5c875cb16/ahocorasick_rs-1.0.3-cp314-cp314t-macosx_10_12_x86_64.whl", hash = "sha256:ea296b40a730d85b13d20cf59a59eefcfdbf0a3b921743bba6578127dba68903", size = 380365, upload-time = "2025-10-08T15:39:24.614Z" },
-    { url = "https://files.pythonhosted.org/packages/78/86/259c861dc6d8d3d80a6a57828a71d2184cbf3ffcc9f8a8aee0e5d3695d12/ahocorasick_rs-1.0.3-cp314-cp314t-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:a9f5b78d608098ff51a567941c8bf3c0d511643bf102c72ef9b1aad88679817d", size = 358726, upload-time = "2025-10-08T15:39:25.895Z" },
-    { url = "https://files.pythonhosted.org/packages/c8/16/35e85fec4c08c1af374469ab878208417a60feb904161e77544bd19a46cf/ahocorasick_rs-1.0.3-cp314-cp314t-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b995ab3426f4835a9afc2145990e8234ec93e09d81557c1525bd33d55891665b", size = 396144, upload-time = "2025-10-08T15:39:27.246Z" },
-    { url = "https://files.pythonhosted.org/packages/2d/df/6d1e865db65e928ebb525f728e062e53bcdd8b8ebde64ce17f6c3db7ebfd/ahocorasick_rs-1.0.3-cp314-cp314t-win_amd64.whl", hash = "sha256:c1ba1ade1e260c5b6772f7f3857dabaf78bd44813c71923cbb4b00b82e50b7a1", size = 268606, upload-time = "2025-10-08T15:39:28.583Z" },
-]
-
-[[package]]
 name = "anndata"
 version = "0.13.2"
 source = { registry = "https://pypi.org/simple" }
@@ -63,65 +31,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/fc/2e/077f2dbd47a727793
 wheels = [
     { url = "https://files.pythonhosted.org/packages/16/ba/75122318c4777678abc163d4db855176828003237267c4326947f8cfcb32/anndata-0.13.2-py3-none-any.whl", hash = "sha256:1930305dc3a32ab5433dee2bc441cd264f9eeed22cc5a224b9f9d69e74d4fdf0", size = 187532, upload-time = "2026-07-13T18:08:26.322Z" },
 ]
-
-[[package]]
-name = "anndata-proteomics"
-version = "0.1.0"
-source = { editable = "../apb_legacy" }
-dependencies = [
-    { name = "anndata" },
-    { name = "beautifulsoup4" },
-    { name = "cyclopts" },
-    { name = "h5py" },
-    { name = "loguru" },
-    { name = "mudata" },
-    { name = "numpy" },
-    { name = "packaging" },
-    { name = "pandas" },
-    { name = "prozor" },
-    { name = "pyarrow" },
-    { name = "pydantic" },
-    { name = "pyyaml" },
-    { name = "requests" },
-    { name = "scipy" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "anndata" },
-    { name = "beautifulsoup4" },
-    { name = "carpet-scan", marker = "extra == 'dev'", editable = "../carpet_scan" },
-    { name = "cyclopts" },
-    { name = "deptry", marker = "extra == 'dev'", specifier = ">=0.25.1,<0.26" },
-    { name = "diff-cover", marker = "extra == 'dev'", specifier = ">=10.4,<11" },
-    { name = "h5py" },
-    { name = "import-linter", marker = "extra == 'dev'", specifier = ">=2" },
-    { name = "jsonschema", marker = "extra == 'dev'", specifier = ">=4" },
-    { name = "loguru" },
-    { name = "mudata", specifier = ">=0.4,<1" },
-    { name = "numpy" },
-    { name = "packaging" },
-    { name = "pandas" },
-    { name = "pandas-stubs", marker = "extra == 'dev'" },
-    { name = "pip-audit", marker = "extra == 'dev'", specifier = ">=2.10,<3" },
-    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.5,<5" },
-    { name = "prozor", editable = "../prozor" },
-    { name = "pyarrow" },
-    { name = "pydantic", specifier = ">=2" },
-    { name = "pylint", marker = "extra == 'dev'", specifier = ">=4.0.6" },
-    { name = "pyright", marker = "extra == 'dev'", specifier = ">=1.1.408,<2" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=9,<10" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=7,<8" },
-    { name = "pyyaml" },
-    { name = "requests" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = "==0.15.12" },
-    { name = "scipy" },
-    { name = "scipy-stubs", marker = "extra == 'dev'" },
-]
-provides-extras = ["dev"]
-
-[package.metadata.requires-dev]
-docs = [{ name = "mkdocs-material", specifier = ">=9.5" }]
 
 [[package]]
 name = "annotated-types"
@@ -154,7 +63,6 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "anndata-proteomics" },
     { name = "build" },
     { name = "deptry" },
     { name = "grimp" },
@@ -190,7 +98,6 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "anndata-proteomics", editable = "../apb_legacy" },
     { name = "build", specifier = ">=1.3,<2" },
     { name = "deptry", specifier = ">=0.24,<1" },
     { name = "grimp", specifier = ">=3,<4" },
@@ -243,19 +150,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/29/13/232505664e8e2a0c7a2eb0c505cfade9d715538f89a5d62bc4c272968f62/backrefs-8.0-py312-none-any.whl", hash = "sha256:87f0fae8c5f207fe9f4b2887efc71d42f4900ac78faa1af08d675ef303692dc5", size = 398084, upload-time = "2026-07-26T19:54:19.954Z" },
     { url = "https://files.pythonhosted.org/packages/8a/69/47a3dc20abc4fa5486655fde681bd55e63211b46c886d8c02223d6468431/backrefs-8.0-py313-none-any.whl", hash = "sha256:601ce68ca12385dbda06ce264406b4c4210cf5b79fd0fd627592365c92f29a88", size = 400040, upload-time = "2026-07-26T19:54:21.194Z" },
     { url = "https://files.pythonhosted.org/packages/1c/cf/e5f9b68a5b0e939a2fb933a66c20180d0c9241bf8927f7a47fa48c1675e9/backrefs-8.0-py314-none-any.whl", hash = "sha256:9ec96efa080938be92323e8e730e57718c9c88eb15ad70bbef4e1766df591408", size = 411903, upload-time = "2026-07-26T19:54:23.221Z" },
-]
-
-[[package]]
-name = "beautifulsoup4"
-version = "4.15.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "soupsieve" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/43/65/318323f98dbee45d42dff61d8f047181bc6f2268a9068cfad035a46be5af/beautifulsoup4-4.15.0.tar.gz", hash = "sha256:288e3ca7d54b06f2ac191970bc275c1939cb46d450b255bf6718b04aa37ab4f7", size = 632571, upload-time = "2026-06-07T16:44:20.453Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/88/c6/92fcd42f1ba33e1184263f25bfabf3d27c383410470f169e4b8163bf9c17/beautifulsoup4-4.15.0-py3-none-any.whl", hash = "sha256:d6f88de62e1d4e38ecb1077eb9724cd0eff29d2a08ca16a401e9b9e93f117cf9", size = 109924, upload-time = "2026-06-07T16:44:21.566Z" },
 ]
 
 [[package]]
@@ -1434,39 +1328,6 @@ wheels = [
 ]
 
 [[package]]
-name = "prozor"
-version = "0.1.0"
-source = { editable = "../prozor" }
-dependencies = [
-    { name = "ahocorapy" },
-    { name = "ahocorasick-rs" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "ahocorapy", specifier = ">=1.6,<2" },
-    { name = "ahocorasick-rs", specifier = ">=1.0,<2" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "build", specifier = ">=1.3,<2" },
-    { name = "carpet-scan", directory = "../carpet_scan" },
-    { name = "deptry", specifier = ">=0.24,<1" },
-    { name = "import-linter", specifier = ">=2.8,<3" },
-    { name = "pre-commit", specifier = ">=4,<5" },
-    { name = "pyright", specifier = ">=1.1.400,<2" },
-    { name = "pytest", specifier = ">=9,<10" },
-    { name = "pytest-cov", specifier = ">=7,<8" },
-    { name = "ruff", specifier = ">=0.15,<1" },
-    { name = "twine", specifier = ">=6,<7" },
-]
-docs = [
-    { name = "mkdocs-material", specifier = ">=9.5,<10" },
-    { name = "mkdocstrings", extras = ["python"], specifier = ">=0.30,<1" },
-]
-
-[[package]]
 name = "pyarrow"
 version = "25.0.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1954,15 +1815,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81", size = 34031, upload-time = "2024-12-04T17:35:28.174Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050, upload-time = "2024-12-04T17:35:26.475Z" },
-]
-
-[[package]]
-name = "soupsieve"
-version = "2.9.2"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/69/99/a6ca3beb3ccacb41fb3321d8a60e5566f9e6467601ef8eba6a17e1b89778/soupsieve-2.9.2.tar.gz", hash = "sha256:4a55d8cf158a9c2e587fa4922f1bbb91d68ac829e2d6f25403a85747c71daf74", size = 122445, upload-time = "2026-08-07T00:57:24.801Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/eb/dc/ad025c1ee131eba60c69f4dd5779b18fcf1e6b21a343e2162a84d5d133c7/soupsieve-2.9.2-py3-none-any.whl", hash = "sha256:8089a26fd974ca7a1f30276d3d8492ab266ab15af581642dfe8aa162e0c1c823", size = 37370, upload-time = "2026-08-07T00:57:23.524Z" },
 ]
 
 [[package]]

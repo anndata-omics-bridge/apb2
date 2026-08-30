@@ -115,7 +115,7 @@ from apb2.parserV2.vendor_parse_rules.document import make_rule_document
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import LEVELS, SCHEMA_VERSION
 from parserV2 import synthetic
-from parserV2.fixtures import DocumentPair, document_pairs, level_pairs
+from parserV2.fixtures import PackagedDocument, document_pairs, level_pairs
 
 DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
 DOT_NUMBERS = NumberNotation(decimal_mark=".", thousands_marks=())
@@ -551,8 +551,7 @@ def test_a_compiled_parser_holds_no_registry_and_no_output_declaration(
 def test_several_levels_return_a_list_in_canonical_order() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1")
     document = load_rule_document(pair.parser_v2_path)
-    path = pair.data_path()
-    assert path is not None
+    path = pair.required_data_path()
 
     parsers = compile_parsers(
         document=document,
@@ -569,8 +568,7 @@ def test_several_levels_return_a_list_in_canonical_order() -> None:
 def test_mudata_compilation_retains_each_parsers_configured_anndata_writer() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1")
     document = load_rule_document(pair.parser_v2_path)
-    path = pair.data_path()
-    assert path is not None
+    path = pair.required_data_path()
 
     parsers, writer = compile_mudata_parsers(
         document=document,
@@ -588,8 +586,7 @@ def test_mudata_compilation_retains_each_parsers_configured_anndata_writer() -> 
 def test_an_incompatible_level_does_not_poison_the_compatible_ones() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "spectronaut")
     document = load_rule_document(pair.parser_v2_path)
-    path = pair.data_path()
-    assert path is not None
+    path = pair.required_data_path()
 
     parsers = compile_parsers(
         document=document,
@@ -626,8 +623,7 @@ def test_a_source_that_satisfies_nothing_says_so_and_names_every_reason(
 def test_a_gated_level_is_skipped_without_evidence_that_admits_it() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "sage")
     document = load_rule_document(pair.parser_v2_path)
-    path = pair.data_path()
-    assert path is not None
+    path = pair.required_data_path()
     combined = dataclasses.replace(synthetic.NO_EVIDENCE, combine_charge_states=True)
 
     parsers = compile_parsers(
@@ -644,8 +640,7 @@ def test_a_gated_level_is_skipped_without_evidence_that_admits_it() -> None:
 def test_each_level_of_one_document_gets_its_own_strategy_graph() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1")
     document = load_rule_document(pair.parser_v2_path)
-    path = pair.data_path()
-    assert path is not None
+    path = pair.required_data_path()
 
     parsers = compile_parsers(
         document=document,
@@ -700,7 +695,7 @@ def test_a_wide_level_asks_whether_anything_matches_its_layer_pattern() -> None:
     [pytest.param(pair, level, id=f"{pair.key}/{level}") for pair, level in level_pairs()],
 )
 def test_every_packaged_level_accepts_a_header_built_from_its_own_requirements(
-    pair: DocumentPair, level: str
+    pair: PackagedDocument, level: str
 ) -> None:
     facade = pair.first_admitted_facade(level)  # pyright: ignore[reportArgumentType]
     working = facade.working_parameters

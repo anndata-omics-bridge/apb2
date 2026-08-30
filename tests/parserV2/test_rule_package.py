@@ -37,7 +37,7 @@ from apb2.parserV2.vendor_parse_rules.schema.rule import (
     rule_json_schema,
 )
 from apb2.parserV2.vendor_parse_rules.schema_artifact import artifact_path
-from parserV2.fixtures import DocumentPair, document_pairs, level_pairs
+from parserV2.fixtures import PackagedDocument, document_pairs, level_pairs
 from parserV2.rule_inventory import EXPECTED_DOCUMENT_COUNT, EXPECTED_LEVEL_COUNT
 
 NO_EVIDENCE = SearchParameterEvidence(acquisition_method="unknown", combine_charge_states=None)
@@ -74,7 +74,7 @@ def test_the_migration_kept_every_document_and_every_level() -> None:
 
 @pytest.mark.parametrize(("pair", "level"), _LEVEL_CASES)
 def test_measurement_ownership_is_separate_from_axis_identity(
-    pair: DocumentPair, level: QuantificationLevel
+    pair: PackagedDocument, level: QuantificationLevel
 ) -> None:
     rule = load_rule_document(pair.parser_v2_path).declared(level).declaration
 
@@ -86,7 +86,7 @@ def test_measurement_ownership_is_separate_from_axis_identity(
 
 @pytest.mark.parametrize(("pair", "level"), _LEVEL_CASES)
 def test_the_primary_layer_names_exactly_one_layer_and_is_required(
-    pair: DocumentPair, level: QuantificationLevel
+    pair: PackagedDocument, level: QuantificationLevel
 ) -> None:
     rule = load_rule_document(pair.parser_v2_path).declared(level).declaration
     names = [layer.name for layer in rule.measurements.layers]
@@ -103,7 +103,7 @@ def test_the_primary_layer_names_exactly_one_layer_and_is_required(
 
 @pytest.mark.parametrize(("pair", "level"), _LEVEL_CASES)
 def test_recognition_rejects_a_header_missing_one_required_source(
-    pair: DocumentPair, level: QuantificationLevel
+    pair: PackagedDocument, level: QuantificationLevel
 ) -> None:
     recognition = load_rule_document(pair.parser_v2_path).declared(level).recognition
     header = pair.header()
@@ -128,7 +128,7 @@ def _required_source(
 
 @pytest.mark.parametrize("pair", _DOCUMENT_CASES)
 def test_every_document_declares_the_new_generation_and_physical_extensions(
-    pair: DocumentPair,
+    pair: PackagedDocument,
 ) -> None:
     payload = json.loads(pair.parser_v2_path.read_text(encoding="utf-8"))
     document = load_rule_document(pair.parser_v2_path)

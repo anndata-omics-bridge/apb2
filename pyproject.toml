@@ -36,12 +36,8 @@ Repository = "https://github.com/anndata-omics-bridge/apb2"
 [project.scripts]
 apb2 = "apb2.cli:main"
 
-[tool.uv.sources]
-anndata-proteomics = { path = "../apb_legacy", editable = true }
-
 [dependency-groups]
 dev = [
-    "anndata-proteomics",
     "build>=1.3,<2",
     "deptry>=0.24,<1",
     "grimp>=3,<4",

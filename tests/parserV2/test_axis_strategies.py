@@ -9,10 +9,7 @@ from __future__ import annotations
 
 import polars as pl
 import pytest
-from anndata_proteomics.modifications import apply_rules as oracle_normalize
-from anndata_proteomics.modifications.model import ModifiedSequence as OracleModifiedSequence
 
-from apb2.parserV2 import compile as composition
 from apb2.parserV2.compile import make_modification_normalizer
 from apb2.parserV2.parse_quant.axis_columns import (
     AxisCoercionError,
@@ -52,9 +49,6 @@ from apb2.parserV2.parse_quant.parameters.axis import (
     TokenRegexModificationConfig,
     UnknownModificationPolicy,
 )
-from apb2.parserV2.parse_quant.parameters.source import LevelReadPlan, SingleFile
-from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
-from parserV2.fixtures import DocumentPair, document_pairs
 
 OXIDATION = ModificationMapEntry(
     token="ox",
@@ -556,95 +550,3 @@ def test_both_normalizers_satisfy_the_parser_owned_contract() -> None:
     assert isinstance(normalizers[0], TokenRegexNormalizer)
     for normalizer in normalizers:
         assert normalizer.sources
-
-
-# ------------------------------------------------------- parity with the unchanged domain
-
-_PARITY_ROWS = 2000
-_PARITY_CASES = [pytest.param(pair, id=pair.key) for pair in document_pairs()]
-
-
-@pytest.mark.parametrize("pair", _PARITY_CASES)
-def test_normalization_matches_the_unchanged_implementation_on_real_sequences(
-    pair: DocumentPair,
-) -> None:
-    document = load_rule_document(pair.parser_v2_path)
-    level = document.levels[0]
-    facade = pair.first_admitted_facade(level)
-    configs = facade.working_parameters.modifications
-    path = pair.data_path()
-    if not configs or path is None:
-        pytest.skip(f"{pair.key} declares no consumed modifications, or has no cached export")
-    config = configs[0]
-    normalizer = make_modification_normalizer(config)
-    if set(normalizer.sources) - set(pair.header()):
-        pytest.skip(f"cached export for {pair.key} lacks the modification sources")
-
-    source = SingleFile(path=path)
-    bound = composition.bind_source(source, facade.working_parameters.input)
-    evidence = composition.source_evidence(source, bound, document.matches)
-    frame = (
-        composition.make_reader(
-            bound,
-            evidence,
-            LevelReadPlan(
-                projected_columns=normalizer.sources,
-                text_sources=frozenset(normalizer.sources),
-                native_numeric_sources=frozenset(),
-            ),
-        )
-        .read()
-        .frame.head(_PARITY_ROWS)
-    )
-    columns = tuple(frame.get_column(name) for name in normalizer.sources)
-    derived = normalizer.normalize(columns)
-
-    expected = _oracle_results(config, columns)
-    assert derived[config.proforma_output].to_list() == [
-        result.proforma_sequence for result in expected
-    ]
-    assert derived[config.stripped_output].to_list() == [
-        result.stripped_sequence for result in expected
-    ]
-
-
-def _oracle_results(
-    config: SiteListModificationConfig | TokenRegexModificationConfig,
-    columns: tuple[pl.Series, ...],
-) -> list[OracleModifiedSequence]:
-    """Run the external APB normalizer over the same resolved configuration and values."""
-    entries = tuple(
-        oracle_normalize.MapEntry(
-            token=entry.token,
-            name=entry.name,
-            accession=entry.accession,
-            target=entry.target,
-            position=entry.position,
-            mass_delta=entry.mass_delta,
-        )
-        for entry in config.entries
-    )
-    texts = [
-        [value if value is not None else "" for value in column.cast(pl.String).to_list()]
-        for column in columns
-    ]
-    if isinstance(config, SiteListModificationConfig):
-        settings = oracle_normalize.SiteListRule(
-            delimiter=config.delimiter,
-            site_base=config.site_base,
-            case_sensitive=config.case_sensitive,
-            unknown_policy=config.unknown_policy,
-            entries=entries,
-        )
-        return [
-            oracle_normalize.apply_site_list(sequence, mods, sites, settings)
-            for sequence, mods, sites in zip(*texts, strict=True)
-        ]
-    token_settings = oracle_normalize.ModificationRule(
-        token_pattern=config.token_pattern,
-        token_position=config.token_position,
-        case_sensitive=config.case_sensitive,
-        unknown_policy=config.unknown_policy,
-        entries=entries,
-    )
-    return [oracle_normalize.apply_rule(value, token_settings) for value in texts[0]]

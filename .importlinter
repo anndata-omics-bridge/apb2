@@ -1,17 +1,7 @@
 [importlinter]
 root_packages =
     apb2
-    anndata_proteomics
 include_external_packages = True
-
-[importlinter:contract:no-apb-oracle-coupling]
-name = production apb2 never imports the external APB parity oracle
-type = forbidden
-allow_indirect_imports = True
-source_modules =
-    apb2
-forbidden_modules =
-    anndata_proteomics
 
 # --------------------------------------------------------------------------- Parser V2
 #
