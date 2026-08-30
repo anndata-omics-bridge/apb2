@@ -1,0 +1,55 @@
+{
+  "entries": [
+    {
+      "accession": "UNIMOD:1",
+      "name": "Acetyl",
+      "aliases": ["Acetylation"],
+      "target": ["N-term"],
+      "position": "N-term",
+      "mass_delta": 42.010565
+    },
+    {
+      "accession": "UNIMOD:4",
+      "name": "Carbamidomethyl",
+      "aliases": ["Carbamidomethylation"],
+      "target": ["C"],
+      "position": "Anywhere",
+      "mass_delta": 57.021464
+    },
+    {
+      "accession": "UNIMOD:21",
+      "name": "Phospho",
+      "target": ["S", "T", "Y"],
+      "position": "Anywhere",
+      "mass_delta": 79.966331
+    },
+    {
+      "accession": "UNIMOD:27",
+      "name": "Glu->pyro-Glu",
+      "target": ["E"],
+      "position": "N-term",
+      "mass_delta": -18.010565
+    },
+    {
+      "accession": "UNIMOD:28",
+      "name": "Gln->pyro-Glu",
+      "target": ["Q"],
+      "position": "N-term",
+      "mass_delta": -17.026549
+    },
+    {
+      "accession": "UNIMOD:35",
+      "name": "Oxidation",
+      "target": ["M"],
+      "position": "Anywhere",
+      "mass_delta": 15.994915
+    },
+    {
+      "accession": "UNIMOD:121",
+      "name": "GG",
+      "target": ["K"],
+      "position": "Anywhere",
+      "mass_delta": 114.042927
+    }
+  ]
+}
