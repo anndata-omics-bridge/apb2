@@ -30,7 +30,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from parserV2 import synthetic
-from parserV2.fixtures import DocumentPair, document_pairs
+from parserV2.fixtures import PackagedDocument, document_pairs
 
 DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
 COMMA = NumericTextFormat(decimal_mark=",", thousands_marks=())
@@ -437,7 +437,7 @@ def test_both_readers_satisfy_the_parser_owned_reader_contract(tmp_path: Path) -
 
 @pytest.mark.parametrize("pair", [pytest.param(pair, id=pair.key) for pair in document_pairs()])
 def test_every_cached_vendor_export_resolves_to_one_unambiguous_reading(
-    pair: DocumentPair,
+    pair: PackagedDocument,
 ) -> None:
     """The declared input policy must accept the files these rules were written for."""
     document = load_rule_document(pair.parser_v2_path)

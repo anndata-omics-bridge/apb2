@@ -34,7 +34,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
 )
 from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
 from parserV2 import synthetic
-from parserV2.fixtures import DocumentPair, level_pairs
+from parserV2.fixtures import PackagedDocument, level_pairs
 
 DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
 
@@ -204,7 +204,7 @@ def test_the_plan_reaches_the_manifest_of_a_written_parquet_dataset(tmp_path: Pa
     [pytest.param(pair, level, id=f"{pair.key}/{level}") for pair, level in level_pairs()],
 )
 def test_every_packaged_level_this_data_satisfies_serializes_its_plan(
-    pair: DocumentPair, level: QuantificationLevel
+    pair: PackagedDocument, level: QuantificationLevel
 ) -> None:
     header = pair.header()
     if not header:

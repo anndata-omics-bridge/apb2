@@ -1,12 +1,11 @@
-"""The packaged rule inventory Parser V2 and the external APB oracle must agree on."""
+"""The packaged rule inventory Parser V2 ships."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from anndata_proteomics.vendor_quant_rules._discovery import iter_packaged_documents
-from anndata_proteomics.vendor_quant_rules.loader import load_rule_document
-from anndata_proteomics.vendor_quant_rules.schema.components import QuantificationLevel
+from apb2.parserV2.vendor_parse_rules.loader import PACKAGED, load_rule_document
+from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
 
 EXPECTED_DOCUMENT_COUNT = 12
 EXPECTED_LEVEL_COUNT = 19
@@ -19,10 +18,10 @@ def document_key(path: Path) -> str:
     return "/".join(parts[root + 1 : -1])
 
 
-def oracle_levels() -> tuple[tuple[str, QuantificationLevel], ...]:
-    """Every ``(document key, level)`` the external APB oracle declares."""
+def packaged_levels() -> tuple[tuple[str, QuantificationLevel], ...]:
+    """Every ``(document key, level)`` Parser V2 declares."""
     return tuple(
         (document_key(path), level)
-        for path in iter_packaged_documents()
+        for path in PACKAGED
         for level in load_rule_document(path).levels
     )

@@ -50,7 +50,7 @@ from apb2.parserV2.vendor_parse_rules.document import RuleNotApplicable, SearchP
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
 from parserV2 import synthetic
-from parserV2.fixtures import DocumentPair, document_pairs, level_pairs
+from parserV2.fixtures import PackagedDocument, document_pairs, level_pairs
 
 NUMBERS = NumericTextFormat(decimal_mark=".", thousands_marks=())
 
@@ -80,7 +80,7 @@ def delimited(columns: tuple[str, ...]) -> DelimitedSourceEvidence:
     )
 
 
-def _facade_for(pair: DocumentPair, level: QuantificationLevel) -> ParseRuleFacade:
+def _facade_for(pair: PackagedDocument, level: QuantificationLevel) -> ParseRuleFacade:
     """The facade for one packaged level, under whichever evidence its gate admits."""
     document = load_rule_document(pair.parser_v2_path)
     for evidence in _EVIDENCES:
@@ -115,7 +115,7 @@ def _contains_model(value: object, seen: set[int] | None = None) -> bool:
 
 @pytest.mark.parametrize(("pair", "level"), _LEVEL_CASES)
 def test_every_packaged_level_projects_working_parameters(
-    pair: DocumentPair, level: QuantificationLevel
+    pair: PackagedDocument, level: QuantificationLevel
 ) -> None:
     working = _facade_for(pair, level).working_parameters
 
@@ -132,7 +132,7 @@ def test_every_packaged_level_projects_working_parameters(
 
 @pytest.mark.parametrize(("pair", "level"), _LEVEL_CASES)
 def test_every_compatible_level_resolves_both_axis_key_plans(
-    pair: DocumentPair, level: QuantificationLevel
+    pair: PackagedDocument, level: QuantificationLevel
 ) -> None:
     facade = _facade_for(pair, level)
     header = pair.header()
@@ -154,7 +154,7 @@ def test_every_compatible_level_resolves_both_axis_key_plans(
 
 @pytest.mark.parametrize(("pair", "level"), _LEVEL_CASES)
 def test_a_delimited_plan_decides_every_projected_column_dtype(
-    pair: DocumentPair, level: QuantificationLevel
+    pair: PackagedDocument, level: QuantificationLevel
 ) -> None:
     if (pair.key, level) in _INCOMPATIBLE:
         pytest.skip(f"cached export lacks columns for {pair.key}/{level}")
@@ -167,7 +167,7 @@ def test_a_delimited_plan_decides_every_projected_column_dtype(
 
 @pytest.mark.parametrize(("pair", "level"), _LEVEL_CASES)
 def test_projected_columns_stay_in_physical_header_order(
-    pair: DocumentPair, level: QuantificationLevel
+    pair: PackagedDocument, level: QuantificationLevel
 ) -> None:
     if (pair.key, level) in _INCOMPATIBLE:
         pytest.skip(f"cached export lacks columns for {pair.key}/{level}")
