@@ -9,12 +9,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import IO
 
-from apb2.parserV2.vendor_params.parsers.shared import unimod as unimod_registry
 from apb2.parserV2.vendor_params.parsers.shared.model import (
     MassTolerance,
     ModType,
     SearchedModification,
     ToleranceUnit,
+)
+from apb2.parserV2.vendor_params.parsers.shared.unimod import (
+    UNIMOD_REGISTRY,
+    UnimodEntry,
+    UnimodMatch,
 )
 
 Source = Path | IO[bytes] | IO[str]
@@ -217,12 +221,12 @@ def lookup_mass_mod(
     return UnrecognizedModificationMass(mass)
 
 
-def _find_modification(identity: str) -> unimod_registry.UnimodEntry | None:
+def _find_modification(identity: str) -> UnimodEntry | None:
     """Resolve a known name, accession, or mass without consuming unknown tokens."""
-    by_name = unimod_registry.find_by_name(identity)
-    if isinstance(by_name, unimod_registry.UnimodMatch):
+    by_name = UNIMOD_REGISTRY.find_by_name(identity)
+    if isinstance(by_name, UnimodMatch):
         return by_name.entry
     if not _MASS_RE.fullmatch(identity.strip()):
         return None
-    by_mass = unimod_registry.find_by_mass(float(identity))
-    return by_mass.entry if isinstance(by_mass, unimod_registry.UnimodMatch) else None
+    by_mass = UNIMOD_REGISTRY.find_by_mass(float(identity))
+    return by_mass.entry if isinstance(by_mass, UnimodMatch) else None

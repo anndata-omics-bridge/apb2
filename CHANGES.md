@@ -1,5 +1,13 @@
 # Changes
 
+- 2026-08-30: Separated the packaged Unimod storage document from lookup behavior. The canonical
+  table is now validated JSON; one runtime `UnimodRegistry` owns accession, normalized name/alias,
+  and mass lookup through the shared `UNIMOD_REGISTRY` instance. Removed the cached loader and
+  module-level lookup functions, migrated parameter parsers and their ProteoBench oracle, and added
+  focused duplicate, ambiguity, unknown-result, and tolerance coverage. The former four-module
+  modification-review TODO was superseded by the implemented Parser V2 consolidation in `775569b`
+  and `0538af6`.
+
 - 2026-08-30: Added explicit measurement and auxiliary result-layer roles across h5ad/h5mu,
   Parquet, and DuckDB without changing their format versions. Older metadata defaults to
   measurement; h5 occupancy compares measurement layers only, while every layer remains validated,

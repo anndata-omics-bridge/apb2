@@ -21,12 +21,16 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Final
 
-from apb2.parserV2.vendor_params.parsers.shared import unimod as unimod_registry
 from apb2.parserV2.vendor_params.parsers.shared.model import (
     MassTolerance,
     Parameters,
     SearchedModification,
     ToleranceUnit,
+)
+from apb2.parserV2.vendor_params.parsers.shared.unimod import (
+    UNIMOD_REGISTRY,
+    UnimodEntry,
+    UnimodMatch,
 )
 
 Cell = str | int | float | bool | None
@@ -254,11 +258,11 @@ def _read_modification(token: str) -> SearchedModification:
     )
 
 
-def _find(identity: str) -> unimod_registry.UnimodEntry | None:
-    by_name = unimod_registry.find_by_name(identity)
-    if isinstance(by_name, unimod_registry.UnimodMatch):
+def _find(identity: str) -> UnimodEntry | None:
+    by_name = UNIMOD_REGISTRY.find_by_name(identity)
+    if isinstance(by_name, UnimodMatch):
         return by_name.entry
     if not _NUMBER_RE.fullmatch(identity.strip()):
         return None
-    by_mass = unimod_registry.find_by_mass(float(identity))
-    return by_mass.entry if isinstance(by_mass, unimod_registry.UnimodMatch) else None
+    by_mass = UNIMOD_REGISTRY.find_by_mass(float(identity))
+    return by_mass.entry if isinstance(by_mass, UnimodMatch) else None

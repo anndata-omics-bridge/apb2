@@ -8,7 +8,6 @@ from io import BytesIO
 from pathlib import Path
 from typing import IO, NamedTuple
 
-from apb2.parserV2.vendor_params.parsers.shared import unimod as unimod_registry
 from apb2.parserV2.vendor_params.parsers.shared.common import (
     MassModificationMatch,
     lookup_mass_mod,
@@ -24,6 +23,7 @@ from apb2.parserV2.vendor_params.parsers.shared.model import (
     Probability,
     SearchedModification,
 )
+from apb2.parserV2.vendor_params.parsers.shared.unimod import UNIMOD_REGISTRY, UnimodMatch
 
 
 class Parameter(NamedTuple):
@@ -111,8 +111,8 @@ class ChargeRange:
 
 def _lookup_mod_name(mass: float, source_token: str) -> str:
     """Resolve a display name, preserving the source mass when it is unknown."""
-    canonical = unimod_registry.find_by_mass(mass, tolerance=_MASS_TOLERANCE)
-    if isinstance(canonical, unimod_registry.UnimodMatch):
+    canonical = UNIMOD_REGISTRY.find_by_mass(mass, tolerance=_MASS_TOLERANCE)
+    if isinstance(canonical, UnimodMatch):
         return canonical.entry.name
     vendor = lookup_mass_mod(mass, _VENDOR_MASS_TO_MOD, tol=_MASS_TOLERANCE)
     if isinstance(vendor, MassModificationMatch):
