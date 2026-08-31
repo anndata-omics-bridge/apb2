@@ -7,6 +7,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field, TypeAdapter, model_validator
 
+from apb2.parserV2.vendor_parse_rules.schema.annotation import SampleAnnotation
 from apb2.parserV2.vendor_parse_rules.schema.axis import (
     Axis,
     Coalesce,
@@ -59,6 +60,7 @@ class _RuleCore(ModelBase):
         default_factory=dict
     )
     search_parameter_overrides: list[SearchParameterOverride] = Field(default_factory=list)
+    sample_annotation: SampleAnnotation | None = None
 
     @model_validator(mode="after")
     def _core_consistency(self) -> _RuleCore:

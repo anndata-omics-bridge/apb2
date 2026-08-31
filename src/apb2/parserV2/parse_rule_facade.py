@@ -567,7 +567,7 @@ class ParseRuleFacade:
         cannot. Stating both as data is what lets ``apb fasta`` and ``apb proteobench`` run on
         an object this parser wrote.
         """
-        return {
+        provenance: dict[str, JsonValue] = {
             "produced_by": PRODUCER,
             "rule_json": json.dumps(rule.model_dump(mode="json")),
             "column_roles": {
@@ -580,6 +580,11 @@ class ParseRuleFacade:
             "shape": rule.shape,
             "quantification_level": rule.quantification_level,
         }
+        if rule.sample_annotation is not None:
+            provenance["sample_annotation_matching"] = rule.sample_annotation.matching.model_dump(
+                mode="json"
+            )
+        return provenance
 
     # -------------------------------------------------------------------- source resolution
 

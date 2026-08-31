@@ -135,6 +135,33 @@ forbidden_modules =
     apb2.parserV2.parse_quant.data.source
     apb2.parserV2.parse_quant.parameters
 
+# ---------------------------------------------------------------------- sample annotation
+
+[importlinter:contract:annotation-directory-nesting-is-the-import-rule]
+name = sample annotation modules descend into independent source/application/matching children
+type = layers
+exhaustive = True
+containers =
+    apb2.annotation
+layers =
+    compiler
+    contracts | prolfquapp | proteobench
+    source | application | matching
+    data
+
+[importlinter:contract:annotation-computation-holds-no-storage-backend]
+name = annotation computation imports no result IO, Pydantic, pandas, AnnData, or MuData
+type = forbidden
+source_modules =
+    apb2.annotation
+forbidden_modules =
+    apb2.parserV2.parse_quant.io
+    apb2.parserV2.vendor_parse_rules
+    pydantic
+    pandas
+    anndata
+    mudata
+
 [importlinter:contract:readers-see-only-a-source-table]
 name = an input adapter knows the source table, its parameters, and its own backend
 type = forbidden

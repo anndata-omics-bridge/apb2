@@ -4,6 +4,41 @@ The result-I/O API is the supported programmatic boundary for reading, transform
 APB2-authored results. It works with storage-neutral Polars values rather than AnnData or MuData
 objects.
 
+## Dataset-bound sample annotation
+
+The annotation API constructs an `Annotation` only after the source has been matched and validated
+against one `ParsedLevels`:
+
+```python
+from pathlib import Path
+
+from apb2.annotation.compiler import AnnotationCompiler, RequireAnnotation
+from apb2.annotation.data.model import AnnotationKind
+from apb2.parserV2.parse_quant.io.formats import read_parsed_levels, write_parsed_levels
+
+parsed = read_parsed_levels(Path("input.h5mu"))
+parser = AnnotationCompiler(
+    recognition=RequireAnnotation(AnnotationKind.PROLFQUAPP)
+).compile(Path("samples.tsv"))
+annotation = parser.parse(parsed)
+
+for level, match in annotation.matches.levels.items():
+    inspect(level, match.coverage, match.corrections)
+
+result = annotation.annotate()
+write_parsed_levels(result.parsed, Path("annotated.h5mu"))
+```
+
+`AnnotationCompiler` loads and recognizes the source once. The returned parser is source-bound and
+can be parsed against several datasets, producing a separate dataset-bound annotation each time.
+`parse(parsed)` raises before constructing an annotation when the selected policy is invalid—for
+example, when ProteoBench cannot cover every observation. `annotate()` uses the stored matches and
+does not recompute them.
+
+prolfquapp behavior is composed with `KeepUnmatchedAnnotation`,
+`RequireCompleteAnnotation`, or `SelectAnnotatedObservations`; ProteoBench has no configurable
+retention behavior. All tables and matching evidence are Polars-backed values.
+
 ## Format selection
 
 ```python

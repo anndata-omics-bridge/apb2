@@ -17,9 +17,12 @@ nav:
   - Home: index.md
   - Convert vendor results: conversion.md
   - Read and write results: result_io.md
+  - Annotate samples: sample_annotation.md
   - CLI reference: cli.md
   - Python API: api.md
-  - Architecture: architecture_converter.md
+  - Architecture:
+      - Converter: architecture_converter.md
+      - Sample annotation: architecture_annotation.md
 
 markdown_extensions:
   - admonition

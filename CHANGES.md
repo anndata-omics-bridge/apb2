@@ -1,5 +1,12 @@
 # Changes
 
+- 2026-08-31: Added storage-neutral, Polars-backed sample annotation with source recognition and
+  source-bound prolfquapp/ProteoBench parsers. `parser.parse(parsed)` now validates matching policy
+  before constructing a dataset-bound annotation; `annotation.annotate()` reuses inspectable match
+  evidence. Added exact aliases, PEAKS rules-driven fuzzy matching, explicit keep/error/drop and
+  Boolean selection behavior, consistent layer/obsm/obsp subsetting, provenance across every result
+  backend, and the Cyclopts `apb2 annotate` command. Published the user and architecture docs.
+
 - 2026-08-30: Separated the packaged Unimod storage document from lookup behavior. The canonical
   table is now validated JSON; one runtime `UnimodRegistry` owns accession, normalized name/alias,
   and mass lookup through the shared `UNIMOD_REGISTRY` instance. Removed the cached loader and

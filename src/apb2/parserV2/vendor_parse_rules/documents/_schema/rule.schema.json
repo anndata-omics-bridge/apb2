@@ -310,6 +310,43 @@
         }
       ]
     },
+    "FuzzySampleMatching": {
+      "additionalProperties": false,
+      "description": "Unambiguous mutual-best token matching after exact identifiers are reserved.",
+      "properties": {
+        "mode": {
+          "const": "fuzzy",
+          "title": "Mode",
+          "type": "string"
+        },
+        "cutoff": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Cutoff",
+          "type": "number"
+        },
+        "margin": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Margin",
+          "type": "number"
+        },
+        "near_miss_limit": {
+          "maximum": 50,
+          "minimum": 1,
+          "title": "Near Miss Limit",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "mode",
+        "cutoff",
+        "margin",
+        "near_miss_limit"
+      ],
+      "title": "FuzzySampleMatching",
+      "type": "object"
+    },
     "JoinNonempty": {
       "additionalProperties": false,
       "description": "Join non-empty input values with a separator.",
@@ -444,6 +481,17 @@
           },
           "title": "Search Parameter Overrides",
           "type": "array"
+        },
+        "sample_annotation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SampleAnnotation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "shape": {
           "const": "long",
@@ -747,6 +795,20 @@
         "pattern"
       ],
       "title": "RegexValuePattern",
+      "type": "object"
+    },
+    "SampleAnnotation": {
+      "additionalProperties": false,
+      "description": "Document-level policy used when later matching sample annotations.",
+      "properties": {
+        "matching": {
+          "$ref": "#/$defs/FuzzySampleMatching"
+        }
+      },
+      "required": [
+        "matching"
+      ],
+      "title": "SampleAnnotation",
       "type": "object"
     },
     "SearchParameterField": {
@@ -1054,6 +1116,17 @@
           },
           "title": "Search Parameter Overrides",
           "type": "array"
+        },
+        "sample_annotation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SampleAnnotation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "shape": {
           "const": "wide",

@@ -26,6 +26,7 @@ from typing import Literal
 
 from pydantic import Field, model_validator
 
+from apb2.parserV2.vendor_parse_rules.schema.annotation import SampleAnnotation
 from apb2.parserV2.vendor_parse_rules.schema.axis import ColumnGroup
 from apb2.parserV2.vendor_parse_rules.schema.base import (
     SCHEMA_VERSION,
@@ -211,6 +212,7 @@ class _RuleDocumentSchema(ModelBase):
     software_name: str
     software_version_pattern: str
     input: Input
+    sample_annotation: SampleAnnotation | None = None
     base: JsonDict
     levels: dict[QuantificationLevel, JsonDict] = Field(min_length=1)
 
@@ -309,6 +311,11 @@ class RuleDocument:
             "software_version_pattern": self._shell.software_version_pattern,
             "quantification_level": level,
             "shape": self._shell.input.shape,
+            **(
+                {"sample_annotation": self._shell.sample_annotation.model_dump(mode="json")}
+                if self._shell.sample_annotation is not None
+                else {}
+            ),
             **_merge_fragments(self._shell.base, level_fragment),
         }
 

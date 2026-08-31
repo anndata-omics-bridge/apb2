@@ -10,6 +10,7 @@ from typing import Annotated
 from cyclopts import App, Parameter
 from loguru import logger
 
+from apb2 import annotation_facade
 from apb2.parserV2 import conversion_facade
 
 app = App(name="apb2", help="Rules-driven vendor-table conversion", help_on_error=True)
@@ -129,6 +130,52 @@ def reformat(source: Path, target: Path) -> int:
     except (conversion_facade.ReformatError, OSError) as error:
         logger.error(str(error))
         return 1
+    return 0
+
+
+@app.command
+def annotate(
+    source: Path,
+    annotation: Path,
+    target: Path,
+    annotation_type: Annotated[
+        annotation_facade.AnnotationKind | None,
+        Parameter(name="--type"),
+    ] = None,
+    unmatched: annotation_facade.UnmatchedObservations | None = None,
+    include: str | None = None,
+) -> int:
+    """Attach sample annotation to an APB2 h5ad, h5mu, Parquet, or DuckDB result.
+
+    --type asserts one convention instead of auto-detecting it. prolfquapp supports
+    --unmatched keep, error, or drop; --include COLUMN further filters drop mode by one
+    Boolean annotation field. ProteoBench always requires complete observation coverage.
+    """
+    try:
+        result = annotation_facade.annotate_result(
+            source,
+            annotation,
+            target,
+            annotation_type=annotation_type,
+            unmatched=unmatched,
+            include=include,
+        )
+    except (
+        annotation_facade.AnnotationWorkflowError,
+        OSError,
+    ) as error:
+        logger.error(str(error))
+        return 1
+    for level, report in result.reports.items():
+        logger.info(
+            "level={} matched={}/{} annotation_only={} columns_added={}",
+            level,
+            report.coverage.matched_observation_count,
+            report.coverage.observation_count,
+            report.coverage.annotation_only_count,
+            list(report.columns_added),
+        )
+    logger.info("wrote {}", target)
     return 0
 
 

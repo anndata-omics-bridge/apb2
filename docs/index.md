@@ -4,7 +4,7 @@ APB2 converts quantitative proteomics vendor tables into AnnData or MuData and c
 APB2-authored result between h5ad, h5mu, Parquet, and DuckDB without parsing the vendor source
 again.
 
-The two user workflows are deliberately separate:
+The three user workflows are deliberately separate:
 
 ```text
 vendor table + parameter evidence
@@ -14,6 +14,10 @@ vendor table + parameter evidence
 APB2 result
     -> apb2 reformat
     -> another result format
+
+APB2 result + sample annotation
+    -> apb2 annotate
+    -> annotated APB2 result
 ```
 
 ## Convert a vendor table
@@ -53,6 +57,16 @@ writer_for(ResultFormat.DUCKDB).write(parsed, Path("results.duckdb"))
 
 Continue with [result reading and writing](result_io.md) or the [Python API](api.md).
 
+## Annotate samples
+
+```bash
+apb2 annotate results/all-levels.h5mu samples.tsv results/annotated.h5mu \
+  --type prolfquapp
+```
+
+Continue with [sample annotation](sample_annotation.md) for matching, strictness, filtering, and
+diagnostic semantics.
+
 ## Supported result formats
 
 | Format | Path | Levels | Result behavior |
@@ -62,9 +76,11 @@ Continue with [result reading and writing](result_io.md) or the [Python API](api
 | APB2 Parquet dataset | `.parquet` directory | one or more | exact Polars values and schemas |
 | DuckDB | `.duckdb` file | one or more | exact Polars values and schemas |
 
-APB2 conversion does not perform FASTA annotation, protein inference, or ProteoBench scoring.
+Sample annotation is an explicit post-conversion workflow. APB2 conversion itself does not perform
+FASTA annotation, protein inference, or ProteoBench scoring.
 
 The repository [README](https://github.com/anndata-omics-bridge/apb2#readme) provides the compact
 project overview. The complete design and dependency rules remain in the
-[converter architecture](architecture_converter.md); the user pages summarize them without
-replacing or shortening that decision record.
+[converter architecture](architecture_converter.md) and
+[sample-annotation architecture](architecture_annotation.md); the user pages summarize them
+without replacing those decision records.

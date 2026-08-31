@@ -148,6 +148,25 @@ def test_the_maxquant_source_names_the_one_table_it_reads() -> None:
     assert source.file_name == "evidence.txt"
 
 
+def test_peaks_declares_the_persisted_sample_annotation_matching_policy() -> None:
+    pair = next(candidate for candidate in document_pairs() if candidate.key == "peaks")
+    document = load_rule_document(pair.parser_v2_path)
+    effective = document.declared("ion").declaration
+    provenance = ParseRuleFacade.from_declared_rule(
+        document,
+        "ion",
+    ).working_parameters.provenance
+
+    assert effective.sample_annotation is not None
+    assert effective.sample_annotation.matching.mode == "fuzzy"
+    assert provenance["sample_annotation_matching"] == {
+        "mode": "fuzzy",
+        "cutoff": 0.6,
+        "margin": 0.1,
+        "near_miss_limit": 3,
+    }
+
+
 @pytest.mark.parametrize(
     ("document_key", "level", "protein_assignment", "fasta_accessions"),
     [

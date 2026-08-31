@@ -73,17 +73,24 @@ def test_parser_v2_reaches_neither_deleted_modules_nor_the_apb_oracle(path: Path
     assert not any(name.startswith("anndata_proteomics") for name in imported)
 
 
-def test_the_top_level_production_tree_is_only_the_cli_and_parser_v2() -> None:
+def test_the_top_level_production_tree_contains_only_the_two_products_and_their_facades() -> None:
     entries = {path.name for path in APB2.iterdir() if path.name != "__pycache__"}
 
-    assert entries == {"__init__.py", "cli.py", "parserV2", "py.typed"}
+    assert entries == {
+        "__init__.py",
+        "annotation",
+        "annotation_facade.py",
+        "cli.py",
+        "parserV2",
+        "py.typed",
+    }
 
 
-def test_the_cli_imports_only_parser_v2_from_apb2() -> None:
+def test_the_cli_imports_only_the_two_product_facades_from_apb2() -> None:
     imported = _imported_modules(APB2 / "cli.py")
     internal = {name for name in imported if name.startswith("apb2")}
 
-    assert internal == {"apb2.parserV2"}
+    assert internal == {"apb2", "apb2.parserV2"}
 
 
 @pytest.mark.parametrize(
@@ -214,7 +221,7 @@ def test_only_a_parent_module_knows_both_children() -> None:
 
 
 def test_every_package_marker_stays_empty() -> None:
-    markers = sorted(PARSER_V2.rglob("__init__.py"))
+    markers = sorted((*PARSER_V2.rglob("__init__.py"), *(APB2 / "annotation").rglob("__init__.py")))
 
     assert markers
     for marker in markers:

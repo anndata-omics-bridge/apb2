@@ -1,14 +1,14 @@
 # CLI reference
 
-APB2 exposes two commands:
+APB2 exposes three commands:
 
 ```text
 apb2 convert
 apb2 reformat
+apb2 annotate
 ```
 
-Use `apb2 --help`, `apb2 convert --help`, or `apb2 reformat --help` for the installed version's
-generated Cyclopts reference.
+Use `apb2 --help` or a command's `--help` for the installed version's generated Cyclopts reference.
 
 ## `apb2 convert`
 
@@ -42,6 +42,24 @@ apb2 reformat SOURCE TARGET
 changes the result semantics.
 
 See [Read and write parsed results](result_io.md) for format contracts and fidelity.
+
+## `apb2 annotate`
+
+```text
+apb2 annotate SOURCE ANNOTATION TARGET [OPTIONS]
+```
+
+| Argument or option | Meaning |
+| --- | --- |
+| `SOURCE` | Existing APB2 h5ad, h5mu, Parquet, or DuckDB result |
+| `ANNOTATION` | prolfquapp CSV/TSV or ProteoBench TOML |
+| `TARGET` | New annotated APB2 result; format selected by suffix |
+| `--type NAME` | Assert `prolfquapp` or `proteobench` instead of automatic recognition |
+| `--unmatched MODE` | prolfquapp `keep`, `error`, or `drop` behavior |
+| `--include COLUMN` | In drop mode, also require a true Boolean annotation field |
+
+Retention options require `--type prolfquapp`. ProteoBench always requires every quantitative
+observation to match. See [Annotate samples](sample_annotation.md).
 
 ## Exit behavior
 

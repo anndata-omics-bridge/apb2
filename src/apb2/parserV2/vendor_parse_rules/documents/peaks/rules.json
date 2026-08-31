@@ -9,6 +9,14 @@
       ".csv"
     ]
   },
+  "sample_annotation": {
+    "matching": {
+      "mode": "fuzzy",
+      "cutoff": 0.6,
+      "margin": 0.1,
+      "near_miss_limit": 3
+    }
+  },
   "base": {
     "axis": {
       "obs_keys": [

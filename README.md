@@ -32,6 +32,19 @@ one. A no-level conversion writes MuData even when only one level is compatible.
 promotes layer-contract warnings to errors. The command performs conversion only—FASTA annotation
 and protein inference are outside Parser V2.
 
+## Annotate samples
+
+Attach a prolfquapp table or ProteoBench module annotation to any APB2 result format:
+
+```bash
+apb2 annotate INPUT ANNOTATION OUTPUT [--type prolfquapp|proteobench]
+```
+
+The default prolfquapp behavior retains unmatched quantitative observations and writes null
+annotation fields. `--unmatched error` requires complete coverage; `--unmatched drop` explicitly
+subsets every observation-aligned value. ProteoBench is always strict. See the
+[sample-annotation guide](docs/sample_annotation.md).
+
 ## Reformat a parsed result
 
 Change only the persisted format; no vendor parsing or annotation runs:
@@ -56,11 +69,11 @@ writer_for(ResultFormat.DUCKDB).write(parsed, Path("result.duckdb"))
 conveniences. Parquet and DuckDB preserve Polars result values exactly; h5ad and h5mu apply the
 stored numeric/factor matrix projection.
 
-The CLI imports only `apb2.parserV2`.
+The CLI delegates conversion to Parser V2 and annotation to the independent annotation facade.
 
-The converter's controlling design, dependency boundaries, rule-schema decisions, algorithms, and
-implementation contracts are documented in
-[`docs/architecture_converter.md`](docs/architecture_converter.md).
+The controlling designs and dependency boundaries are documented in
+[`docs/architecture_converter.md`](docs/architecture_converter.md) and
+[`docs/architecture_annotation.md`](docs/architecture_annotation.md).
 
 ## Development
 
