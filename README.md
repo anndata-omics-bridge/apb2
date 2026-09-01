@@ -86,7 +86,7 @@ make docs
 
 All Python commands run from the synchronized project `.venv`.
 `make docs-serve` serves the user documentation locally. GitHub Actions publishes the strict
-MkDocs build to GitHub Pages from `main`.
+Zensical build to GitHub Pages from `main`.
 
 The rule JSON Schema is a packaged artifact. Developers regenerate it from the Parser V2 rule
 package rather than through a user-facing CLI command:

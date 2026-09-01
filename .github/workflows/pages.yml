@@ -36,7 +36,7 @@ jobs:
         run: uv sync --frozen --only-group docs
 
       - name: Build documentation
-        run: uv run --no-sync mkdocs build --strict
+        run: uv run --no-sync zensical build --clean --strict
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5

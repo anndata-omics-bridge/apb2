@@ -1,5 +1,8 @@
 # Changes
 
+- 2026-09-01: Aligned local and GitHub Pages documentation builds with the workspace Zensical
+  toolchain.
+
 - 2026-09-01: Made APB2 observation annotation convention-neutral and moved ProteoBench module
   interpretation to the separately released `apb-proteobench` package. Added public annotation and
   result facades, a canonical modification-name facade, and independent storage-neutral extension

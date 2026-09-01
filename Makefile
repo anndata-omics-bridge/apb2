@@ -35,10 +35,10 @@ build:  ## Build and validate source and wheel distributions
 	$(VENV_BIN)/twine check dist/*
 
 docs:  ## Build user documentation with strict warnings
-	uv run --frozen --group docs mkdocs build --strict
+	uv run --frozen --group docs zensical build --clean --strict
 
 docs-serve:  ## Serve user documentation locally
-	uv run --frozen --group docs mkdocs serve
+	uv run --frozen --group docs zensical serve
 
 check:  ## Run every merge-blocking quality gate
 	uv lock --check
