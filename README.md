@@ -34,16 +34,16 @@ and protein inference are outside Parser V2.
 
 ## Annotate samples
 
-Attach a prolfquapp table or ProteoBench module annotation to any APB2 result format:
+Attach a generic prolfquapp-style CSV/TSV table to any APB2 result format:
 
 ```bash
-apb2 annotate INPUT ANNOTATION OUTPUT [--type prolfquapp|proteobench]
+apb2 annotate INPUT ANNOTATION OUTPUT
 ```
 
 The default prolfquapp behavior retains unmatched quantitative observations and writes null
 annotation fields. `--unmatched error` requires complete coverage; `--unmatched drop` explicitly
-subsets every observation-aligned value. ProteoBench is always strict. See the
-[sample-annotation guide](docs/sample_annotation.md).
+subsets every observation-aligned value. ProteoBench-specific module annotation and scoring live
+in the separate `apb-proteobench` package. See the [sample-annotation guide](docs/sample_annotation.md).
 
 ## Reformat a parsed result
 
@@ -59,10 +59,10 @@ use the same explicit adapter boundary:
 ```python
 from pathlib import Path
 
-from apb2.parserV2.parse_quant.io.formats import ResultFormat, reader_for, writer_for
+from apb2.result_facade import read_parsed_levels, write_parsed_levels
 
-parsed = reader_for(ResultFormat.PARQUET).read(Path("result.parquet"))
-writer_for(ResultFormat.DUCKDB).write(parsed, Path("result.duckdb"))
+parsed = read_parsed_levels(Path("result.parquet"))
+write_parsed_levels(parsed, Path("result.duckdb"))
 ```
 
 `read_parsed_levels(source)` and `write_parsed_levels(parsed, target)` are path-inferred

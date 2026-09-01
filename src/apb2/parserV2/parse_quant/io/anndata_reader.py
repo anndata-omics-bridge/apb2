@@ -56,6 +56,12 @@ class H5adReader:
         parsed = ParsedLevels(
             levels={level_name: level},
             uns=_json_object(metadata.get("shared_uns"), "shared result provenance"),
+            metadata=_stored_extension_metadata(
+                metadata,
+                "shared_metadata",
+                stored,
+                "shared extension metadata",
+            ),
         )
         validate_parsed_levels(parsed)
         return parsed
@@ -88,6 +94,7 @@ class H5muReader:
         parsed = ParsedLevels(
             levels=levels,
             uns=_json_object(metadata.get("shared_uns"), "shared result provenance"),
+            metadata=_extension_metadata(stored),
         )
         validate_parsed_levels(parsed)
         return parsed
@@ -120,6 +127,12 @@ def _read_level(
         obsp=_pairwise_frames(stored.obsp, metadata, "obsp"),
         varp=_pairwise_frames(stored.varp, metadata, "varp"),
         uns=uns,
+        metadata=_stored_extension_metadata(
+            metadata,
+            "level_metadata",
+            stored,
+            "level extension metadata",
+        ),
     )
 
 
@@ -241,6 +254,25 @@ def _result_metadata(stored: AnnData | mudata.MuData) -> Mapping[str, object]:
 def _parse_provenance(stored: AnnData) -> dict[str, JsonValue]:
     namespace = object_mapping(stored.uns.get(NAMESPACE), f"uns[{NAMESPACE!r}]")
     return _json_object(namespace.get(PARSE_NAMESPACE), "parse provenance")
+
+
+def _extension_metadata(stored: AnnData | mudata.MuData) -> dict[str, JsonValue]:
+    namespace = object_mapping(stored.uns.get(NAMESPACE), f"uns[{NAMESPACE!r}]")
+    return {
+        key: _json_value(value)
+        for key, value in namespace.items()
+        if key not in {PARSE_NAMESPACE, RESULT_NAMESPACE}
+    }
+
+
+def _stored_extension_metadata(
+    result: Mapping[str, object],
+    name: str,
+    stored: AnnData,
+    role: str,
+) -> dict[str, JsonValue]:
+    value = result.get(name)
+    return _extension_metadata(stored) if value is None else _json_object(value, role)
 
 
 def _json_object(value: object, role: str) -> dict[str, JsonValue]:

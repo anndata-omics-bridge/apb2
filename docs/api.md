@@ -12,14 +12,11 @@ against one `ParsedLevels`:
 ```python
 from pathlib import Path
 
-from apb2.annotation.compiler import AnnotationCompiler, RequireAnnotation
-from apb2.annotation.data.model import AnnotationKind
-from apb2.parserV2.parse_quant.io.formats import read_parsed_levels, write_parsed_levels
+from apb2.annotation.compiler import AnnotationCompiler
+from apb2.result_facade import read_parsed_levels, write_parsed_levels
 
 parsed = read_parsed_levels(Path("input.h5mu"))
-parser = AnnotationCompiler(
-    recognition=RequireAnnotation(AnnotationKind.PROLFQUAPP)
-).compile(Path("samples.tsv"))
+parser = AnnotationCompiler().compile(Path("samples.tsv"))
 annotation = parser.parse(parsed)
 
 for level, match in annotation.matches.levels.items():
@@ -29,15 +26,16 @@ result = annotation.annotate()
 write_parsed_levels(result.parsed, Path("annotated.h5mu"))
 ```
 
-`AnnotationCompiler` loads and recognizes the source once. The returned parser is source-bound and
+`AnnotationCompiler` loads and validates the generic delimited source once. The returned parser is source-bound and
 can be parsed against several datasets, producing a separate dataset-bound annotation each time.
 `parse(parsed)` raises before constructing an annotation when the selected policy is invalid—for
-example, when ProteoBench cannot cover every observation. `annotate()` uses the stored matches and
+example, when complete coverage was requested but cannot be met. `annotate()` uses the stored matches and
 does not recompute them.
 
 prolfquapp behavior is composed with `KeepUnmatchedAnnotation`,
-`RequireCompleteAnnotation`, or `SelectAnnotatedObservations`; ProteoBench has no configurable
-retention behavior. All tables and matching evidence are Polars-backed values.
+`RequireCompleteAnnotation`, or `SelectAnnotatedObservations`. All tables and matching evidence
+are Polars-backed values. External scientific interpreters use the public capabilities in
+`apb2.annotation_extension`; APB2 does not select them by a convention enum.
 
 ## Format selection
 

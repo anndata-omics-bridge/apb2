@@ -14,7 +14,6 @@ from apb2.annotation.application.policies import (
 )
 from apb2.annotation.data.model import (
     AnnotationError,
-    AnnotationKind,
     AnnotationMatches,
     AnnotationResult,
     AnnotationTable,
@@ -98,7 +97,7 @@ class ProlfquappAnnotation:
         result = self.application.apply(self.parsed, self.matches)
         return record_annotation_provenance(
             result,
-            AnnotationKind.PROLFQUAPP,
+            "prolfquapp",
             self.table.origin,
         )
 
@@ -109,8 +108,6 @@ def prolfquapp_signature(
     /,
 ) -> bool:
     """Return whether the source envelope and columns identify prolfquapp input."""
-    if source.convention_hint is not None:
-        return source.convention_hint is AnnotationKind.PROLFQUAPP
     return bool(_primary_candidates(source, parameters))
 
 

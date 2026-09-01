@@ -11,7 +11,6 @@ import polars as pl
 from apb2.annotation.data.model import (
     AnnotationError,
     AnnotationFileOrigin,
-    AnnotationKind,
     AnnotationMatches,
     AnnotationOrigin,
     AnnotationResult,
@@ -161,30 +160,47 @@ class SelectAnnotatedObservations:
 
 def record_annotation_provenance(
     result: AnnotationResult,
-    kind: AnnotationKind,
+    convention: str,
     origin: AnnotationOrigin,
     /,
+    *,
+    metadata: Mapping[str, JsonValue] | None = None,
 ) -> AnnotationResult:
-    """Record JSON-compatible annotation evidence on the shared and level values."""
+    """Record one convention's JSON-compatible annotation evidence."""
     source = str(origin.path) if isinstance(origin, AnnotationFileOrigin) else None
     summary: dict[str, JsonValue] = {
         name: _report_json(report) for name, report in result.reports.items()
     }
     record: dict[str, JsonValue] = {
-        "kind": kind.value,
+        "schema_version": "1",
+        "convention": convention,
         "source": source,
         "levels": summary,
     }
-    result.parsed.uns["sample_annotation"] = record
+    if metadata:
+        record["metadata"] = dict(metadata)
+    shared_annotation = _annotation_section(result.parsed.metadata)
+    shared_annotation[convention] = record
     for name, level in result.parsed.levels.items():
         report = _report_json(result.reports[name])
         level_record: dict[str, JsonValue] = {
-            "kind": kind.value,
+            "schema_version": "1",
+            "convention": convention,
             "source": source,
             **report,
         }
-        level.uns["sample_annotation"] = level_record
+        if metadata:
+            level_record["metadata"] = dict(metadata)
+        level_annotation = _annotation_section(level.metadata)
+        level_annotation[convention] = level_record
     return result
+
+
+def _annotation_section(metadata: dict[str, JsonValue]) -> dict[str, JsonValue]:
+    value = metadata.setdefault("annotation", {})
+    if not isinstance(value, dict):
+        raise AnnotationError("APB annotation metadata section must be an object")
+    return value
 
 
 def _apply(
@@ -208,7 +224,11 @@ def _apply(
             columns_added=tuple(match.aligned.columns),
         )
     return AnnotationResult(
-        parsed=ParsedLevels(levels=levels, uns=dict(parsed.uns)),
+        parsed=ParsedLevels(
+            levels=levels,
+            uns=dict(parsed.uns),
+            metadata=dict(parsed.metadata),
+        ),
         reports=reports,
     )
 
@@ -243,6 +263,7 @@ def _annotated_level(
         varm=dict(level.varm),
         obsp={name: _subset_pairwise(frame, kept) for name, frame in level.obsp.items()},
         varp=dict(level.varp),
+        metadata=dict(level.metadata),
     )
 
 
@@ -274,17 +295,16 @@ def _subset_pairwise(frame: pl.DataFrame, kept: list[int]) -> pl.DataFrame:
 def _report_json(report: LevelAnnotationReport) -> dict[str, JsonValue]:
     coverage = report.coverage
     near_misses: dict[str, JsonValue] = {
-        key: [[candidate, score] for candidate, score in candidates]
-        for key, candidates in coverage.near_misses.items()
+        key: dict(candidates) for key, candidates in coverage.near_misses.items()
     }
-    corrections: list[JsonValue] = [
-        {
+    corrections: dict[str, JsonValue] = {
+        correction.observed: {
             "observed": correction.observed,
             "expected": correction.expected,
             "score": correction.score,
         }
         for correction in report.corrections
-    ]
+    }
     return {
         "observation_count": coverage.observation_count,
         "annotation_count": coverage.annotation_count,

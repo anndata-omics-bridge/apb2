@@ -79,10 +79,13 @@ def test_the_top_level_production_tree_contains_only_the_two_products_and_their_
     assert entries == {
         "__init__.py",
         "annotation",
+        "annotation_extension.py",
         "annotation_facade.py",
         "cli.py",
+        "modification_facade.py",
         "parserV2",
         "py.typed",
+        "result_facade.py",
     }
 
 

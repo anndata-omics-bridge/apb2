@@ -16,11 +16,10 @@ from apb2.annotation.application.policies import (
     MatchedAnnotationSelection,
     SelectAnnotatedObservations,
 )
-from apb2.annotation.compiler import AnnotationCompiler, RequireAnnotation
+from apb2.annotation.compiler import AnnotationCompiler
 from apb2.annotation.data.model import (
     IN_MEMORY_ANNOTATION,
     AnnotationError,
-    AnnotationKind,
     LoadedAnnotationSource,
 )
 from apb2.annotation.matching.core import (
@@ -30,7 +29,6 @@ from apb2.annotation.matching.core import (
     match_annotation,
 )
 from apb2.annotation.prolfquapp import ProlfquappAnnotationParameters
-from apb2.annotation.proteobench import ProteobenchAnnotationParser
 from apb2.cli import annotate as annotate_command
 from apb2.parserV2.parse_quant.data.parsed import (
     FinalLayerTable,
@@ -120,7 +118,6 @@ def _prolfquapp_compiler(
     parameters: ProlfquappAnnotationParameters | None = None,
 ) -> AnnotationCompiler:
     return AnnotationCompiler(
-        recognition=RequireAnnotation(AnnotationKind.PROLFQUAPP),
         prolfquapp=parameters or ProlfquappAnnotationParameters(),
     )
 
@@ -148,9 +145,7 @@ def test_parser_constructs_a_dataset_bound_annotation_with_inspectable_matches()
     assert parsed.levels["ion"].obs.frame.columns == ["run"]
 
 
-def test_proteobench_parser_raises_before_constructing_on_incomplete_coverage(
-    tmp_path: Path,
-) -> None:
+def test_generic_compiler_rejects_source_specific_toml(tmp_path: Path) -> None:
     source = tmp_path / "module_settings.toml"
     source.write_text(
         """
@@ -161,11 +156,8 @@ condition = "A"
 """,
         encoding="utf-8",
     )
-    parser = AnnotationCompiler().compile(source)
-    assert isinstance(parser, ProteobenchAnnotationParser)
-
-    with pytest.raises(AnnotationError, match="complete sample annotation required"):
-        parser.parse(_parsed())
+    with pytest.raises(AnnotationError, match=r"expected \.csv or \.tsv"):
+        AnnotationCompiler().compile(source)
 
 
 def test_prolfquapp_parser_does_not_construct_an_annotation_with_zero_matches() -> None:
@@ -193,29 +185,9 @@ def test_compiler_loads_delimited_prolfquapp_sources(
     assert annotation.matches.levels["ion"].coverage.matched_observation_count == 1
 
 
-def test_explicit_annotation_type_is_verified_without_fallback(tmp_path: Path) -> None:
-    source = tmp_path / "samples.tsv"
-    source.write_text("raw_file\tcondition\nrun_A\tA\n", encoding="utf-8")
-
-    with pytest.raises(AnnotationError, match="not valid proteobench"):
-        AnnotationCompiler(recognition=RequireAnnotation(AnnotationKind.PROTEOBENCH)).compile(
-            source
-        )
-
-
-def test_automatic_memory_recognition_reports_unsupported_and_ambiguous_sources() -> None:
-    with pytest.raises(AnnotationError, match="unsupported"):
+def test_memory_annotation_requires_one_supported_observation_key() -> None:
+    with pytest.raises(AnnotationError, match="no supported observation key"):
         AnnotationCompiler().compile(pl.DataFrame({"other": ["value"]}))
-
-    ambiguous = pl.DataFrame(
-        {
-            "raw_file": ["run_A"],
-            "sample_name": ["A"],
-            "condition": ["A"],
-        }
-    )
-    with pytest.raises(AnnotationError, match="ambiguous"):
-        AnnotationCompiler().compile(ambiguous)
 
 
 def test_compilation_reads_a_file_once(
@@ -398,13 +370,13 @@ def test_cli_annotation_round_trips_through_every_result_format(
         source,
         annotation,
         target,
-        annotation_type=AnnotationKind.PROLFQUAPP,
     )
 
     assert exit_code == 0
     restored = read_parsed_levels(target)
     assert restored.levels["ion"].obs.frame.get_column("condition").to_list() == ["A", "B"]
-    assert restored.uns["sample_annotation"]
+    assert restored.metadata["annotation"]
+    assert restored.levels["ion"].metadata["annotation"]
 
 
 def test_annotation_does_not_recompute_matching_during_application() -> None:

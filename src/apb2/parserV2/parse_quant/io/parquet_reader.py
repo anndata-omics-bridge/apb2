@@ -68,7 +68,11 @@ class ParquetReader:
         if set(order) != set(level_entries):
             raise InvalidResultError("level order and level metadata name different levels")
         uns = cast(dict[str, JsonValue], dict(object_mapping(manifest.get("uns"), "shared uns")))
-        parsed = ParsedLevels(levels=levels, uns=uns)
+        metadata = cast(
+            dict[str, JsonValue],
+            dict(object_mapping(manifest.get("metadata", {}), "shared metadata")),
+        )
+        parsed = ParsedLevels(levels=levels, uns=uns, metadata=metadata)
         validate_parsed_levels(parsed)
         return parsed
 
@@ -98,6 +102,10 @@ def _read_level(source: Path, metadata: dict[str, object] | object) -> ParsedLev
         obsp=_read_named_frames(directory / "obsp", level, "obsp"),
         varp=_read_named_frames(directory / "varp", level, "varp"),
         uns=cast(dict[str, JsonValue], dict(object_mapping(level.get("uns"), "level uns"))),
+        metadata=cast(
+            dict[str, JsonValue],
+            dict(object_mapping(level.get("metadata", {}), "level metadata sections")),
+        ),
     )
 
 

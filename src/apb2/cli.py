@@ -138,25 +138,19 @@ def annotate(
     source: Path,
     annotation: Path,
     target: Path,
-    annotation_type: Annotated[
-        annotation_facade.AnnotationKind | None,
-        Parameter(name="--type"),
-    ] = None,
     unmatched: annotation_facade.UnmatchedObservations | None = None,
     include: str | None = None,
 ) -> int:
-    """Attach sample annotation to an APB2 h5ad, h5mu, Parquet, or DuckDB result.
+    """Attach a delimited sample table to an APB2 result.
 
-    --type asserts one convention instead of auto-detecting it. prolfquapp supports
-    --unmatched keep, error, or drop; --include COLUMN further filters drop mode by one
-    Boolean annotation field. ProteoBench always requires complete observation coverage.
+    --unmatched selects keep, error, or drop behavior; --include COLUMN further filters
+    drop mode by one Boolean annotation field.
     """
     try:
         result = annotation_facade.annotate_result(
             source,
             annotation,
             target,
-            annotation_type=annotation_type,
             unmatched=unmatched,
             include=include,
         )

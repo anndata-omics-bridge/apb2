@@ -145,7 +145,7 @@ containers =
     apb2.annotation
 layers =
     compiler
-    contracts | prolfquapp | proteobench
+    contracts | prolfquapp
     source | application | matching
     data
 

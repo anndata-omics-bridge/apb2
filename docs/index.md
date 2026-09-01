@@ -60,8 +60,7 @@ Continue with [result reading and writing](result_io.md) or the [Python API](api
 ## Annotate samples
 
 ```bash
-apb2 annotate results/all-levels.h5mu samples.tsv results/annotated.h5mu \
-  --type prolfquapp
+apb2 annotate results/all-levels.h5mu samples.tsv results/annotated.h5mu
 ```
 
 Continue with [sample annotation](sample_annotation.md) for matching, strictness, filtering, and

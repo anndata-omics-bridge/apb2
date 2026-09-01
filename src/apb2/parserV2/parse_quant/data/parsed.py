@@ -157,6 +157,9 @@ class ParsedLevel:
     varp: dict[str, pl.DataFrame]
     # {"similarity": pl.DataFrame({"row": [0], "column": [1], "value": [0.6]})}
 
+    metadata: dict[str, JsonValue] = field(default_factory=dict)
+    # {"annotation": {"prolfquapp": {"schema_version": "1"}}}
+
 
 @dataclass(slots=True)
 class ParsedLevels:
@@ -167,3 +170,6 @@ class ParsedLevels:
 
     uns: dict[str, JsonValue]
     # {"produced_by": "apb2", "rule_selection_method": "software_version"}
+
+    metadata: dict[str, JsonValue] = field(default_factory=dict)
+    # Post-parse sections persisted beside, never inside, APB's parse provenance.

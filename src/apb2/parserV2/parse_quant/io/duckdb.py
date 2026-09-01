@@ -80,6 +80,7 @@ class DuckDBWriter:
                     "level_order": list(parsed.levels),
                     "levels": levels,
                     "uns": dict(parsed.uns),
+                    "metadata": dict(parsed.metadata),
                 }
                 payload = json.dumps(manifest, ensure_ascii=False, allow_nan=False)
                 connection.execute(
@@ -118,6 +119,7 @@ class DuckDBWriter:
             "varp_order": list(parsed.varp),
             "varp": {name: tables.write(frame) for name, frame in parsed.varp.items()},
             "uns": dict(parsed.uns),
+            "metadata": dict(parsed.metadata),
         }
 
 
@@ -163,6 +165,10 @@ class DuckDBReader:
         return ParsedLevels(
             levels=levels,
             uns=cast(dict[str, JsonValue], dict(object_mapping(root.get("uns"), "shared uns"))),
+            metadata=cast(
+                dict[str, JsonValue],
+                dict(object_mapping(root.get("metadata", {}), "shared metadata")),
+            ),
         )
 
     def _read_level(
@@ -189,6 +195,10 @@ class DuckDBReader:
             obsp=self._read_named(connection, level, "obsp"),
             varp=self._read_named(connection, level, "varp"),
             uns=cast(dict[str, JsonValue], dict(object_mapping(level.get("uns"), "level uns"))),
+            metadata=cast(
+                dict[str, JsonValue],
+                dict(object_mapping(level.get("metadata", {}), "level metadata sections")),
+            ),
         )
 
     def _read_layers(

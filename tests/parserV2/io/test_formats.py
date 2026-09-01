@@ -144,6 +144,7 @@ def _level(name: str, feature_column: str) -> ParsedLevel:
             "plan_json": _plan(tuple(layers)),
             "nested": {"tokens": ["x", "y"], "enabled": True},
         },
+        metadata={"level_extension": {"name": name}},
     )
 
 
@@ -154,18 +155,21 @@ def rich_result() -> ParsedLevels:
             "protein": _level("protein", "Protein"),
         },
         uns={"produced_by": "apb2", "quantification_levels": ["ion", "protein"]},
+        metadata={"collection_extension": {"enabled": True}},
     )
 
 
 def _assert_result_equal(actual: ParsedLevels, expected: ParsedLevels) -> None:
     assert list(actual.levels) == list(expected.levels)
     assert actual.uns == expected.uns
+    assert actual.metadata == expected.metadata
     for name, wanted in expected.levels.items():
         got = actual.levels[name]
         assert got.primary_layer_name == wanted.primary_layer_name
         assert got.obs.key_columns == wanted.obs.key_columns
         assert got.var.key_columns == wanted.var.key_columns
         assert got.uns == wanted.uns
+        assert got.metadata == wanted.metadata
         assert_frame_equal(got.obs.frame, wanted.obs.frame)
         assert_frame_equal(got.var.frame, wanted.var.frame)
         _assert_layer_mapping(got.layers, wanted.layers)
@@ -293,6 +297,9 @@ def test_h5mu_projection_is_idempotent(tmp_path: Path) -> None:
     writer_for(ResultFormat.H5MU).write(rich_result(), first)
     projected = reader_for(ResultFormat.H5MU).read(first)
 
+    assert projected.metadata == rich_result().metadata
+    assert projected.levels["ion"].metadata == rich_result().levels["ion"].metadata
+
     writer_for(ResultFormat.H5MU).write(projected, second)
 
     _assert_result_equal(reader_for(ResultFormat.H5MU).read(second), projected)
@@ -307,9 +314,12 @@ def test_h5ad_accepts_exactly_one_level_and_is_idempotent(tmp_path: Path) -> Non
     single = ParsedLevels(
         levels={"ion": rich_result().levels["ion"]},
         uns={"selected": "ion"},
+        metadata={"collection_extension": {"enabled": True}},
     )
     writer_for(ResultFormat.H5AD).write(single, target)
     projected = reader_for(ResultFormat.H5AD).read(target)
+    assert projected.metadata == single.metadata
+    assert projected.levels["ion"].metadata == single.levels["ion"].metadata
     second = tmp_path / "again.h5ad"
 
     writer_for(ResultFormat.H5AD).write(projected, second)

@@ -52,14 +52,13 @@ apb2 annotate SOURCE ANNOTATION TARGET [OPTIONS]
 | Argument or option | Meaning |
 | --- | --- |
 | `SOURCE` | Existing APB2 h5ad, h5mu, Parquet, or DuckDB result |
-| `ANNOTATION` | prolfquapp CSV/TSV or ProteoBench TOML |
+| `ANNOTATION` | Generic prolfquapp-style CSV/TSV table |
 | `TARGET` | New annotated APB2 result; format selected by suffix |
-| `--type NAME` | Assert `prolfquapp` or `proteobench` instead of automatic recognition |
-| `--unmatched MODE` | prolfquapp `keep`, `error`, or `drop` behavior |
+| `--unmatched MODE` | `keep`, `error`, or `drop` behavior |
 | `--include COLUMN` | In drop mode, also require a true Boolean annotation field |
 
-Retention options require `--type prolfquapp`. ProteoBench always requires every quantitative
-observation to match. See [Annotate samples](sample_annotation.md).
+ProteoBench module annotation is provided by the separate `apb-proteobench annotate` command. See
+[Annotate samples](sample_annotation.md).
 
 ## Exit behavior
 

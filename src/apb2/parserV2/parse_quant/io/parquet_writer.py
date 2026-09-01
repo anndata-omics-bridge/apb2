@@ -71,6 +71,7 @@ class ParquetLevelsWriter:
                 "level_order": list(parsed.levels),
                 "levels": level_metadata,
                 "uns": dict(parsed.uns),
+                "metadata": dict(parsed.metadata),
             }
             (staged / MANIFEST_NAME).write_text(
                 json.dumps(manifest, ensure_ascii=False, allow_nan=False, indent=2) + "\n",
@@ -101,6 +102,7 @@ def _write_level(parsed: ParsedLevel, directory: Path, physical_name: str) -> di
         "varp_order": list(parsed.varp),
         "varp": _write_named_frames(parsed.varp, directory / "varp"),
         "uns": dict(parsed.uns),
+        "metadata": dict(parsed.metadata),
     }
 
 

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from enum import StrEnum
 from pathlib import Path
 
 import polars as pl
@@ -14,13 +13,6 @@ from apb2.parserV2.parse_quant.data.parsed import ParsedLevelName, ParsedLevels
 
 class AnnotationError(ValueError):
     """A sample annotation cannot be recognized, parsed, matched, or applied."""
-
-
-class AnnotationKind(StrEnum):
-    """Supported scientific sample-annotation conventions."""
-
-    PROLFQUAPP = "prolfquapp"
-    PROTEOBENCH = "proteobench"
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,12 +34,10 @@ IN_MEMORY_ANNOTATION = InMemoryAnnotationOrigin()
 
 @dataclass(frozen=True, slots=True)
 class LoadedAnnotationSource:
-    """One physically decoded source plus any convention evidence from its envelope."""
+    """One physically decoded tabular annotation source."""
 
     frame: pl.DataFrame
     origin: AnnotationOrigin
-    convention_hint: AnnotationKind | None
-    key_field_hint: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

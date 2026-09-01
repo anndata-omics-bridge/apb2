@@ -1,5 +1,11 @@
 # Changes
 
+- 2026-09-01: Made APB2 observation annotation convention-neutral and moved ProteoBench module
+  interpretation to the separately released `apb-proteobench` package. Added public annotation and
+  result facades, a canonical modification-name facade, and independent storage-neutral extension
+  metadata. h5ad, h5mu, Parquet, and DuckDB now round-trip downstream `uns["apb"]` sections beside
+  parse/result metadata; annotation provenance no longer lives inside parse provenance.
+
 - 2026-08-31: Added storage-neutral, Polars-backed sample annotation with source recognition and
   source-bound prolfquapp/ProteoBench parsers. `parser.parse(parsed)` now validates matching policy
   before constructing a dataset-bound annotation; `annotation.annotate()` reuses inspectable match

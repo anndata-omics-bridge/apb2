@@ -14,8 +14,8 @@ from apb2.annotation.application.policies import (
     RequireCompleteAnnotation,
     SelectAnnotatedObservations,
 )
-from apb2.annotation.compiler import AnnotationCompiler, DetectAnnotation, RequireAnnotation
-from apb2.annotation.data.model import AnnotationError, AnnotationKind, AnnotationResult
+from apb2.annotation.compiler import AnnotationCompiler
+from apb2.annotation.data.model import AnnotationError, AnnotationResult
 from apb2.annotation.prolfquapp import ProlfquappAnnotationParameters
 from apb2.parserV2.parse_quant.io.errors import ResultIOError
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels, write_parsed_levels
@@ -39,7 +39,6 @@ def annotate_result(
     target: Path,
     /,
     *,
-    annotation_type: AnnotationKind | None = None,
     unmatched: UnmatchedObservations | None = None,
     include: str | None = None,
 ) -> AnnotationResult:
@@ -47,20 +46,8 @@ def annotate_result(
     try:
         if source.resolve() == target.resolve():
             raise AnnotationError("annotation output must differ from its input")
-        if annotation_type is AnnotationKind.PROTEOBENCH and (
-            unmatched is not None or include is not None
-        ):
-            raise AnnotationError(
-                "ProteoBench annotation is strict and accepts no retention options"
-            )
-        if annotation_type is None and (unmatched is not None or include is not None):
-            raise AnnotationError("retention options require --type prolfquapp")
         application = _application(unmatched, include)
-        recognition = (
-            DetectAnnotation() if annotation_type is None else RequireAnnotation(annotation_type)
-        )
         compiler = AnnotationCompiler(
-            recognition=recognition,
             prolfquapp=ProlfquappAnnotationParameters(application=application),
         )
         parsed = read_parsed_levels(source)

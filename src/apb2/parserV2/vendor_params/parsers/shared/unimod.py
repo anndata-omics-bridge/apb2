@@ -100,6 +100,12 @@ class UnimodRegistry:
             )
         return entry
 
+    def names_by_accession(self) -> Mapping[str, str]:
+        """Return the canonical modification name for every registered accession."""
+        return MappingProxyType(
+            {accession: entry.name for accession, entry in self._by_accession.items()}
+        )
+
     def find_by_name(self, name: str) -> UnimodMatch | UnrecognizedUnimodName:
         """Find a canonical modification by accession, name, or shared synonym."""
         entry = self._by_name.get(name.strip().casefold())

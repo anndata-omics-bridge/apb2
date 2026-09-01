@@ -1,42 +1,43 @@
 # Annotate samples
 
-Sample annotation is a post-conversion operation over storage-neutral `ParsedLevels`. It accepts a
-prolfquapp CSV/TSV table or a ProteoBench TOML file and writes the same APB2 result format unless the
-target suffix deliberately selects another one.
+Sample annotation is a post-conversion operation over storage-neutral `ParsedLevels`. APB2's CLI
+accepts a generic prolfquapp-style CSV/TSV table and writes the same result format unless the target
+suffix deliberately selects another one. Scientific conventions such as ProteoBench compose the
+public annotation extension boundary from their own packages.
 
 ## Normal commands
 
 Keep all observations and attach null metadata where a prolfquapp row is absent:
 
 ```bash
-apb2 annotate input.h5mu samples.tsv annotated.h5mu --type prolfquapp
+apb2 annotate input.h5mu samples.tsv annotated.h5mu
 ```
 
 Require complete coverage:
 
 ```bash
 apb2 annotate input.h5mu samples.tsv annotated.h5mu \
-  --type prolfquapp --unmatched error
+  --unmatched error
 ```
 
 Use annotation membership as an explicit sample allowlist:
 
 ```bash
 apb2 annotate input.h5mu samples.tsv selected.h5mu \
-  --type prolfquapp --unmatched drop
+  --unmatched drop
 ```
 
 Also require a true Boolean annotation field:
 
 ```bash
 apb2 annotate input.h5mu samples.tsv selected.h5mu \
-  --type prolfquapp --unmatched drop --include include
+  --unmatched drop --include include
 ```
 
-ProteoBench always requires complete coverage:
+ProteoBench module semantics are owned by `apb-proteobench`:
 
 ```bash
-apb2 annotate input.h5mu module_settings.toml annotated.h5mu --type proteobench
+apb-proteobench annotate input.h5mu module_settings.toml annotated.h5mu
 ```
 
 ## Diagnostics and set meanings
@@ -46,7 +47,8 @@ corrections and `annotation_only` is `A - Q`.
 
 - prolfquapp warns for `annotation_only`: the annotation declares rows absent from quantification.
 - prolfquapp reports `quant_only` at information level: partial annotation may be deliberate.
-- ProteoBench rejects non-empty `quant_only` before constructing an annotation.
+- An external convention selects its own policy. `apb-proteobench` rejects both unmatched
+  observations and unused module samples before constructing a dataset-bound annotation.
 
 Dropping observations subsets `obs`, every layer observation column, every `obsm` row, and both
 axes of every `obsp` matrix while remapping coordinates. It never filters only `obs`.

@@ -45,7 +45,7 @@ Use the convenience functions when the paths already carry the format:
 ```python
 from pathlib import Path
 
-from apb2.parserV2.parse_quant.io.formats import read_parsed_levels, write_parsed_levels
+from apb2.result_facade import read_parsed_levels, write_parsed_levels
 
 parsed = read_parsed_levels(Path("results.duckdb"))
 write_parsed_levels(parsed, Path("results.h5mu"))
@@ -80,6 +80,11 @@ The h5 readers accept APB2-authored objects carrying the versioned result envelo
 `uns["apb"]["result"]`. They are not general importers for arbitrary third-party AnnData or MuData.
 The result envelope records each logical layer's role.
 
+`ParsedLevels.uns` and `ParsedLevel.uns` remain parse provenance. Independent post-parse sections
+live in each value's `metadata` mapping and are projected beside `parse` and `result` under
+`uns["apb"]`. The h5 result envelope retains their shared/per-level scopes even when a one-level
+h5ad exposes both scopes on the same physical object.
+
 An h5ad writer requires exactly one level. An h5mu writer accepts one or more levels.
 
 ### Layer roles and compatibility
@@ -106,7 +111,8 @@ Parquet and DuckDB preserve the represented `ParsedLevels` value exactly, includ
 - null versus NaN;
 - string and numeric-looking-string values;
 - `obsm`, `varm`, `obsp`, and `varp`; and
-- shared and per-level provenance.
+- shared and per-level parse provenance; and
+- independent shared and per-level extension metadata.
 
 h5ad and h5mu intentionally apply the matrix encoding stored with the parsed result. Numeric text
 becomes numeric values, configured factor strings become codes, and configured missing sentinels

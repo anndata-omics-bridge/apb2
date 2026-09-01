@@ -373,13 +373,14 @@ class AnnDataWriter:
 
     def to_anndata(self, parsed: ParsedLevel, /) -> AnnData:
         """Encode and materialize one parsed level without writing it."""
-        return self.to_anndata_for_level(parsed, _level_name(parsed), {})
+        return self.to_anndata_for_level(parsed, _level_name(parsed), {}, {})
 
     def to_anndata_for_level(
         self,
         parsed: ParsedLevel,
         level_name: ParsedLevelName,
         shared_uns: Mapping[str, JsonValue],
+        shared_metadata: Mapping[str, JsonValue],
     ) -> AnnData:
         validate_parsed_level(level_name, parsed)
         encoded = {
@@ -412,7 +413,15 @@ class AnnDataWriter:
         _write_namespaces(
             adata,
             parse=dict(parsed.uns),
-            result=_level_result_metadata(parsed, level_name, shared_uns, layer_names, slot_names),
+            result=_level_result_metadata(
+                parsed,
+                level_name,
+                shared_uns,
+                shared_metadata,
+                layer_names,
+                slot_names,
+            ),
+            metadata={**shared_metadata, **parsed.metadata},
         )
         return adata
 
@@ -562,7 +571,7 @@ class MuDataWriter:
             if level not in parsed.levels:
                 continue
             adata = self.level_writers[level].to_anndata_for_level(
-                parsed.levels[level], level, parsed.uns
+                parsed.levels[level], level, parsed.uns, parsed.metadata
             )
             prefix = LEVEL_VAR_PREFIXES[level]
             adata.var_names = [f"{prefix}{name}" for name in adata.var_names]
@@ -573,6 +582,7 @@ class MuDataWriter:
             result,
             parse=parsed.uns,
             result=_collection_result_metadata(parsed),
+            metadata=parsed.metadata,
         )
         _write_atomically(target, result.write_h5mu)
 
@@ -591,7 +601,12 @@ class H5adWriter:
         writer = _ann_data_writer_from_stored_plan(level)
         _write_atomically(
             target,
-            writer.to_anndata_for_level(level, level_name, parsed.uns).write_h5ad,
+            writer.to_anndata_for_level(
+                level,
+                level_name,
+                parsed.uns,
+                parsed.metadata,
+            ).write_h5ad,
         )
 
 
@@ -669,6 +684,7 @@ def _level_result_metadata(
     parsed: ParsedLevel,
     level_name: ParsedLevelName,
     shared_uns: Mapping[str, JsonValue],
+    shared_metadata: Mapping[str, JsonValue],
     layer_names: Mapping[str, str],
     slot_names: Mapping[str, Mapping[str, str]],
 ) -> dict[str, JsonValue]:
@@ -689,6 +705,8 @@ def _level_result_metadata(
         "format_version": RESULT_FORMAT_VERSION,
         "level": level_name,
         "shared_uns": dict(shared_uns),
+        "shared_metadata": dict(shared_metadata),
+        "level_metadata": dict(parsed.metadata),
         "primary_layer": parsed.primary_layer_name,
         "obs_key_columns": list(parsed.obs.key_columns),
         "var_key_columns": list(parsed.var.key_columns),
@@ -853,11 +871,16 @@ def _write_namespaces(
     *,
     parse: Mapping[str, JsonValue],
     result: Mapping[str, JsonValue],
+    metadata: Mapping[str, JsonValue],
 ) -> None:
-    """Store parse and result metadata under APB's one package namespace."""
+    """Store independent parse, result, and extension sections under APB's namespace."""
+    collisions = {PARSE_NAMESPACE, RESULT_NAMESPACE}.intersection(metadata)
+    if collisions:
+        raise AnnDataPlanError(f"APB extension metadata uses reserved section(s) {collisions}")
     target.uns[NAMESPACE] = {
         PARSE_NAMESPACE: dict(parse),
         RESULT_NAMESPACE: json.dumps(result, ensure_ascii=False, allow_nan=False),
+        **dict(metadata),
     }
 
 
