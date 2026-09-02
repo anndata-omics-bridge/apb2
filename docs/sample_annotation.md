@@ -5,7 +5,7 @@ accepts a generic prolfquapp-style CSV/TSV table and writes the same result form
 suffix deliberately selects another one. Scientific conventions such as ProteoBench compose the
 public annotation extension boundary from their own packages.
 
-## Normal commands
+## Command-line examples
 
 Keep all observations and attach null metadata where a prolfquapp row is absent:
 
@@ -60,3 +60,6 @@ The PEAKS rule opts into token-wise fuzzy matching. Exact pairs are reserved fir
 accepted only when it reaches the configured cutoff and is the unambiguous best candidate from both
 directions. Accepted corrections and bounded near misses are available through
 `annotation.matches` and are persisted with the result.
+
+See the [Python API](api.md#annotate-samples) to inspect matching evidence or apply annotation to
+an in-memory `ParsedLevels` value.

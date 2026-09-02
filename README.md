@@ -1,11 +1,34 @@
 # apb2
 
-Convert proteomics software output to AnnData (rules-driven parser, second generation)
+Convert proteomics software output to AnnData or MuData with a rules-driven parser.
 
 Read the rendered [APB2 documentation](https://anndata-omics-bridge.github.io/apb2/) or its
-[source index](docs/index.md).
+[source index](docs/index.md). The [supported-software matrix](docs/supported_software.md) lists
+every packaged software version, quantification level, vendor input type, table shape, and
+parameter parser.
 
-## Convert
+Choose the documentation for your interface:
+
+- [CLI reference](docs/cli.md) and [command-line guides](docs/conversion.md)
+- [Python API reference](docs/api.md)
+
+## Motivation and origin
+
+The work that became APB2 was discussed and started during the Copenhagen ProteoBench Hackathon,
+13–17 April 2026, as one of the efforts to improve the backend of the
+[ProteoBench platform](https://proteobench.cubimed.rub.de/). The hackathon included the public
+[EuBIC-MS Seminar 2026 on 15 April](https://eubic-ms.org/events/latest-developments-and-tools-for-data-analysis/).
+
+APB2 was also motivated by the vendor-specific readers maintained behind
+[`prolfquapp::preprocess_software()`](https://github.com/prolfqua/prolfquapp/blob/master/R/preprocess_software.R#L137)
+and in
+[`prolfquappPTMreaders`](https://github.com/prolfqua/prolfquappPTMreaders). We plan to move their
+remaining input variants and PTM/site-level formats into APB2 so one rules-driven parser can serve
+both prolfquapp and ProteoBench.
+
+## Command-line interface
+
+### Convert
 
 Use a packaged rule selected from the vendor parameter file and source header:
 
@@ -32,7 +55,17 @@ one. A no-level conversion writes MuData even when only one level is compatible.
 promotes layer-contract warnings to errors. The command performs conversion only—FASTA annotation
 and protein inference are outside Parser V2.
 
-## Annotate samples
+### Reformat a parsed result
+
+Change only the persisted format; no vendor parsing or annotation runs:
+
+```bash
+apb2 reformat SOURCE TARGET
+```
+
+The suffix selects h5ad, h5mu, an APB2 Parquet directory dataset, or DuckDB.
+
+### Annotate samples
 
 Attach a generic prolfquapp-style CSV/TSV table to any APB2 result format:
 
@@ -43,18 +76,13 @@ apb2 annotate INPUT ANNOTATION OUTPUT
 The default prolfquapp behavior retains unmatched quantitative observations and writes null
 annotation fields. `--unmatched error` requires complete coverage; `--unmatched drop` explicitly
 subsets every observation-aligned value. ProteoBench-specific module annotation and scoring live
-in the separate `apb-proteobench` package. See the [sample-annotation guide](docs/sample_annotation.md).
+in the separate `apb-proteobench` package. See the
+[sample-annotation guide](docs/sample_annotation.md).
 
-## Reformat a parsed result
+## Python API
 
-Change only the persisted format; no vendor parsing or annotation runs:
-
-```bash
-apb2 reformat SOURCE TARGET
-```
-
-The suffix selects h5ad, h5mu, an APB2 Parquet directory dataset, or DuckDB. Programmatic callers
-use the same explicit adapter boundary:
+The file-to-file facades mirror the CLI operations. The compiler/parser APIs expose
+storage-neutral values for custom pipelines. Result formats also have explicit adapters:
 
 ```python
 from pathlib import Path
@@ -65,12 +93,13 @@ parsed = read_parsed_levels(Path("result.parquet"))
 write_parsed_levels(parsed, Path("result.duckdb"))
 ```
 
-`read_parsed_levels(source)` and `write_parsed_levels(parsed, target)` are path-inferred
-conveniences. Parquet and DuckDB preserve Polars result values exactly; h5ad and h5mu apply the
-stored numeric/factor matrix projection.
+Parquet and DuckDB preserve Polars result values exactly; h5ad and h5mu apply the stored
+numeric/factor matrix projection. See the [Python API reference](docs/api.md) for vendor
+conversion, annotation, result values, and errors.
+
+## Architecture
 
 The CLI delegates conversion to Parser V2 and annotation to the independent annotation facade.
-
 The controlling designs and dependency boundaries are documented in
 [`docs/architecture_converter.md`](docs/architecture_converter.md) and
 [`docs/architecture_annotation.md`](docs/architecture_annotation.md).

@@ -28,6 +28,10 @@ APB2 appends `.h5ad` to the output basename. `LEVEL` is one of:
 - `protein`
 - `fragment`
 
+The [support matrix](supported_software.md#quantification-levels-by-rule) shows which packaged rule
+documents currently produce each level. In particular, `peptide` is part of the public level
+vocabulary but is not yet produced by a packaged rule.
+
 `--software` is normally unnecessary. Use it when parameter evidence or source columns leave more
 than one packaged rule compatible.
 
@@ -89,5 +93,6 @@ omitted LEVEL   -> BASENAME.h5mu
 
 Without `--output`, APB2 replaces the source suffix with `.h5ad` or `.h5mu`.
 
-See the [CLI reference](cli.md) for the complete command surface and
+See the [CLI reference](cli.md) for the complete command surface, the
+[Python API](api.md#convert-vendor-results) for programmatic conversion, and
 [result I/O](result_io.md) for changing a persisted format afterwards.

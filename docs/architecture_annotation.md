@@ -25,9 +25,9 @@ a dataclass initializer.
 keep, complete-coverage, or selection behavior, while concrete source packages own their
 convention-specific diagnostic semantics.
 
-prolfquapp validity depends on the configured application: keep accepts partial coverage, complete rejects it,
-and selection validates its Boolean fields before construction. Every policy rejects a level with
-zero matches because such an annotation is not an annotation for that dataset.
+prolfquapp validity depends on the configured application: keep accepts partial coverage, complete
+rejects it, and selection validates its Boolean fields before construction. Every policy rejects a
+level with zero matches because such an annotation is not an annotation for that dataset.
 
 ## Dependency direction
 

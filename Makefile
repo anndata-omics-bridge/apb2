@@ -1,7 +1,9 @@
 VENV_BIN := .venv/bin
+DOCS_PORT ?= 8000
 
 .DEFAULT_GOAL := help
-.PHONY: help sync format format-check lint typecheck deps test build docs docs-serve check clean
+.PHONY: help sync format format-check lint typecheck deps test build docs docs-serve \
+	docs-serve-public check clean
 
 help:  ## Show developer commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -39,6 +41,10 @@ docs:  ## Build user documentation with strict warnings
 
 docs-serve:  ## Serve user documentation locally
 	uv run --frozen --group docs zensical serve
+
+docs-serve-public:  ## Serve the prebuilt public directory without rebuilding
+	@test -f public/index.html || (echo "public/index.html is missing; run 'make docs' first" >&2; exit 1)
+	$(VENV_BIN)/python -m http.server $(DOCS_PORT) --directory public
 
 check:  ## Run every merge-blocking quality gate
 	uv lock --check

@@ -110,8 +110,8 @@ Parquet and DuckDB preserve the represented `ParsedLevels` value exactly, includ
 - Polars dtypes;
 - null versus NaN;
 - string and numeric-looking-string values;
-- `obsm`, `varm`, `obsp`, and `varp`; and
-- shared and per-level parse provenance; and
+- `obsm`, `varm`, `obsp`, and `varp`;
+- shared and per-level parse provenance;
 - independent shared and per-level extension metadata.
 
 h5ad and h5mu intentionally apply the matrix encoding stored with the parsed result. Numeric text

@@ -1,5 +1,12 @@
 # Changes
 
+- 2026-09-02: Published the complete packaged vendor-conversion and parameter-parser support
+  matrix. Documented APB2's origin in the 13–17 April 2026 Copenhagen ProteoBench Hackathon and
+  its role in the wider effort to improve the ProteoBench platform backend. Recorded the
+  Published a roadmap table for the prolfquapp and prolfquappPTMreaders outputs that motivate the
+  planned reader migration.
+  Separated the CLI and Python paths through the home page, README, navigation, and API reference.
+
 - 2026-09-01: Aligned local and GitHub Pages documentation builds with the workspace Zensical
   toolchain.
 

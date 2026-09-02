@@ -2,13 +2,15 @@
 
 APB2 exposes three commands:
 
-```text
-apb2 convert
-apb2 reformat
-apb2 annotate
-```
+| Command | Purpose | Guide |
+| --- | --- | --- |
+| `apb2 convert` | Parse a vendor table into h5ad or h5mu | [Convert vendor results](conversion.md) |
+| `apb2 reformat` | Change the storage format of an APB2 result | [Read and write results](result_io.md) |
+| `apb2 annotate` | Attach sample metadata to an APB2 result | [Annotate samples](sample_annotation.md) |
 
 Use `apb2 --help` or a command's `--help` for the installed version's generated Cyclopts reference.
+The [support matrix](supported_software.md) lists compatible vendor versions, inputs, parameter
+parsers, and quantification levels.
 
 ## `apb2 convert`
 
@@ -62,8 +64,8 @@ ProteoBench module annotation is provided by the separate `apb-proteobench annot
 
 ## Exit behavior
 
-- `0`: operation completed successfully;
-- `1`: expected input, selection, parsing, result-format, or writing failure; and
-- `2`: command-line usage or rejected output naming.
+- `0`: operation completed successfully
+- `1`: expected input, selection, parsing, result-format, or writing failure
+- `2`: command-line usage or rejected output naming
 
 Unexpected programming errors are not broadly swallowed; they remain visible with their traceback.

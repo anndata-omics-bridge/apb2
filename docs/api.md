@@ -1,10 +1,72 @@
 # Python API
 
-The result-I/O API is the supported programmatic boundary for reading, transforming, and writing
-APB2-authored results. It works with storage-neutral Polars values rather than AnnData or MuData
-objects.
+APB2 exposes programmatic boundaries for vendor conversion, result I/O, and sample annotation.
+The file-to-file facades mirror complete CLI operations; the compiler/parser APIs expose
+storage-neutral Polars values for composition in larger applications.
 
-## Dataset-bound sample annotation
+## Convert vendor results
+
+### File-to-file facade
+
+Use the facade when the complete operation starts and ends with a file:
+
+```python
+from pathlib import Path
+
+from apb2.parserV2.conversion_facade import (
+    convert_all_from_packaged_rules,
+    convert_from_packaged_rules,
+)
+
+convert_from_packaged_rules(
+    data=Path("report.tsv"),
+    level="ion",
+    output=Path("results/ion.h5ad"),
+    parameters_path=Path("search-parameters.txt"),
+    software=None,
+    parameters_software=None,
+    checks="standard",
+)
+
+convert_all_from_packaged_rules(
+    data=Path("report.tsv"),
+    output=Path("results/all-levels.h5mu"),
+    parameters_path=Path("search-parameters.txt"),
+    software=None,
+    parameters_software=None,
+    checks="standard",
+)
+```
+
+### Compiler and parser
+
+Use the compiler/parser boundary to keep the parsed result in memory before persistence:
+
+```python
+from pathlib import Path
+
+from apb2.parserV2.compile import AnnDataOutput, ParseRuleCompiler
+from apb2.parserV2.detect_document import detect_rule_document, search_parameter_evidence
+from apb2.parserV2.parse_quant.parameters.source import SingleFile
+from apb2.parserV2.parse_rule_facade import ParseRuleFacade
+from apb2.parserV2.vendor_params.registry import parse_params
+
+source = SingleFile(path=Path("report.tsv"))
+parameters = parse_params(Path("search-parameters.txt"), software="spectronaut")
+document = detect_rule_document(parameters, source).document
+parser = ParseRuleCompiler(
+    facade=ParseRuleFacade(document, "ion", search_parameter_evidence(parameters)),
+    output=AnnDataOutput(checks="standard"),
+).compile(source)
+
+parsed = parser.parse()
+parser.convert(parsed, Path("results/ion.h5ad"))
+```
+
+See [Convert vendor results](conversion.md) for rule selection, supported levels, validation, and
+output naming.
+
+## Annotate samples
 
 The annotation API constructs an `Annotation` only after the source has been matched and validated
 against one `ParsedLevels`:
@@ -20,24 +82,27 @@ parser = AnnotationCompiler().compile(Path("samples.tsv"))
 annotation = parser.parse(parsed)
 
 for level, match in annotation.matches.levels.items():
-    inspect(level, match.coverage, match.corrections)
+    print(level, match.coverage, match.corrections)
 
 result = annotation.annotate()
 write_parsed_levels(result.parsed, Path("annotated.h5mu"))
 ```
 
-`AnnotationCompiler` loads and validates the generic delimited source once. The returned parser is source-bound and
-can be parsed against several datasets, producing a separate dataset-bound annotation each time.
+`AnnotationCompiler` loads and validates the generic delimited source once. The returned parser is
+source-bound and can be parsed against several datasets, producing a separate dataset-bound
+annotation each time.
 `parse(parsed)` raises before constructing an annotation when the selected policy is invalid—for
-example, when complete coverage was requested but cannot be met. `annotate()` uses the stored matches and
-does not recompute them.
+example, when complete coverage was requested but cannot be met. `annotate()` uses the stored
+matches and does not recompute them.
 
 prolfquapp behavior is composed with `KeepUnmatchedAnnotation`,
 `RequireCompleteAnnotation`, or `SelectAnnotatedObservations`. All tables and matching evidence
 are Polars-backed values. External scientific interpreters use the public capabilities in
 `apb2.annotation_extension`; APB2 does not select them by a convention enum.
 
-## Format selection
+## Read and write results
+
+### Format selection
 
 ```python
 from apb2.parserV2.parse_quant.io.formats import ResultFormat
@@ -52,7 +117,7 @@ ResultFormat.PARQUET
 ResultFormat.DUCKDB
 ```
 
-## Readers and writers
+### Readers and writers
 
 ```python
 from pathlib import Path
@@ -86,7 +151,7 @@ class ParsedLevelsWriter(Protocol):
 Concrete adapters are selected once by `reader_for()` or `writer_for()`. Callers do not need to
 construct or discriminate among backend classes.
 
-## Path helpers
+### Path-inferred helpers
 
 ```python
 from apb2.parserV2.parse_quant.io.formats import (
@@ -107,7 +172,7 @@ reformat(source: Path, target: Path, /) -> None
 These functions infer formats only from the supported suffixes. `reformat()` is a complete
 storage-only use case, not a vendor conversion function.
 
-## Result values
+## Result model
 
 ```python
 from apb2.parserV2.parse_quant.data.parsed import (
@@ -157,7 +222,7 @@ class FinalLayerTable:
 Pairwise frames have exactly `row`, `column`, and `value` columns. Positions are zero-based local
 coordinates into the corresponding final axis.
 
-## Quantitative result helpers
+### Quantitative helpers
 
 Import each helper from the module that defines it:
 
@@ -207,7 +272,7 @@ required-name check or the measurement-layer occupancy contract.
 class AnnDataLayerContractError(ResultIOError): ...
 ```
 
-## Parser-owned API
+## Parser/result boundary
 
 A compiled parser still owns the one-level strategy contract:
 
