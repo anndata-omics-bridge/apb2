@@ -1,0 +1,84 @@
+{
+  "schema_version": "0.3",
+  "file_version": "1",
+  "software_name": "MaxQuant",
+  "software_version_pattern": "^(1\\.5|1\\.6|2\\.)",
+  "input": {
+    "shape": "wide",
+    "extensions": [
+      ".txt"
+    ],
+    "file_name": "peptides.txt"
+  },
+  "base": {
+    "axis": {
+      "obs_keys": [
+        "sample"
+      ]
+    },
+    "measurements": {
+      "duplicates": {
+        "mode": "error"
+      }
+    }
+  },
+  "levels": {
+    "peptide": {
+      "axis": {
+        "var_keys": [
+          "ProForma_peptide"
+        ]
+      },
+      "measurements": {
+        "primary_layer": "Intensity",
+        "layers": [
+          {
+            "name": "Intensity",
+            "source": "^Intensity (?P<sample>.+)$",
+            "missing_values": [
+              0
+            ]
+          },
+          {
+            "name": "LFQ_Intensity",
+            "source": "^LFQ intensity (?P<sample>.+)$",
+            "missing_values": [
+              0
+            ]
+          }
+        ]
+      },
+      "columns": {
+        "var": {
+          "select": {
+            "ProForma_peptide": "Sequence",
+            "Proteins": "Proteins",
+            "Leading_Razor_Protein": "Leading razor protein"
+          },
+          "optional_select": {
+            "Gene_Names": "Gene names",
+            "Protein_Names": "Protein names",
+            "Length": "Length",
+            "Missed_Cleavages": "Missed cleavages",
+            "Mass": "Mass",
+            "Charges": "Charges",
+            "PEP": "PEP",
+            "Score": "Score",
+            "Start_Position": "Start position",
+            "End_Position": "End position",
+            "Unique_Groups": "Unique (Groups)",
+            "Unique_Proteins": "Unique (Proteins)"
+          },
+          "types": {
+            "Length": "integer",
+            "Missed_Cleavages": "integer"
+          }
+        }
+      },
+      "column_roles": {
+        "protein_assignment": "Leading_Razor_Protein",
+        "fasta_accessions": "Proteins"
+      }
+    }
+  }
+}

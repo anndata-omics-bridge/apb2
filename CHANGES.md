@@ -1,5 +1,13 @@
 # Changes
 
+- 2026-09-03: Added a packaged MaxQuant `peptides.txt` rule, the first to produce the `peptide`
+  level. `peptides.txt` is a wide table with one `Intensity <experiment>` column per experiment, and
+  optionally one `LFQ intensity <experiment>` column, so it is a different quantification level
+  rather than a different shape of the same one. Peptide identity is the stripped `Sequence`, which
+  is already a valid ProForma string for an unmodified peptide, so the rule needs no modifications
+  block. Sample identity is the experiment, not the raw file: `evidence.txt` for the same search can
+  therefore carry more observations than `peptides.txt`.
+
 - 2026-09-03: Added a packaged Spectronaut 15 conversion rule. A 15.x report keys runs on `R.Label`
   and carries none of the `E.*`, `PG.GroupLabel`, `PEP.GroupingKey`, `FG.Mass` or `FG.XICDBID`
   columns the 19/20 document requires, so that document rejects it at every level. The new one

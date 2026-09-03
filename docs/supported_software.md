@@ -20,6 +20,7 @@ This table has one row per packaged rule document.
 | [DIA-NN 2](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/diann/v2/rules.json) | 2.x | `.parquet` | long | DIA-NN log or captured command/cfg text |
 | [FragPipe](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/fragpipe/rules.json) | 22.x or 23.x | `.tsv` | wide | `fragpipe.workflow` |
 | [MaxQuant](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant/rules.json) | 1.5.x, 1.6.x, or 2.x | `evidence.txt` | long | `mqpar.xml` |
+| [MaxQuant peptides](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant_peptides/rules.json) | 1.5.x, 1.6.x, or 2.x | `peptides.txt` | wide | `mqpar.xml` |
 | [PEAKS](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/peaks/rules.json) | 13.x | `.csv` | wide | PEAKS settings text report |
 | [Sage](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/sage/rules.json) | 0.x | `.tsv` | wide | Sage JSON parameter file |
 | [Spectronaut](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/spectronaut/rules.json) | 19.x or 20.x | `.tsv` | long | Spectronaut settings text report |
@@ -31,8 +32,7 @@ both `diann` and `dia-nn`.
 
 ## Quantification levels by rule
 
-A check mark means that the linked rule document can convert that level. APB2 recognizes five
-level names, but no packaged rule currently produces the `peptide` level.
+A check mark means that the linked rule document can convert that level. APB2 recognizes five level names. The `peptide` level comes only from MaxQuant `peptides.txt`, which is a wide table of per-experiment intensities rather than a per-run ion table.
 
 | Rule document | Ion | Peptidoform | Peptide | Protein | Fragment |
 | --- | :---: | :---: | :---: | :---: | :---: |
@@ -45,6 +45,7 @@ level names, but no packaged rule currently produces the `peptide` level.
 | [DIA-NN 2](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/diann/v2/rules.json) | ✓ | — | — | ✓ | — |
 | [FragPipe](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/fragpipe/rules.json) | ✓ | — | — | — | — |
 | [MaxQuant](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant/rules.json) | ✓ | — | — | — | — |
+| [MaxQuant peptides](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant_peptides/rules.json) | — | — | ✓ | — | — |
 | [PEAKS](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/peaks/rules.json) | ✓ | — | — | — | — |
 | [Sage](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/sage/rules.json) | ✓ | ✓ | — | — | — |
 | [Spectronaut](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/spectronaut/rules.json) | ✓ | — | — | ✓ | ✓ |
@@ -83,7 +84,7 @@ These existing pipeline inputs define the next migration targets:
 | --- | --- | --- | --- | --- | --- |
 | prolfquapp | DIA-NN | `report.tsv`, `diann-output.tsv`, or `report.parquet`; FASTA | protein or peptide | [`preprocess_DIANN()`](https://github.com/prolfqua/prolfquapp/blob/master/R/preprocess_DIANN.R#L210) | DIA-NN 1.x and 2.x tables are packaged; peptide-mode parity remains |
 | prolfquapp | FragPipe TMT | `psm.tsv`; FASTA | protein or peptide | [`preprocess_FP_PSM()`](https://github.com/prolfqua/prolfquapp/blob/master/R/preprocess_FP_PSM.R#L511) | a different FragPipe TSV rule exists; PSM/TMT parity is not yet claimed |
-| prolfquapp | MaxQuant | `peptides.txt`; FASTA | protein or peptide | [`preprocess_MQ_peptide()`](https://github.com/prolfqua/prolfquapp/blob/master/R/preprocess_MaxQuant.R#L369) | only `evidence.txt` is currently packaged |
+| prolfquapp | MaxQuant | `peptides.txt`; FASTA | protein or peptide | [`preprocess_MQ_peptide()`](https://github.com/prolfqua/prolfquapp/blob/master/R/preprocess_MaxQuant.R#L369) | both `evidence.txt` and `peptides.txt` are packaged |
 | prolfquapp | MSstats | `msstats*.csv` or `msstats*.tsv`; FASTA | protein or peptide | [`preprocess_MSstats()`](https://github.com/prolfqua/prolfquapp/blob/master/R/preprocess_MSstats.R#L210) | no packaged rule |
 | prolfquapp | FragPipe DIA via MSstats | `msstats*.csv` or `msstats*.tsv`; FASTA | protein or peptide | [`preprocess_MSstats_FPDIA()`](https://github.com/prolfqua/prolfquapp/blob/master/R/preprocess_MSstats.R#L87) | no packaged rule |
 | prolfquapp | Spectronaut BGS | `*BGS Factory Report (Normal).tsv` or `*_Report.tsv`; FASTA | protein or peptide | [`preprocess_BGS()`](https://github.com/prolfqua/prolfquapp/blob/master/R/preprocess_BGS_default.R#L115) | Spectronaut TSV is packaged; BGS and peptide-mode parity remain to be verified |
