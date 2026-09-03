@@ -503,7 +503,7 @@ class WorkingParseConfiguration:
             input          InputContract(
                                file_name="evidence.txt",
                                formats=(DelimitedFormatContract(
-                                   extensions=(".txt",), encoding="utf8", quote_char='"',
+                                   extensions=(".txt",), encoding_candidates=("utf8",), quote_char='"',
                                    delimiter_candidates=("\\t",),
                                    number_format_candidates=(
                                        NumericTextFormat(".", ()),
@@ -530,7 +530,7 @@ class WorkingParseConfiguration:
         exactly one against the observed header:
 
             formats=(DelimitedFormatContract(
-                extensions=(".tsv",), encoding="utf8", quote_char='"',
+                extensions=(".tsv",), encoding_candidates=("utf8",), quote_char='"',
                 delimiter_candidates=("\\t", ";", ","),
                 number_format_candidates=(
                     NumericTextFormat(decimal_mark=".", thousands_marks=(",", " ")),

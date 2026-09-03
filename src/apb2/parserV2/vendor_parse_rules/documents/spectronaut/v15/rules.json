@@ -27,6 +27,13 @@
         ".",
         " "
       ]
+    },
+    "encoding": {
+      "mode": "detect",
+      "candidates": [
+        "utf8",
+        "windows-1252"
+      ]
     }
   },
   "base": {

@@ -7,6 +7,7 @@ from pydantic import Field
 from apb2.parserV2.vendor_parse_rules.schema.base import ModelBase, TableShape
 from apb2.parserV2.vendor_parse_rules.schema.base_formats import (
     DetectedDelimiter,
+    DetectedEncoding,
     DetectedNumberFormat,
     SupportedExtension,
 )
@@ -20,3 +21,4 @@ class Input(ModelBase):
     file_name: str | None = Field(default=None, min_length=1)
     delimiter: DetectedDelimiter | None = None
     numbers: DetectedNumberFormat | None = None
+    encoding: DetectedEncoding | None = None

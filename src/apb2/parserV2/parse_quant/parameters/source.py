@@ -18,8 +18,8 @@ from typing import Literal
 
 import polars as pl
 
-type TextEncoding = Literal["utf8", "utf8-lossy"]
-"""The delimited encodings the reader supports; a rule may permit either."""
+type TextEncoding = Literal["utf8", "utf8-lossy", "windows-1252"]
+"""The delimited encodings the reader supports; a rule may permit several, in preference order."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,7 +78,7 @@ class DelimitedFormatContract:
     """
 
     extensions: tuple[str, ...]
-    encoding: TextEncoding
+    encoding_candidates: tuple[TextEncoding, ...]
     quote_char: str
     delimiter_candidates: tuple[str, ...]
     number_format_candidates: tuple[NumericTextFormat, ...]

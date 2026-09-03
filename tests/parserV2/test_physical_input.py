@@ -38,14 +38,14 @@ GROUPED = NumericTextFormat(decimal_mark=",", thousands_marks=(".",))
 
 TSV = DelimitedFormatContract(
     extensions=(".tsv",),
-    encoding="utf8",
+    encoding_candidates=("utf8",),
     quote_char='"',
     delimiter_candidates=("\t",),
     number_format_candidates=(DOT,),
 )
 TEXT = DelimitedFormatContract(
     extensions=(".txt",),
-    encoding="utf8",
+    encoding_candidates=("utf8",),
     quote_char='"',
     delimiter_candidates=("\t", ",", ";"),
     number_format_candidates=(DOT, COMMA),
@@ -136,6 +136,52 @@ def test_a_utf8_bom_does_not_become_part_of_the_first_column_name(tmp_path: Path
     evidence = delimited_input.detected_evidence(path, TSV, accepts_sample_and_feature)
 
     assert evidence.columns == ("Sample", "Feature")
+
+
+def test_declared_encoding_candidates_resolve_a_windows_1252_export(tmp_path: Path) -> None:
+    """A cp1252 em dash fails UTF-8, so detection falls through to the declared fallback."""
+    path = tmp_path / "legacy.tsv"
+    path.write_bytes("Sample\tFeature\tLabel\nA\tF\tx — y\n".encode("cp1252"))
+    contract = DelimitedFormatContract(
+        extensions=(".tsv",),
+        encoding_candidates=("utf8", "windows-1252"),
+        quote_char='"',
+        delimiter_candidates=("\t",),
+        number_format_candidates=(DOT,),
+    )
+
+    evidence = delimited_input.detected_evidence(path, contract, accepts_sample_and_feature)
+    frame = delimited_input.make_delimited_reader(
+        path, evidence, plan("Sample", "Feature", "Label")
+    ).read()
+
+    assert evidence.encoding == "windows-1252"
+    assert frame.frame.get_column("Label").to_list() == ["x — y"]
+
+
+def test_a_utf8_file_resolves_the_first_candidate_and_streams(tmp_path: Path) -> None:
+    path = write(tmp_path / "clean.tsv", "Sample\tFeature\nA\tF\n")
+    contract = DelimitedFormatContract(
+        extensions=(".tsv",),
+        encoding_candidates=("utf8", "windows-1252"),
+        quote_char='"',
+        delimiter_candidates=("\t",),
+        number_format_candidates=(DOT,),
+    )
+
+    evidence = delimited_input.detected_evidence(path, contract, accepts_sample_and_feature)
+
+    assert evidence.encoding == "utf8"
+
+
+def test_a_single_utf8_candidate_still_rejects_invalid_bytes(tmp_path: Path) -> None:
+    """A rule that declares no fallback keeps failing loudly rather than reinterpreting."""
+    path = tmp_path / "legacy.tsv"
+    path.write_bytes(b"Sample\tFeature\nA\tF \x97 G\n")
+
+    evidence = delimited_input.detected_evidence(path, TSV, accepts_sample_and_feature)
+    with pytest.raises(pl.exceptions.ComputeError, match="invalid utf-8"):
+        delimited_input.make_delimited_reader(path, evidence, plan("Sample", "Feature")).read()
 
 
 def test_a_stated_dialect_is_checked_against_the_declaration_and_the_header(

@@ -1,5 +1,15 @@
 # Changes
 
+- 2026-09-03: A rule's `input` block can now declare text-encoding detection, mirroring the
+  existing `delimiter` and `numbers` blocks: `{"mode": "detect", "candidates": ["utf8",
+  "windows-1252"]}`. Candidates are a preference order — the first that decodes a bounded probe of
+  the file wins — so a UTF-8 file resolves `utf8` and streams exactly as before, and the fallback is
+  consulted only for bytes UTF-8 rejects. A non-UTF-8 resolution reads through polars' eager
+  transcoding path, costing that file one extra pass. Rules that declare no encoding block keep the
+  fixed `utf8` contract, including its loud failure on invalid bytes. The Spectronaut 15 document
+  declares the detection: Spectronaut writes locale-dependent exports, and a real 15.x report puts a
+  Windows-1252 em dash in `EG.Label` on every row.
+
 - 2026-09-03: Added a packaged MaxQuant `peptides.txt` rule, the first to produce the `peptide`
   level. `peptides.txt` is a wide table with one `Intensity <experiment>` column per experiment, and
   optionally one `LFQ intensity <experiment>` column, so it is a different quantification level

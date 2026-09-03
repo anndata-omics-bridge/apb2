@@ -255,7 +255,7 @@ def test_a_working_configuration_separates_presence_from_annData_encoding() -> N
             formats=(
                 DelimitedFormatContract(
                     extensions=(".tsv",),
-                    encoding="utf8",
+                    encoding_candidates=("utf8",),
                     quote_char='"',
                     delimiter_candidates=("\t",),
                     number_format_candidates=(DOT,),

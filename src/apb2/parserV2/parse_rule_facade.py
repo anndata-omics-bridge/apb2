@@ -243,7 +243,11 @@ class ParseRuleFacade:
     ) -> PhysicalFormatContract:
         """Apply one shared extension default and this document's explicit exception."""
         if extension in PARQUET_EXTENSIONS:
-            if declared.delimiter is not None or declared.numbers is not None:
+            if (
+                declared.delimiter is not None
+                or declared.numbers is not None
+                or declared.encoding is not None
+            ):
                 raise ValueError("Parquet input cannot declare text-format detection")
             return ParquetFormatContract(extensions=(extension,))
         base = DELIMITED_BASE_FORMATS[extension]
@@ -252,9 +256,14 @@ class ParseRuleFacade:
             if declared.delimiter is None
             else tuple(dict.fromkeys(declared.delimiter.candidates))
         )
+        encodings = (
+            (base.encoding,)
+            if declared.encoding is None
+            else tuple(dict.fromkeys(declared.encoding.candidates))
+        )
         return DelimitedFormatContract(
             extensions=(extension,),
-            encoding=base.encoding,
+            encoding_candidates=encodings,
             quote_char=base.quote_char,
             delimiter_candidates=delimiters,
             number_format_candidates=ParseRuleFacade._project_number_formats(

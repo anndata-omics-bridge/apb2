@@ -10,7 +10,7 @@ from pydantic import Field
 from apb2.parserV2.vendor_parse_rules.schema.base import ModelBase
 
 type SupportedExtension = Literal[".tsv", ".txt", ".csv", ".parquet"]
-type TextEncoding = Literal["utf8", "utf8-lossy"]
+type TextEncoding = Literal["utf8", "utf8-lossy", "windows-1252"]
 type DecimalMark = Literal[".", ","]
 type SingleCharacter = Annotated[str, Field(min_length=1, max_length=1)]
 
@@ -47,3 +47,15 @@ class DetectedNumberFormat(ModelBase):
     mode: Literal["detect"]
     decimal_candidates: list[DecimalMark] = Field(min_length=1)
     thousands_candidates: list[SingleCharacter] = Field(default_factory=list)
+
+
+class DetectedEncoding(ModelBase):
+    """The bounded text encodings an exceptional vendor export may use, in preference order.
+
+    The first candidate whose decoding survives a bounded probe of the file wins, so ``utf8``
+    should come first: any file it accepts is read exactly, and a fallback such as
+    ``windows-1252`` is consulted only for bytes UTF-8 rejects.
+    """
+
+    mode: Literal["detect"]
+    candidates: list[TextEncoding] = Field(min_length=1)

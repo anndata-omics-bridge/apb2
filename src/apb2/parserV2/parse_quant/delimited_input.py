@@ -13,11 +13,13 @@ numeric layers are parsed natively. Nothing is left to inference.
 
 from __future__ import annotations
 
+import codecs
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from itertools import islice
 from pathlib import Path
+from typing import Literal
 
 import polars as pl
 
@@ -49,12 +51,13 @@ def detected_evidence(
     Raises ``IncompatibleSourceError`` when no candidate exposes a usable header and
     ``AmbiguousDialectError`` when more than one does.
     """
-    delimiter, header = _detected_header(path, contract, accepts)
+    encoding = _resolved_encoding(path, contract)
+    delimiter, header = _detected_header(path, contract, accepts, encoding)
     return DelimitedSourceEvidence(
         columns=header,
         delimiter=delimiter,
         quote_char=contract.quote_char,
-        encoding=contract.encoding,
+        encoding=encoding,
         number_format=_resolved_number_format(path, delimiter, contract),
     )
 
@@ -65,7 +68,8 @@ def detected_header_evidence(
     accepts: HeaderPredicate,
 ) -> DelimitedSourceEvidence:
     """Resolve only header metadata for rule recognition, without inspecting data rows."""
-    delimiter, header = _detected_header(path, contract, accepts)
+    encoding = _resolved_encoding(path, contract)
+    delimiter, header = _detected_header(path, contract, accepts, encoding)
     candidates = contract.number_format_candidates
     number_format = next(
         (candidate for candidate in candidates if candidate.decimal_mark != delimiter),
@@ -75,7 +79,7 @@ def detected_header_evidence(
         columns=header,
         delimiter=delimiter,
         quote_char=contract.quote_char,
-        encoding=contract.encoding,
+        encoding=encoding,
         number_format=number_format,
     )
 
@@ -84,12 +88,13 @@ def _detected_header(
     path: Path,
     contract: DelimitedFormatContract,
     accepts: HeaderPredicate,
+    encoding: TextEncoding,
 ) -> tuple[str, tuple[str, ...]]:
     """Return the unique declared delimiter and header accepted by one level."""
     viable = [
         (delimiter, header)
         for delimiter, header in (
-            (delimiter, _header_of(path, delimiter, contract))
+            (delimiter, _header_of(path, delimiter, contract, encoding))
             for delimiter in contract.delimiter_candidates
         )
         if accepts(header)
@@ -118,16 +123,17 @@ def stated_evidence(
             f"{source.path}: delimiter {source.delimiter!r} is not among the declared "
             f"candidates {list(contract.delimiter_candidates)}"
         )
-    if source.encoding != contract.encoding:
+    if source.encoding not in contract.encoding_candidates:
         raise IncompatibleSourceError(
-            f"{source.path}: encoding {source.encoding!r} is not the declared {contract.encoding!r}"
+            f"{source.path}: encoding {source.encoding!r} is not among the declared "
+            f"candidates {list(contract.encoding_candidates)}"
         )
     if source.numbers not in contract.number_format_candidates:
         raise IncompatibleSourceError(
             f"{source.path}: number format {source.numbers} is not among the declared "
             f"candidates {list(contract.number_format_candidates)}"
         )
-    header = _header_of(source.path, source.delimiter, contract)
+    header = _header_of(source.path, source.delimiter, contract, source.encoding)
     if not accepts(header):
         raise IncompatibleSourceError(
             f"{source.path} does not carry the columns this level requires under the stated "
@@ -142,20 +148,36 @@ def stated_evidence(
     )
 
 
-def _header_of(path: Path, delimiter: str, contract: DelimitedFormatContract) -> tuple[str, ...]:
+def _header_of(
+    path: Path,
+    delimiter: str,
+    contract: DelimitedFormatContract,
+    encoding: TextEncoding,
+) -> tuple[str, ...]:
     """Read only the column names, so an unusable candidate costs one row, not one table."""
     schema = (
         pl.scan_csv(
             path,
             separator=delimiter,
             quote_char=contract.quote_char,
-            encoding=contract.encoding,
+            encoding=_scan_encoding(encoding),
             infer_schema_length=0,
         )
         .collect_schema()
         .names()
     )
     return tuple(schema)
+
+
+def _scan_encoding(encoding: TextEncoding) -> Literal["utf8", "utf8-lossy"]:
+    """The encoding a streaming scan can honor.
+
+    ``pl.scan_csv`` streams only UTF-8; any other resolved encoding is honored by the eager
+    read in :meth:`DelimitedInputReader.read`. For header inspection a lossy scan is exact
+    whenever the column names themselves are UTF-8, which every packaged rule requires by
+    authoring ASCII source names.
+    """
+    return encoding if encoding in ("utf8", "utf8-lossy") else "utf8-lossy"
 
 
 def _resolved_number_format(
@@ -178,7 +200,7 @@ def _resolved_number_format(
     if len(usable) == 1:
         return usable[0]
     observed = _decimal_marks_in_use(
-        path, delimiter, contract.encoding, {candidate.decimal_mark for candidate in usable}
+        path, delimiter, {candidate.decimal_mark for candidate in usable}
     )
     if len(observed) > 1:
         raise AmbiguousDialectError(
@@ -194,7 +216,6 @@ def _resolved_number_format(
 def _decimal_marks_in_use(
     path: Path,
     delimiter: str,
-    encoding: TextEncoding,
     marks: set[str],
 ) -> set[str]:
     """Which candidate marks this file actually writes fractions with.
@@ -217,8 +238,45 @@ def _decimal_marks_in_use(
                     match = pattern.match(field)
                     if match is not None and len(match.group(1)) != _GROUP_WIDTH:
                         observed.add(mark)
-    del encoding
     return observed
+
+
+_ENCODING_PROBE_BYTES = 8 * 1024 * 1024
+
+
+def _resolved_encoding(path: Path, contract: DelimitedFormatContract) -> TextEncoding:
+    """Decide which declared encoding this file is written in.
+
+    Encoding candidates are a preference order, not an ambiguity to arbitrate: nearly every
+    byte stream decodes under a single-byte fallback, so the first candidate that survives a
+    bounded probe of the file wins. The probe is bounded the way number-format detection is —
+    corruption past it still fails loudly at read time under the chosen encoding, and never
+    silently switches the interpretation of bytes the probe did see.
+    """
+    candidates = contract.encoding_candidates
+    if len(candidates) == 1:
+        return candidates[0]
+    with path.open("rb") as handle:
+        probe = handle.read(_ENCODING_PROBE_BYTES)
+    for candidate in candidates:
+        if _probe_decodes(probe, candidate):
+            return candidate
+    raise IncompatibleSourceError(
+        f"{path}: no declared encoding candidate {list(candidates)} decodes the first "
+        f"{len(probe)} bytes"
+    )
+
+
+def _probe_decodes(probe: bytes, encoding: TextEncoding) -> bool:
+    """Whether one candidate decodes the probe, tolerating a codepoint cut at its edge."""
+    if encoding == "utf8-lossy":
+        return True
+    codec = "utf-8" if encoding == "utf8" else "cp1252"
+    try:
+        codecs.getincrementaldecoder(codec)().decode(probe, final=False)
+    except UnicodeDecodeError:
+        return False
+    return True
 
 
 @dataclass(frozen=True, slots=True)
@@ -230,15 +288,33 @@ class DelimitedInputReader:
     plan: LevelReadPlan
 
     def read(self) -> LevelSourceTable:
-        """Read the projected columns, each with the dtype resolution already decided."""
+        """Read the projected columns, each with the dtype resolution already decided.
+
+        A UTF-8 source streams through ``scan_csv``. Any other resolved encoding goes through
+        the eager reader, which transcodes the file before parsing — the only path polars
+        offers for it — so a non-UTF-8 file costs one extra pass, and a UTF-8 file costs
+        nothing new.
+        """
         overrides: dict[str, pl.DataType] = {name: pl.String() for name in self.plan.text_sources}
         overrides.update({name: pl.Float64() for name in self.plan.native_numeric_sources})
+        encoding = self.evidence.encoding
+        if encoding not in ("utf8", "utf8-lossy"):
+            frame = pl.read_csv(
+                self.path,
+                separator=self.evidence.delimiter,
+                quote_char=self.evidence.quote_char,
+                encoding=encoding,
+                columns=list(self.plan.projected_columns),
+                schema_overrides=overrides,
+                decimal_comma=self.evidence.number_format.decimal_mark == ",",
+            ).select(list(self.plan.projected_columns))
+            return LevelSourceTable(frame=frame)
         frame = (
             pl.scan_csv(
                 self.path,
                 separator=self.evidence.delimiter,
                 quote_char=self.evidence.quote_char,
-                encoding=self.evidence.encoding,
+                encoding=encoding,
                 schema_overrides=overrides,
                 decimal_comma=self.evidence.number_format.decimal_mark == ",",
             )

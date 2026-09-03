@@ -74,13 +74,13 @@ def test_only_spectronaut_enables_physical_format_detection() -> None:
     detected: dict[str, set[str]] = {}
     for pair in document_pairs():
         declared = json.loads(pair.parser_v2_path.read_text(encoding="utf-8"))["input"]
-        overrides = {name for name in ("delimiter", "numbers") if name in declared}
+        overrides = {name for name in ("delimiter", "numbers", "encoding") if name in declared}
         if overrides:
             detected[pair.key] = overrides
 
     assert detected == {
         "spectronaut": {"delimiter", "numbers"},
-        "spectronaut/v15": {"delimiter", "numbers"},
+        "spectronaut/v15": {"delimiter", "numbers", "encoding"},
     }
 
 
@@ -92,7 +92,7 @@ def test_facade_applies_shared_defaults_to_an_ordinary_tsv_rule() -> None:
     assert contract.formats == (
         DelimitedFormatContract(
             extensions=(".tsv",),
-            encoding="utf8",
+            encoding_candidates=("utf8",),
             quote_char='"',
             delimiter_candidates=("\t",),
             number_format_candidates=(DOT,),
