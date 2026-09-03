@@ -1,8 +1,15 @@
 # APB2
 
-APB2 (anndata proteomics bridge) converts
-[quantitative proteomics vendor tables](supported_software.md#packaged-vendor-table-rules)
-into AnnData or MuData and can write the results as h5ad, h5mu, Parquet, or DuckDB.
+APB2 (anndata proteomics bridge) is a rules-driven framework for converting
+[outputs from proteomics software](supported_software.md#packaged-vendor-table-rules) into AnnData
+or MuData. It supports ion, peptidoform, peptide, protein, and fragment quantification levels and
+can also store the parsed data in Parquet or DuckDB.
+
+“Rules-driven” means that declarative rule documents describe each vendor table: which columns
+contain identifiers, measurements, and metadata, how those columns should be reshaped, and which
+constraints the result must satisfy. One shared parser applies those rules, so a new or revised
+input format can usually be supported by adding or updating a rule instead of writing a dedicated
+reader.
 
 APB2 was discussed and started during the Copenhagen ProteoBench Hackathon, 13–17 April 2026, as
 part of the work to improve the backend of the
