@@ -1,6 +1,8 @@
 """Public storage-neutral APB result and result-I/O boundary."""
 
 from apb2.parserV2.parse_quant.data.parsed import (
+    AnnotationTable,
+    FeatureRelation,
     FinalLayerTable,
     JsonValue,
     ObsFinal,
@@ -13,6 +15,8 @@ from apb2.parserV2.parse_quant.io.anndata_writer import quantitative_layer_value
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels, write_parsed_levels
 
 __all__ = [
+    "AnnotationTable",
+    "FeatureRelation",
     "FinalLayerTable",
     "JsonValue",
     "ObsFinal",

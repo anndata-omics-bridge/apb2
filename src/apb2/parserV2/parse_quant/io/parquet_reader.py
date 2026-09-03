@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
@@ -11,6 +12,8 @@ import polars as pl
 
 from apb2.parserV2.parse_quant.data.parsed import (
     LEVEL_ORDER,
+    AnnotationTable,
+    FeatureRelation,
     FinalLayerTable,
     JsonValue,
     ObsFinal,
@@ -72,7 +75,15 @@ class ParquetReader:
             dict[str, JsonValue],
             dict(object_mapping(manifest.get("metadata", {}), "shared metadata")),
         )
-        parsed = ParsedLevels(levels=levels, uns=uns, metadata=metadata)
+        annotation_tables = _read_annotation_tables(source, manifest)
+        feature_relations = _read_feature_relations(source, manifest)
+        parsed = ParsedLevels(
+            levels=levels,
+            uns=uns,
+            metadata=metadata,
+            annotation_tables=annotation_tables,
+            feature_relations=feature_relations,
+        )
         validate_parsed_levels(parsed)
         return parsed
 
@@ -143,6 +154,63 @@ def _read_named_frames(
     }
     if set(order) != set(entries):
         raise InvalidResultError(f"{slot} order and metadata name different values")
+    return result
+
+
+def _read_annotation_tables(
+    source: Path,
+    manifest: Mapping[str, object],
+) -> dict[str, AnnotationTable]:
+    order = string_list(manifest.get("annotation_table_order", []), "annotation table order")
+    entries = object_mapping(manifest.get("annotation_tables", {}), "annotation tables")
+    result: dict[str, AnnotationTable] = {}
+    for name in order:
+        entry = object_mapping(entries.get(name), f"annotation table {name!r}")
+        result[name] = AnnotationTable(
+            frame=_read_table(source / "annotation_tables", entry),
+            key_columns=tuple(
+                string_list(entry.get("key_columns"), f"annotation table {name!r} keys")
+            ),
+            metadata=cast(
+                dict[str, JsonValue],
+                dict(object_mapping(entry.get("metadata", {}), "annotation table metadata")),
+            ),
+        )
+    if set(order) != set(entries):
+        raise InvalidResultError("annotation table order and metadata name different tables")
+    return result
+
+
+def _read_feature_relations(
+    source: Path,
+    manifest: Mapping[str, object],
+) -> dict[str, FeatureRelation]:
+    order = string_list(manifest.get("feature_relation_order", []), "feature relation order")
+    entries = object_mapping(manifest.get("feature_relations", {}), "feature relations")
+    result: dict[str, FeatureRelation] = {}
+    for name in order:
+        entry = object_mapping(entries.get(name), f"feature relation {name!r}")
+        target_level = string_value(
+            entry.get("target_level"), f"feature relation {name!r} target level"
+        )
+        if target_level not in LEVEL_ORDER:
+            raise InvalidResultError(
+                f"feature relation {name!r} has unknown target level {target_level!r}"
+            )
+        result[name] = FeatureRelation(
+            annotation_table=string_value(
+                entry.get("annotation_table"),
+                f"feature relation {name!r} annotation table",
+            ),
+            target_level=target_level,
+            coordinates=_read_table(source / "feature_relations", entry),
+            metadata=cast(
+                dict[str, JsonValue],
+                dict(object_mapping(entry.get("metadata", {}), "feature relation metadata")),
+            ),
+        )
+    if set(order) != set(entries):
+        raise InvalidResultError("feature relation order and metadata name different relations")
     return result
 
 

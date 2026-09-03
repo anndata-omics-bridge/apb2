@@ -14,7 +14,9 @@ from polars.testing import assert_frame_equal
 
 from apb2.cli import reformat as reformat_command
 from apb2.parserV2.parse_quant.data.parsed import (
+    AnnotationTable,
     AuxiliaryLayerRole,
+    FeatureRelation,
     FinalLayerTable,
     MeasurementLayerRole,
     ObsFinal,
@@ -159,10 +161,51 @@ def rich_result() -> ParsedLevels:
     )
 
 
+def annotated_result() -> ParsedLevels:
+    parsed = rich_result()
+    parsed.annotation_tables["protein_group_members"] = AnnotationTable(
+        frame=pl.DataFrame(
+            {
+                "member_id": ["F1:0", "F1:1", "F2:0"],
+                "protein_accession": ["P1", "P2", "P3"],
+                "description": ["one", "two", None],
+            }
+        ),
+        key_columns=("member_id",),
+        metadata={"producer": "test"},
+    )
+    parsed.feature_relations["protein_group_membership"] = FeatureRelation(
+        annotation_table="protein_group_members",
+        target_level="protein",
+        coordinates=pl.DataFrame(
+            {
+                "row": [0, 1, 2],
+                "column": [0, 0, 1],
+                "value": [1.0, 1.0, 1.0],
+            }
+        ),
+        metadata={"semantic": "member_of"},
+    )
+    return parsed
+
+
 def _assert_result_equal(actual: ParsedLevels, expected: ParsedLevels) -> None:
     assert list(actual.levels) == list(expected.levels)
     assert actual.uns == expected.uns
     assert actual.metadata == expected.metadata
+    assert list(actual.annotation_tables) == list(expected.annotation_tables)
+    assert list(actual.feature_relations) == list(expected.feature_relations)
+    for name, wanted in expected.annotation_tables.items():
+        got = actual.annotation_tables[name]
+        assert got.key_columns == wanted.key_columns
+        assert got.metadata == wanted.metadata
+        assert_frame_equal(got.frame, wanted.frame)
+    for name, wanted in expected.feature_relations.items():
+        got = actual.feature_relations[name]
+        assert got.annotation_table == wanted.annotation_table
+        assert got.target_level == wanted.target_level
+        assert got.metadata == wanted.metadata
+        assert_frame_equal(got.coordinates, wanted.coordinates)
     for name, wanted in expected.levels.items():
         got = actual.levels[name]
         assert got.primary_layer_name == wanted.primary_layer_name
@@ -209,6 +252,43 @@ def test_columnar_formats_round_trip_exactly(result_format: ResultFormat, tmp_pa
     writer.write(rich_result(), target)
 
     _assert_result_equal(reader.read(target), rich_result())
+
+
+@pytest.mark.parametrize(
+    ("result_format", "suffix"),
+    [
+        (ResultFormat.H5MU, ".h5mu"),
+        (ResultFormat.PARQUET, ".parquet"),
+        (ResultFormat.DUCKDB, ".duckdb"),
+    ],
+)
+def test_annotation_tables_and_relations_round_trip(
+    result_format: ResultFormat,
+    suffix: str,
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / f"annotated{suffix}"
+
+    writer_for(result_format).write(annotated_result(), target)
+    restored = reader_for(result_format).read(target)
+
+    if result_format is ResultFormat.H5MU:
+        second = tmp_path / "annotated-again.h5mu"
+        writer_for(result_format).write(restored, second)
+        _assert_result_equal(reader_for(result_format).read(second), restored)
+    else:
+        _assert_result_equal(restored, annotated_result())
+
+
+def test_h5ad_rejects_annotation_tables_before_touching_target(tmp_path: Path) -> None:
+    parsed = annotated_result()
+    parsed.levels = {"protein": parsed.levels["protein"]}
+    target = tmp_path / "annotated.h5ad"
+
+    with pytest.raises(InvalidResultError, match="cannot store annotation tables"):
+        writer_for(ResultFormat.H5AD).write(parsed, target)
+
+    assert not target.exists()
 
 
 @pytest.mark.parametrize(

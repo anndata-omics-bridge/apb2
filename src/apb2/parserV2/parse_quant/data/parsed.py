@@ -162,6 +162,25 @@ class ParsedLevel:
 
 
 @dataclass(slots=True)
+class AnnotationTable:
+    """A keyed feature table without a quantitative observation matrix."""
+
+    frame: pl.DataFrame
+    key_columns: tuple[str, ...]
+    metadata: dict[str, JsonValue] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class FeatureRelation:
+    """Directed coordinates from an annotation table to a level's variable axis."""
+
+    annotation_table: str
+    target_level: ParsedLevelName
+    coordinates: pl.DataFrame
+    metadata: dict[str, JsonValue] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
 class ParsedLevels:
     """One or more parsed quantification levels and their shared provenance."""
 
@@ -173,3 +192,9 @@ class ParsedLevels:
 
     metadata: dict[str, JsonValue] = field(default_factory=dict)
     # Post-parse sections persisted beside, never inside, APB's parse provenance.
+
+    annotation_tables: dict[str, AnnotationTable] = field(default_factory=dict)
+    # {"protein_group_members": AnnotationTable(...)}
+
+    feature_relations: dict[str, FeatureRelation] = field(default_factory=dict)
+    # {"protein_group_membership": FeatureRelation(...)}

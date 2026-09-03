@@ -1,5 +1,13 @@
 # Changes
 
+- 2026-09-03: Added storage-neutral annotation tables and feature relations to the APB result. A
+  `ParsedLevels` now carries keyed feature tables that have no quantitative matrix, plus directed
+  coordinates from such a table to a level's variable axis, and validates both before any writer
+  touches its target. h5mu stores an annotation table as an obs-aligned modality and a relation as a
+  root `varp` block within the declared modality windows; Parquet and DuckDB round-trip both
+  exactly. h5ad rejects them, since a single AnnData has nowhere to put them. `AnnotationTable` and
+  `FeatureRelation` are public on the result facade.
+
 - 2026-09-02: Published the complete packaged vendor-conversion and parameter-parser support
   matrix. Documented APB2's origin in the 13–17 April 2026 Copenhagen ProteoBench Hackathon and
   its role in the wider effort to improve the ProteoBench platform backend. Recorded the

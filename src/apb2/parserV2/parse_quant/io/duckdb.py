@@ -14,6 +14,8 @@ import polars as pl
 
 from apb2.parserV2.parse_quant.data.parsed import (
     LEVEL_ORDER,
+    AnnotationTable,
+    FeatureRelation,
     FinalLayerTable,
     JsonValue,
     ObsFinal,
@@ -81,6 +83,31 @@ class DuckDBWriter:
                     "levels": levels,
                     "uns": dict(parsed.uns),
                     "metadata": dict(parsed.metadata),
+                    "annotation_table_order": list(parsed.annotation_tables),
+                    "annotation_tables": cast(
+                        dict[str, JsonValue],
+                        {
+                            name: {
+                                **tables.write(table.frame),
+                                "key_columns": list(table.key_columns),
+                                "metadata": dict(table.metadata),
+                            }
+                            for name, table in parsed.annotation_tables.items()
+                        },
+                    ),
+                    "feature_relation_order": list(parsed.feature_relations),
+                    "feature_relations": cast(
+                        dict[str, JsonValue],
+                        {
+                            name: {
+                                **tables.write(relation.coordinates),
+                                "annotation_table": relation.annotation_table,
+                                "target_level": relation.target_level,
+                                "metadata": dict(relation.metadata),
+                            }
+                            for name, relation in parsed.feature_relations.items()
+                        },
+                    ),
                 }
                 payload = json.dumps(manifest, ensure_ascii=False, allow_nan=False)
                 connection.execute(
@@ -169,7 +196,68 @@ class DuckDBReader:
                 dict[str, JsonValue],
                 dict(object_mapping(root.get("metadata", {}), "shared metadata")),
             ),
+            annotation_tables=self._read_annotation_tables(connection, root),
+            feature_relations=self._read_feature_relations(connection, root),
         )
+
+    def _read_annotation_tables(
+        self,
+        connection: duckdb.DuckDBPyConnection,
+        root: object,
+    ) -> dict[str, AnnotationTable]:
+        metadata = object_mapping(root, "DuckDB manifest")
+        order = string_list(metadata.get("annotation_table_order", []), "annotation table order")
+        entries = object_mapping(metadata.get("annotation_tables", {}), "annotation tables")
+        result: dict[str, AnnotationTable] = {}
+        for name in order:
+            entry = object_mapping(entries.get(name), f"annotation table {name!r}")
+            result[name] = AnnotationTable(
+                frame=self._read_table(connection, entry),
+                key_columns=tuple(
+                    string_list(entry.get("key_columns"), f"annotation table {name!r} keys")
+                ),
+                metadata=cast(
+                    dict[str, JsonValue],
+                    dict(object_mapping(entry.get("metadata", {}), "annotation table metadata")),
+                ),
+            )
+        if set(order) != set(entries):
+            raise InvalidResultError("annotation table order and metadata name different tables")
+        return result
+
+    def _read_feature_relations(
+        self,
+        connection: duckdb.DuckDBPyConnection,
+        root: object,
+    ) -> dict[str, FeatureRelation]:
+        metadata = object_mapping(root, "DuckDB manifest")
+        order = string_list(metadata.get("feature_relation_order", []), "feature relation order")
+        entries = object_mapping(metadata.get("feature_relations", {}), "feature relations")
+        result: dict[str, FeatureRelation] = {}
+        for name in order:
+            entry = object_mapping(entries.get(name), f"feature relation {name!r}")
+            target_level = string_value(
+                entry.get("target_level"), f"feature relation {name!r} target level"
+            )
+            if target_level not in LEVEL_ORDER:
+                raise InvalidResultError(
+                    f"feature relation {name!r} has unknown target level {target_level!r}"
+                )
+            result[name] = FeatureRelation(
+                annotation_table=string_value(
+                    entry.get("annotation_table"),
+                    f"feature relation {name!r} annotation table",
+                ),
+                target_level=target_level,
+                coordinates=self._read_table(connection, entry),
+                metadata=cast(
+                    dict[str, JsonValue],
+                    dict(object_mapping(entry.get("metadata", {}), "feature relation metadata")),
+                ),
+            )
+        if set(order) != set(entries):
+            raise InvalidResultError("feature relation order and metadata name different relations")
+        return result
 
     def _read_level(
         self,

@@ -18,6 +18,8 @@ from scipy import sparse
 
 from apb2.parserV2.parse_quant.data.parsed import (
     LEVEL_ORDER,
+    AnnotationTable,
+    FeatureRelation,
     FinalLayerTable,
     JsonValue,
     ObsFinal,
@@ -36,6 +38,7 @@ from apb2.parserV2.parse_quant.io.metadata import (
     RESULT_NAMESPACE,
     layer_role_from_metadata,
     object_mapping,
+    restore_table_schema,
     string_list,
     string_value,
 )
@@ -89,12 +92,16 @@ class H5muReader:
                     f"h5mu modality {name!r} contains metadata for {level_name!r}"
                 )
             levels[level_name] = level
-        if set(order) != set(stored.mod):
+        annotation_tables, annotation_names = _annotation_tables(stored, metadata)
+        expected_modalities = set(order).union(annotation_names.values())
+        if expected_modalities != set(stored.mod):
             raise InvalidResultError("h5mu level order and modalities name different levels")
         parsed = ParsedLevels(
             levels=levels,
             uns=_json_object(metadata.get("shared_uns"), "shared result provenance"),
             metadata=_extension_metadata(stored),
+            annotation_tables=annotation_tables,
+            feature_relations=_feature_relations(stored, metadata, annotation_names),
         )
         validate_parsed_levels(parsed)
         return parsed
@@ -214,17 +221,132 @@ def _pairwise_frames(
         )
         if physical_name not in stored:
             raise InvalidResultError(f"h5 result has no declared {slot}[{name!r}]")
-        value = stored[physical_name]
-        if sparse.issparse(value):
-            coordinates = cast(sparse.csr_matrix, value).tocoo()
-            result[name] = pl.DataFrame(
-                {"row": coordinates.row, "column": coordinates.col, "value": coordinates.data}
-            )
-            continue
-        dense = np.asarray(value)
-        row, column = np.nonzero(dense)
-        result[name] = pl.DataFrame({"row": row, "column": column, "value": dense[row, column]})
+        result[name] = _coordinate_frame(stored[physical_name])
     return result
+
+
+def _annotation_tables(
+    stored: mudata.MuData,
+    metadata: Mapping[str, object],
+) -> tuple[dict[str, AnnotationTable], dict[str, str]]:
+    order = string_list(metadata.get("annotation_table_order", []), "annotation table order")
+    entries = object_mapping(metadata.get("annotation_tables", {}), "annotation tables")
+    result: dict[str, AnnotationTable] = {}
+    physical_names: dict[str, str] = {}
+    for name in order:
+        entry = object_mapping(entries.get(name), f"annotation table {name!r}")
+        physical_name = string_value(
+            entry.get("physical_name"), f"annotation table {name!r} physical name"
+        )
+        if physical_name not in stored.mod:
+            raise InvalidResultError(f"h5mu has no declared annotation table {name!r}")
+        modality = cast(AnnData, stored[physical_name])
+        frame = restore_table_schema(
+            _axis_frame(cast(pd.DataFrame, modality.var)),
+            entry,
+        )
+        result[name] = AnnotationTable(
+            frame=frame,
+            key_columns=tuple(
+                string_list(entry.get("key_columns"), f"annotation table {name!r} keys")
+            ),
+            metadata=cast(
+                dict[str, JsonValue],
+                dict(object_mapping(entry.get("metadata", {}), "annotation table metadata")),
+            ),
+        )
+        physical_names[name] = physical_name
+    if set(order) != set(entries):
+        raise InvalidResultError("annotation table order and metadata name different tables")
+    return result, physical_names
+
+
+def _feature_relations(
+    stored: mudata.MuData,
+    metadata: Mapping[str, object],
+    annotation_names: Mapping[str, str],
+) -> dict[str, FeatureRelation]:
+    order = string_list(metadata.get("feature_relation_order", []), "feature relation order")
+    names = object_mapping(
+        metadata.get("feature_relation_physical_names", {}),
+        "feature relation physical names",
+    )
+    entries = object_mapping(metadata.get("feature_relations", {}), "feature relations")
+    offsets: dict[str, tuple[int, int]] = {}
+    offset = 0
+    for modality_name, modality in stored.mod.items():
+        offsets[modality_name] = (offset, modality.n_vars)
+        offset += modality.n_vars
+    result: dict[str, FeatureRelation] = {}
+    for name in order:
+        entry = object_mapping(entries.get(name), f"feature relation {name!r}")
+        physical_name = string_value(names.get(name), f"feature relation {name!r} physical name")
+        if physical_name not in stored.varp:
+            raise InvalidResultError(f"h5mu has no declared feature relation {name!r}")
+        annotation_table = string_value(
+            entry.get("annotation_table"), f"feature relation {name!r} annotation table"
+        )
+        target_level = string_value(
+            entry.get("target_level"), f"feature relation {name!r} target level"
+        )
+        if annotation_table not in annotation_names:
+            raise InvalidResultError(
+                f"feature relation {name!r} has unknown annotation table {annotation_table!r}"
+            )
+        if target_level not in LEVEL_ORDER or target_level not in stored.mod:
+            raise InvalidResultError(
+                f"feature relation {name!r} has unknown target level {target_level!r}"
+            )
+        coordinates = _coordinate_frame(stored.varp[physical_name])
+        source_offset, source_size = offsets[annotation_names[annotation_table]]
+        target_offset, target_size = offsets[target_level]
+        rows = coordinates.get_column("row")
+        columns = coordinates.get_column("column")
+        source_valid = (rows >= source_offset) & (rows < source_offset + source_size)
+        target_valid = (columns >= target_offset) & (columns < target_offset + target_size)
+        if not (source_valid & target_valid).all():
+            raise InvalidResultError(
+                f"feature relation {name!r} has values outside its declared modality blocks"
+            )
+        result[name] = FeatureRelation(
+            annotation_table=annotation_table,
+            target_level=target_level,
+            coordinates=pl.DataFrame(
+                {
+                    "row": rows - source_offset,
+                    "column": columns - target_offset,
+                    "value": coordinates.get_column("value"),
+                }
+            ),
+            metadata=cast(
+                dict[str, JsonValue],
+                dict(object_mapping(entry.get("metadata", {}), "feature relation metadata")),
+            ),
+        )
+    if set(order) != set(entries) or set(order) != set(names):
+        raise InvalidResultError("feature relation order and metadata name different relations")
+    return result
+
+
+def _coordinate_frame(value: object) -> pl.DataFrame:
+    if sparse.issparse(value):
+        coordinates = cast(sparse.csr_matrix, value).tocoo()
+        return pl.DataFrame(
+            {
+                "row": pl.Series("row", coordinates.row, dtype=pl.Int64),
+                "column": pl.Series("column", coordinates.col, dtype=pl.Int64),
+                "value": coordinates.data,
+            }
+        )
+    dense = np.asarray(value)
+    row, column = np.nonzero(dense)
+    return pl.DataFrame(
+        {
+            "row": pl.Series("row", row, dtype=pl.Int64),
+            "column": pl.Series("column", column, dtype=pl.Int64),
+            "value": dense[row, column],
+        }
+    )
 
 
 def _dense(value: object) -> np.ndarray:

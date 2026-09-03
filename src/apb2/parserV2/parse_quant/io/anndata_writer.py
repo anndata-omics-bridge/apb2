@@ -34,6 +34,8 @@ from scipy import sparse
 from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation, as_numbers, blank
 from apb2.parserV2.parse_quant.data.parsed import (
     LEVEL_ORDER,
+    AnnotationTable,
+    FeatureRelation,
     FinalLayerTable,
     JsonValue,
     ParsedLevel,
@@ -55,6 +57,7 @@ from apb2.parserV2.parse_quant.io.metadata import (
     safe_names,
     string_list,
     string_value,
+    table_metadata,
 )
 from apb2.parserV2.parse_quant.io.validation import validate_parsed_level, validate_parsed_levels
 
@@ -488,29 +491,11 @@ class AnnDataWriter:
         The per-dtype cases below are a translation table, not a decision: AnnData and HDF5
         accept a specific set of representations, and this is the one place that knows which.
         """
-        columns = {
-            name: AnnDataWriter._pandas_column(frame.get_column(name)) for name in frame.columns
-        }
-        table = pd.DataFrame(columns)
-        table.index = AnnDataWriter._storage_index(frame, columns, key_columns)
-        return table
+        return _make_axis_frame(frame, key_columns)
 
     @staticmethod
     def _pandas_column(values: pl.Series) -> pd.Series:
-        dtype = values.dtype
-        if dtype == pl.Boolean:
-            return pd.Series(values.to_list(), dtype="boolean")
-        if dtype.is_integer():
-            return pd.Series(values.to_list(), dtype="Int64")
-        if dtype.is_float():
-            return pd.Series(values.to_numpy(), dtype="float64")
-        if dtype == pl.Categorical or isinstance(dtype, pl.Enum):
-            return values.to_pandas()
-        if (dtype == pl.String or dtype == pl.Null) and (
-            values.drop_nulls().n_unique() < values.len()
-        ):
-            return values.cast(pl.Categorical).to_pandas()
-        return pd.Series(values.to_list(), dtype="string")
+        return _pandas_column(values)
 
     @staticmethod
     def _storage_index(
@@ -527,26 +512,54 @@ class AnnDataWriter:
         pairs, so an embedded separator, a string ``"1"``, and an integer ``1`` stay
         distinguishable. Parsing never joins or groups on this value.
         """
-        if len(key_columns) == 1 and frame.schema[key_columns[0]] == pl.String:
-            return pd.Index(columns[key_columns[0]], name=KEY_SEPARATOR.join(key_columns))
-        # A derived index holds different values from the columns it was built from, so it
-        # must not borrow one of their names.
-        name = KEY_SEPARATOR.join(key_columns)
-        while name in columns:
-            name += f"{KEY_SEPARATOR}key"
-        types = [str(frame.schema[column]) for column in key_columns]
-        labels = [
-            json.dumps(
-                [
-                    [logical, None if value is None else str(value)]
-                    for logical, value in zip(types, row, strict=True)
-                ],
-                separators=(",", ":"),
-                ensure_ascii=False,
-            )
-            for row in frame.select(list(key_columns)).rows()
-        ]
-        return pd.Index(labels, name=name)
+        return _storage_index(frame, columns, key_columns)
+
+
+def _make_axis_frame(frame: pl.DataFrame, key_columns: tuple[str, ...]) -> pd.DataFrame:
+    columns = {name: _pandas_column(frame.get_column(name)) for name in frame.columns}
+    table = pd.DataFrame(columns)
+    table.index = _storage_index(frame, columns, key_columns)
+    return table
+
+
+def _pandas_column(values: pl.Series) -> pd.Series:
+    dtype = values.dtype
+    if dtype == pl.Boolean:
+        return pd.Series(values.to_list(), dtype="boolean")
+    if dtype.is_integer():
+        return pd.Series(values.to_list(), dtype="Int64")
+    if dtype.is_float():
+        return pd.Series(values.to_numpy(), dtype="float64")
+    if dtype == pl.Categorical or isinstance(dtype, pl.Enum):
+        return values.to_pandas()
+    if (dtype == pl.String or dtype == pl.Null) and (values.drop_nulls().n_unique() < values.len()):
+        return values.cast(pl.Categorical).to_pandas()
+    return pd.Series(values.to_list(), dtype="string")
+
+
+def _storage_index(
+    frame: pl.DataFrame,
+    columns: Mapping[str, pd.Series],
+    key_columns: tuple[str, ...],
+) -> pd.Index:
+    if len(key_columns) == 1 and frame.schema[key_columns[0]] == pl.String:
+        return pd.Index(columns[key_columns[0]], name=KEY_SEPARATOR.join(key_columns))
+    name = KEY_SEPARATOR.join(key_columns)
+    while name in columns:
+        name += f"{KEY_SEPARATOR}key"
+    types = [str(frame.schema[column]) for column in key_columns]
+    labels = [
+        json.dumps(
+            [
+                [logical, None if value is None else str(value)]
+                for logical, value in zip(types, row, strict=True)
+            ],
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
+        for row in frame.select(list(key_columns)).rows()
+    ]
+    return pd.Index(labels, name=name)
 
 
 @dataclass(frozen=True, slots=True)
@@ -577,11 +590,39 @@ class MuDataWriter:
             adata.var_names = [f"{prefix}{name}" for name in adata.var_names]
             modalities[level] = adata
 
+        annotation_names = {
+            name: f"annotation_{physical}"
+            for name, physical in safe_names(
+                parsed.annotation_tables,
+                prefix="table",
+                suffix="",
+            ).items()
+        }
+        first = next(iter(modalities.values()))
+        for name, table in parsed.annotation_tables.items():
+            physical_name = annotation_names[name]
+            annotation = _annotation_anndata(table, first, physical_name)
+            modalities[physical_name] = annotation
+
         result = MuData(modalities, axis=0)
+        relation_names = {
+            name: f"relation_{physical}"
+            for name, physical in safe_names(
+                parsed.feature_relations,
+                prefix="edge",
+                suffix="",
+            ).items()
+        }
+        _write_root_feature_relations(
+            result,
+            parsed.feature_relations,
+            annotation_names,
+            relation_names,
+        )
         _write_namespaces(
             result,
             parse=parsed.uns,
-            result=_collection_result_metadata(parsed),
+            result=_collection_result_metadata(parsed, annotation_names, relation_names),
             metadata=parsed.metadata,
         )
         _write_atomically(target, result.write_h5mu)
@@ -593,6 +634,8 @@ class H5adWriter:
 
     def write(self, parsed: ParsedLevels, target: Path, /) -> None:
         validate_parsed_levels(parsed)
+        if parsed.annotation_tables or parsed.feature_relations:
+            raise MuDataLevelError("h5ad cannot store annotation tables or feature relations")
         if len(parsed.levels) != 1:
             raise MuDataLevelError(
                 f"h5ad requires exactly one parsed level, got {list(parsed.levels)}"
@@ -723,12 +766,93 @@ def _level_result_metadata(
     }
 
 
-def _collection_result_metadata(parsed: ParsedLevels) -> dict[str, JsonValue]:
+def _annotation_anndata(
+    table: AnnotationTable,
+    reference: AnnData,
+    physical_name: str,
+) -> AnnData:
+    var = _make_axis_frame(table.frame, table.key_columns)
+    index_name = "annotation_index"
+    while index_name in var.columns:
+        index_name = f"_{index_name}"
+    var.index = pd.Index(
+        [f"ann:{physical_name}:{name}" for name in var.index.astype(str)],
+        name=index_name,
+    )
+    return AnnData(
+        X=None,
+        obs=cast(pd.DataFrame, reference.obs.copy()),
+        var=var,
+        shape=(reference.n_obs, table.frame.height),
+    )
+
+
+def _write_root_feature_relations(
+    result: MuData,
+    relations: Mapping[str, FeatureRelation],
+    annotation_names: Mapping[str, str],
+    relation_names: Mapping[str, str],
+) -> None:
+    offsets: dict[str, int] = {}
+    offset = 0
+    for name, modality in result.mod.items():
+        offsets[name] = offset
+        offset += modality.n_vars
+    for name, relation in relations.items():
+        coordinates = relation.coordinates
+        source_offset = offsets[annotation_names[relation.annotation_table]]
+        target_offset = offsets[relation.target_level]
+        matrix = sparse.coo_matrix(
+            (
+                coordinates.get_column("value").cast(pl.Float64, strict=True).to_numpy(),
+                (
+                    coordinates.get_column("row").cast(pl.Int64, strict=True).to_numpy()
+                    + source_offset,
+                    coordinates.get_column("column").cast(pl.Int64, strict=True).to_numpy()
+                    + target_offset,
+                ),
+            ),
+            shape=(result.n_vars, result.n_vars),
+        )
+        result.varp[relation_names[name]] = sparse.csr_matrix(matrix)
+
+
+def _collection_result_metadata(
+    parsed: ParsedLevels,
+    annotation_names: Mapping[str, str],
+    relation_names: Mapping[str, str],
+) -> dict[str, JsonValue]:
     return {
         "format": RESULT_FORMAT,
         "format_version": RESULT_FORMAT_VERSION,
         "level_order": list(parsed.levels),
         "shared_uns": dict(parsed.uns),
+        "annotation_table_order": list(parsed.annotation_tables),
+        "annotation_tables": cast(
+            dict[str, JsonValue],
+            {
+                name: {
+                    **table_metadata(table.frame, annotation_names[name]),
+                    "physical_name": annotation_names[name],
+                    "key_columns": list(table.key_columns),
+                    "metadata": dict(table.metadata),
+                }
+                for name, table in parsed.annotation_tables.items()
+            },
+        ),
+        "feature_relation_order": list(parsed.feature_relations),
+        "feature_relation_physical_names": dict(relation_names),
+        "feature_relations": cast(
+            dict[str, JsonValue],
+            {
+                name: {
+                    "annotation_table": relation.annotation_table,
+                    "target_level": relation.target_level,
+                    "metadata": dict(relation.metadata),
+                }
+                for name, relation in parsed.feature_relations.items()
+            },
+        ),
     }
 
 

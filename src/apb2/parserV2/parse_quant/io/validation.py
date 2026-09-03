@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import polars as pl
 
-from apb2.parserV2.parse_quant.data.parsed import ParsedLevel, ParsedLevels
+from apb2.parserV2.parse_quant.data.parsed import (
+    AnnotationTable,
+    FeatureRelation,
+    ParsedLevel,
+    ParsedLevels,
+)
 from apb2.parserV2.parse_quant.io.errors import InvalidResultError
 
 _PAIRWISE_COLUMNS = ("row", "column", "value")
@@ -16,6 +21,12 @@ def validate_parsed_levels(parsed: ParsedLevels, /) -> None:
         raise InvalidResultError("a persisted result must contain at least one level")
     for name, level in parsed.levels.items():
         validate_parsed_level(name, level)
+    for name, table in parsed.annotation_tables.items():
+        if name in parsed.levels:
+            raise InvalidResultError(f"annotation table {name!r} collides with a level")
+        _validate_annotation_table(name, table)
+    for name, relation in parsed.feature_relations.items():
+        _validate_feature_relation(name, relation, parsed)
 
 
 def validate_parsed_level(name: str, parsed: ParsedLevel, /) -> None:
@@ -137,3 +148,46 @@ def _validate_pairwise(
             raise InvalidResultError(
                 f"level {level!r} {slot}[{name!r}] has a coordinate outside [0, {axis_size})"
             )
+
+
+def _validate_annotation_table(name: str, table: AnnotationTable) -> None:
+    _validate_axis_keys(name, "annotation table", table.frame, table.key_columns)
+
+
+def _validate_feature_relation(
+    name: str,
+    relation: FeatureRelation,
+    parsed: ParsedLevels,
+) -> None:
+    try:
+        source_size = parsed.annotation_tables[relation.annotation_table].frame.height
+    except KeyError as error:
+        raise InvalidResultError(
+            f"feature relation {name!r} references unavailable annotation table "
+            f"{relation.annotation_table!r}"
+        ) from error
+    try:
+        target_size = parsed.levels[relation.target_level].var.frame.height
+    except KeyError as error:
+        raise InvalidResultError(
+            f"feature relation {name!r} references unavailable target level "
+            f"{relation.target_level!r}"
+        ) from error
+    frame = relation.coordinates
+    if tuple(frame.columns) != _PAIRWISE_COLUMNS:
+        raise InvalidResultError(
+            f"feature relation {name!r} must have exactly {list(_PAIRWISE_COLUMNS)}, "
+            f"got {frame.columns}"
+        )
+    if frame.select(pl.struct("row", "column").is_duplicated().any()).item():
+        raise InvalidResultError(f"feature relation {name!r} repeats a matrix coordinate")
+    source = frame.get_column("row")
+    target = frame.get_column("column")
+    if not source.dtype.is_integer() or not target.dtype.is_integer():
+        raise InvalidResultError(f"feature relation {name!r} coordinates must be integers")
+    invalid_source = source.is_null() | (source < 0) | (source >= source_size)
+    invalid_target = target.is_null() | (target < 0) | (target >= target_size)
+    if invalid_source.any() or invalid_target.any():
+        raise InvalidResultError(
+            f"feature relation {name!r} has a coordinate outside its source or target axis"
+        )

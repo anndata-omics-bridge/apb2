@@ -13,6 +13,8 @@ from loguru import logger
 
 from apb2.parserV2.parse_quant.data.parsed import (
     LEVEL_ORDER,
+    AnnotationTable,
+    FeatureRelation,
     FinalLayerTable,
     JsonValue,
     ParsedLevel,
@@ -72,6 +74,16 @@ class ParquetLevelsWriter:
                 "levels": level_metadata,
                 "uns": dict(parsed.uns),
                 "metadata": dict(parsed.metadata),
+                "annotation_table_order": list(parsed.annotation_tables),
+                "annotation_tables": _write_annotation_tables(
+                    parsed.annotation_tables,
+                    staged / "annotation_tables",
+                ),
+                "feature_relation_order": list(parsed.feature_relations),
+                "feature_relations": _write_feature_relations(
+                    parsed.feature_relations,
+                    staged / "feature_relations",
+                ),
             }
             (staged / MANIFEST_NAME).write_text(
                 json.dumps(manifest, ensure_ascii=False, allow_nan=False, indent=2) + "\n",
@@ -130,6 +142,41 @@ def _write_named_frames(
     for name, frame in frames.items():
         frame.write_parquet(directory / names[name])
         result[name] = table_metadata(frame, names[name])
+    return result
+
+
+def _write_annotation_tables(
+    tables: Mapping[str, AnnotationTable],
+    directory: Path,
+) -> dict[str, JsonValue]:
+    directory.mkdir()
+    names = safe_names(tables, prefix="annotation", suffix=".parquet")
+    result: dict[str, JsonValue] = {}
+    for name, table in tables.items():
+        table.frame.write_parquet(directory / names[name])
+        result[name] = {
+            **table_metadata(table.frame, names[name]),
+            "key_columns": list(table.key_columns),
+            "metadata": dict(table.metadata),
+        }
+    return result
+
+
+def _write_feature_relations(
+    relations: Mapping[str, FeatureRelation],
+    directory: Path,
+) -> dict[str, JsonValue]:
+    directory.mkdir()
+    names = safe_names(relations, prefix="relation", suffix=".parquet")
+    result: dict[str, JsonValue] = {}
+    for name, relation in relations.items():
+        relation.coordinates.write_parquet(directory / names[name])
+        result[name] = {
+            **table_metadata(relation.coordinates, names[name]),
+            "annotation_table": relation.annotation_table,
+            "target_level": relation.target_level,
+            "metadata": dict(relation.metadata),
+        }
     return result
 
 
