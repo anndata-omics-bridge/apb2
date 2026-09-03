@@ -566,11 +566,11 @@ def test_both_rule_shapes_are_represented_by_the_packaged_generation() -> None:
         for pair, level in level_pairs()
     ]
 
-    assert sum(isinstance(rule, LongRule) for rule in shapes) == 12
+    assert sum(isinstance(rule, LongRule) for rule in shapes) == 15
     assert sum(isinstance(rule, WideRule) for rule in shapes) == 7
     modes = [rule.measurements.duplicates.mode for rule in shapes]
-    assert modes.count("error") == 13
-    assert modes.count("keep_first") == 5
+    assert modes.count("error") == 15
+    assert modes.count("keep_first") == 6
     assert modes.count("aggregate") == 1
     assert sum(isinstance(rule.fragments, ColumnLabeledFragments) for rule in shapes) == 0
 

@@ -1,0 +1,251 @@
+{
+  "schema_version": "0.3",
+  "file_version": "1",
+  "software_name": "DIA-NN",
+  "software_version_pattern": "^1\\.[0-7](\\.|$)",
+  "input": {
+    "shape": "long",
+    "extensions": [
+      ".tsv"
+    ]
+  },
+  "base": {
+    "axis": {
+      "obs_keys": [
+        "Run"
+      ]
+    },
+    "measurements": {
+      "duplicates": {
+        "mode": "error"
+      }
+    },
+    "columns": {
+      "obs": {
+        "select": {
+          "Run": "File.Name"
+        }
+      }
+    },
+    "modifications": {
+      "source_column": "Modified.Sequence",
+      "parser": "token_regex",
+      "token_pattern": "\\(([^()]*)\\)",
+      "token_position": "after_residue",
+      "case_sensitive": false,
+      "unknown_policy": "preserve",
+      "output_column": "proforma_sequence",
+      "map": [
+        {
+          "token": "UniMod:1",
+          "accession": "UNIMOD:1"
+        },
+        {
+          "token": "UniMod:4",
+          "accession": "UNIMOD:4"
+        },
+        {
+          "token": "UniMod:35",
+          "accession": "UNIMOD:35"
+        }
+      ]
+    }
+  },
+  "levels": {
+    "ion": {
+      "axis": {
+        "var_keys": [
+          "ProForma_ion"
+        ]
+      },
+      "measurements": {
+        "primary_layer": "Precursor_Normalised",
+        "layers": [
+          {
+            "name": "Precursor_Normalised",
+            "source": "Precursor.Normalised"
+          },
+          {
+            "name": "Precursor_Quantity",
+            "source": "Precursor.Quantity"
+          },
+          {
+            "name": "Ms1_Area",
+            "source": "Ms1.Area"
+          },
+          {
+            "name": "Q_Value",
+            "source": "Q.Value"
+          },
+          {
+            "name": "RT",
+            "source": "RT"
+          }
+        ]
+      },
+      "columns": {
+        "var": {
+          "select": {
+            "Modified_Sequence": "Modified.Sequence",
+            "Stripped_Sequence": "Stripped.Sequence",
+            "Precursor_Charge": "Precursor.Charge",
+            "Precursor_Id": "Precursor.Id",
+            "Protein_Group": "Protein.Group",
+            "Protein_Ids": "Protein.Ids",
+            "Protein_Names": "Protein.Names",
+            "Genes": "Genes"
+          },
+          "types": {
+            "Precursor_Charge": "integer"
+          },
+          "computed": [
+            {
+              "name": "ProForma_peptidoform",
+              "inputs": [
+                "Modified_Sequence"
+              ],
+              "how": "proforma_sequence"
+            },
+            {
+              "name": "ProForma_peptide",
+              "inputs": [
+                "Modified_Sequence"
+              ],
+              "how": "stripped_sequence"
+            },
+            {
+              "name": "ProForma_ion",
+              "inputs": [
+                "ProForma_peptidoform",
+                "Precursor_Charge"
+              ],
+              "how": "proforma_ion"
+            }
+          ]
+        }
+      },
+      "column_roles": {
+        "protein_assignment": "Protein_Group",
+        "fasta_accessions": "Protein_Ids"
+      }
+    },
+    "fragment": {
+      "axis": {
+        "var_keys": [
+          "ProForma_fragment"
+        ]
+      },
+      "measurements": {
+        "primary_layer": "Fragment_Quant_Raw",
+        "layers": [
+          {
+            "name": "Fragment_Quant_Raw",
+            "source": "Fragment.Quant.Raw"
+          },
+          {
+            "name": "Fragment_Correlations",
+            "source": "Fragment.Correlations"
+          }
+        ]
+      },
+      "columns": {
+        "var": {
+          "select": {
+            "Modified_Sequence": "Modified.Sequence",
+            "Precursor_Charge": "Precursor.Charge",
+            "Protein_Group": "Protein.Group"
+          },
+          "types": {
+            "Precursor_Charge": "integer"
+          },
+          "computed": [
+            {
+              "name": "ProForma_peptidoform",
+              "inputs": [
+                "Modified_Sequence"
+              ],
+              "how": "proforma_sequence"
+            },
+            {
+              "name": "ProForma_peptide",
+              "inputs": [
+                "Modified_Sequence"
+              ],
+              "how": "stripped_sequence"
+            },
+            {
+              "name": "ProForma_ion",
+              "inputs": [
+                "ProForma_peptidoform",
+                "Precursor_Charge"
+              ],
+              "how": "proforma_ion"
+            },
+            {
+              "name": "ProForma_fragment",
+              "inputs": [
+                "ProForma_ion",
+                "fragment_label"
+              ],
+              "how": "proforma_fragment"
+            }
+          ]
+        }
+      },
+      "column_roles": {
+        "protein_assignment": "Protein_Group",
+        "fasta_accessions": "Protein_Group"
+      },
+      "fragments": {
+        "label_strategy": "positional",
+        "value_columns": [
+          "Fragment.Quant.Raw",
+          "Fragment.Correlations"
+        ],
+        "delimiter": ";",
+        "label_output": "fragment_label"
+      }
+    },
+    "protein": {
+      "axis": {
+        "var_keys": [
+          "Protein_Group"
+        ]
+      },
+      "measurements": {
+        "primary_layer": "PG_Normalised",
+        "duplicates": {
+          "mode": "keep_first"
+        },
+        "layers": [
+          {
+            "name": "PG_Normalised",
+            "source": "PG.Normalised"
+          },
+          {
+            "name": "PG_Quantity",
+            "source": "PG.Quantity"
+          },
+          {
+            "name": "Genes_MaxLFQ",
+            "source": "Genes.MaxLFQ"
+          }
+        ]
+      },
+      "columns": {
+        "var": {
+          "select": {
+            "Protein_Group": "Protein.Group",
+            "Protein_Ids": "Protein.Ids",
+            "Protein_Names": "Protein.Names",
+            "Genes": "Genes"
+          }
+        }
+      },
+      "column_roles": {
+        "protein_assignment": "Protein_Group",
+        "fasta_accessions": "Protein_Ids"
+      }
+    }
+  }
+}

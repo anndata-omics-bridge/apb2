@@ -23,6 +23,7 @@ EXPECTED_EXTENSIONS = {
     "alphadia/v2": [".parquet"],
     "alphapept": [".csv"],
     "diann/v1": [".tsv"],
+    "diann/v1_7": [".tsv"],
     "diann/v2": [".parquet"],
     "fragpipe": [".tsv"],
     "maxquant": [".txt"],

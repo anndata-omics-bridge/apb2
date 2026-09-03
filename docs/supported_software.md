@@ -16,6 +16,7 @@ This table has one row per packaged rule document.
 | [AlphaDIA 2](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/alphadia/v2/rules.json) | 2.x | `.parquet` | long | AlphaDIA run log (text) |
 | [AlphaPept](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/alphapept/rules.json) | 0.5.x | `.csv` | long | YAML parameter file |
 | [DIA-NN 1](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/diann/v1/rules.json) | 1.x | `.tsv` | long | DIA-NN log or captured command/cfg text |
+| [DIA-NN 1.7](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/diann/v1_7/rules.json) | 1.0.x–1.7.x | `.tsv` | long | DIA-NN log or captured command/cfg text |
 | [DIA-NN 2](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/diann/v2/rules.json) | 2.x | `.parquet` | long | DIA-NN log or captured command/cfg text |
 | [FragPipe](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/fragpipe/rules.json) | 22.x or 23.x | `.tsv` | wide | `fragpipe.workflow` |
 | [MaxQuant](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant/rules.json) | 1.5.x, 1.6.x, or 2.x | `evidence.txt` | long | `mqpar.xml` |
@@ -39,6 +40,7 @@ level names, but no packaged rule currently produces the `peptide` level.
 | [AlphaDIA 2](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/alphadia/v2/rules.json) | ✓ | — | — | — | — |
 | [AlphaPept](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/alphapept/rules.json) | ✓ | — | — | — | — |
 | [DIA-NN 1](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/diann/v1/rules.json) | ✓ | — | — | ✓ | ✓ |
+| [DIA-NN 1.7](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/diann/v1_7/rules.json) | ✓ | — | — | ✓ | ✓ |
 | [DIA-NN 2](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/diann/v2/rules.json) | ✓ | — | — | ✓ | — |
 | [FragPipe](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/fragpipe/rules.json) | ✓ | — | — | — | — |
 | [MaxQuant](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant/rules.json) | ✓ | — | — | — | — |

@@ -1,5 +1,12 @@
 # Changes
 
+- 2026-09-03: Added a packaged DIA-NN 1.7 conversion rule for reports that key runs on `File.Name`
+  rather than `Run`, which DIA-NN added in 1.8. It declares ion, fragment and protein, takes
+  `PG.Normalised` as the protein primary layer since `PG.MaxLFQ` is also 1.8, and otherwise matches
+  the DIA-NN 1 document. Its version pattern admits 1.0 through 1.7. A 1.8 report satisfies both
+  documents' headers because 1.7's columns are a subset of 1.8's, so a report carrying no version
+  banner is ambiguous between them and needs `--rule-config`.
+
 - 2026-09-03: Added storage-neutral annotation tables and feature relations to the APB result. A
   `ParsedLevels` now carries keyed feature tables that have no quantitative matrix, plus directed
   coordinates from such a table to a level's variable axis, and validates both before any writer
