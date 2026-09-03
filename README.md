@@ -1,8 +1,8 @@
 # apb2
 
-APB2 is a rules-driven framework for converting outputs from proteomics software into AnnData or
-MuData. It supports ion, peptidoform, peptide, protein, and fragment quantification levels and can
-also store the parsed data in Parquet or DuckDB.
+APB2 is a [rules-driven framework](docs/rule-based.md) for converting outputs from proteomics
+software into AnnData or MuData. It supports ion, peptidoform, peptide, protein, and fragment
+quantification levels and can also store the parsed data in Parquet or DuckDB.
 
 “Rules-driven” means that declarative rule documents describe each vendor table: which columns
 contain identifiers, measurements, and metadata, how those columns should be reshaped, and which

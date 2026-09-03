@@ -17,6 +17,7 @@ nav:
   - Home: index.md
   - Supported software and formats: supported_software.md
   - Guides:
+      - How rules-driven conversion works: rule-based.md
       - Convert vendor results: conversion.md
       - Read and write results: result_io.md
       - Annotate samples: sample_annotation.md
