@@ -30,6 +30,7 @@ EXPECTED_EXTENSIONS = {
     "peaks": [".csv"],
     "sage": [".tsv"],
     "spectronaut": [".tsv"],
+    "spectronaut/v15": [".tsv"],
     "wombat": [".csv"],
 }
 
@@ -75,7 +76,10 @@ def test_only_spectronaut_enables_physical_format_detection() -> None:
         if overrides:
             detected[pair.key] = overrides
 
-    assert detected == {"spectronaut": {"delimiter", "numbers"}}
+    assert detected == {
+        "spectronaut": {"delimiter", "numbers"},
+        "spectronaut/v15": {"delimiter", "numbers"},
+    }
 
 
 def test_facade_applies_shared_defaults_to_an_ordinary_tsv_rule() -> None:

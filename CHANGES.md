@@ -1,5 +1,18 @@
 # Changes
 
+- 2026-09-03: Added a packaged Spectronaut 15 conversion rule. A 15.x report keys runs on `R.Label`
+  and carries none of the `E.*`, `PG.GroupLabel`, `PEP.GroupingKey`, `FG.Mass` or `FG.XICDBID`
+  columns the 19/20 document requires, so that document rejects it at every level. The new one
+  declares ion, fragment and protein: fragment identity comes from `FG.Id` plus `F.FrgIon`,
+  `F.Charge` and `F.FrgLossType`, since 15.x has no `F.FrgType`, `F.FrgNum` or `F.TheoreticalMz`.
+  Its ion level takes `keep_first` duplicates because a 15.x fragment-level export repeats each
+  precursor once per fragment while `FG.Quantity` stays constant across those rows.
+
+  Spectronaut's export template is user-configurable, so the rule requires only the columns that
+  carry identity or fill a column role and declares the rest through `optional_select`. The run key
+  is a `coalesce` of `R.Label` and `R.FileName`, which are the two run identifiers 15.x templates
+  use. Together these let one document read four differently configured 15.x exports.
+
 - 2026-09-03: Added a packaged DIA-NN 1.7 conversion rule for reports that key runs on `File.Name`
   rather than `Run`, which DIA-NN added in 1.8. It declares ion, fragment and protein, takes
   `PG.Normalised` as the protein primary layer since `PG.MaxLFQ` is also 1.8, and otherwise matches
