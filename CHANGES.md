@@ -1,5 +1,13 @@
 # Changes
 
+- 2026-09-04: `make test` and `make check` now default `APB2_TEST_DATA` to the workspace corpus at
+  `../legacy/test_data_download`, so corpus-backed tests run instead of skipping wherever that
+  download exists; elsewhere they keep skipping. The test fixture now picks the cached export a
+  document's own header predicate admits rather than the first export of the software name: the
+  corpus stores every export as `input_file.txt`, so name and version alone cannot separate MaxQuant
+  `evidence.txt` from `peptides.txt`, and the peptides document was previously handed an evidence
+  export it rightly rejected.
+
 - 2026-09-03: A rule's `input` block can now declare text-encoding detection, mirroring the
   existing `delimiter` and `numbers` blocks: `{"mode": "detect", "candidates": ["utf8",
   "windows-1252"]}`. Candidates are a preference order — the first that decodes a bounded probe of

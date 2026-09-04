@@ -18,8 +18,10 @@ from pathlib import Path
 import polars as pl
 import pytest
 
+from apb2.parserV2.compile import header_predicate
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.vendor_parse_rules.document import (
+    RuleDocument,
     RuleNotApplicable,
     SearchParameterEvidence,
 )
@@ -48,20 +50,49 @@ def corpus_root() -> Path | None:
     return root if (root / "raw_file_db_downloaded.csv").exists() else None
 
 
-def _cached_export(software_name: str, version_pattern: str) -> Path | None:
-    """The first downloaded export of one software whose version the pattern admits."""
+def _cached_exports(software_name: str, version_pattern: str) -> tuple[Path, ...]:
+    """Every downloaded export of one software whose version the pattern admits."""
     root = corpus_root()
     if root is None:
-        return None
+        return ()
+    found: list[Path] = []
     with (root / "raw_file_db_downloaded.csv").open(encoding="utf-8", newline="") as handle:
         for row in csv.DictReader(handle):
             if row["software_name"] != software_name or row.get("status") != "ok":
                 continue
             if not re.search(version_pattern, row["software_version"]):
                 continue
-            found = root / "json_dir" / row["input_file_path"]
-            if found.exists():
-                return found
+            path = root / "json_dir" / row["input_file_path"]
+            if path.exists():
+                found.append(path)
+    return tuple(found)
+
+
+def _document_admits(document: RuleDocument, header: tuple[str, ...]) -> bool:
+    """Whether any declared level of the document accepts this header."""
+    for level in document.levels:
+        for evidence in SEARCH_EVIDENCES:
+            try:
+                facade = ParseRuleFacade(document, level, evidence)
+            except RuleNotApplicable:
+                continue
+            if header_predicate(facade.working_parameters)(header):
+                return True
+    return False
+
+
+@cache
+def _admitted_export(parser_v2_path: Path) -> Path | None:
+    """The first cached export of this vendor whose header the document itself admits.
+
+    The corpus stores every export as ``input_file.txt``, so software name and version alone
+    cannot separate two tables of one vendor — MaxQuant ``evidence.txt`` versus
+    ``peptides.txt``. The document's own header predicate makes that distinction.
+    """
+    document = load_rule_document(parser_v2_path)
+    for path in _cached_exports(document.software_name, document.software_version_pattern):
+        if _document_admits(document, _header_of(path)):
+            return path
     return None
 
 
@@ -107,9 +138,8 @@ class PackagedDocument:
     parser_v2_path: Path
 
     def data_path(self) -> Path | None:
-        """The cached real export of this vendor, when the corpus carries one."""
-        document = load_rule_document(self.parser_v2_path)
-        return _cached_export(document.software_name, document.software_version_pattern)
+        """The cached real export this document admits, when the corpus carries one."""
+        return _admitted_export(self.parser_v2_path)
 
     def required_data_path(self) -> Path:
         """The cached real export, skipping the test when the corpus carries none."""

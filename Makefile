@@ -1,6 +1,10 @@
 VENV_BIN := .venv/bin
 DOCS_PORT ?= 8000
 
+# Corpus-backed tests run when a downloaded vendor corpus is present; they skip otherwise.
+APB2_TEST_DATA ?= $(abspath ../legacy/test_data_download)
+export APB2_TEST_DATA
+
 .DEFAULT_GOAL := help
 .PHONY: help sync format format-check lint typecheck deps test build docs docs-serve \
 	docs-serve-public check clean
