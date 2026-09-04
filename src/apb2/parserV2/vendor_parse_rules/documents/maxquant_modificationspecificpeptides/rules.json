@@ -1,0 +1,78 @@
+{
+  "schema_version": "0.3",
+  "file_version": "1",
+  "software_name": "MaxQuant",
+  "software_version_pattern": "^(1\\.5|1\\.6|2\\.)",
+  "input": {
+    "shape": "wide",
+    "extensions": [
+      ".txt"
+    ],
+    "file_name": "modificationSpecificPeptides.txt"
+  },
+  "base": {
+    "axis": {
+      "obs_keys": [
+        "sample"
+      ]
+    },
+    "measurements": {
+      "duplicates": {
+        "mode": "error"
+      }
+    }
+  },
+  "levels": {
+    "peptidoform": {
+      "axis": {
+        "var_keys": [
+          "ProForma_peptide",
+          "Modifications"
+        ]
+      },
+      "measurements": {
+        "primary_layer": "Intensity",
+        "layers": [
+          {
+            "name": "Intensity",
+            "source": "^Intensity (?P<sample>.+)$",
+            "missing_values": [
+              0
+            ]
+          }
+        ]
+      },
+      "columns": {
+        "var": {
+          "select": {
+            "ProForma_peptide": "Sequence",
+            "Modifications": "Modifications",
+            "Proteins": "Proteins"
+          },
+          "optional_select": {
+            "Protein_Groups": "Protein Groups",
+            "Mass": "Mass",
+            "Missed_Cleavages": "Missed cleavages",
+            "Charges": "Charges",
+            "PEP": "PEP",
+            "Score": "Score",
+            "Delta_Score": "Delta score",
+            "Retention_Time": "Retention time",
+            "Unique_Groups": "Unique (Groups)",
+            "Unique_Proteins": "Unique (Proteins)",
+            "Reverse": "Reverse",
+            "Decoy": "Decoy",
+            "Potential_Contaminant": "Potential contaminant"
+          },
+          "types": {
+            "Missed_Cleavages": "integer"
+          }
+        }
+      },
+      "column_roles": {
+        "protein_assignment": "Proteins",
+        "fasta_accessions": "Proteins"
+      }
+    }
+  }
+}

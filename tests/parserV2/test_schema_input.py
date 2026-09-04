@@ -27,6 +27,7 @@ EXPECTED_EXTENSIONS = {
     "diann/v2": [".parquet"],
     "fragpipe": [".tsv"],
     "maxquant": [".txt"],
+    "maxquant_modificationspecificpeptides": [".txt"],
     "maxquant_peptides": [".txt"],
     "maxquant_proteingroups": [".txt"],
     "peaks": [".csv"],
@@ -67,6 +68,7 @@ def test_only_maxquant_authors_an_exact_folder_file_name() -> None:
 
     assert {key: name for key, name in authored.items() if name is not None} == {
         "maxquant": "evidence.txt",
+        "maxquant_modificationspecificpeptides": "modificationSpecificPeptides.txt",
         "maxquant_peptides": "peptides.txt",
         "maxquant_proteingroups": "proteinGroups.txt",
     }

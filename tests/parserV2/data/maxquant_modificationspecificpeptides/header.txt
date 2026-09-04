@@ -1,0 +1,39 @@
+Sequence
+Modifications
+Mass
+Mass Fractional Part
+Protein Groups
+Proteins
+Unique (Groups)
+Unique (Proteins)
+Missed cleavages
+Experiment LFQ_Astral_DIA_15min_50ng_Human_01
+Experiment LFQ_Astral_DIA_15min_50ng_Human_02
+Experiment LFQ_Astral_DIA_15min_50ng_Human_03
+Retention time
+Calibrated retention time
+Charges
+PEP
+MS/MS scan number
+Raw file
+Score
+Delta score
+Library indices
+Majority library index
+Decoy
+Potential contaminant
+Intensity
+Intensity LFQ_Astral_DIA_15min_50ng_Human_01
+Intensity LFQ_Astral_DIA_15min_50ng_Human_02
+Intensity LFQ_Astral_DIA_15min_50ng_Human_03
+id
+Protein group IDs
+Peptide ID
+Evidence IDs
+MS/MS IDs
+Best MS/MS
+MS/MS Count
+Taxonomy IDs
+Taxonomy names
+Unique taxonomy names
+Mass deficit

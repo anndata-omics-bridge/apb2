@@ -1,5 +1,13 @@
 # Changes
 
+- 2026-09-04 (evening, second): Added a packaged MaxQuant `modificationSpecificPeptides.txt` rule
+  producing the `peptidoform` level — the first wide-table peptidoform. The table carries
+  modification names and counts but no positions ("2 Oxidation (M)"), so a positioned
+  `ProForma_peptidoform` cannot be derived faithfully; identity is instead the honest composite
+  `["ProForma_peptide", "Modifications"]`, where `ProForma_peptide` is the stripped `Sequence`.
+  That composite also aggregates cleanly to the peptide level. A future computed function could
+  express these as ProForma 2.0 unlocalized modifications (`[Oxidation (M)]^2?…`).
+
 - 2026-09-04 (evening): Added a packaged MaxQuant `proteinGroups.txt` rule producing the `protein`
   level: a wide table keyed on `Protein IDs` with one `Intensity <experiment>` column per
   experiment and optional `LFQ intensity`/`iBAQ` layers. The rule admits both generations in hand —
