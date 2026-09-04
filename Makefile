@@ -2,7 +2,8 @@ VENV_BIN := .venv/bin
 DOCS_PORT ?= 8000
 
 # Corpus-backed tests run when a downloaded vendor corpus is present; they skip otherwise.
-APB2_TEST_DATA ?= $(abspath ../legacy/test_data_download)
+# The store is owned and downloaded by apb_studio's Fixture Manager.
+APB2_TEST_DATA ?= $(abspath ../apb_studio/test_data_download)
 export APB2_TEST_DATA
 
 .DEFAULT_GOAL := help

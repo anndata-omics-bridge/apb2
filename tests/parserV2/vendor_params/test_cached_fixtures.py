@@ -22,13 +22,12 @@ from apb2.parserV2.vendor_params.registry import (
     available_software,
     parse_params,
 )
+from parserV2.fixtures import corpus_root
 
 SNAPSHOT = Path(__file__).resolve().parent / "params" / "cached_parameters_snapshot.json"
+_ROOT = corpus_root()
 CACHE_INDEX = (
-    Path(__file__).resolve().parents[2]
-    / "apb"
-    / "test_data_download"
-    / "raw_file_db_downloaded.csv"
+    _ROOT / "raw_file_db_downloaded.csv" if _ROOT is not None else Path("cache-index-absent")
 )
 
 

@@ -1,5 +1,10 @@
 # Changes
 
+- 2026-09-04 (later): The corpus default moved with the store: `APB2_TEST_DATA` now defaults to
+  `../apb_studio/test_data_download`, the Fixture-Manager-owned location. The `vendor_params`
+  cached-parameter snapshot test derives its cache index from the same `corpus_root()` instead of a
+  hardcoded path that no longer existed, un-skipping its 87 cases wherever the store is present.
+
 - 2026-09-04: `make test` and `make check` now default `APB2_TEST_DATA` to the workspace corpus at
   `../legacy/test_data_download`, so corpus-backed tests run instead of skipping wherever that
   download exists; elsewhere they keep skipping. The test fixture now picks the cached export a
