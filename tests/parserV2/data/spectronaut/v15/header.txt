@@ -1,0 +1,168 @@
+R.Condition
+R.FileName
+R.Fraction
+R.Label
+R.Replicate
+PG.Genes
+PG.Organisms
+PG.ProteinAccessions
+PG.ProteinGroups
+PG.Cscore
+PG.Pvalue
+PG.Qvalue
+PG.RunEvidenceCount
+PG.Quantity
+PEP.AllOccurringProteinAccessions
+PEP.GroupingKey
+PEP.GroupingKeyType
+PEP.IsProteinGroupSpecific
+PEP.IsProteotypic
+PEP.NrOfMissedCleavages
+PEP.PeptidePosition
+PEP.StrippedSequence
+PEP.DigestType - [Trypsin/P]
+PEP.Rank
+PEP.RunEvidenceCount
+PEP.MS1Channel1
+PEP.MS2Channel1
+PEP.MS1Quantity
+PEP.MS2Quantity
+PEP.Quantity
+PEP.UsedForProteinGroupQuantity
+EG.FoundInDB
+EG.IntModifiedPeptide
+EG.IntPIMID
+EG.iRTPredicted
+EG.IsDecoy
+EG.Label
+EG.Library
+EG.ModifiedPeptide
+EG.ModifiedSequence
+EG.PrecursorId
+EG.UserGroup
+EG.Workflow
+EG.Identified
+EG.IsUserPeak
+EG.IsVerified
+EG.PEP
+EG.Pvalue
+EG.Qvalue
+EG.Svalue
+EG.ApexRT
+EG.DatapointsPerPeak
+EG.DeltaiRT
+EG.DeltaRT
+EG.EndiRT
+EG.EndRT
+EG.FWHM
+EG.FWHM (iRT)
+EG.iRTEmpirical
+EG.MeanApexRT
+EG.MeanTailingFactor
+EG.RTPredicted
+EG.StartiRT
+EG.StartRT
+EG.Comment
+EG.SignalToNoise
+EG.AvgProfileQvalue
+EG.ConditionCV
+EG.GlobalCV
+EG.MaxProfileQvalue
+EG.MinProfileQvalue
+EG.PercentileQvalue
+EG.HasLocalizationInformation
+EG.PTMAssayCandidateScore
+EG.PTMAssayProbability
+EG.PTMLocalizationProbabilities
+EG.PTMPositions [Carbamidomethyl (C)]
+EG.PTMPositions [Oxidation (M)]
+EG.PTMPositions [Deamidation (NQ)]
+EG.PTMPositions [Acetyl (Protein N-term)]
+EG.PTMProbabilities [Carbamidomethyl (C)]
+EG.ProteinPTMLocations
+EG.PTMProbabilities [Oxidation (M)]
+EG.PTMProbabilities [Deamidation (NQ)]
+EG.PTMProbabilities [Acetyl (Protein N-term)]
+EG.PTMSites [Carbamidomethyl (C)]
+EG.PTMSites [Oxidation (M)]
+EG.PTMSites [Deamidation (NQ)]
+EG.PTMSites [Acetyl (Protein N-term)]
+EG.IsImputed
+EG.NormalizationFactor
+EG.ReferenceQuantity (Settings)
+EG.TargetQuantity (Settings)
+EG.TargetReferenceRatio (Settings)
+EG.TotalQuantity (Settings)
+EG.UsedForPeptideQuantity
+EG.UsedForProteinGroupQuantity
+EG.UsedInNormalizationSet
+EG.Cscore
+EG.IntCorrScore
+EG.Noise
+FG.Charge
+FG.FragmentCount
+FG.Id
+FG.IntMID
+FG.IonMobility
+FG.Label
+FG.LabeledSequence
+FG.PrecMz
+FG.PrecMzCalibrated
+FG.Reference
+FG.SyntheticIsotopeGroupLabel
+FG.FWHM
+FG.Comment
+FG.PrecWindow
+FG.PrecWindowNumber
+FG.PrecursorSignalToNoise
+FG.SignalToNoise
+FG.ShapeQualityScore
+FG.ShapeQualityScore (MS1)
+FG.ShapeQualityScore (MS2)
+FG.MS1IsotopeIntensities (Measured)
+FG.MS1IsotopeQuantity
+FG.MS1IsotopeRelativeIntensities (Measured)
+FG.MS1IsotopeRelativeIntensities (Predicted)
+FG.MS1Quantity
+FG.MS1RawQuantity
+FG.MS2Quantity
+FG.MS2RawQuantity
+FG.HasPossibleInterference (MS1)
+FG.HasPossibleInterference (MS2)
+FG.Quantity
+FG.ReporterIons
+FG.CalibratedMassAccuracy (PPM)
+FG.CalibratedMz
+FG.MeasuredMz
+FG.Noise
+FG.PPMTolerance
+FG.RawMassAccuracy (PPM)
+FG.TheoreticalMz
+FG.Tolerance
+F.Charge
+F.FrgIon
+F.FrgLossType
+F.FrgMz
+F.FrgNum
+F.FrgType
+F.PredictedRelativeIntensity
+F.Rank
+F.ExcludedFromQuantification
+F.MeasuredRelativeIntensity
+F.NormalizedPeakArea
+F.NormalizedPeakHeight
+F.PeakArea
+F.PeakHeight
+F.CalibratedMassAccuracy (PPM)
+F.CalibratedMz
+F.HasChannelInterference
+F.InterferenceScore
+F.IsotopicPatternTheoretical
+F.Log10SignalToNoise
+F.MeasuredMz
+F.Noise
+F.PossibleInterference
+F.PPMTolerance
+F.RawMassAccuracy (PPM)
+F.TheoreticalMz
+F.Tolerance

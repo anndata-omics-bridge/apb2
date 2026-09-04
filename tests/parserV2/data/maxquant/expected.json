@@ -1,0 +1,19 @@
+{
+  "source": "input_file.txt",
+  "sample": "sample.txt.gz",
+  "params": "param_0..xml",
+  "sample_rows": 500,
+  "levels": {
+    "ion": {
+      "observations": 2,
+      "variables": 266,
+      "layers": [
+        "Intensity",
+        "MS_MS_Count",
+        "Retention_Time",
+        "Score",
+        "PEP"
+      ]
+    }
+  }
+}

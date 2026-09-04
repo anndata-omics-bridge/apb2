@@ -1,0 +1,16 @@
+{
+  "source": "input_file.csv",
+  "sample": "sample.csv.gz",
+  "params": "param_0..yml",
+  "sample_rows": 250,
+  "levels": {
+    "peptidoform": {
+      "observations": 6,
+      "variables": 250,
+      "layers": [
+        "Abundance",
+        "Number_Of_Psms"
+      ]
+    }
+  }
+}

@@ -1,0 +1,92 @@
+Sequence
+N-term cleavage window
+C-term cleavage window
+Amino acid before
+First amino acid
+Second amino acid
+Second last amino acid
+Last amino acid
+Amino acid after
+A Count
+R Count
+N Count
+D Count
+C Count
+Q Count
+E Count
+G Count
+H Count
+I Count
+L Count
+K Count
+M Count
+F Count
+P Count
+S Count
+T Count
+W Count
+Y Count
+V Count
+U Count
+O Count
+Length
+Missed cleavages
+Mass
+Proteins
+Leading razor protein
+Start position
+End position
+Gene names
+Protein names
+Unique (Groups)
+Unique (Proteins)
+Charges
+PEP
+Score
+Identification type BoxCar_02-01_1
+Identification type BoxCar_02-01_2
+Identification type BoxCar_02-01_3
+Identification type BoxCar_12-01_1
+Identification type BoxCar_12-01_2
+Identification type BoxCar_12-01_3
+Identification type Shotgun_02-01_1
+Identification type Shotgun_02-01_2
+Identification type Shotgun_02-01_3
+Identification type Shotgun_12-01_1
+Identification type Shotgun_12-01_2
+Identification type Shotgun_12-01_3
+Experiment BoxCar_02-01_1
+Experiment BoxCar_02-01_2
+Experiment BoxCar_02-01_3
+Experiment BoxCar_12-01_1
+Experiment BoxCar_12-01_2
+Experiment BoxCar_12-01_3
+Experiment Shotgun_02-01_1
+Experiment Shotgun_02-01_2
+Experiment Shotgun_02-01_3
+Experiment Shotgun_12-01_1
+Experiment Shotgun_12-01_2
+Experiment Shotgun_12-01_3
+Intensity
+Intensity BoxCar_02-01_1
+Intensity BoxCar_02-01_2
+Intensity BoxCar_02-01_3
+Intensity BoxCar_12-01_1
+Intensity BoxCar_12-01_2
+Intensity BoxCar_12-01_3
+Intensity Shotgun_02-01_1
+Intensity Shotgun_02-01_2
+Intensity Shotgun_02-01_3
+Intensity Shotgun_12-01_1
+Intensity Shotgun_12-01_2
+Intensity Shotgun_12-01_3
+Reverse
+Potential contaminant
+id
+Protein group IDs
+Mod. peptide IDs
+Evidence IDs
+MS/MS IDs
+Best MS/MS
+Oxidation (M) site IDs
+MS/MS Count

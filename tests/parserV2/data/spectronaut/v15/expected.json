@@ -1,0 +1,45 @@
+{
+  "source": "20210210_154121_S209-S-1-240min_Report.tsv",
+  "sample": "sample.tsv.gz",
+  "params": null,
+  "sample_rows": 250,
+  "levels": {
+    "ion": {
+      "observations": 1,
+      "variables": 43,
+      "layers": [
+        "FG_Quantity",
+        "EG_Qvalue",
+        "EG_PEP",
+        "EG_Pvalue",
+        "EG_Cscore",
+        "EG_ApexRT",
+        "EG_IsImputed",
+        "EG_TargetQuantity_Settings",
+        "EG_TotalQuantity_Settings",
+        "EG_UsedForPeptideQuantity",
+        "EG_UsedForProteinGroupQuantity",
+        "FG_MS1RawQuantity",
+        "FG_MS2RawQuantity",
+        "FG_SignalToNoise",
+        "FG_ShapeQualityScore"
+      ]
+    },
+    "protein": {
+      "observations": 1,
+      "variables": 9,
+      "layers": [
+        "PG_Quantity"
+      ]
+    },
+    "fragment": {
+      "observations": 1,
+      "variables": 250,
+      "layers": [
+        "F_PeakArea",
+        "F_PeakHeight",
+        "F_InterferenceScore"
+      ]
+    }
+  }
+}

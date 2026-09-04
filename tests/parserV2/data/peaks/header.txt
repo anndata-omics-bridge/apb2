@@ -1,0 +1,41 @@
+Peptide
+Quality
+Significance
+-10LgP
+m/z
+RT range
+z
+Avg. Area
+LFQ_Orbitrap_DDA_Condition_A_Sample_Alpha_01 m/z
+LFQ_Orbitrap_DDA_Condition_A_Sample_Alpha_01 RT mean
+LFQ_Orbitrap_DDA_Condition_A_Sample_Alpha_01 Normalized Area
+LFQ_Orbitrap_DDA_Condition_A_Sample_Alpha_01 AScore
+LFQ_Orbitrap_DDA_Condition_A_Sample_Alpha_02 m/z
+LFQ_Orbitrap_DDA_Condition_A_Sample_Alpha_02 RT mean
+LFQ_Orbitrap_DDA_Condition_A_Sample_Alpha_02 Normalized Area
+LFQ_Orbitrap_DDA_Condition_A_Sample_Alpha_02 AScore
+LFQ_Orbitrap_DDA_Condition_A_Sample_Alpha_03 m/z
+LFQ_Orbitrap_DDA_Condition_A_Sample_Alpha_03 RT mean
+LFQ_Orbitrap_DDA_Condition_A_Sample_Alpha_03 Normalized Area
+LFQ_Orbitrap_DDA_Condition_A_Sample_Alpha_03 AScore
+LFQ_Orbitrap_DDA_Condition_B_Sample_Alpha_01 m/z
+LFQ_Orbitrap_DDA_Condition_B_Sample_Alpha_01 RT mean
+LFQ_Orbitrap_DDA_Condition_B_Sample_Alpha_01 Normalized Area
+LFQ_Orbitrap_DDA_Condition_B_Sample_Alpha_01 AScore
+LFQ_Orbitrap_DDA_Condition_B_Sample_Alpha_02 m/z
+LFQ_Orbitrap_DDA_Condition_B_Sample_Alpha_02 RT mean
+LFQ_Orbitrap_DDA_Condition_B_Sample_Alpha_02 Normalized Area
+LFQ_Orbitrap_DDA_Condition_B_Sample_Alpha_02 AScore
+LFQ_Orbitrap_DDA_Condition_B_Sample_Alpha_03 m/z
+LFQ_Orbitrap_DDA_Condition_B_Sample_Alpha_03 RT mean
+LFQ_Orbitrap_DDA_Condition_B_Sample_Alpha_03 Normalized Area
+LFQ_Orbitrap_DDA_Condition_B_Sample_Alpha_03 AScore
+Best AScore
+Sample Profile (Ratio)
+Group 1 Normalized Area
+Group 2 Normalized Area
+Group Profile (Ratio)
+RT mean
+Id Count
+Accession
+PTM

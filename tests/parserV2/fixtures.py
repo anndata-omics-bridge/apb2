@@ -9,8 +9,11 @@ fresh checkout and of CI.
 from __future__ import annotations
 
 import csv
+import gzip
+import json
 import os
 import re
+import tempfile
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
@@ -38,6 +41,46 @@ SEARCH_EVIDENCES = (
     SearchParameterEvidence(acquisition_method="DIA", combine_charge_states=True),
 )
 """Enough evidence to admit every packaged level's gate at least once."""
+
+
+DATA_DIR = Path(__file__).resolve().parent / "data"
+"""Committed per-rule artifacts: header snapshot, ~500-row sample, conversion expectations."""
+
+
+def committed_dir(key: str) -> Path | None:
+    """The committed artifact folder of one rule key, when the package carries it."""
+    found = DATA_DIR / key
+    return found if (found / "expected.json").exists() else None
+
+
+def _committed_header(key: str) -> tuple[str, ...] | None:
+    """The committed header snapshot of one rule key: one column name per line."""
+    folder = committed_dir(key)
+    if folder is None:
+        return None
+    return tuple((folder / "header.txt").read_text(encoding="utf-8").splitlines())
+
+
+@cache
+def _decompression_root() -> Path:
+    """One per-session directory holding decompressed committed samples."""
+    return Path(tempfile.mkdtemp(prefix="apb2-committed-samples-"))
+
+
+@cache
+def committed_sample(key: str) -> Path | None:
+    """The committed sample of one rule key as a readable file, decompressed when needed."""
+    folder = committed_dir(key)
+    if folder is None:
+        return None
+    record = json.loads((folder / "expected.json").read_text(encoding="utf-8"))
+    stored = folder / str(record["sample"])
+    if stored.suffix != ".gz":
+        return stored
+    target = _decompression_root() / key.replace("/", "__") / stored.stem
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(gzip.decompress(stored.read_bytes()))
+    return target
 
 
 @cache
@@ -138,8 +181,9 @@ class PackagedDocument:
     parser_v2_path: Path
 
     def data_path(self) -> Path | None:
-        """The cached real export this document admits, when the corpus carries one."""
-        return _admitted_export(self.parser_v2_path)
+        """A real readable export: the corpus one when admitted, else the committed sample."""
+        found = _admitted_export(self.parser_v2_path)
+        return found if found is not None else committed_sample(self.key)
 
     def required_data_path(self) -> Path:
         """The cached real export, skipping the test when the corpus carries none."""
@@ -149,16 +193,19 @@ class PackagedDocument:
         return found
 
     def header(self) -> tuple[str, ...]:
-        """The header of a cached real export, skipping the test when there is none.
+        """The header of a real export: the corpus one when admitted, else the snapshot.
 
         A test that asks for a header cannot run without one: returning an empty header
         instead would let the test proceed and fail on a fact about the corpus rather than
         about the code under test.
         """
-        found = self.data_path()
-        if found is None:
-            pytest.skip(f"no downloaded export for {self.key}; set APB2_TEST_DATA")
-        return _header_of(found)
+        found = _admitted_export(self.parser_v2_path)
+        if found is not None:
+            return _header_of(found)
+        committed = _committed_header(self.key)
+        if committed is None:
+            pytest.skip(f"no export or committed header for {self.key}; set APB2_TEST_DATA")
+        return committed
 
     def first_admitted_facade(self, level: QuantificationLevel | None = None) -> ParseRuleFacade:
         """The facade for one level under whichever search-parameter evidence its gate admits."""

@@ -1,0 +1,46 @@
+{
+  "source": "input_file.tsv",
+  "sample": "sample.tsv.gz",
+  "params": "param_0..txt",
+  "sample_rows": 500,
+  "levels": {
+    "ion": {
+      "observations": 2,
+      "variables": 260,
+      "layers": [
+        "FG_Quantity",
+        "EG_MaxChannelQvalue",
+        "EG_MinChannelQvalue",
+        "EG_PEP",
+        "EG_Qvalue",
+        "EG_IsUserPeak",
+        "FG_PrecMzCalibrated",
+        "FG_CScore",
+        "FG_Qvalue",
+        "EG_ApexRT",
+        "EG_iRTEmpirical",
+        "EG_RTPredicted",
+        "EG_IsImputed",
+        "EG_ReferenceQuantity_Settings",
+        "EG_TargetQuantity_Settings",
+        "EG_TotalQuantity_Settings",
+        "EG_UsedForPeptideQuantity",
+        "EG_UsedForProteinGroupQuantity",
+        "EG_Cscore",
+        "EG_NormalizedCscore"
+      ]
+    },
+    "protein": {
+      "observations": 2,
+      "variables": 24,
+      "layers": [
+        "PG_Quantity",
+        "PG_Cscore_Run_Wise",
+        "PG_PEP_Run_Wise",
+        "PG_PValue_Run_Wise",
+        "PG_QValue_Run_Wise",
+        "PG_RunEvidenceCount"
+      ]
+    }
+  }
+}

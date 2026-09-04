@@ -1,0 +1,36 @@
+{
+  "source": "input_file.tsv",
+  "sample": "sample.tsv.gz",
+  "params": "param_0..txt",
+  "sample_rows": 500,
+  "levels": {
+    "ion": {
+      "observations": 2,
+      "variables": 256,
+      "layers": [
+        "Precursor_Normalised",
+        "Precursor_Quantity",
+        "Ms1_Area",
+        "Q_Value",
+        "RT"
+      ]
+    },
+    "protein": {
+      "observations": 2,
+      "variables": 224,
+      "layers": [
+        "PG_Normalised",
+        "PG_Quantity",
+        "Genes_MaxLFQ"
+      ]
+    },
+    "fragment": {
+      "observations": 2,
+      "variables": 1529,
+      "layers": [
+        "Fragment_Quant_Raw",
+        "Fragment_Correlations"
+      ]
+    }
+  }
+}

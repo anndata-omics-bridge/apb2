@@ -1,0 +1,18 @@
+{
+  "source": "input_file.parquet",
+  "sample": "sample.parquet",
+  "params": "param_0..txt",
+  "sample_rows": 500,
+  "levels": {
+    "ion": {
+      "observations": 1,
+      "variables": 500,
+      "layers": [
+        "Precursor_Intensity",
+        "QValue",
+        "Proba",
+        "RT_Observed"
+      ]
+    }
+  }
+}

@@ -1,0 +1,298 @@
+DIA-NN 1.7.16 (Data-Independent Acquisition by Neural Networks)
+Compiled on Mar 27 2021 21:34:06
+Current date and time: Wed Jan 15 21:05:34 2025
+CPU: GenuineIntel 13th Gen Intel(R) Core(TM) i9-13900F
+SIMD instructions: AVX AVX2 FMA SSE4.1 SSE4.2 
+Logical CPU cores: 32
+diann.exe --f D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_A_Sample_Alpha_01_11494.d  --f D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_A_Sample_Alpha_02_11500.d  --f D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_A_Sample_Alpha_03_11506.d  --f D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_B_Sample_Alpha_01_11496.d  --f D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_B_Sample_Alpha_02_11502.d  --f D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_B_Sample_Alpha_03_11508.d  --lib  --threads 24 --verbose 1 --out D:\Proteobench_manuscript_data\run_output_diaPASEF\diann_1.7_16\report.tsv --qvalue 0.01 --matrices --out-lib C:\DIA-NN\1.7.16\report-lib.tsv --gen-spec-lib --predictor --fasta D:\Proteobench_manuscript_data\ProteoBenchFASTA_DDAQuantification.fasta --fasta-search --min-fr-mz 50 --max-fr-mz 2000 --met-excision --cut K*,R* --missed-cleavages 1 --min-pep-len 6 --max-pep-len 30 --min-pr-mz 400 --max-pr-mz 1000 --unimod4 --var-mods 1 --unimod35 --reanalyse --smart-profiling 
+
+Thread number set to 24
+Output will be filtered at 0.01 FDR
+Precursor/protein x samples expression level matrices will be saved along with the main report
+A spectral library will be generated
+Deep learning will be used to generate a new in silico spectral library from peptides provided
+Library-free search enabled
+Min fragment m/z set to 50
+Max fragment m/z set to 2000
+N-terminal methionine excision enabled
+In silico digest will involve cuts at K*,R*
+Maximum number of missed cleavages set to 1
+Min peptide length set to 6
+Max peptide length set to 30
+Min precursor m/z set to 400
+Max precursor m/z set to 1000
+Cysteine carbamidomethylation enabled as a fixed modification
+Maximum number of variable modifications set to 1
+Methionine oxidation enabled as a variable modification
+A spectral library will be created from the DIA runs and used to reanalyse them; .quant files will only be saved to disk during the first step
+When generating a spectral library, in silico predicted spectra will be retained if deemed more reliable than experimental ones
+DIA-NN will optimise the mass accuracy automatically using the first run in the experiment. This is useful primarily for quick initial analyses, when it is not yet known which mass accuracy setting works best for a particular acquisition scheme.
+Exclusion of fragments shared between heavy and light peptides from quantification is not supported in library-free mode - disabled
+
+6 files will be processed
+[0:00] Loading FASTA D:\Proteobench_manuscript_data\ProteoBenchFASTA_DDAQuantification.fasta
+[0:03] Processing FASTA
+[0:10] Assembling elution groups
+[0:16] 4753840 precursors generated
+[0:16] Protein names missing for some isoforms
+[0:16] Gene names missing for some isoforms
+[0:16] Library contains 31676 proteins, and 0 genes
+[0:17] [0:24] [15:55] [24:33] [24:38] [24:42] Saving the library to C:\DIA-NN\1.7.16\report-lib.predicted.speclib
+[24:48] Initialising library
+
+[24:50] First pass: generating a spectral library from DIA data
+[24:50] File #1/6
+[24:50] Loading run D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_A_Sample_Alpha_01_11494.d
+For most diaPASEF datasets it is better to manually fix both the MS1 and MS2 mass accuracies to 10 ppm.
+[26:33] 4753840 library precursors are potentially detectable
+[26:33] Processing...
+[32:52] RT window set to 2.5824
+[32:52] Ion mobility window set to 0.0785989
+[32:52] Peak width: 3
+[32:52] Scan window radius set to 6
+[32:53] Recommended MS1 mass accuracy setting: 14.9565 ppm
+[58:08] Optimised mass accuracy: 20.4164 ppm
+[138:36] Removing low confidence identifications
+[138:36] Removing interfering precursors
+[138:48] Training the neural network: 113584 targets, 102096 decoys
+[138:54] Number of IDs at 0.01 FDR: 70940
+[138:55] Calculating protein q-values
+[138:56] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[138:56] Quantification
+[139:01] Quantification information saved to D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_A_Sample_Alpha_01_11494.d.quant.
+
+[139:10] File #2/6
+[139:10] Loading run D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_A_Sample_Alpha_02_11500.d
+[140:46] 4753840 library precursors are potentially detectable
+[140:46] Processing...
+[146:12] RT window set to 3.31081
+[146:12] Ion mobility window set to 0.0831401
+[146:12] Recommended MS1 mass accuracy setting: 14.6343 ppm
+[235:00] Removing low confidence identifications
+[235:00] Removing interfering precursors
+[235:12] Training the neural network: 121139 targets, 107848 decoys
+[235:19] Number of IDs at 0.01 FDR: 72914
+[235:21] Calculating protein q-values
+[235:21] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[235:22] Quantification
+[235:27] Quantification information saved to D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_A_Sample_Alpha_02_11500.d.quant.
+
+[235:37] File #3/6
+[235:37] Loading run D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_A_Sample_Alpha_03_11506.d
+[237:16] 4753840 library precursors are potentially detectable
+[237:17] Processing...
+[243:45] RT window set to 3.41758
+[243:45] Ion mobility window set to 0.0809929
+[243:45] Recommended MS1 mass accuracy setting: 15.7559 ppm
+[333:49] Removing low confidence identifications
+[333:49] Removing interfering precursors
+[334:02] Training the neural network: 120475 targets, 110862 decoys
+[334:09] Number of IDs at 0.01 FDR: 72526
+[334:10] Calculating protein q-values
+[334:11] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[334:11] Quantification
+[334:16] Quantification information saved to D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_A_Sample_Alpha_03_11506.d.quant.
+
+[334:26] File #4/6
+[334:26] Loading run D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_B_Sample_Alpha_01_11496.d
+[336:04] 4753840 library precursors are potentially detectable
+[336:05] Processing...
+[342:26] RT window set to 2.87721
+[342:26] Ion mobility window set to 0.0790985
+[342:26] Recommended MS1 mass accuracy setting: 15.5925 ppm
+[425:46] Removing low confidence identifications
+[425:47] Removing interfering precursors
+[425:59] Training the neural network: 118216 targets, 105597 decoys
+[426:05] Number of IDs at 0.01 FDR: 72260
+[426:07] Calculating protein q-values
+[426:08] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[426:08] Quantification
+[426:13] Quantification information saved to D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_B_Sample_Alpha_01_11496.d.quant.
+
+[426:22] File #5/6
+[426:22] Loading run D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_B_Sample_Alpha_02_11502.d
+[427:59] 4753840 library precursors are potentially detectable
+[427:59] Processing...
+[434:20] RT window set to 3.00191
+[434:20] Ion mobility window set to 0.0811453
+[434:20] Recommended MS1 mass accuracy setting: 15.6574 ppm
+[518:35] Removing low confidence identifications
+[518:35] Removing interfering precursors
+[518:45] Training the neural network: 89708 targets, 82860 decoys
+[518:50] Number of IDs at 0.01 FDR: 64004
+[518:51] Calculating protein q-values
+[518:52] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[518:52] Quantification
+[518:56] Quantification information saved to D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_B_Sample_Alpha_02_11502.d.quant.
+
+[519:06] File #6/6
+[519:06] Loading run D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_B_Sample_Alpha_03_11508.d
+[520:52] 4753840 library precursors are potentially detectable
+[520:52] Processing...
+[527:16] RT window set to 3.12245
+[527:16] Ion mobility window set to 0.0780912
+[527:17] Recommended MS1 mass accuracy setting: 15.4851 ppm
+[613:40] Removing low confidence identifications
+[613:41] Removing interfering precursors
+[613:53] Training the neural network: 115252 targets, 106285 decoys
+[613:59] Number of IDs at 0.01 FDR: 72664
+[614:01] Calculating protein q-values
+[614:01] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[614:01] Quantification
+[614:06] Quantification information saved to D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_B_Sample_Alpha_03_11508.d.quant.
+
+[614:16] Cross-run analysis
+[614:16] Reading quantification information: 6 files
+[614:18] Quantifying peptides
+[614:19] Assembling protein groups
+[614:23] Quantifying proteins
+[614:23] Calculating q-values for protein and gene groups
+[614:24] Writing report
+[614:41] Report saved to D:\Proteobench_manuscript_data\run_output_diaPASEF\diann_1.7_16\report-first-pass.tsv.
+[614:41] Saving precursor levels matrix
+[614:42] Precursor levels matrix (1% precursor and protein group FDR) saved to D:\Proteobench_manuscript_data\run_output_diaPASEF\diann_1.7_16\report-first-pass.pr_matrix.tsv.
+[614:42] Saving protein group levels matrix
+[614:42] Protein group levels matrix (1% precursor FDR and protein group FDR) saved to D:\Proteobench_manuscript_data\run_output_diaPASEF\diann_1.7_16\report-first-pass.pg_matrix.tsv.
+[614:42] Saving gene group levels matrix
+[614:42] Gene groups levels matrix (1% precursor FDR and gene group FDR) saved to D:\Proteobench_manuscript_data\run_output_diaPASEF\diann_1.7_16\report-first-pass.gg_matrix.tsv.
+[614:42] Saving unique genes levels matrix
+[614:42] Unique genes levels matrix (1% precursor FDR and unique protein FDR) saved to D:\Proteobench_manuscript_data\run_output_diaPASEF\diann_1.7_16\report-first-pass.unique_genes_matrix.tsv.
+[614:42] Stats report saved to D:\Proteobench_manuscript_data\run_output_diaPASEF\diann_1.7_16\report-first-pass.stats.tsv
+[614:42] Generating spectral library:
+[614:42] Reading quantification information: 6 files
+[614:43] Assembling protein groups
+[614:47] Loading run D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_A_Sample_Alpha_01_11494.d
+[616:31] 4753840 library precursors are potentially detectable
+[616:33] 14132 precursors added to the library
+[616:42] Loading run D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_A_Sample_Alpha_02_11500.d
+[618:19] 4753840 library precursors are potentially detectable
+[618:20] 3909 precursors added to the library
+[618:29] Loading run D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_A_Sample_Alpha_03_11506.d
+[620:08] 4753840 library precursors are potentially detectable
+[620:09] 4607 precursors added to the library
+[620:19] Loading run D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_B_Sample_Alpha_01_11496.d
+[621:57] 4753840 library precursors are potentially detectable
+[621:58] 4208 precursors added to the library
+[622:07] Loading run D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_B_Sample_Alpha_02_11502.d
+[623:44] 4753840 library precursors are potentially detectable
+[623:46] 8832 precursors added to the library
+[623:55] Loading run D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_B_Sample_Alpha_03_11508.d
+[625:40] 4753840 library precursors are potentially detectable
+[625:47] 36144 precursors added to the library
+[625:57] Saving spectral library to C:\DIA-NN\1.7.16\report-lib.tsv
+[626:09] 92561 precursors saved
+[626:09] Loading the generated library and saving it in the .speclib format
+[626:09] Loading spectral library C:\DIA-NN\1.7.16\report-lib.tsv
+[626:14] Spectral library loaded: 12246 protein isoforms, 12628 protein groups and 92561 precursors in 84173 elution groups.
+[626:14] Loading protein annotations from FASTA D:\Proteobench_manuscript_data\ProteoBenchFASTA_DDAQuantification.fasta
+[626:15] Gene names missing for some isoforms
+[626:15] Library contains 12195 proteins, and 0 genes
+[626:15] Saving the library to C:\DIA-NN\1.7.16\report-lib.tsv.speclib
+
+[626:18] Second pass: using the newly created spectral library to reanalyse the data
+[626:18] File #1/6
+[626:18] Loading run D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_A_Sample_Alpha_01_11494.d
+[627:52] 92561 library precursors are potentially detectable
+[627:52] Processing...
+[627:57] RT window set to 0.626137
+[627:57] Ion mobility window set to 0.04
+[627:57] Recommended MS1 mass accuracy setting: 15.6357 ppm
+[629:01] Removing low confidence identifications
+[629:01] Removing interfering precursors
+[629:06] Training the neural network: 88193 targets, 89205 decoys
+[629:11] Number of IDs at 0.01 FDR: 85950
+[629:12] Calculating protein q-values
+[629:12] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[629:12] Quantification
+
+[629:26] File #2/6
+[629:26] Loading run D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_A_Sample_Alpha_02_11500.d
+[630:55] 92561 library precursors are potentially detectable
+[630:55] Processing...
+[631:00] RT window set to 0.633481
+[631:00] Ion mobility window set to 0.04
+[631:00] Recommended MS1 mass accuracy setting: 15.6632 ppm
+[632:03] Removing low confidence identifications
+[632:03] Removing interfering precursors
+[632:08] Training the neural network: 88696 targets, 89142 decoys
+[632:13] Number of IDs at 0.01 FDR: 86942
+[632:14] Calculating protein q-values
+[632:14] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[632:14] Quantification
+
+[632:29] File #3/6
+[632:29] Loading run D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_A_Sample_Alpha_03_11506.d
+[634:02] 92561 library precursors are potentially detectable
+[634:02] Processing...
+[634:07] RT window set to 0.630659
+[634:07] Ion mobility window set to 0.04
+[634:07] Recommended MS1 mass accuracy setting: 14.8944 ppm
+[635:10] Removing low confidence identifications
+[635:10] Removing interfering precursors
+[635:15] Training the neural network: 88673 targets, 89270 decoys
+[635:19] Number of IDs at 0.01 FDR: 86828
+[635:21] Calculating protein q-values
+[635:21] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[635:21] Quantification
+
+[635:37] File #4/6
+[635:37] Loading run D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_B_Sample_Alpha_01_11496.d
+[637:09] 92561 library precursors are potentially detectable
+[637:09] Processing...
+[637:14] RT window set to 0.626012
+[637:14] Ion mobility window set to 0.04
+[637:14] Recommended MS1 mass accuracy setting: 15.0145 ppm
+[638:16] Removing low confidence identifications
+[638:16] Removing interfering precursors
+[638:21] Training the neural network: 88766 targets, 89212 decoys
+[638:25] Number of IDs at 0.01 FDR: 87109
+[638:27] Calculating protein q-values
+[638:27] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[638:27] Quantification
+
+[638:42] File #5/6
+[638:42] Loading run D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_B_Sample_Alpha_02_11502.d
+[640:13] 92561 library precursors are potentially detectable
+[640:13] Processing...
+[640:18] RT window set to 0.626536
+[640:18] Ion mobility window set to 0.04
+[640:18] Recommended MS1 mass accuracy setting: 15.1601 ppm
+[641:20] Removing low confidence identifications
+[641:20] Removing interfering precursors
+[641:25] Training the neural network: 88868 targets, 89356 decoys
+[641:29] Number of IDs at 0.01 FDR: 87380
+[641:31] Calculating protein q-values
+[641:31] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[641:31] Quantification
+
+[641:46] File #6/6
+[641:46] Loading run D:\Proteobench_manuscript_data\Raw_diaPASEF\Marie_2025\ttSCP_diaPASEF_Condition_B_Sample_Alpha_03_11508.d
+[643:25] 92561 library precursors are potentially detectable
+[643:25] Processing...
+[643:30] RT window set to 0.625687
+[643:30] Ion mobility window set to 0.04
+[643:30] Recommended MS1 mass accuracy setting: 14.4536 ppm
+[644:33] Removing low confidence identifications
+[644:33] Removing interfering precursors
+[644:38] Training the neural network: 88908 targets, 89327 decoys
+[644:42] Number of IDs at 0.01 FDR: 87343
+[644:44] Calculating protein q-values
+[644:44] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[644:44] Quantification
+
+[644:59] Cross-run analysis
+[644:59] Reading quantification information: 6 files
+[644:59] Quantifying peptides
+[645:01] Quantifying proteins
+[645:01] Calculating q-values for protein and gene groups
+[645:02] Writing report
+[645:24] Report saved to D:\Proteobench_manuscript_data\run_output_diaPASEF\diann_1.7_16\report.tsv.
+[645:24] Saving precursor levels matrix
+[645:24] Precursor levels matrix (1% precursor and protein group FDR) saved to D:\Proteobench_manuscript_data\run_output_diaPASEF\diann_1.7_16\report.pr_matrix.tsv.
+[645:24] Saving protein group levels matrix
+[645:24] Protein group levels matrix (1% precursor FDR and protein group FDR) saved to D:\Proteobench_manuscript_data\run_output_diaPASEF\diann_1.7_16\report.pg_matrix.tsv.
+[645:24] Saving gene group levels matrix
+[645:24] Gene groups levels matrix (1% precursor FDR and gene group FDR) saved to D:\Proteobench_manuscript_data\run_output_diaPASEF\diann_1.7_16\report.gg_matrix.tsv.
+[645:24] Saving unique genes levels matrix
+[645:24] Unique genes levels matrix (1% precursor FDR and unique protein FDR) saved to D:\Proteobench_manuscript_data\run_output_diaPASEF\diann_1.7_16\report.unique_genes_matrix.tsv.
+[645:24] Stats report saved to D:\Proteobench_manuscript_data\run_output_diaPASEF\diann_1.7_16\report.stats.tsv

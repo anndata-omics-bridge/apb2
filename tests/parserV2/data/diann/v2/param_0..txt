@@ -1,0 +1,220 @@
+
+DIA-NN 2.3.0 Academia  (Data-Independent Acquisition by Neural Networks)
+Compiled on Sep 26 2025 08:30:52
+Current date and time: Mon Nov  3 14:03:28 2025
+CPU: GenuineIntel 13th Gen Intel(R) Core(TM) i9-13900F
+SIMD instructions: AVX AVX2 FMA SSE4.1 SSE4.2 
+Logical CPU cores: 32
+diann.exe --f D:\Proteobench_manuscript_data\Astral_raw\LFQ_Astral_DIA_15min_50ng_Condition_A_REP1.raw  --f D:\Proteobench_manuscript_data\Astral_raw\LFQ_Astral_DIA_15min_50ng_Condition_A_REP2.raw  --f D:\Proteobench_manuscript_data\Astral_raw\LFQ_Astral_DIA_15min_50ng_Condition_A_REP3.raw  --f D:\Proteobench_manuscript_data\Astral_raw\LFQ_Astral_DIA_15min_50ng_Condition_B_REP1.raw  --f D:\Proteobench_manuscript_data\Astral_raw\LFQ_Astral_DIA_15min_50ng_Condition_B_REP2.raw  --f D:\Proteobench_manuscript_data\Astral_raw\LFQ_Astral_DIA_15min_50ng_Condition_B_REP3.raw  --lib  --threads 24 --verbose 1 --out D:\Proteobench_manuscript_data\run_output_Astral\bad_diann_settings\report.parquet --qvalue 0.1 --matrices --min-corr 2.0 --time-corr-only --extracted-ms1 --min-cal 500 --min-class 1000 --pre-filter --out-lib D:\Proteobench_manuscript_data\run_output_Astral\bad_diann_settings\output-lib.parquet --gen-spec-lib --predictor --fasta D:\Proteobench_manuscript_data\ProteoBenchFASTA_DDAQuantification.fasta --fasta-search --met-excision --min-pep-len 7 --max-pep-len 30 --min-pr-mz 700 --max-pr-mz 1000 --min-pr-charge 2 --max-pr-charge 3 --min-fr-mz 400 --max-fr-mz 1000 --cut R* --missed-cleavages 5 --var-mods 1 --mass-acc 40 --mass-acc-ms1 40 --mass-acc-cal 40 --fast-ml --rt-profiling 
+
+Thread number set to 24
+Output will be filtered at 0.1 FDR
+Precursor/protein x samples expression level matrices will be saved along with the main report
+Only peak groups with correlation-based score exceeding 2 will be considered; will be deactivated for the second MBR pass
+DIA-NN will disable machine learning during the calibration stage to save memory, this may lead to somewhat lower identification numbers; will be deactivated for the second MBR pass
+Ultra-fast mode will be used, this may worsen the identification performance; will be deactivated for the second MBR pass
+Minimum number of precursors used for calibration set to 500
+Minimum number of precursors used for linear classifier training set to 1000
+DIA-NN will pre-filter candidate precursors
+A spectral library will be generated
+Deep learning will be used to generate a new in silico spectral library from peptides provided
+DIA-NN will carry out FASTA digest for in silico lib generation
+N-terminal methionine excision enabled
+Min peptide length set to 7
+Max peptide length set to 30
+Min precursor m/z set to 700
+Max precursor m/z set to 1000
+Min precursor charge set to 2
+Max precursor charge set to 3
+Min fragment m/z set to 400
+Max fragment m/z set to 1000
+In silico digest will involve cuts at R*
+Maximum number of missed cleavages set to 5
+Maximum number of variable modifications set to 1
+Calibration mass accuracy set to 4e-05
+Fast neural network mode will be used
+The spectral library (if generated) will retain the original spectra but will include empirically-aligned RTs
+Mass accuracy will be fixed to 4e-05 (MS2) and 4e-05 (MS1)
+WARNING: incorrect settings, the in silico-predicted library must be generated in a separate pipeline step and then used to process the raw data, now without activating FASTA digest
+WARNING: protein inference will only be performed for precursors identified with global q-value <= 0.05 or q-value <= 0.05.
+WARNING: it is strongly recommended to set the q-value threshold to 5% or lower when generating an empirical library.
+
+6 files will be processed
+[0:00] Loading FASTA D:\Proteobench_manuscript_data\ProteoBenchFASTA_DDAQuantification.fasta
+[0:01] Processing FASTA
+[0:02] Assembling elution groups
+[0:03] 707236 precursors generated
+[0:03] Protein names missing for some isoforms
+[0:03] Gene names missing for some isoforms
+[0:03] Library contains 30774 proteins, and 0 genes
+[0:04] [0:05] [2:17] [2:38] [2:39] [2:39] Saving the library to D:\Proteobench_manuscript_data\run_output_Astral\bad_diann_settings\output-lib.predicted.speclib
+[2:40] Initialising library
+[2:42] Loading spectral library D:\Proteobench_manuscript_data\run_output_Astral\bad_diann_settings\output-lib.predicted.speclib
+[2:42] Library annotated with sequence database(s): D:\Proteobench_manuscript_data\ProteoBenchFASTA_DDAQuantification.fasta
+[2:42] Spectral library loaded: 30911 protein isoforms, 33552 protein groups and 707236 precursors in 707236 elution groups.
+[2:42] Loading protein annotations from FASTA D:\Proteobench_manuscript_data\ProteoBenchFASTA_DDAQuantification.fasta
+[2:43] Annotating library proteins with information from the FASTA database
+[2:43] Protein names missing for some isoforms
+[2:43] Gene names missing for some isoforms
+[2:43] Library contains 30774 proteins, and 0 genes
+[2:43] Initialising library
+WARNING: it is strongly recommended to enable MBR when analysing with a large library, if this is a quantitative analysis
+
+[2:45] File #1/6
+[2:45] Loading run D:\Proteobench_manuscript_data\Astral_raw\LFQ_Astral_DIA_15min_50ng_Condition_A_REP1.raw
+[3:37] Analysing MS1 spectra
+[3:37] Analysing MS2 spectra
+[3:50] Integrating MS1 spectra
+[3:51] Integrating MS2 spectra
+[3:57] Pre-processing...
+[3:57] 2931 MS1 and 293271 MS2 scans in 977 (inferred) and 977 (encoded) cycles, 663079 precursors in range
+[3:57] Calibrating with mass accuracies 40 (MS1), 40 (MS2)
+[4:00] RT window set to 1.56179
+[4:00] Peak width: 2.636
+[4:00] Scan window radius set to 5
+[4:00] Recommended MS1 mass accuracy setting: 3 ppm
+[4:12] Main search
+[4:21] Removing low confidence identifications
+[4:22] Removing interfering precursors
+[4:22] Training neural networks on 7510 target and 4720 decoy PSMs
+[4:22] IDs at 0.01 FDR: 2746
+[4:22] Number of IDs at 0.01 FDR: 2805
+[4:22] Calculating protein q-values
+[4:23] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[4:23] Quantification
+[4:23] Quantification information saved to D:\Proteobench_manuscript_data\Astral_raw\LFQ_Astral_DIA_15min_50ng_Condition_A_REP1.raw.quant
+
+[4:23] File #2/6
+[4:23] Loading run D:\Proteobench_manuscript_data\Astral_raw\LFQ_Astral_DIA_15min_50ng_Condition_A_REP2.raw
+[5:14] Analysing MS1 spectra
+[5:14] Analysing MS2 spectra
+[5:27] Integrating MS1 spectra
+[5:28] Integrating MS2 spectra
+[5:34] Pre-processing...
+[5:35] 2933 MS1 and 293433 MS2 scans in 978 (inferred) and 978 (encoded) cycles, 663079 precursors in range
+[5:35] Calibrating with mass accuracies 40 (MS1), 40 (MS2)
+[5:38] RT window set to 1.37255
+[5:38] Recommended MS1 mass accuracy setting: 4.4 ppm
+[5:51] Main search
+[6:01] Removing low confidence identifications
+[6:02] Removing interfering precursors
+[6:02] Training neural networks on 7237 target and 4689 decoy PSMs
+[6:02] IDs at 0.01 FDR: 2723
+[6:03] Number of IDs at 0.01 FDR: 2765
+[6:03] Calculating protein q-values
+[6:03] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[6:03] Quantification
+[6:04] Quantification information saved to D:\Proteobench_manuscript_data\Astral_raw\LFQ_Astral_DIA_15min_50ng_Condition_A_REP2.raw.quant
+
+[6:04] File #3/6
+[6:04] Loading run D:\Proteobench_manuscript_data\Astral_raw\LFQ_Astral_DIA_15min_50ng_Condition_A_REP3.raw
+[6:56] Analysing MS1 spectra
+[6:56] Analysing MS2 spectra
+[7:10] Integrating MS1 spectra
+[7:10] Integrating MS2 spectra
+[7:17] Pre-processing...
+[7:18] 2932 MS1 and 293358 MS2 scans in 978 (inferred) and 978 (encoded) cycles, 663079 precursors in range
+[7:18] Calibrating with mass accuracies 40 (MS1), 40 (MS2)
+[7:22] RT window set to 1.3399
+[7:22] Recommended MS1 mass accuracy setting: 3 ppm
+[7:43] Main search
+[7:54] Removing low confidence identifications
+[7:55] Removing interfering precursors
+[7:55] Training neural networks on 6188 target and 4027 decoy PSMs
+[7:56] IDs at 0.01 FDR: 2409
+[7:57] Number of IDs at 0.01 FDR: 2460
+[7:57] Calculating protein q-values
+[7:57] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[7:57] Quantification
+[7:58] Quantification information saved to D:\Proteobench_manuscript_data\Astral_raw\LFQ_Astral_DIA_15min_50ng_Condition_A_REP3.raw.quant
+
+[7:59] File #4/6
+[7:59] Loading run D:\Proteobench_manuscript_data\Astral_raw\LFQ_Astral_DIA_15min_50ng_Condition_B_REP1.raw
+[8:57] Analysing MS1 spectra
+[8:57] Analysing MS2 spectra
+[9:11] Integrating MS1 spectra
+[9:12] Integrating MS2 spectra
+[9:18] Pre-processing...
+[9:19] 2933 MS1 and 293382 MS2 scans in 978 (inferred) and 978 (encoded) cycles, 663079 precursors in range
+[9:19] Calibrating with mass accuracies 40 (MS1), 40 (MS2)
+[9:22] RT window set to 1.35413
+[9:22] Recommended MS1 mass accuracy setting: 3.3 ppm
+[9:33] Main search
+[9:43] Removing low confidence identifications
+[9:43] Removing interfering precursors
+[9:43] Training neural networks on 6562 target and 4218 decoy PSMs
+[9:44] IDs at 0.01 FDR: 2654
+[9:44] Number of IDs at 0.01 FDR: 2691
+[9:44] Calculating protein q-values
+[9:44] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[9:44] Quantification
+[9:45] Quantification information saved to D:\Proteobench_manuscript_data\Astral_raw\LFQ_Astral_DIA_15min_50ng_Condition_B_REP1.raw.quant
+
+[9:45] File #5/6
+[9:45] Loading run D:\Proteobench_manuscript_data\Astral_raw\LFQ_Astral_DIA_15min_50ng_Condition_B_REP2.raw
+[10:40] Analysing MS1 spectra
+[10:40] Analysing MS2 spectra
+[10:53] Integrating MS1 spectra
+[10:54] Integrating MS2 spectra
+[11:00] Pre-processing...
+[11:00] 2933 MS1 and 293330 MS2 scans in 978 (inferred) and 978 (encoded) cycles, 663079 precursors in range
+[11:00] Calibrating with mass accuracies 40 (MS1), 40 (MS2)
+[11:03] RT window set to 1.43574
+[11:03] Recommended MS1 mass accuracy setting: 3 ppm
+[11:14] Main search
+[11:24] Removing low confidence identifications
+[11:24] Removing interfering precursors
+[11:24] Training neural networks on 7099 target and 4401 decoy PSMs
+[11:25] IDs at 0.01 FDR: 2860
+[11:25] Number of IDs at 0.01 FDR: 2903
+[11:25] Calculating protein q-values
+[11:25] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[11:25] Quantification
+[11:26] Quantification information saved to D:\Proteobench_manuscript_data\Astral_raw\LFQ_Astral_DIA_15min_50ng_Condition_B_REP2.raw.quant
+
+[11:26] File #6/6
+[11:26] Loading run D:\Proteobench_manuscript_data\Astral_raw\LFQ_Astral_DIA_15min_50ng_Condition_B_REP3.raw
+[12:19] Analysing MS1 spectra
+[12:19] Analysing MS2 spectra
+[12:32] Integrating MS1 spectra
+[12:32] Integrating MS2 spectra
+[12:39] Pre-processing...
+[12:41] 2934 MS1 and 293446 MS2 scans in 978 (inferred) and 978 (encoded) cycles, 663079 precursors in range
+[12:41] Calibrating with mass accuracies 40 (MS1), 40 (MS2)
+[12:45] RT window set to 1.23028
+[12:45] Recommended MS1 mass accuracy setting: 3.3 ppm
+[13:01] Main search
+[13:13] Removing low confidence identifications
+[13:14] Removing interfering precursors
+[13:15] Training neural networks on 7325 target and 4616 decoy PSMs
+[13:15] IDs at 0.01 FDR: 2906
+[13:15] Number of IDs at 0.01 FDR: 2977
+[13:15] Calculating protein q-values
+[13:15] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[13:16] Quantification
+[13:17] Quantification information saved to D:\Proteobench_manuscript_data\Astral_raw\LFQ_Astral_DIA_15min_50ng_Condition_B_REP3.raw.quant
+
+[13:17] Cross-run analysis
+[13:17] Reading quantification information: 6 files
+[13:20] Quantifying peptides
+[13:22] Quantification parameters: 0.386442, 0.00819672, 0.0029481, 0.103649, 0.146575, 0.18274, 0.490514, 0.0818286, 0.165759, 0.134286, 0.0504399, 0.059024, 0.227487, 0.0505485, 0.0594663, 0.0119926
+[13:23] Assembling protein groups
+[13:23] Quantifying proteins
+[13:23] Calculating q-values for protein and gene groups
+[13:23] Calculating global q-values for protein and gene groups
+[13:23] Protein groups with global q-value <= 0.01: 2604
+[13:23] Compressed report saved to D:\Proteobench_manuscript_data\run_output_Astral\bad_diann_settings\report.parquet. Use R 'arrow' or Python 'PyArrow' package to process
+[13:23] Saving precursor levels matrix
+[13:23] Precursor levels matrix (1% precursor and protein group FDR) saved to D:\Proteobench_manuscript_data\run_output_Astral\bad_diann_settings\report.pr_matrix.tsv.
+[13:23] Saving protein group levels matrix
+[13:23] Protein groups matrix saved to D:\Proteobench_manuscript_data\run_output_Astral\bad_diann_settings\report.pg_matrix.tsv.
+[13:23] Saving gene group levels matrix
+[13:23] Gene groups matrix saved to D:\Proteobench_manuscript_data\run_output_Astral\bad_diann_settings\report.gg_matrix.tsv.
+[13:23] Saving unique genes levels matrix
+[13:23] Unique genes matrix saved to D:\Proteobench_manuscript_data\run_output_Astral\bad_diann_settings\report.unique_genes_matrix.tsv.
+[13:23] Manifest saved to D:\Proteobench_manuscript_data\run_output_Astral\bad_diann_settings\report.manifest.txt
+[13:23] Stats report saved to D:\Proteobench_manuscript_data\run_output_Astral\bad_diann_settings\report.stats.tsv
+[13:23] Generating spectral library:
+[13:23] 5257 target and 525 decoy precursors saved
+[13:23] Spectral library saved to D:\Proteobench_manuscript_data\run_output_Astral\bad_diann_settings\output-lib.parquet
+

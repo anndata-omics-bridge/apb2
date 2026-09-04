@@ -1,0 +1,73 @@
+Sequence
+Length
+C count
+H count
+N count
+O count
+S count
+P count
+Modifications
+Modified sequence
+Oxidation (M) Probabilities
+Oxidation (M) Score Diffs
+Acetyl (Protein N-term)
+Oxidation (M)
+Missed cleavages
+Proteins
+Leading proteins
+Leading razor protein
+Type
+Raw file
+Fraction
+Experiment
+MS/MS m/z
+Charge
+m/z
+Mass
+Uncalibrated - Calibrated m/z [ppm]
+Uncalibrated - Calibrated m/z [Da]
+Mass error [ppm]
+Mass error [Da]
+Uncalibrated mass error [ppm]
+Uncalibrated mass error [Da]
+Max intensity m/z 0
+Retention time
+Retention length
+Calibrated retention time
+Calibrated retention time start
+Calibrated retention time finish
+Retention time calibration
+Scan index
+Scan index min
+Scan index max
+Match time difference
+Match m/z difference
+Match q-value
+Match score
+Number of data points
+Number of scans
+Number of isotopic peaks
+PIF
+Fraction of total spectrum
+Base peak fraction
+PEP
+MS/MS count
+MS/MS scan number
+MS/MS scan numbers
+MS3 scan numbers
+Score
+Delta score
+Combinatorics
+Intensity
+Reverse
+Potential contaminant
+id
+Protein group IDs
+Peptide ID
+Mod. peptide ID
+MS/MS IDs
+Best MS/MS
+Oxidation (M) site IDs
+Taxonomy IDs
+Taxonomy names
+Mass deficit

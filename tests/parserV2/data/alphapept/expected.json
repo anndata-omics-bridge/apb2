@@ -1,0 +1,24 @@
+{
+  "source": "input_file.txt",
+  "sample": "sample.txt.gz",
+  "params": "param_0..txt",
+  "sample_rows": 500,
+  "levels": {
+    "ion": {
+      "observations": 2,
+      "variables": 327,
+      "layers": [
+        "Intensity",
+        "MS1_Int_Sum_Apex",
+        "MS1_Int_Sum_Area",
+        "MS1_Int_Max_Apex",
+        "MS1_Int_Max_Area",
+        "Score",
+        "Q_Value",
+        "Retention_Time",
+        "FWHM",
+        "N_Fragments_Matched"
+      ]
+    }
+  }
+}

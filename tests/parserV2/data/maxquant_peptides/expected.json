@@ -1,0 +1,15 @@
+{
+  "source": "peptides.txt",
+  "sample": "sample.txt.gz",
+  "params": null,
+  "sample_rows": 250,
+  "levels": {
+    "peptide": {
+      "observations": 12,
+      "variables": 250,
+      "layers": [
+        "Intensity"
+      ]
+    }
+  }
+}

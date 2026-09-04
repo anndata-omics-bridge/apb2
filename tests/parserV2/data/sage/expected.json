@@ -1,0 +1,15 @@
+{
+  "source": "input_file.tsv",
+  "sample": "sample.tsv.gz",
+  "params": "param_0..json",
+  "sample_rows": 250,
+  "levels": {
+    "peptidoform": {
+      "observations": 6,
+      "variables": 250,
+      "layers": [
+        "Intensity"
+      ]
+    }
+  }
+}

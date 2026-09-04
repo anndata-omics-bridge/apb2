@@ -1,5 +1,15 @@
 # Changes
 
+- 2026-09-04 (later still): Committed per-rule test artifacts under `tests/parserV2/data/<rule_key>/`
+  — a header snapshot, a stratified ~500-row real-export sample (gzip; parquet for parquet rules),
+  the fixture's parameter file where one exists, and `expected.json` with per-level conversion
+  dimensions. Header- and source-driven tests now fall back to these when no downloaded corpus is
+  present, and `test_committed_samples.py` converts every sample end to end against its recorded
+  expectations, so a fresh checkout or CI runs the full suite at 1005 passed / 9 skipped instead of
+  skipping ~200 corpus-backed tests. The artifacts are append-only and created once by
+  `apb_studio/scripts/make_apb2_test_samples.py` and its `extend_directflq_benchmark` twin; the
+  downloaded corpus remains the ground truth wherever it exists.
+
 - 2026-09-04 (later): The corpus default moved with the store: `APB2_TEST_DATA` now defaults to
   `../apb_studio/test_data_download`, the Fixture-Manager-owned location. The `vendor_params`
   cached-parameter snapshot test derives its cache index from the same `corpus_root()` instead of a

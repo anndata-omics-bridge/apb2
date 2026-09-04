@@ -1,0 +1,13 @@
+mod_seq_charge_hash
+LFQ_Astral_DIA_15min_50ng_Condition_A_REP1
+LFQ_Astral_DIA_15min_50ng_Condition_A_REP2
+LFQ_Astral_DIA_15min_50ng_Condition_A_REP3
+LFQ_Astral_DIA_15min_50ng_Condition_B_REP1
+LFQ_Astral_DIA_15min_50ng_Condition_B_REP2
+LFQ_Astral_DIA_15min_50ng_Condition_B_REP3
+genes
+decoy
+mods
+mod_sites
+sequence
+charge

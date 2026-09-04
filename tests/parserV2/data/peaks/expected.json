@@ -1,0 +1,18 @@
+{
+  "source": "input_file.csv",
+  "sample": "sample.csv.gz",
+  "params": "param_0..txt",
+  "sample_rows": 250,
+  "levels": {
+    "ion": {
+      "observations": 6,
+      "variables": 250,
+      "layers": [
+        "Normalized_Area",
+        "Sample_Mz",
+        "Sample_RT_Mean",
+        "AScore"
+      ]
+    }
+  }
+}

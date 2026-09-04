@@ -1,0 +1,18 @@
+{
+  "source": "input_file.tsv",
+  "sample": "sample.tsv.gz",
+  "params": "param_0..workflow",
+  "sample_rows": 250,
+  "levels": {
+    "ion": {
+      "observations": 6,
+      "variables": 250,
+      "layers": [
+        "Intensity",
+        "Spectral_Count",
+        "Apex_Retention_Time",
+        "Match_Type"
+      ]
+    }
+  }
+}

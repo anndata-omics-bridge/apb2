@@ -1,0 +1,1683 @@
+Spectronaut 20.0.250602.92449
+Computer Name: WD25-1003
+User Domain Name: WD25-1003
+User Name: pinson
+Analysis Mode: UI
+Analysis Type: directDIA
+Analysis Date: 13-June-2025 16:52:10 UTC +02:00 
+
+
+[BEGIN-SETTINGS]
+Settings Used: BGS Factory Settings
+   ├─ DIA Analysis\Calibration
+   │  ├─ MZ Extraction Strategy:	Maximum Intensity
+   │  ├─ Allow source specific iRT Calibration:	True
+   │  ├─ Precision iRT:	True
+   │  │  ├─ Exclude De-amidated Peptides:	True
+   │  │  └─ iRT <-> RT Regression Type:	Local (Non-Linear) Regression
+   │  ├─ MS1 Mass Tolerance Strategy:	System Default
+   │  └─ MS2 Mass Tolerance Strategy:	System Default
+   ├─ DIA Analysis\Identification
+   │  ├─ Precursor Qvalue Cutoff:	0.01
+   │  ├─ Precursor Qvalue Cutoff (Experiment):	0.01
+   │  ├─ Precursor PEP Cutoff:	0.2
+   │  ├─ Protein Qvalue Cutoff (Experiment):	0.01
+   │  ├─ Protein Qvalue Cutoff (Run):	0.05
+   │  ├─ Protein PEP Cutoff:	0.75
+   │  ├─ Single Hit Definition:	By Stripped Sequence
+   │  ├─ Single Hit Protein Rule:	Stratified Single Hit Protein FDR
+   │  ├─ Run-Level Protein Scoring:	All Observations
+   │  ├─ Exclude Duplicate Assays:	True
+   │  ├─ Exclude Predicted Fragment Scores:	False
+   │  ├─ Generate Decoys:	True
+   │  │  ├─ Decoy Generation Method:	Mutated
+   │  │  │  └─ Preferred Fragment Source:	NN Predicted Fragments
+   │  │  └─ Decoy Limit Strategy:	Dynamic
+   │  │     └─ Library Size Fraction:	0.1
+   │  └─ Pvalue Estimator:	Kernel Density Estimator
+   ├─ DIA Analysis\Pipeline Mode
+   │  ├─ Export All XICs:	False
+   │  ├─ Generate SNE File:	True
+   │  │  └─ Store Ion traces in SNE:	True
+   │  ├─ Post Analysis Reports:	
+   │  │  ├─ Binned CVs:	False
+   │  │  ├─ Binned Identification:	False
+   │  │  ├─ CV Density Line Chart:	False
+   │  │  ├─ CVs Below X Bar Chart:	False
+   │  │  ├─ Data Completeness Bar Chart:	False
+   │  │  ├─ Run Identifications Bar Chart:	False
+   │  │  ├─ Scoring Histograms:	False
+   │  │  └─ TIC Overlay:	False
+   │  ├─ PTM Report Schema:	
+   │  ├─ Report Schema:	BGS Factory Report (Normal)
+   │  └─ Reporting Unit:	Across Experiment
+   ├─ DIA Analysis\Post Analysis
+   │  ├─ Differential Abundance Testing:	Unpaired t-test
+   │  │  ├─ Assume Equal Variance:	False
+   │  │  ├─ Group-Wise Testing Correction:	False
+   │  │  ├─ Log2 Ratio Candidate Filter:	0.58
+   │  │  └─ Confidence Candidate Filter:	Qvalue
+   │  │     └─ Confidence:	0.05
+   │  ├─ Differential Abundance Grouping:	Major Group (Quantification Settings)
+   │  │  └─ Smallest Quantitative Unit:	Major Group (Quantification Settings)
+   │  │     └─ Use All MS-Level Quantities:	False
+   │  ├─ Calculate Explained TIC:	None
+   │  ├─ Calculate Sample Correlation Matrix:	False
+   │  ├─ Gene Ontology:	C:\Users\pinson\AppData\Roaming\Spectronaut\geneOntology\Ontologies\bgs_default_go-basic.obo
+   │  └─ Hierarchical Clustering:	True
+   │     ├─ Distance Metric:	Manhattan Distance
+   │     ├─ Linkage Strategy:	Ward's Method
+   │     ├─ Order Runs by Clustering:	True
+   │     └─ Z-score Transformation:	False
+   ├─ DIA Analysis\Protein Inference
+   │  └─ Protein Inference Workflow:	Automatic
+   │     └─ Inference Algorithm:	IDPicker
+   ├─ DIA Analysis\PTM Workflow
+   │  ├─ Input Normalization Strategy:	None
+   │  └─ PTM Localization:	False
+   ├─ DIA Analysis\Quantification
+   │  ├─ Precursor Filtering:	Identified (Qvalue)
+   │  │  ├─ Imputation Strategy:	None
+   │  │  └─ Multi Channel Qvalue Filter:	Group Qvalue
+   │  ├─ Proteotypicity Filter:	None
+   │  ├─ Protein LFQ Method:	Automatic
+   │  ├─ Quantity MS Level:	MS2
+   │  ├─ Quantity Type:	Area
+   │  ├─ Cross-Run Normalization:	True
+   │  │  ├─ Normalization Filter Type:	None
+   │  │  ├─ Normalization Strategy:	Automatic
+   │  │  └─ Row Selection:	Automatic
+   │  ├─ Perform background noise removal:	True
+   │  ├─ Quantification window:	Synchronized
+   │  ├─ Interference Correction:	True
+   │  │  ├─ Only Identified Peptides:	True
+   │  │  ├─ Exclude All Multi-Channel Interferences:	True
+   │  │  ├─ MS1 Min:	2
+   │  │  └─ MS2 Min:	3
+   │  ├─ Major Group Quantity:	Mean peptide quantity
+   │  ├─ Minor (Peptide) Grouping:	by Stripped Sequence
+   │  ├─ Major (Protein) Grouping:	by Protein Group Id
+   │  ├─ Major Group Top N:	True
+   │  │  ├─ Max:	3
+   │  │  └─ Min:	1
+   │  ├─ Minor Group Quantity:	Mean precursor quantity
+   │  ├─ Minor Group Top N:	True
+   │  │  ├─ Max:	3
+   │  │  └─ Min:	1
+   │  ├─ Use Log2 Quantity Filter:	True
+   │  │  └─ Minimum Log2 Precursor Quantity:	0
+   │  └─ Perform IM Peak Picking for Quantification:	True
+   ├─ DIA Analysis\Workflow
+   │  ├─ Method Evaluation:	False
+   │  ├─ MS2 DeMultiplexing:	Automatic
+   │  ├─ Multi-Channel Workflow Definition:	From Library Annotation
+   │  │  └─ Fallback Option:	Labeled
+   │  ├─ Profiling Strategy:	None
+   │  ├─ Run Limit for directDIA Library:	-1
+   │  ├─ Hybrid (DDA + DIA) Library:	False
+   │  └─ Unify Peptide Peaks Strategy:	None
+   ├─ DIA Analysis\XIC Extraction
+   │  ├─ XIC IM Extraction Window:	Dynamic
+   │  │  └─ Correction Factor:	1
+   │  ├─ XIC RT Extraction Window:	Dynamic
+   │  │  └─ Correction Factor:	1
+   │  ├─ MS1 Mass Tolerance Strategy:	Dynamic
+   │  │  └─ Correction Factor:	1
+   │  └─ MS2 Mass Tolerance Strategy:	Dynamic
+   │     └─ Correction Factor:	1
+   ├─ Pulsar Search\Identification
+   │  ├─ PSM FDR:	0.01
+   │  ├─ Peptide FDR:	0.01
+   │  ├─ Protein Group FDR:	0.01
+   │  ├─ directDIA Workflow:	directDIA+ (Deep)
+   │  └─ PTM Localization Filter:	False
+   ├─ Pulsar Search\iRT Calibration
+   │  ├─ Calibrate from Empirical RT:	False
+   │  ├─ Auto-assign iRT source:	True
+   │  ├─ iRT Reference Strategy:	Deep Learning Assisted iRT Regression
+   │  ├─ Use Source Specific iRT:	Auto
+   │  └─ Minimum Rsquare:	0.8
+   ├─ Pulsar Search\Labeling
+   │  └─ Channels:	
+   │     ├─ Channel 1:	False
+   │     ├─ Channel 2:	False
+   │     ├─ Channel 3:	False
+   │     ├─ Channel 4:	False
+   │     └─ Channel 5:	False
+   ├─ Pulsar Search\Modifications
+   │  └─ Search Mode:	Closed Search
+   │     ├─ Max Variable Modifications:	1
+   │     ├─ Fixed Modifications::	Carbamidomethyl (C)
+   │     └─ Variable Modifications::	Acetyl (Protein N-term), Oxidation (M)
+   ├─ Pulsar Search\Peptides
+   │  ├─ Enzymes / Cleavage Rules:	Trypsin/P
+   │  ├─ Digest Type:	Specific
+   │  ├─ Decoy Generation Rule:	KR
+   │  ├─ Max Peptide Length:	30
+   │  ├─ Min Peptide Length:	6
+   │  ├─ Missed Cleavages:	1
+   │  └─ Toggle N-terminal M:	True
+   ├─ Pulsar Search\Result Filters
+   │  ├─ Fragment Ions:	
+   │  │  ├─ Ion AA Length:	True
+   │  │  │  └─ N:	3
+   │  │  ├─ Ion Charge:	False
+   │  │  ├─ Ion Loss Type:	False
+   │  │  ├─ Ion Type:	False
+   │  │  ├─ m/z :	True
+   │  │  │  ├─ Max:	2000
+   │  │  │  └─ Min:	50
+   │  │  ├─ Overlapping between Channels:	False
+   │  │  └─ Relative Intensity:	True
+   │  │     └─ Min:	1
+   │  └─ Precursors:	
+   │     ├─ Amino Acids:	False
+   │     ├─ Best N Fragments per Peptide:	True
+   │     │  ├─ Max:	6
+   │     │  └─ Min:	3
+   │     ├─ Best N Peptides per Protein Group:	False
+   │     ├─ Channel Count:	False
+   │     ├─ FASTA Matched:	False
+   │     ├─ Missed Cleavage:	False
+   │     ├─ Modifications:	None
+   │     ├─ Peptide Charge:	False
+   │     └─ Proteotypicity:	False
+   ├─ Pulsar Search\Speed-Up
+   │  ├─ MS2 Index:	Automatic
+   │  └─ diaPASEF Pre-Processing:	Automatic
+   ├─ Pulsar Search\Tolerances
+   │  └─ Tolerance Parameters:	
+   │     ├─ Thermo IonTrap:	
+   │     │  ├─ Calibration Search:	Dynamic
+   │     │  │  ├─ MS1 Correction Factor:	1
+   │     │  │  └─ MS2 Correction Factor:	1
+   │     │  └─ Main Search:	Dynamic
+   │     │     ├─ MS1 Correction Factor:	1
+   │     │     └─ MS2 Correction Factor:	1
+   │     ├─ Thermo Orbitrap:	
+   │     │  ├─ Calibration Search:	Dynamic
+   │     │  │  ├─ MS1 Correction Factor:	1
+   │     │  │  └─ MS2 Correction Factor:	1
+   │     │  └─ Main Search:	Dynamic
+   │     │     ├─ MS1 Correction Factor:	1
+   │     │     └─ MS2 Correction Factor:	1
+   │     └─ TOF:	
+   │        ├─ Calibration Search:	Dynamic
+   │        │  ├─ MS1 Correction Factor:	1
+   │        │  └─ MS2 Correction Factor:	1
+   │        └─ Main Search:	Dynamic
+   │           ├─ MS1 Correction Factor:	1
+   │           └─ MS2 Correction Factor:	1
+   └─ Pulsar Search\Workflow
+      ├─ Fragment Ion Selection Strategy:	Intensity Based
+      ├─ In-Silico Generate Missing Channels:	False
+      └─ Use DNN Predicted Ion Mobility:	Auto
+[END-SETTINGS]
+
+[BEGIN-SETUP]
+Run: LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_01.raw
+   ├─ Vendor: Thermo
+   ├─ File: LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_01
+   ├─ Path: "F:\Spectronaut\Proteobench\LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_01.raw"
+   ├─ Condition: A
+   ├─ Replicate: 1
+   ├─ HTRMS Version: 20.0.250602.92449
+   ├─ Protein Databases Used
+   │  └─ ProteoBenchFASTA_MixedSpecies_HYE
+   │     ├─ Protein Entries: 31,889
+   │     ├─ Original File: ProteoBenchFASTA_MixedSpecies_HYE.fasta
+   │     ├─ Date Created: 13-June-2025 09:44:51 UTC +02:00 
+   │     ├─ Date Modified: 13-June-2025 15:41:56 UTC +02:00 
+   │     └─ Parsing Rule: UniProt FASTA
+   └─ MS2 Method
+      ├─ [396.4 - 400.4]
+      ├─ [400.4 - 404.4]
+      ├─ [404.4 - 408.4]
+      ├─ [408.4 - 412.4]
+      ├─ [412.4 - 416.4]
+      ├─ [416.4 - 420.4]
+      ├─ [420.4 - 424.4]
+      ├─ [424.4 - 428.4]
+      ├─ [428.4 - 432.4]
+      ├─ [432.4 - 436.4]
+      ├─ [436.5 - 440.4]
+      ├─ [440.5 - 444.5]
+      ├─ [444.5 - 448.5]
+      ├─ [448.5 - 452.5]
+      ├─ [452.5 - 456.5]
+      ├─ [456.5 - 460.5]
+      ├─ [460.5 - 464.5]
+      ├─ [464.5 - 468.5]
+      ├─ [468.5 - 472.5]
+      ├─ [472.5 - 476.5]
+      ├─ [476.5 - 480.5]
+      ├─ [480.5 - 484.5]
+      ├─ [484.5 - 488.5]
+      ├─ [488.5 - 492.5]
+      ├─ [492.5 - 496.5]
+      ├─ [496.5 - 500.5]
+      ├─ [500.5 - 504.5]
+      ├─ [504.5 - 508.5]
+      ├─ [508.5 - 512.5]
+      ├─ [512.5 - 516.5]
+      ├─ [516.5 - 520.5]
+      ├─ [520.5 - 524.5]
+      ├─ [524.5 - 528.5]
+      ├─ [528.5 - 532.5]
+      ├─ [532.5 - 536.5]
+      ├─ [536.5 - 540.5]
+      ├─ [540.5 - 544.5]
+      ├─ [544.5 - 548.5]
+      ├─ [548.5 - 552.5]
+      ├─ [552.5 - 556.5]
+      ├─ [556.5 - 560.5]
+      ├─ [560.5 - 564.5]
+      ├─ [564.5 - 568.5]
+      ├─ [568.5 - 572.5]
+      ├─ [572.5 - 576.5]
+      ├─ [576.5 - 580.5]
+      ├─ [580.5 - 584.5]
+      ├─ [584.5 - 588.5]
+      ├─ [588.5 - 592.5]
+      ├─ [592.5 - 596.5]
+      ├─ [596.5 - 600.5]
+      ├─ [600.5 - 604.5]
+      ├─ [604.5 - 608.5]
+      ├─ [608.5 - 612.5]
+      ├─ [612.5 - 616.5]
+      ├─ [616.5 - 620.5]
+      ├─ [620.5 - 624.5]
+      ├─ [624.5 - 628.5]
+      ├─ [628.5 - 632.5]
+      ├─ [632.5 - 636.5]
+      ├─ [636.5 - 640.5]
+      ├─ [640.5 - 644.5]
+      ├─ [644.5 - 648.5]
+      ├─ [648.5 - 652.5]
+      ├─ [652.5 - 656.5]
+      ├─ [656.6 - 660.5]
+      ├─ [660.6 - 664.6]
+      ├─ [664.6 - 668.6]
+      ├─ [668.6 - 672.6]
+      ├─ [672.6 - 676.6]
+      ├─ [676.6 - 680.6]
+      ├─ [680.6 - 684.6]
+      ├─ [684.6 - 688.6]
+      ├─ [688.6 - 692.6]
+      ├─ [692.6 - 696.6]
+      ├─ [696.6 - 700.6]
+      ├─ [700.6 - 704.6]
+      ├─ [704.6 - 708.6]
+      ├─ [708.6 - 712.6]
+      ├─ [712.6 - 716.6]
+      ├─ [716.6 - 720.6]
+      ├─ [720.6 - 724.6]
+      ├─ [724.6 - 728.6]
+      ├─ [728.6 - 732.6]
+      ├─ [732.6 - 736.6]
+      ├─ [736.6 - 740.6]
+      ├─ [740.6 - 744.6]
+      ├─ [744.6 - 748.6]
+      ├─ [748.6 - 752.6]
+      ├─ [752.6 - 756.6]
+      ├─ [756.6 - 760.6]
+      ├─ [760.6 - 764.6]
+      ├─ [764.6 - 768.6]
+      ├─ [768.6 - 772.6]
+      ├─ [772.6 - 776.6]
+      ├─ [776.6 - 780.6]
+      ├─ [780.6 - 784.6]
+      ├─ [784.6 - 788.6]
+      ├─ [788.6 - 792.6]
+      ├─ [792.6 - 796.6]
+      ├─ [796.6 - 800.6]
+      ├─ [800.6 - 804.6]
+      ├─ [804.6 - 808.6]
+      ├─ [808.6 - 812.6]
+      ├─ [812.6 - 816.6]
+      ├─ [816.6 - 820.6]
+      ├─ [820.6 - 824.6]
+      ├─ [824.6 - 828.6]
+      ├─ [828.6 - 832.6]
+      ├─ [832.6 - 836.6]
+      ├─ [836.6 - 840.6]
+      ├─ [840.6 - 844.6]
+      ├─ [844.6 - 848.6]
+      ├─ [848.6 - 852.6]
+      ├─ [852.6 - 856.6]
+      ├─ [856.6 - 860.6]
+      ├─ [860.6 - 864.6]
+      ├─ [864.6 - 868.6]
+      ├─ [868.6 - 872.6]
+      ├─ [872.6 - 876.6]
+      ├─ [876.7 - 880.6]
+      ├─ [880.7 - 884.7]
+      ├─ [884.7 - 888.7]
+      ├─ [888.7 - 892.7]
+      ├─ [892.7 - 896.7]
+      ├─ [896.7 - 900.7]
+      ├─ [900.7 - 904.7]
+      ├─ [904.7 - 908.7]
+      ├─ [908.7 - 912.7]
+      ├─ [912.7 - 916.7]
+      ├─ [916.7 - 920.7]
+      ├─ [920.7 - 924.7]
+      ├─ [924.7 - 928.7]
+      ├─ [928.7 - 932.7]
+      ├─ [932.7 - 936.7]
+      ├─ [936.7 - 940.7]
+      ├─ [940.7 - 944.7]
+      ├─ [944.7 - 948.7]
+      ├─ [948.7 - 952.7]
+      ├─ [952.7 - 956.7]
+      ├─ [956.7 - 960.7]
+      ├─ [960.7 - 964.7]
+      ├─ [964.7 - 968.7]
+      ├─ [968.7 - 972.7]
+      ├─ [972.7 - 976.7]
+      ├─ [976.7 - 980.7]
+      ├─ [980.7 - 984.7]
+      ├─ [984.7 - 988.7]
+      ├─ [988.7 - 992.7]
+      ├─ [992.7 - 996.7]
+      ├─ [996.7 - 1000.7]
+      └─ [1000.7 - 1004.7]
+
+Run: LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_02.raw
+   ├─ Vendor: Thermo
+   ├─ File: LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_02
+   ├─ Path: "F:\Spectronaut\Proteobench\LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_02.raw"
+   ├─ Condition: A
+   ├─ Replicate: 2
+   ├─ HTRMS Version: 20.0.250602.92449
+   ├─ Protein Databases Used
+   │  └─ ProteoBenchFASTA_MixedSpecies_HYE
+   │     ├─ Protein Entries: 31,889
+   │     ├─ Original File: ProteoBenchFASTA_MixedSpecies_HYE.fasta
+   │     ├─ Date Created: 13-June-2025 09:44:51 UTC +02:00 
+   │     ├─ Date Modified: 13-June-2025 15:41:56 UTC +02:00 
+   │     └─ Parsing Rule: UniProt FASTA
+   └─ MS2 Method
+      ├─ [396.4 - 400.4]
+      ├─ [400.4 - 404.4]
+      ├─ [404.4 - 408.4]
+      ├─ [408.4 - 412.4]
+      ├─ [412.4 - 416.4]
+      ├─ [416.4 - 420.4]
+      ├─ [420.4 - 424.4]
+      ├─ [424.4 - 428.4]
+      ├─ [428.4 - 432.4]
+      ├─ [432.4 - 436.4]
+      ├─ [436.5 - 440.4]
+      ├─ [440.5 - 444.5]
+      ├─ [444.5 - 448.5]
+      ├─ [448.5 - 452.5]
+      ├─ [452.5 - 456.5]
+      ├─ [456.5 - 460.5]
+      ├─ [460.5 - 464.5]
+      ├─ [464.5 - 468.5]
+      ├─ [468.5 - 472.5]
+      ├─ [472.5 - 476.5]
+      ├─ [476.5 - 480.5]
+      ├─ [480.5 - 484.5]
+      ├─ [484.5 - 488.5]
+      ├─ [488.5 - 492.5]
+      ├─ [492.5 - 496.5]
+      ├─ [496.5 - 500.5]
+      ├─ [500.5 - 504.5]
+      ├─ [504.5 - 508.5]
+      ├─ [508.5 - 512.5]
+      ├─ [512.5 - 516.5]
+      ├─ [516.5 - 520.5]
+      ├─ [520.5 - 524.5]
+      ├─ [524.5 - 528.5]
+      ├─ [528.5 - 532.5]
+      ├─ [532.5 - 536.5]
+      ├─ [536.5 - 540.5]
+      ├─ [540.5 - 544.5]
+      ├─ [544.5 - 548.5]
+      ├─ [548.5 - 552.5]
+      ├─ [552.5 - 556.5]
+      ├─ [556.5 - 560.5]
+      ├─ [560.5 - 564.5]
+      ├─ [564.5 - 568.5]
+      ├─ [568.5 - 572.5]
+      ├─ [572.5 - 576.5]
+      ├─ [576.5 - 580.5]
+      ├─ [580.5 - 584.5]
+      ├─ [584.5 - 588.5]
+      ├─ [588.5 - 592.5]
+      ├─ [592.5 - 596.5]
+      ├─ [596.5 - 600.5]
+      ├─ [600.5 - 604.5]
+      ├─ [604.5 - 608.5]
+      ├─ [608.5 - 612.5]
+      ├─ [612.5 - 616.5]
+      ├─ [616.5 - 620.5]
+      ├─ [620.5 - 624.5]
+      ├─ [624.5 - 628.5]
+      ├─ [628.5 - 632.5]
+      ├─ [632.5 - 636.5]
+      ├─ [636.5 - 640.5]
+      ├─ [640.5 - 644.5]
+      ├─ [644.5 - 648.5]
+      ├─ [648.5 - 652.5]
+      ├─ [652.5 - 656.5]
+      ├─ [656.6 - 660.5]
+      ├─ [660.6 - 664.6]
+      ├─ [664.6 - 668.6]
+      ├─ [668.6 - 672.6]
+      ├─ [672.6 - 676.6]
+      ├─ [676.6 - 680.6]
+      ├─ [680.6 - 684.6]
+      ├─ [684.6 - 688.6]
+      ├─ [688.6 - 692.6]
+      ├─ [692.6 - 696.6]
+      ├─ [696.6 - 700.6]
+      ├─ [700.6 - 704.6]
+      ├─ [704.6 - 708.6]
+      ├─ [708.6 - 712.6]
+      ├─ [712.6 - 716.6]
+      ├─ [716.6 - 720.6]
+      ├─ [720.6 - 724.6]
+      ├─ [724.6 - 728.6]
+      ├─ [728.6 - 732.6]
+      ├─ [732.6 - 736.6]
+      ├─ [736.6 - 740.6]
+      ├─ [740.6 - 744.6]
+      ├─ [744.6 - 748.6]
+      ├─ [748.6 - 752.6]
+      ├─ [752.6 - 756.6]
+      ├─ [756.6 - 760.6]
+      ├─ [760.6 - 764.6]
+      ├─ [764.6 - 768.6]
+      ├─ [768.6 - 772.6]
+      ├─ [772.6 - 776.6]
+      ├─ [776.6 - 780.6]
+      ├─ [780.6 - 784.6]
+      ├─ [784.6 - 788.6]
+      ├─ [788.6 - 792.6]
+      ├─ [792.6 - 796.6]
+      ├─ [796.6 - 800.6]
+      ├─ [800.6 - 804.6]
+      ├─ [804.6 - 808.6]
+      ├─ [808.6 - 812.6]
+      ├─ [812.6 - 816.6]
+      ├─ [816.6 - 820.6]
+      ├─ [820.6 - 824.6]
+      ├─ [824.6 - 828.6]
+      ├─ [828.6 - 832.6]
+      ├─ [832.6 - 836.6]
+      ├─ [836.6 - 840.6]
+      ├─ [840.6 - 844.6]
+      ├─ [844.6 - 848.6]
+      ├─ [848.6 - 852.6]
+      ├─ [852.6 - 856.6]
+      ├─ [856.6 - 860.6]
+      ├─ [860.6 - 864.6]
+      ├─ [864.6 - 868.6]
+      ├─ [868.6 - 872.6]
+      ├─ [872.6 - 876.6]
+      ├─ [876.7 - 880.6]
+      ├─ [880.7 - 884.7]
+      ├─ [884.7 - 888.7]
+      ├─ [888.7 - 892.7]
+      ├─ [892.7 - 896.7]
+      ├─ [896.7 - 900.7]
+      ├─ [900.7 - 904.7]
+      ├─ [904.7 - 908.7]
+      ├─ [908.7 - 912.7]
+      ├─ [912.7 - 916.7]
+      ├─ [916.7 - 920.7]
+      ├─ [920.7 - 924.7]
+      ├─ [924.7 - 928.7]
+      ├─ [928.7 - 932.7]
+      ├─ [932.7 - 936.7]
+      ├─ [936.7 - 940.7]
+      ├─ [940.7 - 944.7]
+      ├─ [944.7 - 948.7]
+      ├─ [948.7 - 952.7]
+      ├─ [952.7 - 956.7]
+      ├─ [956.7 - 960.7]
+      ├─ [960.7 - 964.7]
+      ├─ [964.7 - 968.7]
+      ├─ [968.7 - 972.7]
+      ├─ [972.7 - 976.7]
+      ├─ [976.7 - 980.7]
+      ├─ [980.7 - 984.7]
+      ├─ [984.7 - 988.7]
+      ├─ [988.7 - 992.7]
+      ├─ [992.7 - 996.7]
+      ├─ [996.7 - 1000.7]
+      └─ [1000.7 - 1004.7]
+
+Run: LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_03.raw
+   ├─ Vendor: Thermo
+   ├─ File: LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_03
+   ├─ Path: "F:\Spectronaut\Proteobench\LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_03.raw"
+   ├─ Condition: A
+   ├─ Replicate: 3
+   ├─ HTRMS Version: 20.0.250602.92449
+   ├─ Protein Databases Used
+   │  └─ ProteoBenchFASTA_MixedSpecies_HYE
+   │     ├─ Protein Entries: 31,889
+   │     ├─ Original File: ProteoBenchFASTA_MixedSpecies_HYE.fasta
+   │     ├─ Date Created: 13-June-2025 09:44:51 UTC +02:00 
+   │     ├─ Date Modified: 13-June-2025 15:41:56 UTC +02:00 
+   │     └─ Parsing Rule: UniProt FASTA
+   └─ MS2 Method
+      ├─ [396.4 - 400.4]
+      ├─ [400.4 - 404.4]
+      ├─ [404.4 - 408.4]
+      ├─ [408.4 - 412.4]
+      ├─ [412.4 - 416.4]
+      ├─ [416.4 - 420.4]
+      ├─ [420.4 - 424.4]
+      ├─ [424.4 - 428.4]
+      ├─ [428.4 - 432.4]
+      ├─ [432.4 - 436.4]
+      ├─ [436.5 - 440.4]
+      ├─ [440.5 - 444.5]
+      ├─ [444.5 - 448.5]
+      ├─ [448.5 - 452.5]
+      ├─ [452.5 - 456.5]
+      ├─ [456.5 - 460.5]
+      ├─ [460.5 - 464.5]
+      ├─ [464.5 - 468.5]
+      ├─ [468.5 - 472.5]
+      ├─ [472.5 - 476.5]
+      ├─ [476.5 - 480.5]
+      ├─ [480.5 - 484.5]
+      ├─ [484.5 - 488.5]
+      ├─ [488.5 - 492.5]
+      ├─ [492.5 - 496.5]
+      ├─ [496.5 - 500.5]
+      ├─ [500.5 - 504.5]
+      ├─ [504.5 - 508.5]
+      ├─ [508.5 - 512.5]
+      ├─ [512.5 - 516.5]
+      ├─ [516.5 - 520.5]
+      ├─ [520.5 - 524.5]
+      ├─ [524.5 - 528.5]
+      ├─ [528.5 - 532.5]
+      ├─ [532.5 - 536.5]
+      ├─ [536.5 - 540.5]
+      ├─ [540.5 - 544.5]
+      ├─ [544.5 - 548.5]
+      ├─ [548.5 - 552.5]
+      ├─ [552.5 - 556.5]
+      ├─ [556.5 - 560.5]
+      ├─ [560.5 - 564.5]
+      ├─ [564.5 - 568.5]
+      ├─ [568.5 - 572.5]
+      ├─ [572.5 - 576.5]
+      ├─ [576.5 - 580.5]
+      ├─ [580.5 - 584.5]
+      ├─ [584.5 - 588.5]
+      ├─ [588.5 - 592.5]
+      ├─ [592.5 - 596.5]
+      ├─ [596.5 - 600.5]
+      ├─ [600.5 - 604.5]
+      ├─ [604.5 - 608.5]
+      ├─ [608.5 - 612.5]
+      ├─ [612.5 - 616.5]
+      ├─ [616.5 - 620.5]
+      ├─ [620.5 - 624.5]
+      ├─ [624.5 - 628.5]
+      ├─ [628.5 - 632.5]
+      ├─ [632.5 - 636.5]
+      ├─ [636.5 - 640.5]
+      ├─ [640.5 - 644.5]
+      ├─ [644.5 - 648.5]
+      ├─ [648.5 - 652.5]
+      ├─ [652.5 - 656.5]
+      ├─ [656.6 - 660.5]
+      ├─ [660.6 - 664.6]
+      ├─ [664.6 - 668.6]
+      ├─ [668.6 - 672.6]
+      ├─ [672.6 - 676.6]
+      ├─ [676.6 - 680.6]
+      ├─ [680.6 - 684.6]
+      ├─ [684.6 - 688.6]
+      ├─ [688.6 - 692.6]
+      ├─ [692.6 - 696.6]
+      ├─ [696.6 - 700.6]
+      ├─ [700.6 - 704.6]
+      ├─ [704.6 - 708.6]
+      ├─ [708.6 - 712.6]
+      ├─ [712.6 - 716.6]
+      ├─ [716.6 - 720.6]
+      ├─ [720.6 - 724.6]
+      ├─ [724.6 - 728.6]
+      ├─ [728.6 - 732.6]
+      ├─ [732.6 - 736.6]
+      ├─ [736.6 - 740.6]
+      ├─ [740.6 - 744.6]
+      ├─ [744.6 - 748.6]
+      ├─ [748.6 - 752.6]
+      ├─ [752.6 - 756.6]
+      ├─ [756.6 - 760.6]
+      ├─ [760.6 - 764.6]
+      ├─ [764.6 - 768.6]
+      ├─ [768.6 - 772.6]
+      ├─ [772.6 - 776.6]
+      ├─ [776.6 - 780.6]
+      ├─ [780.6 - 784.6]
+      ├─ [784.6 - 788.6]
+      ├─ [788.6 - 792.6]
+      ├─ [792.6 - 796.6]
+      ├─ [796.6 - 800.6]
+      ├─ [800.6 - 804.6]
+      ├─ [804.6 - 808.6]
+      ├─ [808.6 - 812.6]
+      ├─ [812.6 - 816.6]
+      ├─ [816.6 - 820.6]
+      ├─ [820.6 - 824.6]
+      ├─ [824.6 - 828.6]
+      ├─ [828.6 - 832.6]
+      ├─ [832.6 - 836.6]
+      ├─ [836.6 - 840.6]
+      ├─ [840.6 - 844.6]
+      ├─ [844.6 - 848.6]
+      ├─ [848.6 - 852.6]
+      ├─ [852.6 - 856.6]
+      ├─ [856.6 - 860.6]
+      ├─ [860.6 - 864.6]
+      ├─ [864.6 - 868.6]
+      ├─ [868.6 - 872.6]
+      ├─ [872.6 - 876.6]
+      ├─ [876.7 - 880.6]
+      ├─ [880.7 - 884.7]
+      ├─ [884.7 - 888.7]
+      ├─ [888.7 - 892.7]
+      ├─ [892.7 - 896.7]
+      ├─ [896.7 - 900.7]
+      ├─ [900.7 - 904.7]
+      ├─ [904.7 - 908.7]
+      ├─ [908.7 - 912.7]
+      ├─ [912.7 - 916.7]
+      ├─ [916.7 - 920.7]
+      ├─ [920.7 - 924.7]
+      ├─ [924.7 - 928.7]
+      ├─ [928.7 - 932.7]
+      ├─ [932.7 - 936.7]
+      ├─ [936.7 - 940.7]
+      ├─ [940.7 - 944.7]
+      ├─ [944.7 - 948.7]
+      ├─ [948.7 - 952.7]
+      ├─ [952.7 - 956.7]
+      ├─ [956.7 - 960.7]
+      ├─ [960.7 - 964.7]
+      ├─ [964.7 - 968.7]
+      ├─ [968.7 - 972.7]
+      ├─ [972.7 - 976.7]
+      ├─ [976.7 - 980.7]
+      ├─ [980.7 - 984.7]
+      ├─ [984.7 - 988.7]
+      ├─ [988.7 - 992.7]
+      ├─ [992.7 - 996.7]
+      ├─ [996.7 - 1000.7]
+      └─ [1000.7 - 1004.7]
+
+Run: LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_01.raw
+   ├─ Vendor: Thermo
+   ├─ File: LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_01
+   ├─ Path: "F:\Spectronaut\Proteobench\LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_01.raw"
+   ├─ Condition: B
+   ├─ Replicate: 1
+   ├─ HTRMS Version: 20.0.250602.92449
+   ├─ Protein Databases Used
+   │  └─ ProteoBenchFASTA_MixedSpecies_HYE
+   │     ├─ Protein Entries: 31,889
+   │     ├─ Original File: ProteoBenchFASTA_MixedSpecies_HYE.fasta
+   │     ├─ Date Created: 13-June-2025 09:44:51 UTC +02:00 
+   │     ├─ Date Modified: 13-June-2025 15:41:56 UTC +02:00 
+   │     └─ Parsing Rule: UniProt FASTA
+   └─ MS2 Method
+      ├─ [396.4 - 400.4]
+      ├─ [400.4 - 404.4]
+      ├─ [404.4 - 408.4]
+      ├─ [408.4 - 412.4]
+      ├─ [412.4 - 416.4]
+      ├─ [416.4 - 420.4]
+      ├─ [420.4 - 424.4]
+      ├─ [424.4 - 428.4]
+      ├─ [428.4 - 432.4]
+      ├─ [432.4 - 436.4]
+      ├─ [436.5 - 440.4]
+      ├─ [440.5 - 444.5]
+      ├─ [444.5 - 448.5]
+      ├─ [448.5 - 452.5]
+      ├─ [452.5 - 456.5]
+      ├─ [456.5 - 460.5]
+      ├─ [460.5 - 464.5]
+      ├─ [464.5 - 468.5]
+      ├─ [468.5 - 472.5]
+      ├─ [472.5 - 476.5]
+      ├─ [476.5 - 480.5]
+      ├─ [480.5 - 484.5]
+      ├─ [484.5 - 488.5]
+      ├─ [488.5 - 492.5]
+      ├─ [492.5 - 496.5]
+      ├─ [496.5 - 500.5]
+      ├─ [500.5 - 504.5]
+      ├─ [504.5 - 508.5]
+      ├─ [508.5 - 512.5]
+      ├─ [512.5 - 516.5]
+      ├─ [516.5 - 520.5]
+      ├─ [520.5 - 524.5]
+      ├─ [524.5 - 528.5]
+      ├─ [528.5 - 532.5]
+      ├─ [532.5 - 536.5]
+      ├─ [536.5 - 540.5]
+      ├─ [540.5 - 544.5]
+      ├─ [544.5 - 548.5]
+      ├─ [548.5 - 552.5]
+      ├─ [552.5 - 556.5]
+      ├─ [556.5 - 560.5]
+      ├─ [560.5 - 564.5]
+      ├─ [564.5 - 568.5]
+      ├─ [568.5 - 572.5]
+      ├─ [572.5 - 576.5]
+      ├─ [576.5 - 580.5]
+      ├─ [580.5 - 584.5]
+      ├─ [584.5 - 588.5]
+      ├─ [588.5 - 592.5]
+      ├─ [592.5 - 596.5]
+      ├─ [596.5 - 600.5]
+      ├─ [600.5 - 604.5]
+      ├─ [604.5 - 608.5]
+      ├─ [608.5 - 612.5]
+      ├─ [612.5 - 616.5]
+      ├─ [616.5 - 620.5]
+      ├─ [620.5 - 624.5]
+      ├─ [624.5 - 628.5]
+      ├─ [628.5 - 632.5]
+      ├─ [632.5 - 636.5]
+      ├─ [636.5 - 640.5]
+      ├─ [640.5 - 644.5]
+      ├─ [644.5 - 648.5]
+      ├─ [648.5 - 652.5]
+      ├─ [652.5 - 656.5]
+      ├─ [656.6 - 660.5]
+      ├─ [660.6 - 664.6]
+      ├─ [664.6 - 668.6]
+      ├─ [668.6 - 672.6]
+      ├─ [672.6 - 676.6]
+      ├─ [676.6 - 680.6]
+      ├─ [680.6 - 684.6]
+      ├─ [684.6 - 688.6]
+      ├─ [688.6 - 692.6]
+      ├─ [692.6 - 696.6]
+      ├─ [696.6 - 700.6]
+      ├─ [700.6 - 704.6]
+      ├─ [704.6 - 708.6]
+      ├─ [708.6 - 712.6]
+      ├─ [712.6 - 716.6]
+      ├─ [716.6 - 720.6]
+      ├─ [720.6 - 724.6]
+      ├─ [724.6 - 728.6]
+      ├─ [728.6 - 732.6]
+      ├─ [732.6 - 736.6]
+      ├─ [736.6 - 740.6]
+      ├─ [740.6 - 744.6]
+      ├─ [744.6 - 748.6]
+      ├─ [748.6 - 752.6]
+      ├─ [752.6 - 756.6]
+      ├─ [756.6 - 760.6]
+      ├─ [760.6 - 764.6]
+      ├─ [764.6 - 768.6]
+      ├─ [768.6 - 772.6]
+      ├─ [772.6 - 776.6]
+      ├─ [776.6 - 780.6]
+      ├─ [780.6 - 784.6]
+      ├─ [784.6 - 788.6]
+      ├─ [788.6 - 792.6]
+      ├─ [792.6 - 796.6]
+      ├─ [796.6 - 800.6]
+      ├─ [800.6 - 804.6]
+      ├─ [804.6 - 808.6]
+      ├─ [808.6 - 812.6]
+      ├─ [812.6 - 816.6]
+      ├─ [816.6 - 820.6]
+      ├─ [820.6 - 824.6]
+      ├─ [824.6 - 828.6]
+      ├─ [828.6 - 832.6]
+      ├─ [832.6 - 836.6]
+      ├─ [836.6 - 840.6]
+      ├─ [840.6 - 844.6]
+      ├─ [844.6 - 848.6]
+      ├─ [848.6 - 852.6]
+      ├─ [852.6 - 856.6]
+      ├─ [856.6 - 860.6]
+      ├─ [860.6 - 864.6]
+      ├─ [864.6 - 868.6]
+      ├─ [868.6 - 872.6]
+      ├─ [872.6 - 876.6]
+      ├─ [876.7 - 880.6]
+      ├─ [880.7 - 884.7]
+      ├─ [884.7 - 888.7]
+      ├─ [888.7 - 892.7]
+      ├─ [892.7 - 896.7]
+      ├─ [896.7 - 900.7]
+      ├─ [900.7 - 904.7]
+      ├─ [904.7 - 908.7]
+      ├─ [908.7 - 912.7]
+      ├─ [912.7 - 916.7]
+      ├─ [916.7 - 920.7]
+      ├─ [920.7 - 924.7]
+      ├─ [924.7 - 928.7]
+      ├─ [928.7 - 932.7]
+      ├─ [932.7 - 936.7]
+      ├─ [936.7 - 940.7]
+      ├─ [940.7 - 944.7]
+      ├─ [944.7 - 948.7]
+      ├─ [948.7 - 952.7]
+      ├─ [952.7 - 956.7]
+      ├─ [956.7 - 960.7]
+      ├─ [960.7 - 964.7]
+      ├─ [964.7 - 968.7]
+      ├─ [968.7 - 972.7]
+      ├─ [972.7 - 976.7]
+      ├─ [976.7 - 980.7]
+      ├─ [980.7 - 984.7]
+      ├─ [984.7 - 988.7]
+      ├─ [988.7 - 992.7]
+      ├─ [992.7 - 996.7]
+      ├─ [996.7 - 1000.7]
+      └─ [1000.7 - 1004.7]
+
+Run: LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_02.raw
+   ├─ Vendor: Thermo
+   ├─ File: LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_02
+   ├─ Path: "F:\Spectronaut\Proteobench\LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_02.raw"
+   ├─ Condition: B
+   ├─ Replicate: 2
+   ├─ HTRMS Version: 20.0.250602.92449
+   ├─ Protein Databases Used
+   │  └─ ProteoBenchFASTA_MixedSpecies_HYE
+   │     ├─ Protein Entries: 31,889
+   │     ├─ Original File: ProteoBenchFASTA_MixedSpecies_HYE.fasta
+   │     ├─ Date Created: 13-June-2025 09:44:51 UTC +02:00 
+   │     ├─ Date Modified: 13-June-2025 15:41:56 UTC +02:00 
+   │     └─ Parsing Rule: UniProt FASTA
+   └─ MS2 Method
+      ├─ [396.4 - 400.4]
+      ├─ [400.4 - 404.4]
+      ├─ [404.4 - 408.4]
+      ├─ [408.4 - 412.4]
+      ├─ [412.4 - 416.4]
+      ├─ [416.4 - 420.4]
+      ├─ [420.4 - 424.4]
+      ├─ [424.4 - 428.4]
+      ├─ [428.4 - 432.4]
+      ├─ [432.4 - 436.4]
+      ├─ [436.5 - 440.4]
+      ├─ [440.5 - 444.5]
+      ├─ [444.5 - 448.5]
+      ├─ [448.5 - 452.5]
+      ├─ [452.5 - 456.5]
+      ├─ [456.5 - 460.5]
+      ├─ [460.5 - 464.5]
+      ├─ [464.5 - 468.5]
+      ├─ [468.5 - 472.5]
+      ├─ [472.5 - 476.5]
+      ├─ [476.5 - 480.5]
+      ├─ [480.5 - 484.5]
+      ├─ [484.5 - 488.5]
+      ├─ [488.5 - 492.5]
+      ├─ [492.5 - 496.5]
+      ├─ [496.5 - 500.5]
+      ├─ [500.5 - 504.5]
+      ├─ [504.5 - 508.5]
+      ├─ [508.5 - 512.5]
+      ├─ [512.5 - 516.5]
+      ├─ [516.5 - 520.5]
+      ├─ [520.5 - 524.5]
+      ├─ [524.5 - 528.5]
+      ├─ [528.5 - 532.5]
+      ├─ [532.5 - 536.5]
+      ├─ [536.5 - 540.5]
+      ├─ [540.5 - 544.5]
+      ├─ [544.5 - 548.5]
+      ├─ [548.5 - 552.5]
+      ├─ [552.5 - 556.5]
+      ├─ [556.5 - 560.5]
+      ├─ [560.5 - 564.5]
+      ├─ [564.5 - 568.5]
+      ├─ [568.5 - 572.5]
+      ├─ [572.5 - 576.5]
+      ├─ [576.5 - 580.5]
+      ├─ [580.5 - 584.5]
+      ├─ [584.5 - 588.5]
+      ├─ [588.5 - 592.5]
+      ├─ [592.5 - 596.5]
+      ├─ [596.5 - 600.5]
+      ├─ [600.5 - 604.5]
+      ├─ [604.5 - 608.5]
+      ├─ [608.5 - 612.5]
+      ├─ [612.5 - 616.5]
+      ├─ [616.5 - 620.5]
+      ├─ [620.5 - 624.5]
+      ├─ [624.5 - 628.5]
+      ├─ [628.5 - 632.5]
+      ├─ [632.5 - 636.5]
+      ├─ [636.5 - 640.5]
+      ├─ [640.5 - 644.5]
+      ├─ [644.5 - 648.5]
+      ├─ [648.5 - 652.5]
+      ├─ [652.5 - 656.5]
+      ├─ [656.6 - 660.5]
+      ├─ [660.6 - 664.6]
+      ├─ [664.6 - 668.6]
+      ├─ [668.6 - 672.6]
+      ├─ [672.6 - 676.6]
+      ├─ [676.6 - 680.6]
+      ├─ [680.6 - 684.6]
+      ├─ [684.6 - 688.6]
+      ├─ [688.6 - 692.6]
+      ├─ [692.6 - 696.6]
+      ├─ [696.6 - 700.6]
+      ├─ [700.6 - 704.6]
+      ├─ [704.6 - 708.6]
+      ├─ [708.6 - 712.6]
+      ├─ [712.6 - 716.6]
+      ├─ [716.6 - 720.6]
+      ├─ [720.6 - 724.6]
+      ├─ [724.6 - 728.6]
+      ├─ [728.6 - 732.6]
+      ├─ [732.6 - 736.6]
+      ├─ [736.6 - 740.6]
+      ├─ [740.6 - 744.6]
+      ├─ [744.6 - 748.6]
+      ├─ [748.6 - 752.6]
+      ├─ [752.6 - 756.6]
+      ├─ [756.6 - 760.6]
+      ├─ [760.6 - 764.6]
+      ├─ [764.6 - 768.6]
+      ├─ [768.6 - 772.6]
+      ├─ [772.6 - 776.6]
+      ├─ [776.6 - 780.6]
+      ├─ [780.6 - 784.6]
+      ├─ [784.6 - 788.6]
+      ├─ [788.6 - 792.6]
+      ├─ [792.6 - 796.6]
+      ├─ [796.6 - 800.6]
+      ├─ [800.6 - 804.6]
+      ├─ [804.6 - 808.6]
+      ├─ [808.6 - 812.6]
+      ├─ [812.6 - 816.6]
+      ├─ [816.6 - 820.6]
+      ├─ [820.6 - 824.6]
+      ├─ [824.6 - 828.6]
+      ├─ [828.6 - 832.6]
+      ├─ [832.6 - 836.6]
+      ├─ [836.6 - 840.6]
+      ├─ [840.6 - 844.6]
+      ├─ [844.6 - 848.6]
+      ├─ [848.6 - 852.6]
+      ├─ [852.6 - 856.6]
+      ├─ [856.6 - 860.6]
+      ├─ [860.6 - 864.6]
+      ├─ [864.6 - 868.6]
+      ├─ [868.6 - 872.6]
+      ├─ [872.6 - 876.6]
+      ├─ [876.7 - 880.6]
+      ├─ [880.7 - 884.7]
+      ├─ [884.7 - 888.7]
+      ├─ [888.7 - 892.7]
+      ├─ [892.7 - 896.7]
+      ├─ [896.7 - 900.7]
+      ├─ [900.7 - 904.7]
+      ├─ [904.7 - 908.7]
+      ├─ [908.7 - 912.7]
+      ├─ [912.7 - 916.7]
+      ├─ [916.7 - 920.7]
+      ├─ [920.7 - 924.7]
+      ├─ [924.7 - 928.7]
+      ├─ [928.7 - 932.7]
+      ├─ [932.7 - 936.7]
+      ├─ [936.7 - 940.7]
+      ├─ [940.7 - 944.7]
+      ├─ [944.7 - 948.7]
+      ├─ [948.7 - 952.7]
+      ├─ [952.7 - 956.7]
+      ├─ [956.7 - 960.7]
+      ├─ [960.7 - 964.7]
+      ├─ [964.7 - 968.7]
+      ├─ [968.7 - 972.7]
+      ├─ [972.7 - 976.7]
+      ├─ [976.7 - 980.7]
+      ├─ [980.7 - 984.7]
+      ├─ [984.7 - 988.7]
+      ├─ [988.7 - 992.7]
+      ├─ [992.7 - 996.7]
+      ├─ [996.7 - 1000.7]
+      └─ [1000.7 - 1004.7]
+
+Run: LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_03.raw
+   ├─ Vendor: Thermo
+   ├─ File: LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_03
+   ├─ Path: "F:\Spectronaut\Proteobench\LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_03.raw"
+   ├─ Condition: B
+   ├─ Replicate: 3
+   ├─ HTRMS Version: 20.0.250602.92449
+   ├─ Protein Databases Used
+   │  └─ ProteoBenchFASTA_MixedSpecies_HYE
+   │     ├─ Protein Entries: 31,889
+   │     ├─ Original File: ProteoBenchFASTA_MixedSpecies_HYE.fasta
+   │     ├─ Date Created: 13-June-2025 09:44:51 UTC +02:00 
+   │     ├─ Date Modified: 13-June-2025 15:41:56 UTC +02:00 
+   │     └─ Parsing Rule: UniProt FASTA
+   └─ MS2 Method
+      ├─ [396.4 - 400.4]
+      ├─ [400.4 - 404.4]
+      ├─ [404.4 - 408.4]
+      ├─ [408.4 - 412.4]
+      ├─ [412.4 - 416.4]
+      ├─ [416.4 - 420.4]
+      ├─ [420.4 - 424.4]
+      ├─ [424.4 - 428.4]
+      ├─ [428.4 - 432.4]
+      ├─ [432.4 - 436.4]
+      ├─ [436.5 - 440.4]
+      ├─ [440.5 - 444.5]
+      ├─ [444.5 - 448.5]
+      ├─ [448.5 - 452.5]
+      ├─ [452.5 - 456.5]
+      ├─ [456.5 - 460.5]
+      ├─ [460.5 - 464.5]
+      ├─ [464.5 - 468.5]
+      ├─ [468.5 - 472.5]
+      ├─ [472.5 - 476.5]
+      ├─ [476.5 - 480.5]
+      ├─ [480.5 - 484.5]
+      ├─ [484.5 - 488.5]
+      ├─ [488.5 - 492.5]
+      ├─ [492.5 - 496.5]
+      ├─ [496.5 - 500.5]
+      ├─ [500.5 - 504.5]
+      ├─ [504.5 - 508.5]
+      ├─ [508.5 - 512.5]
+      ├─ [512.5 - 516.5]
+      ├─ [516.5 - 520.5]
+      ├─ [520.5 - 524.5]
+      ├─ [524.5 - 528.5]
+      ├─ [528.5 - 532.5]
+      ├─ [532.5 - 536.5]
+      ├─ [536.5 - 540.5]
+      ├─ [540.5 - 544.5]
+      ├─ [544.5 - 548.5]
+      ├─ [548.5 - 552.5]
+      ├─ [552.5 - 556.5]
+      ├─ [556.5 - 560.5]
+      ├─ [560.5 - 564.5]
+      ├─ [564.5 - 568.5]
+      ├─ [568.5 - 572.5]
+      ├─ [572.5 - 576.5]
+      ├─ [576.5 - 580.5]
+      ├─ [580.5 - 584.5]
+      ├─ [584.5 - 588.5]
+      ├─ [588.5 - 592.5]
+      ├─ [592.5 - 596.5]
+      ├─ [596.5 - 600.5]
+      ├─ [600.5 - 604.5]
+      ├─ [604.5 - 608.5]
+      ├─ [608.5 - 612.5]
+      ├─ [612.5 - 616.5]
+      ├─ [616.5 - 620.5]
+      ├─ [620.5 - 624.5]
+      ├─ [624.5 - 628.5]
+      ├─ [628.5 - 632.5]
+      ├─ [632.5 - 636.5]
+      ├─ [636.5 - 640.5]
+      ├─ [640.5 - 644.5]
+      ├─ [644.5 - 648.5]
+      ├─ [648.5 - 652.5]
+      ├─ [652.5 - 656.5]
+      ├─ [656.6 - 660.5]
+      ├─ [660.6 - 664.6]
+      ├─ [664.6 - 668.6]
+      ├─ [668.6 - 672.6]
+      ├─ [672.6 - 676.6]
+      ├─ [676.6 - 680.6]
+      ├─ [680.6 - 684.6]
+      ├─ [684.6 - 688.6]
+      ├─ [688.6 - 692.6]
+      ├─ [692.6 - 696.6]
+      ├─ [696.6 - 700.6]
+      ├─ [700.6 - 704.6]
+      ├─ [704.6 - 708.6]
+      ├─ [708.6 - 712.6]
+      ├─ [712.6 - 716.6]
+      ├─ [716.6 - 720.6]
+      ├─ [720.6 - 724.6]
+      ├─ [724.6 - 728.6]
+      ├─ [728.6 - 732.6]
+      ├─ [732.6 - 736.6]
+      ├─ [736.6 - 740.6]
+      ├─ [740.6 - 744.6]
+      ├─ [744.6 - 748.6]
+      ├─ [748.6 - 752.6]
+      ├─ [752.6 - 756.6]
+      ├─ [756.6 - 760.6]
+      ├─ [760.6 - 764.6]
+      ├─ [764.6 - 768.6]
+      ├─ [768.6 - 772.6]
+      ├─ [772.6 - 776.6]
+      ├─ [776.6 - 780.6]
+      ├─ [780.6 - 784.6]
+      ├─ [784.6 - 788.6]
+      ├─ [788.6 - 792.6]
+      ├─ [792.6 - 796.6]
+      ├─ [796.6 - 800.6]
+      ├─ [800.6 - 804.6]
+      ├─ [804.6 - 808.6]
+      ├─ [808.6 - 812.6]
+      ├─ [812.6 - 816.6]
+      ├─ [816.6 - 820.6]
+      ├─ [820.6 - 824.6]
+      ├─ [824.6 - 828.6]
+      ├─ [828.6 - 832.6]
+      ├─ [832.6 - 836.6]
+      ├─ [836.6 - 840.6]
+      ├─ [840.6 - 844.6]
+      ├─ [844.6 - 848.6]
+      ├─ [848.6 - 852.6]
+      ├─ [852.6 - 856.6]
+      ├─ [856.6 - 860.6]
+      ├─ [860.6 - 864.6]
+      ├─ [864.6 - 868.6]
+      ├─ [868.6 - 872.6]
+      ├─ [872.6 - 876.6]
+      ├─ [876.7 - 880.6]
+      ├─ [880.7 - 884.7]
+      ├─ [884.7 - 888.7]
+      ├─ [888.7 - 892.7]
+      ├─ [892.7 - 896.7]
+      ├─ [896.7 - 900.7]
+      ├─ [900.7 - 904.7]
+      ├─ [904.7 - 908.7]
+      ├─ [908.7 - 912.7]
+      ├─ [912.7 - 916.7]
+      ├─ [916.7 - 920.7]
+      ├─ [920.7 - 924.7]
+      ├─ [924.7 - 928.7]
+      ├─ [928.7 - 932.7]
+      ├─ [932.7 - 936.7]
+      ├─ [936.7 - 940.7]
+      ├─ [940.7 - 944.7]
+      ├─ [944.7 - 948.7]
+      ├─ [948.7 - 952.7]
+      ├─ [952.7 - 956.7]
+      ├─ [956.7 - 960.7]
+      ├─ [960.7 - 964.7]
+      ├─ [964.7 - 968.7]
+      ├─ [968.7 - 972.7]
+      ├─ [972.7 - 976.7]
+      ├─ [976.7 - 980.7]
+      ├─ [980.7 - 984.7]
+      ├─ [984.7 - 988.7]
+      ├─ [988.7 - 992.7]
+      ├─ [992.7 - 996.7]
+      ├─ [996.7 - 1000.7]
+      └─ [1000.7 - 1004.7]
+
+[END-SETUP]
+
+[BEGIN-LOG]
+INFO:    [13/06/2025 14:01:22] -> Initializing Pipeline...
+INFO:    [13/06/2025 14:01:22] -> Preprocessing Run #1 of 6...
+INFO:    [13/06/2025 14:01:23] -> Searching DIA with Pulsar...
+INFO:    [13/06/2025 14:01:24] -> Initialize Pipeline...
+INFO:    [13/06/2025 14:01:24] -> Initialize Pipeline
+INFO:    [13/06/2025 14:01:36] -> Initialize Pipeline...
+INFO:    [13/06/2025 14:01:36] -> Creating Experiment Environment
+INFO:    [13/06/2025 14:01:36] -> SuperRun 1/6: Initializing (LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_01.raw)
+INFO:    [13/06/2025 14:01:36] -> Run 1/6: Organizing Data from Run
+INFO:    [13/06/2025 14:01:36] -> Run 1/6: Creating Calibration Search Space...
+INFO:    [13/06/2025 14:01:39] -> Collecting Search Space Parameters...
+INFO:    [13/06/2025 14:01:43] -> Creating the Search Space...
+INFO:    [13/06/2025 14:01:43] -> Run 1/6: Creating Search Space...
+INFO:    [13/06/2025 14:01:43] -> Collecting Search Space Parameters...
+INFO:    [13/06/2025 14:01:49] -> Creating the Search Space...
+INFO:    [13/06/2025 14:01:51] -> Size of search space [MB]: 0
+INFO:    [13/06/2025 14:01:51] -> Number of IMPGs in search space: 0
+INFO:    [13/06/2025 14:01:51] -> Run 1/6: MS2 Index Generation
+INFO:    [13/06/2025 14:02:26] -> MS2 Index Generation Time: 35.55s
+INFO:    [13/06/2025 14:02:26] -> Run 1/6: Method-Specific Pre-Processing...
+INFO:    [13/06/2025 14:02:28] -> Initializing...
+INFO:    [13/06/2025 14:02:50] -> Finalizing HTRMS File...
+INFO:    [13/06/2025 14:03:39] -> Processed in 1.2m
+INFO:    [13/06/2025 14:03:39] -> Done
+INFO:    [13/06/2025 14:03:39] -> Run 1/6: Process Raw File...
+INFO:    [13/06/2025 14:03:53] -> Run 1/6: Preparing Partitions...
+INFO:    [13/06/2025 14:03:53] -> Part 1/1 - Run 1/6: Preparing Calibration Searches...
+INFO:    [13/06/2025 14:03:55] -> Part 1/1 - Run 1/6: First Pass Calibration Search...
+INFO:    [13/06/2025 14:04:01] -> Part 1/1 - Run 1/6: Calibration Search...
+INFO:    [13/06/2025 14:04:06] -> The number of PSMs identified during calibration with FDR <= 0.01 is 5301 [5.4s]
+INFO:    [13/06/2025 14:04:14] -> Part 1/1 - Run 1/6: Preparing Main Search...
+INFO:    [13/06/2025 14:04:16] -> Part 1/1 - Run 1/6: Main Search...
+INFO:    [13/06/2025 14:06:14] -> Extracting 160191 MS1 XICs
+INFO:    [13/06/2025 14:07:08] -> Run 1/6: Cleaning Up Run...
+INFO:    [13/06/2025 14:07:09] -> SuperRun 2/6: Initializing (LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_02.raw)
+INFO:    [13/06/2025 14:07:09] -> Run 2/6: Organizing Data from Run
+INFO:    [13/06/2025 14:07:09] -> Run 2/6: Creating Calibration Search Space...
+INFO:    [13/06/2025 14:07:09] -> Run 2/6: Creating Search Space...
+INFO:    [13/06/2025 14:07:09] -> Size of search space [MB]: 0
+INFO:    [13/06/2025 14:07:09] -> Number of IMPGs in search space: 0
+INFO:    [13/06/2025 14:07:09] -> Run 2/6: MS2 Index Generation
+INFO:    [13/06/2025 14:07:11] -> MS2 Index Generation Time: 1.99s
+INFO:    [13/06/2025 14:07:11] -> Run 2/6: Method-Specific Pre-Processing...
+INFO:    [13/06/2025 14:07:12] -> Initializing...
+INFO:    [13/06/2025 14:07:33] -> Finalizing HTRMS File...
+INFO:    [13/06/2025 14:08:21] -> Processed in 1.1m
+INFO:    [13/06/2025 14:08:21] -> Done
+INFO:    [13/06/2025 14:08:21] -> Run 2/6: Process Raw File...
+INFO:    [13/06/2025 14:08:35] -> Run 2/6: Preparing Partitions...
+INFO:    [13/06/2025 14:08:35] -> Part 1/1 - Run 2/6: Preparing Calibration Searches...
+INFO:    [13/06/2025 14:08:37] -> Part 1/1 - Run 2/6: First Pass Calibration Search...
+INFO:    [13/06/2025 14:08:42] -> Part 1/1 - Run 2/6: Calibration Search...
+INFO:    [13/06/2025 14:08:48] -> The number of PSMs identified during calibration with FDR <= 0.01 is 4848 [6.1s]
+INFO:    [13/06/2025 14:08:54] -> Part 1/1 - Run 2/6: Preparing Main Search...
+INFO:    [13/06/2025 14:08:56] -> Part 1/1 - Run 2/6: Main Search...
+INFO:    [13/06/2025 14:11:04] -> Extracting 153448 MS1 XICs
+INFO:    [13/06/2025 14:11:57] -> Run 2/6: Cleaning Up Run...
+INFO:    [13/06/2025 14:11:57] -> SuperRun 3/6: Initializing (LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_03.raw)
+INFO:    [13/06/2025 14:11:57] -> Run 3/6: Organizing Data from Run
+INFO:    [13/06/2025 14:11:57] -> Run 3/6: Creating Calibration Search Space...
+INFO:    [13/06/2025 14:11:57] -> Run 3/6: Creating Search Space...
+INFO:    [13/06/2025 14:11:57] -> Size of search space [MB]: 0
+INFO:    [13/06/2025 14:11:57] -> Number of IMPGs in search space: 0
+INFO:    [13/06/2025 14:11:57] -> Run 3/6: MS2 Index Generation
+INFO:    [13/06/2025 14:11:59] -> MS2 Index Generation Time: 1.82s
+INFO:    [13/06/2025 14:11:59] -> Run 3/6: Method-Specific Pre-Processing...
+INFO:    [13/06/2025 14:12:00] -> Initializing...
+INFO:    [13/06/2025 14:12:20] -> Finalizing HTRMS File...
+INFO:    [13/06/2025 14:13:00] -> Processed in 1m
+INFO:    [13/06/2025 14:13:01] -> Done
+INFO:    [13/06/2025 14:13:01] -> Run 3/6: Process Raw File...
+INFO:    [13/06/2025 14:13:13] -> Run 3/6: Preparing Partitions...
+INFO:    [13/06/2025 14:13:13] -> Part 1/1 - Run 3/6: Preparing Calibration Searches...
+INFO:    [13/06/2025 14:13:16] -> Part 1/1 - Run 3/6: First Pass Calibration Search...
+INFO:    [13/06/2025 14:13:20] -> Part 1/1 - Run 3/6: Calibration Search...
+INFO:    [13/06/2025 14:13:25] -> The number of PSMs identified during calibration with FDR <= 0.01 is 4886 [4.9s]
+INFO:    [13/06/2025 14:13:31] -> Part 1/1 - Run 3/6: Preparing Main Search...
+INFO:    [13/06/2025 14:13:33] -> Part 1/1 - Run 3/6: Main Search...
+INFO:    [13/06/2025 14:15:26] -> Extracting 156730 MS1 XICs
+INFO:    [13/06/2025 14:16:20] -> Run 3/6: Cleaning Up Run...
+INFO:    [13/06/2025 14:16:21] -> SuperRun 4/6: Initializing (LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_01.raw)
+INFO:    [13/06/2025 14:16:21] -> Run 4/6: Organizing Data from Run
+INFO:    [13/06/2025 14:16:21] -> Run 4/6: Creating Calibration Search Space...
+INFO:    [13/06/2025 14:16:21] -> Run 4/6: Creating Search Space...
+INFO:    [13/06/2025 14:16:21] -> Size of search space [MB]: 0
+INFO:    [13/06/2025 14:16:21] -> Number of IMPGs in search space: 0
+INFO:    [13/06/2025 14:16:21] -> Run 4/6: MS2 Index Generation
+INFO:    [13/06/2025 14:16:22] -> MS2 Index Generation Time: 1.94s
+INFO:    [13/06/2025 14:16:22] -> Run 4/6: Method-Specific Pre-Processing...
+INFO:    [13/06/2025 14:16:24] -> Initializing...
+INFO:    [13/06/2025 14:16:44] -> Finalizing HTRMS File...
+INFO:    [13/06/2025 14:17:26] -> Processed in 1m
+INFO:    [13/06/2025 14:17:27] -> Done
+INFO:    [13/06/2025 14:17:27] -> Run 4/6: Process Raw File...
+INFO:    [13/06/2025 14:17:40] -> Run 4/6: Preparing Partitions...
+INFO:    [13/06/2025 14:17:40] -> Part 1/1 - Run 4/6: Preparing Calibration Searches...
+INFO:    [13/06/2025 14:17:42] -> Part 1/1 - Run 4/6: First Pass Calibration Search...
+INFO:    [13/06/2025 14:17:47] -> Part 1/1 - Run 4/6: Calibration Search...
+INFO:    [13/06/2025 14:17:52] -> The number of PSMs identified during calibration with FDR <= 0.01 is 4116 [5.1s]
+INFO:    [13/06/2025 14:17:58] -> Part 1/1 - Run 4/6: Preparing Main Search...
+INFO:    [13/06/2025 14:18:01] -> Part 1/1 - Run 4/6: Main Search...
+INFO:    [13/06/2025 14:19:57] -> Extracting 159000 MS1 XICs
+INFO:    [13/06/2025 14:20:51] -> Run 4/6: Cleaning Up Run...
+INFO:    [13/06/2025 14:20:51] -> SuperRun 5/6: Initializing (LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_02.raw)
+INFO:    [13/06/2025 14:20:51] -> Run 5/6: Organizing Data from Run
+INFO:    [13/06/2025 14:20:51] -> Run 5/6: Creating Calibration Search Space...
+INFO:    [13/06/2025 14:20:51] -> Run 5/6: Creating Search Space...
+INFO:    [13/06/2025 14:20:51] -> Size of search space [MB]: 0
+INFO:    [13/06/2025 14:20:51] -> Number of IMPGs in search space: 0
+INFO:    [13/06/2025 14:20:51] -> Run 5/6: MS2 Index Generation
+INFO:    [13/06/2025 14:20:53] -> MS2 Index Generation Time: 1.75s
+INFO:    [13/06/2025 14:20:53] -> Run 5/6: Method-Specific Pre-Processing...
+INFO:    [13/06/2025 14:20:54] -> Initializing...
+INFO:    [13/06/2025 14:21:14] -> Finalizing HTRMS File...
+INFO:    [13/06/2025 14:22:03] -> Processed in 1.1m
+INFO:    [13/06/2025 14:22:03] -> Done
+INFO:    [13/06/2025 14:22:03] -> Run 5/6: Process Raw File...
+INFO:    [13/06/2025 14:22:16] -> Run 5/6: Preparing Partitions...
+INFO:    [13/06/2025 14:22:16] -> Part 1/1 - Run 5/6: Preparing Calibration Searches...
+INFO:    [13/06/2025 14:22:19] -> Part 1/1 - Run 5/6: First Pass Calibration Search...
+INFO:    [13/06/2025 14:22:23] -> Part 1/1 - Run 5/6: Calibration Search...
+INFO:    [13/06/2025 14:22:29] -> The number of PSMs identified during calibration with FDR <= 0.01 is 4271 [6.1s]
+INFO:    [13/06/2025 14:22:37] -> Part 1/1 - Run 5/6: Preparing Main Search...
+INFO:    [13/06/2025 14:22:39] -> Part 1/1 - Run 5/6: Main Search...
+INFO:    [13/06/2025 14:24:44] -> Extracting 153283 MS1 XICs
+INFO:    [13/06/2025 14:25:35] -> Run 5/6: Cleaning Up Run...
+INFO:    [13/06/2025 14:25:36] -> SuperRun 6/6: Initializing (LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_03.raw)
+INFO:    [13/06/2025 14:25:36] -> Run 6/6: Organizing Data from Run
+INFO:    [13/06/2025 14:25:36] -> Run 6/6: Creating Calibration Search Space...
+INFO:    [13/06/2025 14:25:36] -> Run 6/6: Creating Search Space...
+INFO:    [13/06/2025 14:25:36] -> Size of search space [MB]: 0
+INFO:    [13/06/2025 14:25:36] -> Number of IMPGs in search space: 0
+INFO:    [13/06/2025 14:25:36] -> Run 6/6: MS2 Index Generation
+INFO:    [13/06/2025 14:25:37] -> MS2 Index Generation Time: 1.85s
+INFO:    [13/06/2025 14:25:37] -> Run 6/6: Method-Specific Pre-Processing...
+INFO:    [13/06/2025 14:25:39] -> Initializing...
+INFO:    [13/06/2025 14:25:58] -> Finalizing HTRMS File...
+INFO:    [13/06/2025 14:26:39] -> Processed in 60s
+INFO:    [13/06/2025 14:26:39] -> Done
+INFO:    [13/06/2025 14:26:39] -> Run 6/6: Process Raw File...
+INFO:    [13/06/2025 14:26:51] -> Run 6/6: Preparing Partitions...
+INFO:    [13/06/2025 14:26:51] -> Part 1/1 - Run 6/6: Preparing Calibration Searches...
+INFO:    [13/06/2025 14:26:53] -> Part 1/1 - Run 6/6: First Pass Calibration Search...
+INFO:    [13/06/2025 14:26:58] -> Part 1/1 - Run 6/6: Calibration Search...
+INFO:    [13/06/2025 14:27:03] -> The number of PSMs identified during calibration with FDR <= 0.01 is 4075 [4.8s]
+INFO:    [13/06/2025 14:27:09] -> Part 1/1 - Run 6/6: Preparing Main Search...
+INFO:    [13/06/2025 14:27:11] -> Part 1/1 - Run 6/6: Main Search...
+INFO:    [13/06/2025 14:29:07] -> Extracting 155778 MS1 XICs
+INFO:    [13/06/2025 14:30:01] -> Run 6/6: Cleaning Up Run...
+INFO:    [13/06/2025 14:30:07] -> Remove Aborted Runs (if any) from the Experiment...
+INFO:    [13/06/2025 14:30:07] -> Score Post-Processing
+INFO:    [13/06/2025 14:31:33] -> Score Post-Processing: 1.44m
+INFO:    [13/06/2025 14:31:33] -> PSM FDR...
+INFO:    [13/06/2025 14:32:02] -> PSM FDR: 28.63s
+INFO:    [13/06/2025 14:32:02] -> Converting to non-redundant data structure...
+INFO:    [13/06/2025 14:32:22] -> Performing Peptide FDR...
+INFO:    [13/06/2025 14:32:27] -> Performing Protein Inference...
+INFO:    [13/06/2025 14:32:29] -> Performing Protein FDR...
+INFO:    [13/06/2025 14:32:29] -> Calculating Result Values at Run and Experiment Level...
+INFO:    [13/06/2025 14:32:39] -> Pulsar identified 220271 PSMs, 50632 stripped sequences, 61990 peptide precursors, 6652 protein groups.
+INFO:    [13/06/2025 14:32:39] -> Calculating Summary...
+INFO:    [13/06/2025 14:32:45] -> Identifying Calibration Peptides...
+INFO:    [13/06/2025 14:32:46] -> iRT Calibration...
+INFO:    [13/06/2025 14:32:52] -> Performing directDIA+ search...
+INFO:    [13/06/2025 14:34:22] -> directDIA+ search: LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_01.raw
+INFO:    [13/06/2025 14:38:59] -> directDIA+ search: LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_02.raw
+INFO:    [13/06/2025 14:41:14] -> directDIA+ search: LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_03.raw
+INFO:    [13/06/2025 14:43:16] -> directDIA+ search: LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_01.raw
+INFO:    [13/06/2025 14:45:12] -> directDIA+ search: LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_02.raw
+INFO:    [13/06/2025 14:47:22] -> directDIA+ search: LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_03.raw
+INFO:    [13/06/2025 14:49:18] -> Total nr of Searched Peptides: 1,596,029 of 2,680,912
+INFO:    [13/06/2025 14:49:18] -> Performing directDIA+ Post Processing...
+INFO:    [13/06/2025 14:49:27] -> Writing experiment store..
+INFO:    [13/06/2025 14:49:38] -> Assigning iRT Source...
+INFO:    [13/06/2025 14:49:38] -> Calculating iRT...
+INFO:    [13/06/2025 14:49:38] -> Cleaning Up Experiment...
+INFO:    [13/06/2025 14:49:38] -> Summarizing Identifications
+INFO:    [13/06/2025 14:51:42] -> Identifiying Significant Precursors...
+INFO:    [13/06/2025 14:52:12] -> Predicting Ion Mobility
+INFO:    [13/06/2025 14:52:30] -> Calculating Median iRT
+INFO:    [13/06/2025 14:52:32] -> Building BGS Protein Grouping...
+INFO:    [13/06/2025 14:52:33] -> Digesting Fasta...
+INFO:    [13/06/2025 14:52:33] -> Annotating Proteins...
+INFO:    [13/06/2025 14:52:33] -> Grouping Proteins...
+INFO:    [13/06/2025 14:52:36] -> Calculating Run Summary Statistics...
+INFO:    [13/06/2025 14:53:23] -> Building Consensus Fragment Spectra...
+INFO:    [13/06/2025 14:54:38] -> Selecting best fragment ions
+INFO:    [13/06/2025 14:59:49] -> Initializing Experiment...
+INFO:    [13/06/2025 14:59:49] -> Loading Spectral Libraries...
+INFO:    [13/06/2025 15:01:26] -> Initialize Scoring...
+INFO:    [13/06/2025 15:01:26] -> Generating Scan Map...
+INFO:    [13/06/2025 15:01:26] -> Initializing Workpackages...
+INFO:    [13/06/2025 15:01:26] -> Performing Basic Calibration...
+INFO:    [13/06/2025 15:01:31] -> Identifying Calibration Peptides...
+INFO:    [13/06/2025 15:01:31] -> Correcting Gradient Fine Structure...
+INFO:    [13/06/2025 15:01:39] -> Initializing Pipeline...
+INFO:    [13/06/2025 15:01:39] -> Preprocessing Run #1 of 6...
+INFO:    [13/06/2025 15:01:39] -> Initialize Scoring...
+INFO:    [13/06/2025 15:01:39] -> Extracting Ion Currents...
+INFO:    [13/06/2025 15:02:08] -> Machine Learning...
+INFO:    [13/06/2025 15:04:02] -> Pipeline executed in 2.39m - Current Experiment had 0 Warnings and 0 Errors.
+INFO:    [13/06/2025 15:04:12] -> Initializing Pipeline...
+INFO:    [13/06/2025 15:04:12] -> Preprocessing Run #1 of 6...
+INFO:    [13/06/2025 15:04:12] -> Initialize Scoring...
+INFO:    [13/06/2025 15:04:12] -> Extracting Ion Currents...
+INFO:    [13/06/2025 15:04:47] -> Machine Learning...
+INFO:    [13/06/2025 15:04:55] -> Pipeline executed in 42.84s - Current Experiment had 0 Warnings and 0 Errors.
+INFO:    [13/06/2025 15:05:08] -> Initialize Scoring...
+INFO:    [13/06/2025 15:05:08] -> Preprocessing Run #2 of 6...
+INFO:    [13/06/2025 15:05:08] -> Searching DIA with Pulsar...
+INFO:    [13/06/2025 15:05:08] -> Initializing Experiment...
+INFO:    [13/06/2025 15:05:08] -> Loading Spectral Libraries...
+INFO:    [13/06/2025 15:05:08] -> Initialize Scoring...
+INFO:    [13/06/2025 15:05:08] -> Generating Scan Map...
+INFO:    [13/06/2025 15:05:08] -> Initializing Workpackages...
+INFO:    [13/06/2025 15:05:08] -> Performing Basic Calibration...
+INFO:    [13/06/2025 15:05:12] -> Identifying Calibration Peptides...
+INFO:    [13/06/2025 15:05:12] -> Correcting Gradient Fine Structure...
+INFO:    [13/06/2025 15:05:20] -> Initializing Pipeline...
+INFO:    [13/06/2025 15:05:20] -> Preprocessing Run #2 of 6...
+INFO:    [13/06/2025 15:05:20] -> Initialize Scoring...
+INFO:    [13/06/2025 15:05:20] -> Extracting Ion Currents...
+INFO:    [13/06/2025 15:05:50] -> Machine Learning...
+INFO:    [13/06/2025 15:07:45] -> Pipeline executed in 2.41m - Current Experiment had 0 Warnings and 0 Errors.
+INFO:    [13/06/2025 15:07:56] -> Initializing Pipeline...
+INFO:    [13/06/2025 15:07:56] -> Preprocessing Run #2 of 6...
+INFO:    [13/06/2025 15:07:56] -> Initialize Scoring...
+INFO:    [13/06/2025 15:07:56] -> Extracting Ion Currents...
+INFO:    [13/06/2025 15:08:32] -> Machine Learning...
+INFO:    [13/06/2025 15:08:40] -> Pipeline executed in 44.31s - Current Experiment had 0 Warnings and 0 Errors.
+INFO:    [13/06/2025 15:08:53] -> Initialize Scoring...
+INFO:    [13/06/2025 15:08:53] -> Preprocessing Run #3 of 6...
+INFO:    [13/06/2025 15:08:53] -> Searching DIA with Pulsar...
+INFO:    [13/06/2025 15:08:53] -> Initializing Experiment...
+INFO:    [13/06/2025 15:08:53] -> Loading Spectral Libraries...
+INFO:    [13/06/2025 15:08:53] -> Initialize Scoring...
+INFO:    [13/06/2025 15:08:53] -> Generating Scan Map...
+INFO:    [13/06/2025 15:08:53] -> Initializing Workpackages...
+INFO:    [13/06/2025 15:08:53] -> Performing Basic Calibration...
+INFO:    [13/06/2025 15:08:57] -> Identifying Calibration Peptides...
+INFO:    [13/06/2025 15:08:57] -> Correcting Gradient Fine Structure...
+INFO:    [13/06/2025 15:09:05] -> Initializing Pipeline...
+INFO:    [13/06/2025 15:09:05] -> Preprocessing Run #3 of 6...
+INFO:    [13/06/2025 15:09:05] -> Initialize Scoring...
+INFO:    [13/06/2025 15:09:05] -> Extracting Ion Currents...
+INFO:    [13/06/2025 15:09:35] -> Machine Learning...
+INFO:    [13/06/2025 15:11:30] -> Pipeline executed in 2.42m - Current Experiment had 0 Warnings and 0 Errors.
+INFO:    [13/06/2025 15:11:40] -> Initializing Pipeline...
+INFO:    [13/06/2025 15:11:40] -> Preprocessing Run #3 of 6...
+INFO:    [13/06/2025 15:11:40] -> Initialize Scoring...
+INFO:    [13/06/2025 15:11:40] -> Extracting Ion Currents...
+INFO:    [13/06/2025 15:12:14] -> Machine Learning...
+INFO:    [13/06/2025 15:12:23] -> Pipeline executed in 42.6s - Current Experiment had 0 Warnings and 0 Errors.
+INFO:    [13/06/2025 15:12:35] -> Initialize Scoring...
+INFO:    [13/06/2025 15:12:35] -> Preprocessing Run #4 of 6...
+INFO:    [13/06/2025 15:12:35] -> Searching DIA with Pulsar...
+INFO:    [13/06/2025 15:12:35] -> Initializing Experiment...
+INFO:    [13/06/2025 15:12:35] -> Loading Spectral Libraries...
+INFO:    [13/06/2025 15:12:35] -> Initialize Scoring...
+INFO:    [13/06/2025 15:12:35] -> Generating Scan Map...
+INFO:    [13/06/2025 15:12:35] -> Initializing Workpackages...
+INFO:    [13/06/2025 15:12:35] -> Performing Basic Calibration...
+INFO:    [13/06/2025 15:12:40] -> Identifying Calibration Peptides...
+INFO:    [13/06/2025 15:12:40] -> Correcting Gradient Fine Structure...
+INFO:    [13/06/2025 15:12:47] -> Initializing Pipeline...
+INFO:    [13/06/2025 15:12:47] -> Preprocessing Run #4 of 6...
+INFO:    [13/06/2025 15:12:47] -> Initialize Scoring...
+INFO:    [13/06/2025 15:12:47] -> Extracting Ion Currents...
+INFO:    [13/06/2025 15:13:17] -> Machine Learning...
+INFO:    [13/06/2025 15:15:11] -> Pipeline executed in 2.41m - Current Experiment had 0 Warnings and 0 Errors.
+INFO:    [13/06/2025 15:15:21] -> Initializing Pipeline...
+INFO:    [13/06/2025 15:15:21] -> Preprocessing Run #4 of 6...
+INFO:    [13/06/2025 15:15:21] -> Initialize Scoring...
+INFO:    [13/06/2025 15:15:21] -> Extracting Ion Currents...
+INFO:    [13/06/2025 15:15:58] -> Machine Learning...
+INFO:    [13/06/2025 15:16:06] -> Pipeline executed in 44.49s - Current Experiment had 0 Warnings and 0 Errors.
+INFO:    [13/06/2025 15:16:17] -> Initialize Scoring...
+INFO:    [13/06/2025 15:16:17] -> Preprocessing Run #5 of 6...
+INFO:    [13/06/2025 15:16:17] -> Searching DIA with Pulsar...
+INFO:    [13/06/2025 15:16:17] -> Initializing Experiment...
+INFO:    [13/06/2025 15:16:17] -> Loading Spectral Libraries...
+INFO:    [13/06/2025 15:16:17] -> Initialize Scoring...
+INFO:    [13/06/2025 15:16:17] -> Generating Scan Map...
+INFO:    [13/06/2025 15:16:17] -> Initializing Workpackages...
+INFO:    [13/06/2025 15:16:17] -> Performing Basic Calibration...
+INFO:    [13/06/2025 15:16:21] -> Identifying Calibration Peptides...
+INFO:    [13/06/2025 15:16:21] -> Correcting Gradient Fine Structure...
+INFO:    [13/06/2025 15:16:28] -> Initializing Pipeline...
+INFO:    [13/06/2025 15:16:28] -> Preprocessing Run #5 of 6...
+INFO:    [13/06/2025 15:16:28] -> Initialize Scoring...
+INFO:    [13/06/2025 15:16:28] -> Extracting Ion Currents...
+INFO:    [13/06/2025 15:16:58] -> Machine Learning...
+INFO:    [13/06/2025 15:18:51] -> Pipeline executed in 2.38m - Current Experiment had 0 Warnings and 0 Errors.
+INFO:    [13/06/2025 15:19:01] -> Initializing Pipeline...
+INFO:    [13/06/2025 15:19:01] -> Preprocessing Run #5 of 6...
+INFO:    [13/06/2025 15:19:01] -> Initialize Scoring...
+INFO:    [13/06/2025 15:19:01] -> Extracting Ion Currents...
+INFO:    [13/06/2025 15:19:37] -> Machine Learning...
+INFO:    [13/06/2025 15:19:44] -> Pipeline executed in 42.91s - Current Experiment had 0 Warnings and 0 Errors.
+INFO:    [13/06/2025 15:19:57] -> Initialize Scoring...
+INFO:    [13/06/2025 15:19:57] -> Preprocessing Run #6 of 6...
+INFO:    [13/06/2025 15:19:57] -> Searching DIA with Pulsar...
+INFO:    [13/06/2025 15:19:57] -> Initializing Experiment...
+INFO:    [13/06/2025 15:19:57] -> Loading Spectral Libraries...
+INFO:    [13/06/2025 15:19:57] -> Initialize Scoring...
+INFO:    [13/06/2025 15:19:57] -> Generating Scan Map...
+INFO:    [13/06/2025 15:19:57] -> Initializing Workpackages...
+INFO:    [13/06/2025 15:19:57] -> Performing Basic Calibration...
+INFO:    [13/06/2025 15:20:01] -> Identifying Calibration Peptides...
+INFO:    [13/06/2025 15:20:01] -> Correcting Gradient Fine Structure...
+INFO:    [13/06/2025 15:20:07] -> Initializing Pipeline...
+INFO:    [13/06/2025 15:20:07] -> Preprocessing Run #6 of 6...
+INFO:    [13/06/2025 15:20:07] -> Initialize Scoring...
+INFO:    [13/06/2025 15:20:07] -> Extracting Ion Currents...
+INFO:    [13/06/2025 15:20:38] -> Machine Learning...
+INFO:    [13/06/2025 15:22:24] -> Pipeline executed in 2.27m - Current Experiment had 0 Warnings and 0 Errors.
+INFO:    [13/06/2025 15:22:33] -> Initializing Pipeline...
+INFO:    [13/06/2025 15:22:33] -> Preprocessing Run #6 of 6...
+INFO:    [13/06/2025 15:22:33] -> Initialize Scoring...
+INFO:    [13/06/2025 15:22:33] -> Extracting Ion Currents...
+INFO:    [13/06/2025 15:23:09] -> Machine Learning...
+INFO:    [13/06/2025 15:23:16] -> Pipeline executed in 43.24s - Current Experiment had 0 Warnings and 0 Errors.
+INFO:    [13/06/2025 15:23:27] -> Initialize Scoring...
+INFO:    [13/06/2025 15:23:27] -> Initializing QC...
+INFO:    [13/06/2025 15:23:27] -> Determining Calibration Parameter...
+INFO:    [13/06/2025 15:23:27] -> Assigning ML Features...
+INFO:    [13/06/2025 15:23:28] -> Generating Decoys...
+INFO:    [13/06/2025 15:23:41] -> Extracting Ion Currents...
+INFO:    [13/06/2025 15:25:28] -> Releasing Raw Files...
+INFO:    [13/06/2025 15:25:28] -> Machine Learning...
+INFO:    [13/06/2025 15:26:08] -> Initializing HTRMS...
+INFO:    [13/06/2025 15:26:08] -> Releasing Run Resources...
+INFO:    [13/06/2025 15:26:09] -> Reducing Score Cache...
+INFO:    [13/06/2025 15:26:13] -> Calculating Qvalues...
+INFO:    [13/06/2025 15:26:15] -> Unique precursors: 98,275 of 107,099 | modified peptides: 86,613 of 93,456 | peptides: 78,982 of 84,551 |  protein groups: 8,633 (Qvalue <= 0.01) [LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_01.raw]
+INFO:    [13/06/2025 15:26:16] -> Collapsing Search Tree...
+INFO:    [13/06/2025 15:26:16] -> Processed in 2.81m
+INFO:    [13/06/2025 15:26:16] -> Initializing QC...
+INFO:    [13/06/2025 15:26:16] -> Determining Calibration Parameter...
+INFO:    [13/06/2025 15:26:16] -> Assigning ML Features...
+INFO:    [13/06/2025 15:26:16] -> Generating Decoys...
+INFO:    [13/06/2025 15:26:17] -> Extracting Ion Currents...
+INFO:    [13/06/2025 15:28:01] -> Releasing Raw Files...
+INFO:    [13/06/2025 15:28:01] -> Machine Learning...
+INFO:    [13/06/2025 15:28:44] -> Initializing HTRMS...
+INFO:    [13/06/2025 15:28:44] -> Releasing Run Resources...
+INFO:    [13/06/2025 15:28:45] -> Reducing Score Cache...
+INFO:    [13/06/2025 15:28:49] -> Calculating Qvalues...
+INFO:    [13/06/2025 15:28:51] -> Unique precursors: 99,781 of 107,099 | modified peptides: 87,283 of 93,456 | peptides: 79,569 of 84,551 |  protein groups: 8,625 (Qvalue <= 0.01) [LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_02.raw]
+INFO:    [13/06/2025 15:28:51] -> Collapsing Search Tree...
+INFO:    [13/06/2025 15:28:51] -> Processed in 2.59m
+INFO:    [13/06/2025 15:28:51] -> Initializing QC...
+INFO:    [13/06/2025 15:28:51] -> Determining Calibration Parameter...
+INFO:    [13/06/2025 15:28:52] -> Assigning ML Features...
+INFO:    [13/06/2025 15:28:52] -> Generating Decoys...
+INFO:    [13/06/2025 15:28:52] -> Extracting Ion Currents...
+INFO:    [13/06/2025 15:30:38] -> Releasing Raw Files...
+INFO:    [13/06/2025 15:30:38] -> Machine Learning...
+INFO:    [13/06/2025 15:31:19] -> Initializing HTRMS...
+INFO:    [13/06/2025 15:31:19] -> Releasing Run Resources...
+INFO:    [13/06/2025 15:31:20] -> Reducing Score Cache...
+INFO:    [13/06/2025 15:31:24] -> Calculating Qvalues...
+INFO:    [13/06/2025 15:31:26] -> Unique precursors: 94,376 of 107,099 | modified peptides: 83,494 of 93,456 | peptides: 76,421 of 84,551 |  protein groups: 8,489 (Qvalue <= 0.01) [LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_03.raw]
+INFO:    [13/06/2025 15:31:26] -> Collapsing Search Tree...
+INFO:    [13/06/2025 15:31:26] -> Processed in 2.57m
+INFO:    [13/06/2025 15:31:26] -> Initializing QC...
+INFO:    [13/06/2025 15:31:26] -> Determining Calibration Parameter...
+INFO:    [13/06/2025 15:31:26] -> Assigning ML Features...
+INFO:    [13/06/2025 15:31:26] -> Generating Decoys...
+INFO:    [13/06/2025 15:31:27] -> Extracting Ion Currents...
+INFO:    [13/06/2025 15:33:14] -> Releasing Raw Files...
+INFO:    [13/06/2025 15:33:14] -> Machine Learning...
+INFO:    [13/06/2025 15:33:55] -> Initializing HTRMS...
+INFO:    [13/06/2025 15:33:55] -> Releasing Run Resources...
+INFO:    [13/06/2025 15:33:56] -> Reducing Score Cache...
+INFO:    [13/06/2025 15:34:00] -> Calculating Qvalues...
+INFO:    [13/06/2025 15:34:02] -> Unique precursors: 82,222 of 107,099 | modified peptides: 72,260 of 93,456 | peptides: 70,923 of 84,551 |  protein groups: 8,441 (Qvalue <= 0.01) [LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_01.raw]
+INFO:    [13/06/2025 15:34:02] -> Collapsing Search Tree...
+INFO:    [13/06/2025 15:34:02] -> Processed in 2.61m
+INFO:    [13/06/2025 15:34:02] -> Initializing QC...
+INFO:    [13/06/2025 15:34:02] -> Determining Calibration Parameter...
+INFO:    [13/06/2025 15:34:02] -> Assigning ML Features...
+INFO:    [13/06/2025 15:34:03] -> Generating Decoys...
+INFO:    [13/06/2025 15:34:03] -> Extracting Ion Currents...
+INFO:    [13/06/2025 15:35:50] -> Releasing Raw Files...
+INFO:    [13/06/2025 15:35:50] -> Machine Learning...
+INFO:    [13/06/2025 15:36:31] -> Initializing HTRMS...
+INFO:    [13/06/2025 15:36:31] -> Releasing Run Resources...
+INFO:    [13/06/2025 15:36:32] -> Reducing Score Cache...
+INFO:    [13/06/2025 15:36:36] -> Calculating Qvalues...
+INFO:    [13/06/2025 15:36:38] -> Unique precursors: 85,779 of 107,099 | modified peptides: 74,760 of 93,456 | peptides: 72,301 of 84,551 |  protein groups: 8,501 (Qvalue <= 0.01) [LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_02.raw]
+INFO:    [13/06/2025 15:36:38] -> Collapsing Search Tree...
+INFO:    [13/06/2025 15:36:38] -> Processed in 2.6m
+INFO:    [13/06/2025 15:36:38] -> Initializing QC...
+INFO:    [13/06/2025 15:36:38] -> Determining Calibration Parameter...
+INFO:    [13/06/2025 15:36:38] -> Assigning ML Features...
+INFO:    [13/06/2025 15:36:39] -> Generating Decoys...
+INFO:    [13/06/2025 15:36:39] -> Extracting Ion Currents...
+INFO:    [13/06/2025 15:38:24] -> Releasing Raw Files...
+INFO:    [13/06/2025 15:38:24] -> Machine Learning...
+INFO:    [13/06/2025 15:39:05] -> Initializing HTRMS...
+INFO:    [13/06/2025 15:39:05] -> Releasing Run Resources...
+INFO:    [13/06/2025 15:39:06] -> Reducing Score Cache...
+INFO:    [13/06/2025 15:39:10] -> Calculating Qvalues...
+INFO:    [13/06/2025 15:39:12] -> Unique precursors: 80,850 of 107,099 | modified peptides: 71,305 of 93,456 | peptides: 69,465 of 84,551 |  protein groups: 8,338 (Qvalue <= 0.01) [LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_03.raw]
+INFO:    [13/06/2025 15:39:12] -> Collapsing Search Tree...
+INFO:    [13/06/2025 15:39:12] -> Processed in 2.57m
+INFO:    [13/06/2025 15:39:12] -> Normalizing Cscores...
+INFO:    [13/06/2025 15:39:13] -> Calculating Global CVs
+INFO:    [13/06/2025 15:39:14] -> Calculating Profile Qvalues...
+INFO:    [13/06/2025 15:39:16] -> Initializing Protein Groups...
+INFO:    [13/06/2025 15:39:31] -> Correcting Interferences...
+INFO:    [13/06/2025 15:40:07] -> Calculating Global CVs
+INFO:    [13/06/2025 15:40:08] -> Calculating Precursor Quantities...
+INFO:    [13/06/2025 15:40:08] -> Normalizing Quantification...
+INFO:    [13/06/2025 15:40:10] -> Performing Local Normalization...
+INFO:    [13/06/2025 15:40:13] -> Calculating Global CVs
+INFO:    [13/06/2025 15:40:14] -> Calculating Condition CVs
+INFO:    [13/06/2025 15:40:17] -> Excluding Library Duplicates...
+INFO:    [13/06/2025 15:40:18] -> Calculating Global CVs
+INFO:    [13/06/2025 15:40:19] -> Building Protein Groups...
+INFO:    [13/06/2025 15:40:31] -> Calculating Run-Wise Protein Group FDR...
+INFO:    [13/06/2025 15:40:38] -> Annotating Protein Single Hits...
+INFO:    [13/06/2025 15:40:39] -> Calculating Global CVs
+INFO:    [13/06/2025 15:40:40] -> Updating Identification Counts...
+INFO:    [13/06/2025 15:40:42] -> Subtracting background noise...
+INFO:    [13/06/2025 15:40:42] -> Resetting existing imputation...
+INFO:    [13/06/2025 15:40:45] -> Calculating Protein Quantities...
+INFO:    [13/06/2025 15:40:46] -> Calculating Protein Quantities...
+INFO:    [13/06/2025 15:40:46] -> Calculating MaxLFQ Protein Quantities...
+INFO:    [13/06/2025 15:40:53] -> Collapsing PTM-Locations...
+INFO:    [13/06/2025 15:40:54] -> PTM Stoichiometry calculation...
+INFO:    [13/06/2025 15:40:54] -> Creating Protein Map...
+INFO:    [13/06/2025 15:40:54] -> Compiling Run Summary Information...
+INFO:    [13/06/2025 15:40:54] -> Running Post Analysis Processes...
+INFO:    [13/06/2025 15:41:44] -> Saving Qc Data...
+INFO:    [13/06/2025 15:41:54] -> Writing Summary Information...
+INFO:    [13/06/2025 15:41:54] -> Unique precursors: 94,975 of 107,099 | modified peptides: 83,561 of 93,456 | peptides: 76,132 of 84,551 |  protein groups: 7,894 (Qvalue <= 0.01) for run #1 "LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_01.raw"
+INFO:    [13/06/2025 15:41:54] -> Unique precursors: 96,283 of 107,099 | modified peptides: 84,113 of 93,456 | peptides: 76,615 of 84,551 |  protein groups: 7,909 (Qvalue <= 0.01) for run #2 "LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_02.raw"
+INFO:    [13/06/2025 15:41:54] -> Unique precursors: 91,682 of 107,099 | modified peptides: 80,982 of 93,456 | peptides: 74,045 of 84,551 |  protein groups: 7,849 (Qvalue <= 0.01) for run #3 "LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_03.raw"
+INFO:    [13/06/2025 15:41:54] -> Unique precursors: 80,005 of 107,099 | modified peptides: 70,223 of 93,456 | peptides: 68,905 of 84,551 |  protein groups: 7,832 (Qvalue <= 0.01) for run #4 "LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_01.raw"
+INFO:    [13/06/2025 15:41:54] -> Unique precursors: 83,365 of 107,099 | modified peptides: 72,602 of 93,456 | peptides: 70,163 of 84,551 |  protein groups: 7,873 (Qvalue <= 0.01) for run #5 "LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_02.raw"
+INFO:    [13/06/2025 15:41:54] -> Unique precursors: 78,966 of 107,099 | modified peptides: 69,548 of 93,456 | peptides: 67,719 of 84,551 |  protein groups: 7,786 (Qvalue <= 0.01) for run #6 "LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_03.raw"
+INFO:    [13/06/2025 15:41:54] -> Unique precursors: 101,866 of 107,099 | modified peptides: 88,790 of 93,456 | peptides: 80,311 of 84,551 |  protein groups: 7,975 (Qvalue <= 0.01) for whole experiment "Condition"
+
+INFO:    [13/06/2025 15:41:54] -> Saving SNE File...
+INFO:    [13/06/2025 15:41:54] -> Storing SNE File: F:\Spectronaut\Spectronaut automatic SNE storage\20250613_140117_Condition.sne
+INFO:    [13/06/2025 15:41:55] -> Initializing Pipeline...
+INFO:    [13/06/2025 15:41:55] -> Calculating Qvalues...
+INFO:    [13/06/2025 15:41:55] -> Saving...
+INFO:    [13/06/2025 15:42:17] -> Current Experiment had 0 Warnings and 0 Errors.
+INFO:    [13/06/2025 15:42:18] -> Pipeline executed in 22.96s - Current Experiment had 0 Warnings and 0 Errors.
+INFO:    [13/06/2025 15:42:20] -> Current Experiment had 0 Warnings and 0 Errors.
+INFO:    [13/06/2025 15:42:20] -> Pipeline executed in 1.68h - Current Experiment had 0 Warnings and 0 Errors.
+[END-LOG]

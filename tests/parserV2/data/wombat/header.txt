@@ -1,0 +1,14 @@
+modified_peptide
+protein_group
+number_of_psms_A_1
+number_of_psms_A_2
+number_of_psms_A_3
+number_of_psms_B_1
+number_of_psms_B_2
+number_of_psms_B_3
+abundance_A_1
+abundance_A_2
+abundance_A_3
+abundance_B_1
+abundance_B_2
+abundance_B_3

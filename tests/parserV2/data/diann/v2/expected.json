@@ -1,0 +1,28 @@
+{
+  "source": "input_file.parquet",
+  "sample": "sample.parquet",
+  "params": "param_0..txt",
+  "sample_rows": 500,
+  "levels": {
+    "ion": {
+      "observations": 6,
+      "variables": 162,
+      "layers": [
+        "Ms1_Normalised",
+        "Precursor_Normalised",
+        "Precursor_Quantity",
+        "Ms1_Area",
+        "Q_Value",
+        "RT"
+      ]
+    },
+    "protein": {
+      "observations": 6,
+      "variables": 125,
+      "layers": [
+        "PG_MaxLFQ",
+        "Genes_MaxLFQ"
+      ]
+    }
+  }
+}

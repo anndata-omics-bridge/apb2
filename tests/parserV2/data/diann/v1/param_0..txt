@@ -1,0 +1,387 @@
+DIA-NN 1.9.2 (Data-Independent Acquisition by Neural Networks)
+Compiled on Oct 17 2024 21:58:43
+Current date and time: Thu Oct 31 23:02:28 2024
+CPU: GenuineIntel 13th Gen Intel(R) Core(TM) i9-13900F
+SIMD instructions: AVX AVX2 FMA SSE4.1 SSE4.2 
+Logical CPU cores: 32
+diann.exe --f D:\Proteobench_manuscript_data\LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_01.mzML  --f D:\Proteobench_manuscript_data\LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_02.mzML  --f D:\Proteobench_manuscript_data\LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_03.mzML  --f D:\Proteobench_manuscript_data\LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_01.mzML  --f D:\Proteobench_manuscript_data\LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_02.mzML  --f D:\Proteobench_manuscript_data\LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_03.mzML  --lib  --threads 24 --verbose 1 --out D:\Proteobench_manuscript_data\run_output\diann_1.9.2_linearclassifier\report.tsv --qvalue 0.01 --matrices --out-lib C:\DIA-NN\1.9.2\report-lib.parquet --gen-spec-lib --predictor --fasta D:\Proteobench_manuscript_data\ProteoBenchFASTA_DDAQuantification.fasta --fasta-search --min-fr-mz 50 --max-fr-mz 2000 --met-excision --min-pep-len 6 --max-pep-len 30 --min-pr-mz 400 --max-pr-mz 1000 --min-pr-charge 1 --max-pr-charge 4 --cut K*,R* --missed-cleavages 1 --unimod4 --var-mods 1 --var-mod UniMod:35,15.994915,M --var-mod UniMod:1,42.010565,*n --no-nn --peptidoforms --reanalyse --relaxed-prot-inf --rt-profiling 
+
+Thread number set to 24
+Output will be filtered at 0.01 FDR
+Precursor/protein x samples expression level matrices will be saved along with the main report
+A spectral library will be generated
+Deep learning will be used to generate a new in silico spectral library from peptides provided
+DIA-NN will carry out FASTA digest for in silico lib generation
+Min fragment m/z set to 50
+Max fragment m/z set to 2000
+N-terminal methionine excision enabled
+Min peptide length set to 6
+Max peptide length set to 30
+Min precursor m/z set to 400
+Max precursor m/z set to 1000
+Min precursor charge set to 1
+Max precursor charge set to 4
+In silico digest will involve cuts at K*,R*
+Maximum number of missed cleavages set to 1
+Cysteine carbamidomethylation enabled as a fixed modification
+Maximum number of variable modifications set to 1
+Modification UniMod:35 with mass delta 15.9949 at M will be considered as variable
+Modification UniMod:1 with mass delta 42.0106 at *n will be considered as variable
+Neural network classifier disabled
+Peptidoform scoring enabled
+A spectral library will be created from the DIA runs and used to reanalyse them; .quant files will only be saved to disk during the first step
+Heuristic protein grouping will be used, to reduce the number of protein groups obtained; this mode is recommended for benchmarking protein ID numbers, GO/pathway and system-scale analyses
+The spectral library (if generated) will retain the original spectra but will include empirically-aligned RTs
+DIA-NN will optimise the mass accuracy automatically using the first run in the experiment. This is useful primarily for quick initial analyses, when it is not yet known which mass accuracy setting works best for a particular acquisition scheme.
+WARNING: it is strongly recommended to first generate an in silico-predicted library in a separate pipeline step and then use it to process the raw data, now without activating FASTA digest
+The following variable modifications will be scored: UniMod:35 UniMod:1 
+
+6 files will be processed
+[0:00] Loading FASTA D:\Proteobench_manuscript_data\ProteoBenchFASTA_DDAQuantification.fasta
+[0:03] Processing FASTA
+[0:09] Assembling elution groups
+[0:13] 5116692 precursors generated
+[0:13] Protein names missing for some isoforms
+[0:13] Gene names missing for some isoforms
+[0:13] Library contains 31685 proteins, and 0 genes
+[0:16] [0:20] [10:15] [11:53] [11:57] [11:58] Saving the library to C:\DIA-NN\1.9.2\report-lib.predicted.speclib
+[12:10] Initialising library
+[12:21] Loading spectral library C:\DIA-NN\1.9.2\report-lib.predicted.speclib
+[12:24] Library annotated with sequence database(s): D:\Proteobench_manuscript_data\ProteoBenchFASTA_DDAQuantification.fasta
+[12:25] Spectral library loaded: 31837 protein isoforms, 51765 protein groups and 5116692 precursors in 2716663 elution groups.
+[12:25] Loading protein annotations from FASTA D:\Proteobench_manuscript_data\ProteoBenchFASTA_DDAQuantification.fasta
+[12:25] Annotating library proteins with information from the FASTA database
+[12:25] Protein names missing for some isoforms
+[12:25] Gene names missing for some isoforms
+[12:25] Library contains 31685 proteins, and 0 genes
+[12:29] Initialising library
+
+First pass: generating a spectral library from DIA data
+
+[12:38] File #1/6
+[12:38] Loading run D:\Proteobench_manuscript_data\LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_01.mzML
+[13:21] 5116692 library precursors are potentially detectable
+[13:25] Calibrating with mass accuracies 30 (MS1), 20 (MS2)
+[14:03] RT window set to 6.99348
+[14:03] Peak width: 6.164
+[14:03] Scan window radius set to 13
+[14:03] Recommended MS1 mass accuracy setting: 9.32611 ppm
+[15:28] Optimised mass accuracy: 14.3505 ppm
+[16:02] Number of IDs at 0.01 FDR: 2355
+[16:02] Number of IDs at 0.01 FDR: 4662
+[18:51] Number of IDs at 0.01 FDR: 29614
+[18:52] Number of IDs at 0.01 FDR: 58980
+[18:52] Removing low confidence identifications
+[20:25] Number of IDs at 0.01 FDR: 58980
+[20:28] Precursors at 1% peptidoform FDR: 56490
+[20:29] Removing interfering precursors
+[20:31] Number of IDs at 0.01 FDR: 58472
+[20:31] Calculating protein q-values
+[20:31] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[20:31] Quantification
+[20:32] Precursors with monitored PTMs at 1% FDR: 3985 out of 11516 considered
+[20:32] Unmodified precursors with monitored PTM sites at 1% FDR: 6676
+[20:32] Precursors with PTMs localised (when required) with > 90% confidence: 3925 out of 3985
+[20:32] Quantification information saved to D:\Proteobench_manuscript_data\LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_01.mzML.quant
+
+[20:32] File #2/6
+[20:32] Loading run D:\Proteobench_manuscript_data\LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_02.mzML
+[21:14] 5116692 library precursors are potentially detectable
+[21:18] Calibrating with mass accuracies 30 (MS1), 14.3505 (MS2)
+[21:48] RT window set to 6.53529
+[21:48] Recommended MS1 mass accuracy setting: 8.70693 ppm
+[22:04] Number of IDs at 0.01 FDR: 1367
+[22:04] Number of IDs at 0.01 FDR: 2616
+[25:06] Number of IDs at 0.01 FDR: 31019
+[25:07] Number of IDs at 0.01 FDR: 60709
+[25:07] Removing low confidence identifications
+[26:39] Number of IDs at 0.01 FDR: 60709
+[26:42] Precursors at 1% peptidoform FDR: 58140
+[26:43] Removing interfering precursors
+[26:45] Number of IDs at 0.01 FDR: 59989
+[26:46] Calculating protein q-values
+[26:46] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[26:46] Quantification
+[26:47] Precursors with monitored PTMs at 1% FDR: 3937 out of 12628 considered
+[26:47] Unmodified precursors with monitored PTM sites at 1% FDR: 7704
+[26:47] Precursors with PTMs localised (when required) with > 90% confidence: 3873 out of 3937
+[26:48] Quantification information saved to D:\Proteobench_manuscript_data\LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_02.mzML.quant
+
+[26:48] File #3/6
+[26:48] Loading run D:\Proteobench_manuscript_data\LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_03.mzML
+[27:37] 5116692 library precursors are potentially detectable
+[27:42] Calibrating with mass accuracies 30 (MS1), 14.3505 (MS2)
+[28:20] RT window set to 6.89902
+[28:20] Recommended MS1 mass accuracy setting: 8.62496 ppm
+[28:38] Number of IDs at 0.01 FDR: 1137
+[28:38] Number of IDs at 0.01 FDR: 2351
+[31:32] Number of IDs at 0.01 FDR: 27777
+[31:33] Number of IDs at 0.01 FDR: 54419
+[31:33] Removing low confidence identifications
+[32:59] Number of IDs at 0.01 FDR: 54419
+[33:01] Precursors at 1% peptidoform FDR: 52260
+[33:02] Removing interfering precursors
+[33:04] Number of IDs at 0.01 FDR: 54203
+[33:05] Calculating protein q-values
+[33:05] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[33:05] Quantification
+[33:05] Precursors with monitored PTMs at 1% FDR: 3541 out of 11022 considered
+[33:05] Unmodified precursors with monitored PTM sites at 1% FDR: 6692
+[33:05] Precursors with PTMs localised (when required) with > 90% confidence: 3483 out of 3541
+[33:06] Quantification information saved to D:\Proteobench_manuscript_data\LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_03.mzML.quant
+
+[33:06] File #4/6
+[33:06] Loading run D:\Proteobench_manuscript_data\LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_01.mzML
+[33:51] 5116692 library precursors are potentially detectable
+[33:55] Calibrating with mass accuracies 30 (MS1), 14.3505 (MS2)
+[34:32] RT window set to 7.85455
+[34:32] Recommended MS1 mass accuracy setting: 8.31828 ppm
+[34:51] Number of IDs at 0.01 FDR: 1053
+[34:51] Number of IDs at 0.01 FDR: 2229
+[37:57] Number of IDs at 0.01 FDR: 26364
+[37:57] Number of IDs at 0.01 FDR: 52207
+[37:57] Removing low confidence identifications
+[39:30] Number of IDs at 0.01 FDR: 52207
+[39:32] Precursors at 1% peptidoform FDR: 50080
+[39:33] Removing interfering precursors
+[39:34] Number of IDs at 0.01 FDR: 51559
+[39:35] Calculating protein q-values
+[39:35] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[39:35] Quantification
+[39:35] Precursors with monitored PTMs at 1% FDR: 7510 out of 8284 considered
+[39:35] Unmodified precursors with monitored PTM sites at 1% FDR: 376
+[39:35] Precursors with PTMs localised (when required) with > 90% confidence: 7508 out of 7510
+[39:36] Quantification information saved to D:\Proteobench_manuscript_data\LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_01.mzML.quant
+
+[39:36] File #5/6
+[39:36] Loading run D:\Proteobench_manuscript_data\LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_02.mzML
+[40:18] 5116692 library precursors are potentially detectable
+[40:21] Calibrating with mass accuracies 30 (MS1), 14.3505 (MS2)
+[41:00] RT window set to 7.68413
+[41:00] Recommended MS1 mass accuracy setting: 8.88762 ppm
+[41:21] Number of IDs at 0.01 FDR: 1227
+[41:21] Number of IDs at 0.01 FDR: 2431
+[44:52] Number of IDs at 0.01 FDR: 28219
+[44:53] Number of IDs at 0.01 FDR: 54482
+[44:53] Removing low confidence identifications
+[46:42] Number of IDs at 0.01 FDR: 54482
+[46:44] Precursors at 1% peptidoform FDR: 52112
+[46:45] Removing interfering precursors
+[46:47] Number of IDs at 0.01 FDR: 54280
+[46:48] Calculating protein q-values
+[46:48] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[46:48] Quantification
+[46:48] Precursors with monitored PTMs at 1% FDR: 7826 out of 9036 considered
+[46:48] Unmodified precursors with monitored PTM sites at 1% FDR: 552
+[46:49] Precursors with PTMs localised (when required) with > 90% confidence: 7825 out of 7826
+[46:49] Quantification information saved to D:\Proteobench_manuscript_data\LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_02.mzML.quant
+
+[46:49] File #6/6
+[46:49] Loading run D:\Proteobench_manuscript_data\LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_03.mzML
+[47:31] 5116692 library precursors are potentially detectable
+[47:35] Calibrating with mass accuracies 30 (MS1), 14.3505 (MS2)
+[48:12] RT window set to 8.48596
+[48:12] Recommended MS1 mass accuracy setting: 9.06837 ppm
+[48:32] Number of IDs at 0.01 FDR: 1077
+[48:32] Number of IDs at 0.01 FDR: 2046
+[51:45] Number of IDs at 0.01 FDR: 24304
+[51:45] Number of IDs at 0.01 FDR: 47294
+[51:45] Removing low confidence identifications
+[53:24] Number of IDs at 0.01 FDR: 47294
+[53:26] Precursors at 1% peptidoform FDR: 45567
+[53:27] Removing interfering precursors
+[53:29] Number of IDs at 0.01 FDR: 47261
+[53:29] Calculating protein q-values
+[53:30] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[53:30] Quantification
+[53:30] Precursors with monitored PTMs at 1% FDR: 6690 out of 7676 considered
+[53:30] Unmodified precursors with monitored PTM sites at 1% FDR: 600
+[53:30] Precursors with PTMs localised (when required) with > 90% confidence: 6686 out of 6690
+[53:31] Quantification information saved to D:\Proteobench_manuscript_data\LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_03.mzML.quant
+
+[53:31] Cross-run analysis
+[53:31] Reading quantification information: 6 files
+[53:34] Quantifying peptides
+[53:48] Assembling protein groups
+[53:50] Quantifying proteins
+[53:50] Calculating q-values for protein and gene groups
+[53:51] Calculating global q-values for protein and gene groups
+[53:51] Protein groups with global q-value <= 0.01: 7391
+[53:52] Compressed report saved to D:\Proteobench_manuscript_data\run_output\diann_1.9.2_linearclassifier\report-first-pass.parquet. Use R 'arrow' or Python 'PyArrow' package to process
+[53:52] Writing report
+[53:59] Report saved to D:\Proteobench_manuscript_data\run_output\diann_1.9.2_linearclassifier\report-first-pass.tsv.
+[53:59] Saving precursor levels matrix
+[53:59] Precursor levels matrix (1% precursor and protein group FDR) saved to D:\Proteobench_manuscript_data\run_output\diann_1.9.2_linearclassifier\report-first-pass.pr_matrix.tsv.
+[53:59] Manifest saved to D:\Proteobench_manuscript_data\run_output\diann_1.9.2_linearclassifier\report-first-pass.manifest.txt
+[53:59] Stats report saved to D:\Proteobench_manuscript_data\run_output\diann_1.9.2_linearclassifier\report-first-pass.stats.tsv
+[53:59] Generating spectral library:
+[54:00] 73461 target and 732 decoy precursors saved
+[54:00] Spectral library saved to C:\DIA-NN\1.9.2\report-lib.parquet
+
+[54:00] Loading spectral library C:\DIA-NN\1.9.2\report-lib.parquet
+[54:01] Spectral library loaded: 8754 protein isoforms, 8602 protein groups and 74193 precursors in 66597 elution groups.
+[54:01] Loading protein annotations from FASTA D:\Proteobench_manuscript_data\ProteoBenchFASTA_DDAQuantification.fasta
+[54:01] Annotating library proteins with information from the FASTA database
+[54:01] Protein names missing for some isoforms
+[54:01] Gene names missing for some isoforms
+[54:01] Library contains 8741 proteins, and 0 genes
+[54:01] Initialising library
+[54:01] Saving the library to C:\DIA-NN\1.9.2\report-lib.parquet.skyline.speclib
+
+
+Second pass: using the newly created spectral library to reanalyse the data
+
+[54:01] File #1/6
+[54:01] Loading run D:\Proteobench_manuscript_data\LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_01.mzML
+[54:43] 73461 library precursors are potentially detectable
+[54:43] Calibrating with mass accuracies 30 (MS1), 14.3505 (MS2)
+[54:44] RT window set to 2.64306
+[54:44] Recommended MS1 mass accuracy setting: 9.04931 ppm
+[54:44] Number of IDs at 0.01 FDR: 2275
+[54:44] Number of IDs at 0.01 FDR: 3020
+[54:47] Number of IDs at 0.01 FDR: 43223
+[54:47] Number of IDs at 0.01 FDR: 57865
+[54:47] Removing low confidence identifications
+[54:48] Number of IDs at 0.01 FDR: 57865
+[54:50] Precursors at 1% peptidoform FDR: 56701
+[54:50] Removing interfering precursors
+[54:50] Number of IDs at 0.01 FDR: 58334
+[54:51] Calculating protein q-values
+[54:51] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[54:51] Quantification
+[54:51] Precursors with monitored PTMs at 1% FDR: 4624 out of 11633 considered
+[54:51] Unmodified precursors with monitored PTM sites at 1% FDR: 6626
+[54:51] Precursors with PTMs localised (when required) with > 90% confidence: 4578 out of 4624
+
+[54:51] File #2/6
+[54:51] Loading run D:\Proteobench_manuscript_data\LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_02.mzML
+[55:33] 73461 library precursors are potentially detectable
+[55:33] Calibrating with mass accuracies 30 (MS1), 14.3505 (MS2)
+[55:33] RT window set to 2.55886
+[55:33] Recommended MS1 mass accuracy setting: 8.78923 ppm
+[55:34] Number of IDs at 0.01 FDR: 2312
+[55:34] Number of IDs at 0.01 FDR: 3172
+[55:37] Number of IDs at 0.01 FDR: 45204
+[55:37] Number of IDs at 0.01 FDR: 60911
+[55:37] Removing low confidence identifications
+[55:38] Number of IDs at 0.01 FDR: 60911
+[55:40] Precursors at 1% peptidoform FDR: 59513
+[55:40] Removing interfering precursors
+[55:40] Number of IDs at 0.01 FDR: 61167
+[55:40] Calculating protein q-values
+[55:40] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[55:40] Quantification
+[55:41] Precursors with monitored PTMs at 1% FDR: 4856 out of 12662 considered
+[55:41] Unmodified precursors with monitored PTM sites at 1% FDR: 7391
+[55:41] Precursors with PTMs localised (when required) with > 90% confidence: 4806 out of 4856
+
+[55:41] File #3/6
+[55:41] Loading run D:\Proteobench_manuscript_data\LFQ_Orbitrap_AIF_Condition_A_Sample_Alpha_03.mzML
+[56:22] 73461 library precursors are potentially detectable
+[56:22] Calibrating with mass accuracies 30 (MS1), 14.3505 (MS2)
+[56:23] RT window set to 2.63293
+[56:23] Recommended MS1 mass accuracy setting: 9.12525 ppm
+[56:23] Number of IDs at 0.01 FDR: 2186
+[56:23] Number of IDs at 0.01 FDR: 2882
+[56:26] Number of IDs at 0.01 FDR: 40546
+[56:26] Number of IDs at 0.01 FDR: 53837
+[56:26] Removing low confidence identifications
+[56:27] Number of IDs at 0.01 FDR: 53837
+[56:29] Precursors at 1% peptidoform FDR: 52800
+[56:29] Removing interfering precursors
+[56:29] Number of IDs at 0.01 FDR: 55010
+[56:30] Calculating protein q-values
+[56:30] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[56:30] Quantification
+[56:30] Precursors with monitored PTMs at 1% FDR: 4071 out of 11115 considered
+[56:30] Unmodified precursors with monitored PTM sites at 1% FDR: 6542
+[56:30] Precursors with PTMs localised (when required) with > 90% confidence: 4034 out of 4071
+
+[56:30] File #4/6
+[56:30] Loading run D:\Proteobench_manuscript_data\LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_01.mzML
+[57:11] 73461 library precursors are potentially detectable
+[57:11] Calibrating with mass accuracies 30 (MS1), 14.3505 (MS2)
+[57:12] RT window set to 2.64554
+[57:12] Recommended MS1 mass accuracy setting: 8.2941 ppm
+[57:12] Number of IDs at 0.01 FDR: 1817
+[57:12] Number of IDs at 0.01 FDR: 2717
+[57:15] Number of IDs at 0.01 FDR: 37283
+[57:15] Number of IDs at 0.01 FDR: 50635
+[57:15] Removing low confidence identifications
+[57:16] Number of IDs at 0.01 FDR: 50635
+[57:18] Precursors at 1% peptidoform FDR: 49708
+[57:18] Removing interfering precursors
+[57:18] Number of IDs at 0.01 FDR: 51203
+[57:18] Calculating protein q-values
+[57:18] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[57:18] Quantification
+[57:19] Precursors with monitored PTMs at 1% FDR: 7261 out of 8024 considered
+[57:19] Unmodified precursors with monitored PTM sites at 1% FDR: 542
+[57:19] Precursors with PTMs localised (when required) with > 90% confidence: 7254 out of 7261
+
+[57:19] File #5/6
+[57:19] Loading run D:\Proteobench_manuscript_data\LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_02.mzML
+[58:00] 73461 library precursors are potentially detectable
+[58:00] Calibrating with mass accuracies 30 (MS1), 14.3505 (MS2)
+[58:01] RT window set to 2.57357
+[58:01] Recommended MS1 mass accuracy setting: 8.45199 ppm
+[58:02] Number of IDs at 0.01 FDR: 1962
+[58:02] Number of IDs at 0.01 FDR: 2845
+[58:04] Number of IDs at 0.01 FDR: 39202
+[58:05] Number of IDs at 0.01 FDR: 54025
+[58:05] Removing low confidence identifications
+[58:06] Number of IDs at 0.01 FDR: 54025
+[58:07] Precursors at 1% peptidoform FDR: 52869
+[58:08] Removing interfering precursors
+[58:08] Number of IDs at 0.01 FDR: 54567
+[58:08] Calculating protein q-values
+[58:08] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[58:08] Quantification
+[58:08] Precursors with monitored PTMs at 1% FDR: 7717 out of 9032 considered
+[58:08] Unmodified precursors with monitored PTM sites at 1% FDR: 1037
+[58:08] Precursors with PTMs localised (when required) with > 90% confidence: 7697 out of 7717
+
+[58:09] File #6/6
+[58:09] Loading run D:\Proteobench_manuscript_data\LFQ_Orbitrap_AIF_Condition_B_Sample_Alpha_03.mzML
+[58:50] 73461 library precursors are potentially detectable
+[58:50] Calibrating with mass accuracies 30 (MS1), 14.3505 (MS2)
+[58:50] RT window set to 2.64057
+[58:50] Recommended MS1 mass accuracy setting: 8.77592 ppm
+[58:51] Number of IDs at 0.01 FDR: 1814
+[58:51] Number of IDs at 0.01 FDR: 2201
+[58:53] Number of IDs at 0.01 FDR: 36346
+[58:53] Number of IDs at 0.01 FDR: 44566
+[58:53] Removing low confidence identifications
+[58:54] Number of IDs at 0.01 FDR: 44566
+[58:56] Precursors at 1% peptidoform FDR: 43853
+[58:56] Removing interfering precursors
+[58:56] Number of IDs at 0.01 FDR: 45507
+[58:56] Calculating protein q-values
+[58:56] Number of genes identified at 1% FDR: 0 (precursor-level), 0 (protein-level) (inference performed using proteotypic peptides only)
+[58:56] Quantification
+[58:56] Precursors with monitored PTMs at 1% FDR: 6290 out of 7216 considered
+[58:56] Unmodified precursors with monitored PTM sites at 1% FDR: 671
+[58:56] Precursors with PTMs localised (when required) with > 90% confidence: 6282 out of 6290
+
+[58:57] Cross-run analysis
+[58:57] Reading quantification information: 6 files
+[58:57] Quantifying peptides
+[60:05] Quantification parameters: 0.306592, 0.00188211, 0.000602774, 0.0117973, 0.0128417, 0.0120628, 0.0609768, 0.0716722, 0.119597, 0.0136655, 0.0481805, 0.0382547, 0.372981, 0.0501485, 0.0560946, 0.0124455
+[60:12] Quantifying proteins
+[60:12] Calculating q-values for protein and gene groups
+[60:12] Calculating global q-values for protein and gene groups
+[60:12] Protein groups with global q-value <= 0.01: 6943
+[60:13] Compressed report saved to D:\Proteobench_manuscript_data\run_output\diann_1.9.2_linearclassifier\report.parquet. Use R 'arrow' or Python 'PyArrow' package to process
+[60:13] Writing report
+[60:20] Report saved to D:\Proteobench_manuscript_data\run_output\diann_1.9.2_linearclassifier\report.tsv.
+[60:20] Saving precursor levels matrix
+[60:20] Precursor levels matrix (1% precursor and protein group FDR) saved to D:\Proteobench_manuscript_data\run_output\diann_1.9.2_linearclassifier\report.pr_matrix.tsv.
+[60:20] Saving protein group levels matrix
+[60:20] Protein group levels matrix (1% precursor FDR and protein group FDR) saved to D:\Proteobench_manuscript_data\run_output\diann_1.9.2_linearclassifier\report.pg_matrix.tsv.
+[60:20] Saving gene group levels matrix
+[60:20] Gene groups levels matrix (1% precursor FDR and protein group FDR) saved to D:\Proteobench_manuscript_data\run_output\diann_1.9.2_linearclassifier\report.gg_matrix.tsv.
+[60:20] Saving unique genes levels matrix
+[60:20] Unique genes levels matrix (1% precursor FDR and protein group FDR) saved to D:\Proteobench_manuscript_data\run_output\diann_1.9.2_linearclassifier\report.unique_genes_matrix.tsv.
+[60:20] Manifest saved to D:\Proteobench_manuscript_data\run_output\diann_1.9.2_linearclassifier\report.manifest.txt
+[60:20] Stats report saved to D:\Proteobench_manuscript_data\run_output\diann_1.9.2_linearclassifier\report.stats.tsv
+

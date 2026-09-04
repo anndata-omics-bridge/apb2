@@ -1,0 +1,15 @@
+{
+  "source": "input_file.tsv",
+  "sample": "sample.tsv.gz",
+  "params": "param_0..txt",
+  "sample_rows": 250,
+  "levels": {
+    "ion": {
+      "observations": 6,
+      "variables": 72,
+      "layers": [
+        "Intensity"
+      ]
+    }
+  }
+}

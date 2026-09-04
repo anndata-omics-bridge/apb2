@@ -1,0 +1,71 @@
+E.Errors
+E.LFQMethod
+E.Warnings
+R.Condition
+R.FileName
+R.Fraction
+R.Label
+R.Replicate
+PG.GroupLabel
+PG.ProteinAccessions
+PG.ProteinGroups
+PG.Cscore
+PG.Cscore (Run-Wise)
+PG.PEP
+PG.PEP (Run-Wise)
+PG.Pvalue
+PG.PValue (Run-Wise)
+PG.Qvalue
+PG.QValue (Run-Wise)
+PG.RunEvidenceCount
+PG.Quantity
+PEP.AllOccurringOrganisms
+PEP.GroupingKey
+PEP.GroupingKeyType
+PEP.IsProteotypic
+PEP.NrOfMissedCleavages
+PEP.StrippedSequence
+PEP.Rank
+PEP.RunEvidenceCount
+PEP.UsedForProteinGroupQuantity
+EG.IntPIMID
+EG.iRTPredicted
+EG.IsDecoy
+EG.ModifiedPeptide
+EG.ModifiedSequence
+EG.UserGroup
+EG.Workflow
+EG.GlobalCScore
+EG.GlobalPrecursorQvalue
+EG.IsVerified
+EG.MaxChannelQvalue
+EG.MinChannelQvalue
+EG.PEP
+EG.Qvalue
+EG.IsUserPeak
+EG.ApexRT
+EG.iRTEmpirical
+EG.RTPredicted
+EG.AvgProfileQvalue
+EG.MaxProfileQvalue
+EG.MinProfileQvalue
+EG.PercentileQvalue
+EG.IsImputed
+EG.ReferenceQuantity (Settings)
+EG.TargetQuantity (Settings)
+EG.TotalQuantity (Settings)
+EG.UsedForPeptideQuantity
+EG.UsedForProteinGroupQuantity
+EG.Cscore
+EG.NormalizedCscore
+FG.Charge
+FG.IntMID
+FG.LabeledSequence
+FG.Mass
+FG.PrecMz
+FG.PrecMzCalibrated
+FG.XICDBID
+FG.CScore
+FG.Qvalue
+FG.PrecWindowNumber
+FG.Quantity

@@ -1,0 +1,37 @@
+{
+  "source": "input_file.txt",
+  "sample": "sample.txt.gz",
+  "params": "param_0..txt",
+  "sample_rows": 500,
+  "levels": {
+    "ion": {
+      "observations": 2,
+      "variables": 281,
+      "layers": [
+        "Precursor_Normalised",
+        "Precursor_Quantity",
+        "Ms1_Area",
+        "Q_Value",
+        "RT"
+      ]
+    },
+    "protein": {
+      "observations": 2,
+      "variables": 260,
+      "layers": [
+        "PG_MaxLFQ",
+        "PG_Normalised",
+        "PG_Quantity",
+        "Genes_MaxLFQ"
+      ]
+    },
+    "fragment": {
+      "observations": 2,
+      "variables": 3356,
+      "layers": [
+        "Fragment_Quant_Raw",
+        "Fragment_Correlations"
+      ]
+    }
+  }
+}
