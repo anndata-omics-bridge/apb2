@@ -22,6 +22,8 @@ Choose the documentation for your interface:
 
 ## Motivation and origin
 
+APB2 is a refactoring and performance improvement of the now-discontinued [AnnData Proteomics Bridge (APB v1)](https://github.com/anndata-omics-bridge/anndata-proteomics-bridge).
+
 APB2 is based on the work of [ProteoBench](https://github.com/proteobench/proteobench): it ports ProteoBench's parsing infrastructure — search-parameter parsing, vendor file-format parsing, modification parsing — into one rules-driven converter. See the ProteoBench preprint: [ProteoBench: the community-curated platform for comparing proteomics data analysis workflows](https://www.biorxiv.org/content/10.64898/2025.12.09.692895v2) (bioRxiv, 2025, doi:10.64898/2025.12.09.692895).
 
 The work that became APB2 was discussed and started during the Copenhagen ProteoBench Hackathon,
