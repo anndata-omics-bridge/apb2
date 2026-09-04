@@ -1,5 +1,12 @@
 # Changes
 
+- 2026-09-04 (evening): Added a packaged MaxQuant `proteinGroups.txt` rule producing the `protein`
+  level: a wide table keyed on `Protein IDs` with one `Intensity <experiment>` column per
+  experiment and optional `LFQ intensity`/`iBAQ` layers. The rule admits both generations in hand —
+  a 2.x DDA export (Intensity + LFQ intensity, `Reverse`) and a 2.8 DIA export (Intensity only,
+  `Decoy` instead of `Reverse`) — by keeping everything beyond identity and the primary layer
+  optional. Committed sample artifacts come from the boxcar `proteinGroups.txt`.
+
 - 2026-09-04 (later still): Committed per-rule test artifacts under `tests/parserV2/data/<rule_key>/`
   — a header snapshot, a stratified ~500-row real-export sample (gzip; parquet for parquet rules),
   the fixture's parameter file where one exists, and `expected.json` with per-level conversion

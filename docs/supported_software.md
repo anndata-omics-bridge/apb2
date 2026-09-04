@@ -21,6 +21,7 @@ This table has one row per packaged rule document.
 | [FragPipe](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/fragpipe/rules.json) | 22.x or 23.x | `.tsv` | wide | `fragpipe.workflow` |
 | [MaxQuant](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant/rules.json) | 1.5.x, 1.6.x, or 2.x | `evidence.txt` | long | `mqpar.xml` |
 | [MaxQuant peptides](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant_peptides/rules.json) | 1.5.x, 1.6.x, or 2.x | `peptides.txt` | wide | `mqpar.xml` |
+| [MaxQuant protein groups](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant_proteingroups/rules.json) | 1.5.x, 1.6.x, or 2.x | `proteinGroups.txt` | wide | `mqpar.xml` |
 | [PEAKS](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/peaks/rules.json) | 13.x | `.csv` | wide | PEAKS settings text report |
 | [Sage](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/sage/rules.json) | 0.x | `.tsv` | wide | Sage JSON parameter file |
 | [Spectronaut](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/spectronaut/rules.json) | 19.x or 20.x | `.tsv` | long | Spectronaut settings text report |
@@ -46,6 +47,7 @@ A check mark means that the linked rule document can convert that level. APB2 re
 | [FragPipe](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/fragpipe/rules.json) | ✓ | — | — | — | — |
 | [MaxQuant](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant/rules.json) | ✓ | — | — | — | — |
 | [MaxQuant peptides](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant_peptides/rules.json) | — | — | ✓ | — | — |
+| [MaxQuant protein groups](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant_proteingroups/rules.json) | — | — | — | ✓ | — |
 | [PEAKS](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/peaks/rules.json) | ✓ | — | — | — | — |
 | [Sage](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/sage/rules.json) | ✓ | ✓ | — | — | — |
 | [Spectronaut](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/spectronaut/rules.json) | ✓ | — | — | ✓ | ✓ |

@@ -1,0 +1,16 @@
+{
+  "source": "proteinGroups.txt",
+  "sample": "sample.txt.gz",
+  "params": null,
+  "sample_rows": 250,
+  "levels": {
+    "protein": {
+      "observations": 12,
+      "variables": 250,
+      "layers": [
+        "Intensity",
+        "LFQ_Intensity"
+      ]
+    }
+  }
+}

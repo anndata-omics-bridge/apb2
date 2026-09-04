@@ -1,0 +1,95 @@
+{
+  "schema_version": "0.3",
+  "file_version": "1",
+  "software_name": "MaxQuant",
+  "software_version_pattern": "^(1\\.5|1\\.6|2\\.)",
+  "input": {
+    "shape": "wide",
+    "extensions": [
+      ".txt"
+    ],
+    "file_name": "proteinGroups.txt"
+  },
+  "base": {
+    "axis": {
+      "obs_keys": [
+        "sample"
+      ]
+    },
+    "measurements": {
+      "duplicates": {
+        "mode": "error"
+      }
+    }
+  },
+  "levels": {
+    "protein": {
+      "axis": {
+        "var_keys": [
+          "Protein_IDs"
+        ]
+      },
+      "measurements": {
+        "primary_layer": "Intensity",
+        "layers": [
+          {
+            "name": "Intensity",
+            "source": "^Intensity (?P<sample>.+)$",
+            "missing_values": [
+              0
+            ]
+          },
+          {
+            "name": "LFQ_Intensity",
+            "source": "^LFQ intensity (?P<sample>.+)$",
+            "missing_values": [
+              0
+            ]
+          },
+          {
+            "name": "iBAQ",
+            "source": "^iBAQ (?P<sample>.+)$",
+            "missing_values": [
+              0
+            ]
+          }
+        ]
+      },
+      "columns": {
+        "var": {
+          "select": {
+            "Protein_IDs": "Protein IDs"
+          },
+          "optional_select": {
+            "Majority_Protein_IDs": "Majority protein IDs",
+            "Fasta_Headers": "Fasta headers",
+            "Gene_Names": "Gene names",
+            "Protein_Names": "Protein names",
+            "Number_Of_Proteins": "Number of proteins",
+            "Peptides": "Peptides",
+            "Razor_Unique_Peptides": "Razor + unique peptides",
+            "Unique_Peptides": "Unique peptides",
+            "Sequence_Coverage_Percent": "Sequence coverage [%]",
+            "Mol_Weight_kDa": "Mol. weight [kDa]",
+            "Q_Value": "Q-value",
+            "Score": "Score",
+            "Only_Identified_By_Site": "Only identified by site",
+            "Reverse": "Reverse",
+            "Decoy": "Decoy",
+            "Potential_Contaminant": "Potential contaminant"
+          },
+          "types": {
+            "Number_Of_Proteins": "integer",
+            "Peptides": "integer",
+            "Razor_Unique_Peptides": "integer",
+            "Unique_Peptides": "integer"
+          }
+        }
+      },
+      "column_roles": {
+        "protein_assignment": "Protein_IDs",
+        "fasta_accessions": "Protein_IDs"
+      }
+    }
+  }
+}

@@ -1,0 +1,131 @@
+Protein IDs
+Majority protein IDs
+Peptide counts (all)
+Peptide counts (razor+unique)
+Peptide counts (unique)
+Protein names
+Gene names
+Fasta headers
+Number of proteins
+Peptides
+Razor + unique peptides
+Unique peptides
+Peptides BoxCar_02-01_1
+Peptides BoxCar_02-01_2
+Peptides BoxCar_02-01_3
+Peptides BoxCar_12-01_1
+Peptides BoxCar_12-01_2
+Peptides BoxCar_12-01_3
+Peptides Shotgun_02-01_1
+Peptides Shotgun_02-01_2
+Peptides Shotgun_02-01_3
+Peptides Shotgun_12-01_1
+Peptides Shotgun_12-01_2
+Peptides Shotgun_12-01_3
+Razor + unique peptides BoxCar_02-01_1
+Razor + unique peptides BoxCar_02-01_2
+Razor + unique peptides BoxCar_02-01_3
+Razor + unique peptides BoxCar_12-01_1
+Razor + unique peptides BoxCar_12-01_2
+Razor + unique peptides BoxCar_12-01_3
+Razor + unique peptides Shotgun_02-01_1
+Razor + unique peptides Shotgun_02-01_2
+Razor + unique peptides Shotgun_02-01_3
+Razor + unique peptides Shotgun_12-01_1
+Razor + unique peptides Shotgun_12-01_2
+Razor + unique peptides Shotgun_12-01_3
+Unique peptides BoxCar_02-01_1
+Unique peptides BoxCar_02-01_2
+Unique peptides BoxCar_02-01_3
+Unique peptides BoxCar_12-01_1
+Unique peptides BoxCar_12-01_2
+Unique peptides BoxCar_12-01_3
+Unique peptides Shotgun_02-01_1
+Unique peptides Shotgun_02-01_2
+Unique peptides Shotgun_02-01_3
+Unique peptides Shotgun_12-01_1
+Unique peptides Shotgun_12-01_2
+Unique peptides Shotgun_12-01_3
+Sequence coverage [%]
+Unique + razor sequence coverage [%]
+Unique sequence coverage [%]
+Mol. weight [kDa]
+Sequence length
+Sequence lengths
+Q-value
+Score
+Identification type BoxCar_02-01_1
+Identification type BoxCar_02-01_2
+Identification type BoxCar_02-01_3
+Identification type BoxCar_12-01_1
+Identification type BoxCar_12-01_2
+Identification type BoxCar_12-01_3
+Identification type Shotgun_02-01_1
+Identification type Shotgun_02-01_2
+Identification type Shotgun_02-01_3
+Identification type Shotgun_12-01_1
+Identification type Shotgun_12-01_2
+Identification type Shotgun_12-01_3
+Sequence coverage BoxCar_02-01_1 [%]
+Sequence coverage BoxCar_02-01_2 [%]
+Sequence coverage BoxCar_02-01_3 [%]
+Sequence coverage BoxCar_12-01_1 [%]
+Sequence coverage BoxCar_12-01_2 [%]
+Sequence coverage BoxCar_12-01_3 [%]
+Sequence coverage Shotgun_02-01_1 [%]
+Sequence coverage Shotgun_02-01_2 [%]
+Sequence coverage Shotgun_02-01_3 [%]
+Sequence coverage Shotgun_12-01_1 [%]
+Sequence coverage Shotgun_12-01_2 [%]
+Sequence coverage Shotgun_12-01_3 [%]
+Intensity
+Intensity BoxCar_02-01_1
+Intensity BoxCar_02-01_2
+Intensity BoxCar_02-01_3
+Intensity BoxCar_12-01_1
+Intensity BoxCar_12-01_2
+Intensity BoxCar_12-01_3
+Intensity Shotgun_02-01_1
+Intensity Shotgun_02-01_2
+Intensity Shotgun_02-01_3
+Intensity Shotgun_12-01_1
+Intensity Shotgun_12-01_2
+Intensity Shotgun_12-01_3
+LFQ intensity Shotgun_02-01_1
+LFQ intensity Shotgun_02-01_2
+LFQ intensity Shotgun_02-01_3
+LFQ intensity Shotgun_12-01_1
+LFQ intensity Shotgun_12-01_2
+LFQ intensity Shotgun_12-01_3
+MS/MS count Shotgun_02-01_1
+MS/MS count Shotgun_02-01_2
+MS/MS count Shotgun_02-01_3
+MS/MS count Shotgun_12-01_1
+MS/MS count Shotgun_12-01_2
+MS/MS count Shotgun_12-01_3
+LFQ intensity BoxCar_02-01_1
+LFQ intensity BoxCar_02-01_2
+LFQ intensity BoxCar_02-01_3
+LFQ intensity BoxCar_12-01_1
+LFQ intensity BoxCar_12-01_2
+LFQ intensity BoxCar_12-01_3
+MS/MS count BoxCar_02-01_1
+MS/MS count BoxCar_02-01_2
+MS/MS count BoxCar_02-01_3
+MS/MS count BoxCar_12-01_1
+MS/MS count BoxCar_12-01_2
+MS/MS count BoxCar_12-01_3
+MS/MS count
+Species
+Only identified by site
+Reverse
+Potential contaminant
+id
+Peptide IDs
+Peptide is razor
+Mod. peptide IDs
+Evidence IDs
+MS/MS IDs
+Best MS/MS
+Oxidation (M) site IDs
+Oxidation (M) site positions

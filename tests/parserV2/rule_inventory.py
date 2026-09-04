@@ -7,8 +7,8 @@ from pathlib import Path
 from apb2.parserV2.vendor_parse_rules.loader import PACKAGED, load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
 
-EXPECTED_DOCUMENT_COUNT = 15
-EXPECTED_LEVEL_COUNT = 26
+EXPECTED_DOCUMENT_COUNT = 16
+EXPECTED_LEVEL_COUNT = 27
 
 
 def document_key(path: Path) -> str:
