@@ -34,7 +34,7 @@ APB2 was also motivated by the vendor-specific readers maintained behind
 and in
 [`prolfquappPTMreaders`](https://github.com/prolfqua/prolfquappPTMreaders). We plan to move their
 remaining input variants and PTM/site-level formats into APB2 so one rules-driven parser can serve
-both prolfquapp and ProteoBench.
+both prolfquapp and ProteoBench, and hopefully other tools analysing quantification data.
 
 ## Command-line interface
 
