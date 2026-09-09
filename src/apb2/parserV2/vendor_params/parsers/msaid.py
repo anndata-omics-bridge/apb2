@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+import csv
 from pathlib import Path
 from typing import IO
 
-import pandas as pd
-
 from apb2.parserV2.vendor_params.parsers.shared.common import (
     mapped_modifications,
+    read_text,
     split_modifications,
     tolerance_from_text,
 )
@@ -30,8 +30,9 @@ def extract_params(source: Path | IO[bytes] | IO[str]) -> Parameters:
 
     Mirrors ``proteobench.io.params.msaid.extract_params``.
     """
-    df = pd.read_csv(source)
-    raw: dict[str, str] = dict(df.itertuples(False, None))
+    rows = csv.reader(read_text(source).splitlines())
+    next(rows, None)  # The export's own "Category,Value" header names no setting.
+    raw: dict[str, str] = {row[0]: row[1] for row in rows if len(row) > 1}
 
     algorithm_parts = raw["Algorithm"].split(" ", 1)
     quant_method = raw["Quantification Type"]

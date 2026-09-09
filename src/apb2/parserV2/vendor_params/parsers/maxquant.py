@@ -3,12 +3,9 @@
 from __future__ import annotations
 
 import collections.abc
-import math
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import IO
-
-import pandas as pd
 
 from apb2.parserV2.vendor_params.parsers.shared.common import (
     homogenize_paren_mods,
@@ -25,7 +22,8 @@ from apb2.parserV2.vendor_params.parsers.shared.model import (
 
 XmlValue = str | dict[str, "XmlValue"] | list["XmlValue"] | None
 FlatValue = str | None
-KeyPath = tuple[str | None, ...]
+KeyPath = tuple[str, ...]
+FlatDocument = dict[KeyPath, list[FlatValue]]
 
 # Fallback mapping for modifications without parenthesized residue specifiers.
 _MODIFICATION_MAPPING = {
@@ -110,105 +108,116 @@ def _flatten(d: dict[str, XmlValue], parent_key: KeyPath = ()) -> list[tuple[Key
     return items
 
 
-def _build_series(record: dict[str, XmlValue], index_length: int = 4) -> pd.Series:
-    """Index the flattened document by a fixed-width key path, padding shorter paths."""
-    items = _flatten(record)
-    if any(len(key) > index_length for key, _ in items):
-        raise ValueError(f"mqpar nests deeper than the index width {index_length}")
-    keys = [key + (None,) * (index_length - len(key)) for key, _ in items]
-    return pd.Series([value for _, value in items], index=pd.MultiIndex.from_tuples(keys))
+def _flat_document(record: dict[str, XmlValue]) -> FlatDocument:
+    """Group every flattened value under its element key path.
+
+    mqpar repeats element names: one ``<string>`` per raw file, per experiment, and per
+    modification. The mapped value is a list so a repeated path keeps every entry in
+    document order instead of the last one winning.
+    """
+    document: FlatDocument = {}
+    for key, value in _flatten(record):
+        document.setdefault(key, []).append(value)
+    return document
 
 
-def _text(value: object, field: str) -> str:
-    """Return one scalar text value read from the flattened XML series."""
-    if not isinstance(value, str):
+def _values_under(document: FlatDocument, *path: str) -> list[FlatValue]:
+    """Return every value whose key path starts with ``path``, in document order.
+
+    The prefix is matched element by element, so ``("minPeptideLength",)`` selects the field
+    of that name and never ``minPeptideLengthForUnspecificSearch``. Matching a prefix rather
+    than a complete path is what reads one field whether MaxQuant wrote entries
+    (``variableModifications/string``) or wrote the element empty (``variableModifications``).
+    """
+    return [
+        value for key, values in document.items() if key[: len(path)] == path for value in values
+    ]
+
+
+def _text(value: FlatValue, field: str) -> str:
+    """Return one text value; an empty mqpar element carries none."""
+    if value is None:
         raise TypeError(f"MaxQuant {field} must contain one text value")
     return value
 
 
-def _joined_text(value: object, field: str) -> str:
-    """Return zero or more text values as a comma-delimited string.
+def _single_text(values: list[FlatValue], field: str) -> str:
+    """Return the one text value a scalar mqpar field must declare exactly once."""
+    if not values:
+        raise KeyError(f"MaxQuant parameters contain no {field} field")
+    if len(values) != 1:
+        raise TypeError(f"MaxQuant {field} must contain one text value")
+    return _text(values[0], field)
 
-    An empty mqpar element (``<field />`` or whitespace-only) reads as ``None``, which pandas
-    stores as a missing value. It means the search declared no entries, which is valid input
-    rather than a malformed field, so it yields the empty string.
+
+def _joined_text(values: list[FlatValue], field: str) -> str:
+    """Return zero or more declared entries as a comma-delimited string.
+
+    An empty mqpar element (``<field />`` or whitespace-only) flattens to a single ``None``:
+    the search declared no entries, which is valid input rather than a malformed field, so it
+    yields the empty string. A wholly absent element is a different fact and stays an error.
     """
-    if isinstance(value, str):
-        return value
-    if isinstance(value, pd.Series):
-        return ",".join(_text(item, field) for item in value)
-    if _is_missing(value):
+    if not values:
+        raise KeyError(f"MaxQuant parameters contain no {field} field")
+    if len(values) == 1 and values[0] is None:
         return ""
-    raise TypeError(f"MaxQuant {field} must contain text values")
+    return ",".join(_text(value, field) for value in values)
 
 
-def _is_missing(value: object) -> bool:
-    """Report whether a squeezed mqpar selection holds no value."""
-    return value is None or value is pd.NA or (isinstance(value, float) and math.isnan(value))
-
-
-def _field(series: pd.Series, name: str) -> str:
+def _field(document: FlatDocument, name: str) -> str:
     """Read one top-level mqpar value as text."""
-    return _text(series.loc[name].squeeze(), name)
+    return _single_text(_values_under(document, name), name)
 
 
-def _group_field(series: pd.Series, *path: str) -> str:
+def _group_field(document: FlatDocument, *path: str) -> str:
     """Read one value from mqpar's single selected parameter group as text."""
-    return _text(
-        series.loc[pd.IndexSlice[("parameterGroups", "parameterGroup", *path)]].squeeze(),
+    return _single_text(
+        _values_under(document, "parameterGroups", "parameterGroup", *path),
         path[0],
     )
 
 
-def _tolerance_pair(series: pd.Series) -> tuple[MassTolerance, MassTolerance]:
-    """Build precursor (ppm) and fragment (ppm/Da) tolerances from the mqpar series."""
+def _msms_field(document: FlatDocument, name: str) -> str:
+    """Read one value from the MS2 fragmentation entry selected by ``ms2frac`` as text."""
+    return _single_text(_values_under(document, "msmsParamsArray", "msmsParams", name), name)
+
+
+def _tolerance_pair(document: FlatDocument) -> tuple[MassTolerance, MassTolerance]:
+    """Build precursor (ppm) and fragment (ppm/Da) tolerances from the flattened mqpar."""
     precursor = MassTolerance(
         mode="absolute",
-        value=float(_group_field(series, "mainSearchTol")),
+        value=float(_group_field(document, "mainSearchTol")),
         unit="ppm",
     )
-    frag_value = float(
-        _text(
-            series.loc[
-                pd.IndexSlice["msmsParamsArray", "msmsParams", "MatchTolerance", :]
-            ].squeeze(),
-            "MatchTolerance",
-        )
-    )
-    in_ppm = bool(
-        series.loc[
-            pd.IndexSlice["msmsParamsArray", "msmsParams", "MatchToleranceInPpm", :]
-        ].squeeze()
-    )
+    frag_value = float(_msms_field(document, "MatchTolerance"))
+    in_ppm = bool(_msms_field(document, "MatchToleranceInPpm"))
     fragment = MassTolerance(mode="absolute", value=frag_value, unit="ppm" if in_ppm else "Da")
     return precursor, fragment
 
 
-def _min_peptide_length(series: pd.Series) -> int:
+def _min_peptide_length(document: FlatDocument) -> int:
     """Read the minimum peptide length, tolerating the pre/post-rename key."""
-    keys = set(series.index.get_level_values(0))
     for field in ("minPepLen", "minPeptideLength"):
-        if field in keys:
-            return int(_field(series, field))
+        values = _values_under(document, field)
+        if values:
+            return int(_single_text(values, field))
     raise KeyError("MaxQuant parameters contain no minimum peptide length field")
 
 
 def _mods_for_version(
-    series: pd.Series,
+    document: FlatDocument,
     version: str,
 ) -> tuple[list[SearchedModification], list[SearchedModification]]:
     """Resolve fixed/variable modifications, handling the 1.6.0.0 path change."""
-    fixed_path = (
-        pd.IndexSlice["parameterGroups", "parameterGroup", "fixedModifications", :]
+    fixed_path: KeyPath = (
+        ("parameterGroups", "parameterGroup", "fixedModifications")
         if version > "1.6.0.0"
-        else pd.IndexSlice["fixedModifications", :]
+        else ("fixedModifications",)
     )
-    fixed_mods = _joined_text(series.loc[fixed_path].squeeze(), "fixedModifications")
+    fixed_mods = _joined_text(_values_under(document, *fixed_path), "fixedModifications")
 
     variable_mods = _joined_text(
-        series.loc[
-            pd.IndexSlice["parameterGroups", "parameterGroup", "variableModifications", :]
-        ].squeeze(),
+        _values_under(document, "parameterGroups", "parameterGroup", "variableModifications"),
         "variableModifications",
     )
 
@@ -243,28 +252,28 @@ def extract_params(
         if params.get("Name") == ms2frac:
             selected_params.append(entry)
     record["msmsParamsArray"] = selected_params
-    series = _build_series(record, 4).sort_index()
+    document = _flat_document(record)
 
-    version = str(series.loc["maxQuantVersion"].squeeze())
-    precursor_tolerance, fragment_tolerance = _tolerance_pair(series)
-    enzyme_mode = int(_group_field(series, "enzymeMode"))
-    fixed_mods, variable_mods = _mods_for_version(series, version)
+    version = _field(document, "maxQuantVersion")
+    precursor_tolerance, fragment_tolerance = _tolerance_pair(document)
+    enzyme_mode = int(_group_field(document, "enzymeMode"))
+    fixed_mods, variable_mods = _mods_for_version(document, version)
 
     return Parameters(
         software_name="MaxQuant",
         software_version=version,
         search_engine="Andromeda",
-        ident_fdr_psm=Probability(value=float(_field(series, "peptideFdr"))),
-        ident_fdr_protein=Probability(value=float(_field(series, "proteinFdr"))),
-        enable_match_between_runs=_field(series, "matchBetweenRuns").lower() == "true",
+        ident_fdr_psm=Probability(value=float(_field(document, "peptideFdr"))),
+        ident_fdr_protein=Probability(value=float(_field(document, "proteinFdr"))),
+        enable_match_between_runs=_field(document, "matchBetweenRuns").lower() == "true",
         precursor_mass_tolerance=precursor_tolerance,
         fragment_mass_tolerance=fragment_tolerance,
-        enzyme=_group_field(series, "enzymes", "string"),
+        enzyme=_group_field(document, "enzymes", "string"),
         semi_enzymatic=enzyme_mode != 0,
-        allowed_miscleavages=int(_group_field(series, "maxMissedCleavages")),
-        min_peptide_length=_min_peptide_length(series),
+        allowed_miscleavages=int(_group_field(document, "maxMissedCleavages")),
+        min_peptide_length=_min_peptide_length(document),
         fixed_mods=fixed_mods,
         variable_mods=variable_mods,
-        max_mods=int(_group_field(series, "maxNmods")),
-        max_precursor_charge=int(_group_field(series, "maxCharge")),
+        max_mods=int(_group_field(document, "maxNmods")),
+        max_precursor_charge=int(_group_field(document, "maxCharge")),
     )
