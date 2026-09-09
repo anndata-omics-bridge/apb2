@@ -1,0 +1,127 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "apb2"
+abstract: "Rules-driven conversion of quantitative proteomics software output to AnnData, with search-parameter parsing and storage-neutral result tooling."
+version: 0.1.0
+license: MIT
+repository-code: "https://github.com/anndata-omics-bridge/apb2"
+authors:
+  - family-names: Wolski
+    given-names: Witold E.
+    email: wew@fgcz.ethz.ch
+    affiliation: "Functional Genomics Center Zurich, ETH Zurich / University of Zurich; SIB Swiss Institute of Bioinformatics"
+    # orcid: "https://orcid.org/XXXX-XXXX-XXXX-XXXX"   # fill before the release
+keywords:
+  - proteomics
+  - mass spectrometry
+  - AnnData
+  - data conversion
+references:
+  - type: article
+    title: "ProteoBench: the community-curated platform for comparing proteomics data analysis workflows"
+    year: 2025
+    doi: 10.64898/2025.12.09.692895
+    url: "https://www.biorxiv.org/content/10.64898/2025.12.09.692895v1"
+    notes: "Preprint. APB's vendor parsing builds on this work."
+    authors:
+      - family-names: Devreese
+        given-names: Robbe
+      - family-names: Jachmann
+        given-names: Caroline
+      - family-names: Van Puyvelde
+        given-names: Bart
+      - family-names: Anagho-Mattanovich
+        given-names: Holda A.
+      - family-names: Wolski
+        given-names: Witold E.
+      - family-names: Webel
+        given-names: Henry
+      - family-names: Anagho-Mattanovich
+        given-names: Matthias
+      - family-names: Bittremieux
+        given-names: Wout
+      - family-names: Chaoui
+        given-names: Karima
+      - family-names: Chiva
+        given-names: Cristina
+      - family-names: Claeys
+        given-names: Tine
+      - family-names: Castaneda Cortes
+        given-names: Hector Mauricio
+      - family-names: Devos
+        given-names: Simon
+      - family-names: Dhaenens
+        given-names: Maarten
+      - family-names: Doncheva
+        given-names: Nadezhda T.
+      - family-names: Dorfer
+        given-names: Viktoria
+      - family-names: Eisenacher
+        given-names: Martin
+      - family-names: Gabriels
+        given-names: Ralf
+      - family-names: Giai Gianetto
+        given-names: Quentin
+      - family-names: Hollenstein
+        given-names: David M.
+      - family-names: Jensen
+        given-names: Lars Juhl
+      - family-names: Kasalica
+        given-names: Vedran
+      - family-names: Langella
+        given-names: Olivier
+      - family-names: Lennartsson
+        given-names: Caroline
+      - family-names: Lux
+        given-names: Dominik
+      - family-names: Martens
+        given-names: Lennart
+      - family-names: Matondo
+        given-names: Mariette
+      - family-names: Mendes Maia
+        given-names: Teresa
+      - family-names: Mouton-Barbosa
+        given-names: Emmanuelle
+      - family-names: Nameni
+        given-names: Alireza
+      - family-names: Nielsen
+        given-names: Michael Lund
+      - family-names: Olsen
+        given-names: Jesper Velgaard
+      - family-names: Palmblad
+        given-names: Magnus
+      - family-names: Panse
+        given-names: Christian
+      - family-names: Perez-Riverol
+        given-names: Yasset
+      - family-names: Pominova
+        given-names: Marina
+      - family-names: Rykær
+        given-names: Martin
+      - family-names: Sabidó
+        given-names: Eduard
+      - family-names: Schessner
+        given-names: Julia
+      - family-names: Schneider
+        given-names: Martin
+      - family-names: Schwämmle
+        given-names: Veit
+      - family-names: Staes
+        given-names: An
+      - family-names: Strauss
+        given-names: Maximilian T.
+      - family-names: Van Den Bossche
+        given-names: Tim
+      - family-names: Van Puyenbroeck
+        given-names: Sam
+      - family-names: Velghe
+        given-names: Kevin
+      - family-names: Zhang
+        given-names: Runxuan
+      - family-names: Uszkoreit
+        given-names: Julian
+      - family-names: Bouwmeester
+        given-names: Robbin
+      - family-names: Locard-Paulet
+        given-names: Marie
