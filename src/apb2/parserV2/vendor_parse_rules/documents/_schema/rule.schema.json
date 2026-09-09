@@ -41,6 +41,34 @@
       "additionalProperties": false,
       "description": "Take the first non-null input value in declaration order.",
       "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "type": {
+          "$ref": "#/$defs/AxisColumnType",
+          "default": "string"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "roles": {
+          "items": {
+            "$ref": "#/$defs/SemanticRole"
+          },
+          "title": "Roles",
+          "type": "array"
+        },
         "how": {
           "const": "coalesce",
           "title": "How",
@@ -67,41 +95,45 @@
       "title": "Coalesce",
       "type": "object"
     },
-    "ColumnGroup": {
-      "additionalProperties": false,
-      "description": "Required, optional, typed, and computed columns for one axis.",
-      "properties": {
-        "select": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "title": "Select",
-          "type": "object"
+    "ColumnEntry": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/SourcedColumn"
         },
-        "optional_select": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "title": "Optional Select",
-          "type": "object"
+        {
+          "$ref": "#/$defs/Coalesce"
         },
-        "types": {
-          "additionalProperties": {
-            "$ref": "#/$defs/AxisColumnType"
-          },
-          "title": "Types",
-          "type": "object"
+        {
+          "$ref": "#/$defs/JoinNonempty"
         },
-        "computed": {
-          "items": {
-            "$ref": "#/$defs/ComputedColumn"
-          },
-          "title": "Computed",
-          "type": "array"
+        {
+          "$ref": "#/$defs/StrippedSequence"
+        },
+        {
+          "$ref": "#/$defs/ProformaSequence"
+        },
+        {
+          "$ref": "#/$defs/ProformaIon"
+        },
+        {
+          "$ref": "#/$defs/ProformaFragment"
         }
-      },
-      "title": "ColumnGroup",
-      "type": "object"
+      ]
+    },
+    "ColumnGroup": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/ColumnEntry"
+          },
+          "type": "array"
+        },
+        {
+          "$ref": "#/$defs/LegacyColumnGroup"
+        }
+      ],
+      "description": "One axis's columns, temporarily accepting schema-0.3 side maps.",
+      "title": "ColumnGroup"
     },
     "ColumnLabeledFragments": {
       "additionalProperties": false,
@@ -144,7 +176,7 @@
     },
     "ColumnRoles": {
       "additionalProperties": false,
-      "description": "Semantic variable columns needed by downstream canonical consumers.",
+      "description": "Schema-0.3 role map retained only while packaged rules migrate.",
       "properties": {
         "protein_assignment": {
           "anyOf": [
@@ -351,6 +383,34 @@
       "additionalProperties": false,
       "description": "Join non-empty input values with a separator.",
       "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "type": {
+          "$ref": "#/$defs/AxisColumnType",
+          "default": "string"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "roles": {
+          "items": {
+            "$ref": "#/$defs/SemanticRole"
+          },
+          "title": "Roles",
+          "type": "array"
+        },
         "how": {
           "const": "join_nonempty",
           "title": "How",
@@ -392,6 +452,42 @@
           "$ref": "#/$defs/FactorLayer"
         }
       ]
+    },
+    "LegacyColumnGroup": {
+      "additionalProperties": false,
+      "description": "Schema-0.3 side maps retained only while packaged rules migrate.",
+      "properties": {
+        "select": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Select",
+          "type": "object"
+        },
+        "optional_select": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Optional Select",
+          "type": "object"
+        },
+        "types": {
+          "additionalProperties": {
+            "$ref": "#/$defs/AxisColumnType"
+          },
+          "title": "Types",
+          "type": "object"
+        },
+        "computed": {
+          "items": {
+            "$ref": "#/$defs/ComputedColumn"
+          },
+          "title": "Computed",
+          "type": "array"
+        }
+      },
+      "title": "LegacyColumnGroup",
+      "type": "object"
     },
     "LongColumns": {
       "additionalProperties": false,
@@ -673,6 +769,34 @@
       "additionalProperties": false,
       "description": "Combine a ProForma ion and fragment label into a ProForma fragment.",
       "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "type": {
+          "$ref": "#/$defs/AxisColumnType",
+          "default": "string"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "roles": {
+          "items": {
+            "$ref": "#/$defs/SemanticRole"
+          },
+          "title": "Roles",
+          "type": "array"
+        },
         "how": {
           "const": "proforma_fragment",
           "title": "How",
@@ -705,6 +829,34 @@
       "additionalProperties": false,
       "description": "Combine a peptidoform and charge into a ProForma ion.",
       "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "type": {
+          "$ref": "#/$defs/AxisColumnType",
+          "default": "string"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "roles": {
+          "items": {
+            "$ref": "#/$defs/SemanticRole"
+          },
+          "title": "Roles",
+          "type": "array"
+        },
         "how": {
           "const": "proforma_ion",
           "title": "How",
@@ -737,6 +889,34 @@
       "additionalProperties": false,
       "description": "Expose the normalized ProForma peptidoform from one sequence input.",
       "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "type": {
+          "$ref": "#/$defs/AxisColumnType",
+          "default": "string"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "roles": {
+          "items": {
+            "$ref": "#/$defs/SemanticRole"
+          },
+          "title": "Roles",
+          "type": "array"
+        },
         "how": {
           "const": "proforma_sequence",
           "title": "How",
@@ -845,6 +1025,15 @@
       "title": "SearchParameterOverride",
       "type": "object"
     },
+    "SemanticRole": {
+      "description": "A semantic name that downstream consumers use to find declared data.",
+      "enum": [
+        "protein_assignment",
+        "fasta_accessions"
+      ],
+      "title": "SemanticRole",
+      "type": "string"
+    },
     "SiteListModifications": {
       "additionalProperties": false,
       "description": "Parallel modification-name and modification-site columns beside a sequence.",
@@ -911,10 +1100,74 @@
       "title": "SiteListModifications",
       "type": "object"
     },
+    "SourcedColumn": {
+      "additionalProperties": false,
+      "description": "One logical axis column read from one physical vendor column.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/AxisColumnType",
+          "default": "string"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "roles": {
+          "items": {
+            "$ref": "#/$defs/SemanticRole"
+          },
+          "title": "Roles",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "source"
+      ],
+      "title": "SourcedColumn",
+      "type": "object"
+    },
     "StrippedSequence": {
       "additionalProperties": false,
       "description": "Expose the modification-stripped peptide from one sequence input.",
       "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "type": {
+          "$ref": "#/$defs/AxisColumnType",
+          "default": "string"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "roles": {
+          "items": {
+            "$ref": "#/$defs/SemanticRole"
+          },
+          "title": "Roles",
+          "type": "array"
+        },
         "how": {
           "const": "stripped_sequence",
           "title": "How",

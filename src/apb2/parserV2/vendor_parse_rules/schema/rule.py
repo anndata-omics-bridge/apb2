@@ -21,7 +21,6 @@ from apb2.parserV2.vendor_parse_rules.schema.axis import (
     ProformaSequence,
     StrippedSequence,
     WideColumns,
-    group_names,
 )
 from apb2.parserV2.vendor_parse_rules.schema.base import (
     AxisColumnType,
@@ -38,6 +37,11 @@ from apb2.parserV2.vendor_parse_rules.schema.parameters import (
     ConditionValue,
     SearchParameterField,
     SearchParameterOverride,
+)
+from apb2.parserV2.vendor_parse_rules.schema.roles import (
+    RoleOwner,
+    SemanticRole,
+    role_is_allowed,
 )
 
 _SAMPLE_GROUP = "sample"
@@ -85,6 +89,8 @@ class LongRule(_RuleCore):
 
     @model_validator(mode="after")
     def _column_consistency(self) -> LongRule:
+        _check_role_config(self.columns.obs, "obs")
+        _check_role_config(self.columns.var, "var")
         _check_axis_keys(self.axis.obs_keys, self.columns.obs, "obs")
         _check_axis_keys(self.axis.var_keys, self.columns.var, "var")
         _check_column_roles(self.column_roles, self.columns.var)
@@ -103,7 +109,7 @@ class LongRule(_RuleCore):
         ]
         if sequence_derived:
             raise ValueError(f"sequence-derived computed columns are var-only: {sequence_derived}")
-        available = set(obs.select) | set(obs.optional_select)
+        available = {column.name for column in obs.sourced}
         for column in obs.computed:
             missing = [source for source in column.inputs if source not in available]
             if missing:
@@ -139,6 +145,7 @@ class WideRule(_RuleCore):
                     f"Layer {layer.name!r}: wide source must contain "
                     f"'(?P<{_SAMPLE_GROUP}>...)'; got {layer.source!r}"
                 )
+        _check_role_config(self.columns.var, "var")
         _check_axis_keys(self.axis.var_keys, self.columns.var, "var")
         _check_column_roles(self.column_roles, self.columns.var)
         _check_computed_columns(self, self.columns.var)
@@ -163,19 +170,20 @@ def rule_json_schema() -> dict[str, object]:
 
 
 def _check_axis_keys(keys: list[str], group: ColumnGroup, axis_name: str) -> None:
-    declared = set(group_names(group))
+    declared = set(group.names)
     missing = [key for key in keys if key not in declared]
     if missing:
         raise ValueError(
             f"axis.{axis_name}_keys must be declared in columns.{axis_name}: {missing}"
         )
-    optional = [key for key in keys if key in group.optional_select]
+    optional_names = {column.name for column in group.sourced if not column.required}
+    optional = [key for key in keys if key in optional_names]
     if optional:
         raise ValueError(f"axis.{axis_name}_keys must not be optional: {optional}")
 
 
 def _check_column_roles(roles: ColumnRoles, var: ColumnGroup) -> None:
-    declared = set(group_names(var))
+    declared = set(var.names)
     values = (
         ("protein_assignment", roles.protein_assignment),
         ("fasta_accessions", roles.fasta_accessions),
@@ -183,6 +191,39 @@ def _check_column_roles(roles: ColumnRoles, var: ColumnGroup) -> None:
     for role, column in values:
         if column is not None and column not in declared:
             raise ValueError(f"column_roles.{role} must name a declared var column; got {column!r}")
+        inline = _inline_role_columns(var).get(SemanticRole(role))
+        if inline is not None and column is not None and inline != column:
+            raise ValueError(
+                f"inline role {role!r} names {inline!r}, but column_roles names {column!r}"
+            )
+
+
+def _check_role_config(group: ColumnGroup, owner: RoleOwner) -> None:
+    declared: dict[SemanticRole, str] = {}
+    for entry in group.entries:
+        for role in entry.roles:
+            if not role_is_allowed(role, owner):
+                raise ValueError(f"role {role.value!r} is not allowed on columns.{owner}")
+            previous = declared.setdefault(role, entry.name)
+            if previous != entry.name:
+                raise ValueError(
+                    f"role {role.value!r} is declared by both {previous!r} and {entry.name!r}"
+                )
+
+
+def _inline_role_columns(group: ColumnGroup) -> dict[SemanticRole, str]:
+    return {role: entry.name for entry in group.entries for role in entry.roles}
+
+
+def column_role_names(rule: LongRule | WideRule) -> dict[str, str]:
+    """Semantic var roles projected into the stable downstream lookup shape."""
+    projected = {role.value: name for role, name in _inline_role_columns(rule.columns.var).items()}
+    legacy = {
+        "protein_assignment": rule.column_roles.protein_assignment,
+        "fasta_accessions": rule.column_roles.fasta_accessions,
+    }
+    projected.update({role: name for role, name in legacy.items() if name is not None})
+    return projected
 
 
 def _check_derived_not_selected(
@@ -192,9 +233,7 @@ def _check_derived_not_selected(
     if modifications is None:
         return
     selected = {
-        source
-        for group in groups
-        for source in (*group.select.values(), *group.optional_select.values())
+        column.source for group in groups for column in group.sourced
     } & modification_outputs(modifications)
     if selected:
         raise ValueError(
@@ -205,17 +244,16 @@ def _check_derived_not_selected(
 def _check_one_type_per_source(groups: tuple[ColumnGroup, ...]) -> None:
     declared: dict[str, AxisColumnType] = {}
     for group in groups:
-        for name, source in (group.select | group.optional_select).items():
-            logical_type = group.types.get(name, "string")
-            if declared.setdefault(source, logical_type) != logical_type:
+        for column in group.sourced:
+            if declared.setdefault(column.source, column.type) != column.type:
                 raise ValueError(
-                    f"vendor source {source!r} has conflicting logical types: "
-                    f"{declared[source]!r} and {logical_type!r}"
+                    f"vendor source {column.source!r} has conflicting logical types: "
+                    f"{declared[column.source]!r} and {column.type!r}"
                 )
 
 
 def _check_computed_columns(rule: _RuleCore, var: ColumnGroup) -> None:
-    available = set(var.select) | set(var.optional_select)
+    available = {column.name for column in var.sourced}
     if rule.fragments is not None:
         available.add(rule.fragments.label_output)
     for column in var.computed:
@@ -256,7 +294,11 @@ def _check_computed_column(
         if rule.quantification_level not in {"ion", "fragment"}:
             raise ValueError("how='proforma_ion' is valid only for ion or fragment rules")
         charge_column = column.inputs[1]
-        if var.types.get(charge_column, "string") != "integer":
+        charge_type = next(
+            (sourced.type for sourced in var.sourced if sourced.name == charge_column),
+            "string",
+        )
+        if charge_type != "integer":
             raise ValueError("how='proforma_ion' requires an integer charge source")
         if rule.quantification_level == "ion" and column.name not in rule.axis.var_keys:
             raise ValueError("computed ProForma ion must be an axis.var_keys member")

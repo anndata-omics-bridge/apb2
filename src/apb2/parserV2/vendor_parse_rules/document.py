@@ -100,7 +100,12 @@ class LongRecognition:
 
     def __init__(self, rule: LongRule) -> None:
         self._rule = rule
-        expected = set(rule.columns.obs.select.values()) | set(rule.columns.var.select.values())
+        expected = {
+            column.source
+            for group in (rule.columns.obs, rule.columns.var)
+            for column in group.sourced
+            if column.required
+        }
         expected.update(
             layer.source
             for layer in rule.measurements.layers
@@ -132,7 +137,8 @@ class WideRecognition:
     def __init__(self, rule: WideRule) -> None:
         self._rule = rule
         self._required_var = frozenset(
-            set(rule.columns.var.select.values()) - synthesized_columns(rule)
+            {column.source for column in rule.columns.var.sourced if column.required}
+            - synthesized_columns(rule)
         )
 
     def column_groups(self) -> tuple[tuple[AxisName, ColumnGroup], ...]:
@@ -436,16 +442,23 @@ def _merge_columns(base: JsonDict, level: JsonDict) -> JsonDict:
     for axis in ("obs", "var"):
         if axis not in base and axis not in level:
             continue
-        base_group = base.get(axis, {})
-        level_group = level.get(axis, {})
-        if not isinstance(base_group, dict) or not isinstance(level_group, dict):
+        if axis not in base:
+            columns[axis] = level[axis]
             continue
-        columns[axis] = _merge_blocks(
-            base_group,
-            level_group,
-            mappings=("select", "optional_select", "types"),
-            sequences=("computed",),
-        )
+        if axis not in level:
+            columns[axis] = base[axis]
+            continue
+        base_group = base[axis]
+        level_group = level[axis]
+        if isinstance(base_group, list) and isinstance(level_group, list):
+            columns[axis] = [*base_group, *level_group]
+        elif isinstance(base_group, dict) and isinstance(level_group, dict):
+            columns[axis] = _merge_blocks(
+                base_group,
+                level_group,
+                mappings=("select", "optional_select", "types"),
+                sequences=("computed",),
+            )
     return columns
 
 

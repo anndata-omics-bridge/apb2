@@ -31,9 +31,11 @@ from apb2.parserV2.vendor_parse_rules.schema.measurements import (
     RegexValuePattern,
     layer_required,
 )
+from apb2.parserV2.vendor_parse_rules.schema.roles import ROLE_CONFIG, SemanticRole
 from apb2.parserV2.vendor_parse_rules.schema.rule import (
     LongRule,
     WideRule,
+    column_role_names,
     rule_json_schema,
 )
 from apb2.parserV2.vendor_parse_rules.schema_artifact import artifact_path
@@ -63,6 +65,74 @@ def _without_primary_layer(rule: V2Rule) -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- migration parity
+
+
+def test_entry_shaped_columns_project_roles_and_runtime_selections(tmp_path: Path) -> None:
+    payload = _document_payload()
+    payload["base"]["columns"]["obs"] = [{"name": "sample", "source": "Sample"}]
+    payload["levels"]["ion"]["columns"]["var"] = [
+        {
+            "name": "feature",
+            "source": "Feature",
+            "type": "integer",
+            "roles": ["protein_assignment", "fasta_accessions"],
+        }
+    ]
+
+    document = make_rule_document(tmp_path / "rules.json", payload)
+    rule = document.declared("ion").declaration
+    working = ParseRuleFacade(document, "ion", NO_EVIDENCE).working_parameters
+
+    assert isinstance(rule, LongRule)
+    assert rule.columns.obs.names == ("sample",)
+    assert rule.columns.var.names == ("feature",)
+    assert working.var.columns.required_selections[0].logical_type == "integer"
+    assert working.provenance["column_roles"] == {
+        "protein_assignment": "feature",
+        "fasta_accessions": "feature",
+    }
+
+
+def test_role_configuration_allows_existing_roles_only_on_var() -> None:
+    assert {
+        SemanticRole.PROTEIN_ASSIGNMENT: frozenset({"var"}),
+        SemanticRole.FASTA_ACCESSIONS: frozenset({"var"}),
+    } == ROLE_CONFIG
+
+
+def test_entry_role_is_rejected_on_an_unconfigured_owner(tmp_path: Path) -> None:
+    payload = _document_payload()
+    payload["base"]["columns"]["obs"] = [
+        {
+            "name": "sample",
+            "source": "Sample",
+            "roles": ["protein_assignment"],
+        }
+    ]
+    payload["levels"]["ion"]["columns"]["var"] = [{"name": "feature", "source": "Feature"}]
+
+    with pytest.raises(ValidationError, match=r"not allowed on columns\.obs"):
+        _declared(payload, tmp_path)
+
+
+def test_one_role_cannot_name_two_columns(tmp_path: Path) -> None:
+    payload = _document_payload()
+    payload["base"]["columns"]["obs"] = [{"name": "sample", "source": "Sample"}]
+    payload["levels"]["ion"]["columns"]["var"] = [
+        {
+            "name": "feature",
+            "source": "Feature",
+            "roles": ["protein_assignment"],
+        },
+        {
+            "name": "protein",
+            "source": "Protein",
+            "roles": ["protein_assignment"],
+        },
+    ]
+
+    with pytest.raises(ValidationError, match="declared by both"):
+        _declared(payload, tmp_path)
 
 
 def test_the_migration_kept_every_document_and_every_level() -> None:
@@ -121,7 +191,10 @@ def _required_source(
     if isinstance(recognition, LongRecognition):
         return sorted(recognition.required_headers)[0]
     var_sources = {
-        source for _axis, group in recognition.column_groups() for source in group.select.values()
+        column.source
+        for _axis, group in recognition.column_groups()
+        for column in group.sourced
+        if column.required
     }
     return sorted(var_sources & set(header))[0]
 
@@ -204,10 +277,11 @@ def test_protein_assignment_names_the_group_not_its_accessions(
     fasta_accessions: str,
 ) -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == document_key)
-    roles = load_rule_document(pair.parser_v2_path).declared(level).declaration.column_roles
+    rule = load_rule_document(pair.parser_v2_path).declared(level).declaration
+    roles = column_role_names(rule)
 
-    assert roles.protein_assignment == protein_assignment
-    assert roles.fasta_accessions == fasta_accessions
+    assert roles["protein_assignment"] == protein_assignment
+    assert roles["fasta_accessions"] == fasta_accessions
 
 
 def test_spectronaut_fragment_exposes_its_parent_ion_identity() -> None:
