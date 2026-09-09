@@ -170,7 +170,9 @@ reformat(source: Path, target: Path, /) -> None
 ```
 
 These functions infer formats only from the supported suffixes. `reformat()` is a complete
-storage-only use case, not a vendor conversion function.
+storage-only use case, not a vendor conversion function. Both writes publish an adjacent compact `<artifact>.apb.json` representation.
+
+The public result facade also exposes `project_result(parsed, artifact=None)`, `sidecar_path(artifact)`, and `write_result_representation(parsed, artifact)` for consumers that need to inspect or republish the versioned representation explicitly. Omitting the artifact produces the same in-memory scientific document with `artifact: null`.
 
 ## Result model
 

@@ -38,6 +38,8 @@ writer_for(ResultFormat.DUCKDB).write(parsed, target)
 
 `read()` returns `ParsedLevels`. `write()` persists the supplied value and returns `None`.
 
+Low-level adapters write only their physical format. The path-inferred public writer below composes physical persistence with the compact JSON representation sidecar.
+
 ## Path-inferred conveniences
 
 Use the convenience functions when the paths already carry the format:
@@ -60,6 +62,22 @@ from apb2.parserV2.parse_quant.io.formats import reformat
 
 reformat(Path("results.parquet"), Path("results.duckdb"))
 ```
+
+Both `write_parsed_levels()` and `reformat()` automatically publish an adjacent `<artifact>.apb.json` document after the scientific artifact succeeds. The `apb2 convert` and `apb2 annotate` workflows use the same sidecar lifecycle.
+
+## Compact JSON representation
+
+The sidecar is a versioned scientific view with `format: "apb2-result-representation"` and `format_version: "2"`. It is derived from `ParsedLevels`, so h5ad, h5mu, Parquet, and DuckDB results expose the same semantic sections. `project_result(parsed)` also produces the document before a physical artifact exists; its `artifact` member is then `null`.
+
+It records the artifact basename, physical format and byte size; shared and per-level provenance; axis schemas, key columns and null counts; layer roles, primary status and shapes; aligned-slot schemas; annotation-table schemas; and feature-relation structure. Optional layer `unit` and `scale` values come from `ParsedLevel.metadata["layer_descriptors"][<layer>]` when a producer records them.
+
+Quantitative layers contain exact columnwise counts, moments, extrema and at most 100 per-observation box summaries. Whole-layer quartiles use linear interpolation over either all finite values or a deterministic grid sample capped at 100,000 finite cells; nulls and nonfinite cells consume none of that budget. The method, emitted sample count and limit are explicit. NaN, positive infinity and negative infinity are counted separately and excluded. Categorical layers contain only their declared category count and fixed-size known versus missing-or-unknown counts; category codes never receive numerical statistics or box summaries.
+
+The representation never contains matrix cells, complete observation or variable rows, distinct/category values, absolute filesystem paths in path-bearing provenance fields, or generated timestamps. At most 100 observation identities appear once in each level and quantitative summaries refer to them by index. Every bounded collection records total, emitted and truncated status. Absolute values stored under `path`, `paths`, `*_path`, or `*_paths` fields are reduced to their basename; slash-prefixed separators and patterns in other fields retain their exact meaning.
+
+Provenance containers that AnnData persistence stores as JSON text (`rule_json`, `plan_json`, `search_parameters`, and aggregation metadata) are projected back into JSON objects or arrays. Invalid and scalar JSON text remains text, and the scientific artifact's stored `.uns` and extension metadata are not changed.
+
+Sidecar publication invalidates any previous sidecar after the new scientific artifact succeeds, then uses a temporary file plus atomic replacement. If projection or publication fails, the producing call fails, the newly valid scientific artifact remains, and no stale sidecar can describe it.
 
 ## Format contracts
 
@@ -116,7 +134,8 @@ Parquet and DuckDB preserve the represented `ParsedLevels` value exactly, includ
 
 h5ad and h5mu intentionally apply the matrix encoding stored with the parsed result. Numeric text
 becomes numeric values, configured factor strings become codes, and configured missing sentinels
-become missing matrix entries. Reading and rewriting that projected representation is idempotent,
-but it cannot recover the original layer tokens.
+become missing matrix entries. Reading, representing, rewriting, or reformatting that projected
+representation preserves its quantitative-versus-factor semantics and passes stored factor codes
+through without encoding them again, but it cannot recover the original layer tokens.
 
 See the [Python API](api.md) for signatures and result types.

@@ -12,6 +12,7 @@ import pytest
 from apb2.cli import ConvertCliOptions, convert
 from apb2.parserV2.conversion_facade import ConversionError
 from apb2.parserV2.parse_quant.io.anndata_writer import NAMESPACE, PARSE_NAMESPACE
+from apb2.parserV2.parse_quant.io.json_representation import sidecar_path
 
 _DOCUMENT = {
     "schema_version": "0.3",
@@ -86,6 +87,11 @@ def test_convert_with_rule_config_writes_h5ad(tmp_path: Path) -> None:
     namespace = written.uns[NAMESPACE][PARSE_NAMESPACE]
     assert namespace["rule_selection_method"] == "rule_config"
     assert namespace["software_name"] == "CliTest"
+    representation = json.loads(sidecar_path(tmp_path / "out.h5ad").read_text())
+    assert representation["levels"][0]["dimensions"] == {
+        "observations": 2,
+        "variables": 2,
+    }
 
 
 def test_convert_without_a_level_writes_every_rule_level_as_mudata(tmp_path: Path) -> None:
@@ -106,6 +112,8 @@ def test_convert_without_a_level_writes_every_rule_level_as_mudata(tmp_path: Pat
         "ion",
         "protein",
     ]
+    representation = json.loads(sidecar_path(tmp_path / "out.h5mu").read_text())
+    assert [level["name"] for level in representation["levels"]] == ["ion", "protein"]
 
 
 def test_convert_without_a_level_keeps_one_compatible_level_in_mudata(tmp_path: Path) -> None:

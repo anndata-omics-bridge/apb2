@@ -46,6 +46,10 @@ from apb2.parserV2.parse_quant.io.errors import (
     AnnDataLayerContractError,
     InvalidResultError,
 )
+from apb2.parserV2.parse_quant.io.layer_representation import (
+    categorical_representation,
+    quantitative_representation,
+)
 from apb2.parserV2.parse_quant.io.metadata import (
     MATRIX_PROJECTED_KEY,
     NAMESPACE,
@@ -88,6 +92,20 @@ class AnnDataLayerEncoder(Protocol):
     """Encode one layer's value block for AnnData, preserving its shape and column order."""
 
     def encode(self, values: pl.DataFrame, /) -> pl.DataFrame: ...
+
+    def projected(self) -> AnnDataLayerEncoder:
+        """Return the encoder for values already projected into matrix storage."""
+        ...
+
+    def representation(
+        self,
+        values: pl.DataFrame,
+        /,
+        *,
+        observation_limit: int,
+    ) -> dict[str, JsonValue]:
+        """Describe encoded values according to this encoder's scientific semantics."""
+        ...
 
 
 class AnnDataLayerContractChecker(Protocol):
@@ -189,6 +207,23 @@ class PlainNumericAnnDataEncoder:
             ]
         )
 
+    def representation(
+        self,
+        values: pl.DataFrame,
+        /,
+        *,
+        observation_limit: int,
+    ) -> dict[str, JsonValue]:
+        """Return bounded quantitative summaries of this encoded layer."""
+        return quantitative_representation(
+            self.encode(values),
+            observation_limit=observation_limit,
+        )
+
+    def projected(self) -> AnnDataLayerEncoder:
+        """Return a pass-through encoder for already numeric matrix values."""
+        return ProjectedNumericAnnDataEncoder(layer_name=self.layer_name)
+
     @staticmethod
     def _temporary_labels(
         prefix: str,
@@ -235,6 +270,23 @@ class RegexNumericAnnDataEncoder:
             ]
         )
 
+    def representation(
+        self,
+        values: pl.DataFrame,
+        /,
+        *,
+        observation_limit: int,
+    ) -> dict[str, JsonValue]:
+        """Return bounded quantitative summaries of this encoded layer."""
+        return quantitative_representation(
+            self.encode(values),
+            observation_limit=observation_limit,
+        )
+
+    def projected(self) -> AnnDataLayerEncoder:
+        """Return a pass-through encoder for already extracted matrix values."""
+        return ProjectedNumericAnnDataEncoder(layer_name=self.layer_name)
+
 
 @dataclass(frozen=True, slots=True)
 class FactorAnnDataEncoder:
@@ -254,6 +306,87 @@ class FactorAnnDataEncoder:
                 for column in values.columns
             ]
         )
+
+    def representation(
+        self,
+        values: pl.DataFrame,
+        /,
+        *,
+        observation_limit: int,
+    ) -> dict[str, JsonValue]:
+        """Return fixed-size categorical counts without interpreting codes as quantities."""
+        del observation_limit
+        return categorical_representation(
+            self.encode(values),
+            category_count=len(self.categories),
+            valid_codes=tuple(code for _label, code in self.categories),
+        )
+
+    def projected(self) -> AnnDataLayerEncoder:
+        """Preserve factor semantics while passing already encoded codes through."""
+        return ProjectedFactorAnnDataEncoder(
+            layer_name=self.layer_name,
+            valid_codes=tuple(code for _label, code in self.categories),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectedNumericAnnDataEncoder:
+    """Pass already projected quantitative matrix values through unchanged."""
+
+    layer_name: str
+
+    def encode(self, values: pl.DataFrame, /) -> pl.DataFrame:
+        _require_numeric_values(self.layer_name, values)
+        return values
+
+    def representation(
+        self,
+        values: pl.DataFrame,
+        /,
+        *,
+        observation_limit: int,
+    ) -> dict[str, JsonValue]:
+        """Return bounded quantitative summaries without re-encoding values."""
+        return quantitative_representation(
+            self.encode(values),
+            observation_limit=observation_limit,
+        )
+
+    def projected(self) -> AnnDataLayerEncoder:
+        """Return this already projected encoder."""
+        return self
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectedFactorAnnDataEncoder:
+    """Pass projected factor codes through while retaining categorical semantics."""
+
+    layer_name: str
+    valid_codes: tuple[int, ...]
+
+    def encode(self, values: pl.DataFrame, /) -> pl.DataFrame:
+        _require_numeric_values(self.layer_name, values)
+        return values
+
+    def representation(
+        self,
+        values: pl.DataFrame,
+        /,
+        *,
+        observation_limit: int,
+    ) -> dict[str, JsonValue]:
+        """Count only declared factor codes as known categorical values."""
+        del observation_limit
+        return categorical_representation(
+            self.encode(values),
+            category_count=len(self.valid_codes),
+            valid_codes=self.valid_codes,
+        )
+
+    def projected(self) -> AnnDataLayerEncoder:
+        """Return this already projected encoder."""
+        return self
 
 
 # -------------------------------------------------------------------------- contract checks
@@ -691,6 +824,30 @@ def quantitative_layer_values(parsed: ParsedLevel, layer_name: str, /) -> pl.Dat
     return writer.encoders[layer_name].encode(_layer_value_block(layer))
 
 
+def represent_layer_values(
+    parsed: ParsedLevel,
+    layer_name: str,
+    /,
+    *,
+    observation_limit: int,
+) -> dict[str, JsonValue]:
+    """Describe one layer through the semantics selected by its stored encoder plan.
+
+    The encoder is the single composition boundary that knows whether encoded scalars are
+    quantities or category codes. Consumers receive the appropriate representation directly
+    and do not redispatch on the stored encoding kind.
+    """
+    try:
+        layer = parsed.layers[layer_name]
+    except KeyError as error:
+        raise AnnDataPlanError(f"level has no layer {layer_name!r}") from error
+    writer = _ann_data_writer_from_stored_plan(parsed)
+    return writer.encoders[layer_name].representation(
+        _layer_value_block(layer),
+        observation_limit=observation_limit,
+    )
+
+
 def numeric_result_level(parsed: ParsedLevel, /) -> ParsedLevel:
     """Mark a level whose complete layer set is already numeric for future writers.
 
@@ -878,15 +1035,11 @@ def _ann_data_writer_from_stored_plan(parsed: ParsedLevel) -> AnnDataWriter:
     if not isinstance(raw_encodings, list):
         raise AnnDataPlanError("stored AnnData plan has no layer_encodings list")
     encoders: dict[str, AnnDataLayerEncoder] = {}
-    if projected:
-        encoders = {
-            name: _plain_numeric_encoder_for(layer) for name, layer in parsed.layers.items()
-        }
-    else:
-        for raw_encoding in raw_encodings:
-            encoding = object_mapping(raw_encoding, "stored layer encoding")
-            name = string_value(encoding.get("layer_name"), "stored layer name")
-            encoders[name] = _encoder_from_stored_config(name, encoding)
+    for raw_encoding in raw_encodings:
+        encoding = object_mapping(raw_encoding, "stored layer encoding")
+        name = string_value(encoding.get("layer_name"), "stored layer name")
+        encoder = _encoder_from_stored_config(name, encoding)
+        encoders[name] = encoder.projected() if projected else encoder
     contract = object_mapping(ann_data.get("layer_contract"), "stored layer contract")
     policy = OccupancyPolicy(
         primary_layer_name=string_value(contract.get("primary_layer_name"), "stored primary layer"),
@@ -905,18 +1058,22 @@ def _ann_data_writer_from_stored_plan(parsed: ParsedLevel) -> AnnDataWriter:
 
 def _plain_numeric_encoder_for(layer: FinalLayerTable) -> PlainNumericAnnDataEncoder:
     values = _layer_value_block(layer)
-    nonnumeric = [
-        name for name, dtype in values.schema.items() if dtype != pl.Null and not dtype.is_numeric()
-    ]
-    if nonnumeric:
-        raise AnnDataPlanError(
-            f"unplanned layer {layer.layer_name!r} is not already numeric in column(s) {nonnumeric}"
-        )
+    _require_numeric_values(layer.layer_name, values)
     return PlainNumericAnnDataEncoder(
         layer_name=layer.layer_name,
         missing_values=(),
         number_format=NumberNotation(decimal_mark=".", thousands_marks=()),
     )
+
+
+def _require_numeric_values(layer_name: str, values: pl.DataFrame, /) -> None:
+    nonnumeric = [
+        name for name, dtype in values.schema.items() if dtype != pl.Null and not dtype.is_numeric()
+    ]
+    if nonnumeric:
+        raise AnnDataPlanError(
+            f"unplanned layer {layer_name!r} is not already numeric in column(s) {nonnumeric}"
+        )
 
 
 def _derived_occupancy_policy(parsed: ParsedLevel) -> OccupancyPolicy:
@@ -946,6 +1103,10 @@ def _encoder_from_stored_config(
                 or not isinstance(raw_category[1], int)
             ):
                 raise AnnDataPlanError(f"factor layer {layer_name!r} has an invalid category")
+            if raw_category[1] == UNKNOWN_FACTOR_CODE:
+                raise AnnDataPlanError(
+                    f"factor layer {layer_name!r} uses reserved missing code {UNKNOWN_FACTOR_CODE}"
+                )
             categories.append((raw_category[0], raw_category[1]))
         return FactorAnnDataEncoder(layer_name=layer_name, categories=tuple(categories))
     missing_values = tuple(

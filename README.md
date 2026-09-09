@@ -106,7 +106,7 @@ write_parsed_levels(parsed, Path("result.duckdb"))
 ```
 
 Parquet and DuckDB preserve Polars result values exactly; h5ad and h5mu apply the stored
-numeric/factor matrix projection. See the [Python API reference](docs/api.md) for vendor
+numeric/factor matrix projection. Every public result write also publishes an adjacent compact `.apb.json` scientific representation for inspection without loading the full result. See the [Python API reference](docs/api.md) for vendor
 conversion, annotation, result values, and errors.
 
 ## Architecture

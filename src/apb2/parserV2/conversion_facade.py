@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Literal, cast
 
@@ -36,6 +37,7 @@ from apb2.parserV2.parse_quant.fragments import PackedLengthError
 from apb2.parserV2.parse_quant.io import formats
 from apb2.parserV2.parse_quant.io.anndata_writer import MuDataLevelError
 from apb2.parserV2.parse_quant.io.errors import AnnDataLayerContractError, ResultIOError
+from apb2.parserV2.parse_quant.io.json_representation import write_result_with_representation
 from apb2.parserV2.parse_quant.modifications import (
     PackedSiteMismatchError,
     UnknownModificationError,
@@ -316,7 +318,11 @@ def _parse_and_write(
     )
     parsed = parser.parse()
     parsed.uns.update(_shared_parse_provenance(selection_method, parameters, parameters_path))
-    parser.convert(parsed, output)
+    write_result_with_representation(
+        ParsedLevels(levels={level: parsed}, uns={}),
+        output,
+        partial(parser.convert, parsed, output),
+    )
     return parsed
 
 
@@ -354,7 +360,11 @@ def _parse_all_and_write(
             "quantification_levels": [str(level) for level in levels],
         },
     )
-    writer.write(combined, output)
+    write_result_with_representation(
+        combined,
+        output,
+        partial(writer.write, combined, output),
+    )
     return combined
 
 

@@ -1,5 +1,7 @@
 # Changes
 
+- 2026-09-09: Every public APB2 result write now publishes an adjacent, atomic `<artifact>.apb.json` scientific representation. Version 2 is projected from storage-neutral `ParsedLevels`; records schemas, dimensions, provenance, structural slots, and layer roles; restores known JSON-text provenance fields as structured objects or arrays; distinguishes quantitative summaries from fixed-size categorical counts; stores bounded observation identities once per level; and labels bounded deterministic quartile samples explicitly. Only finite cells consume the quartile-sample budget, and factor semantics survive APB-authored result reads, rewrites, and reformats without re-encoding stored category codes. A failed replacement invalidates the old sidecar while retaining the new scientific artifact. Conversion and reformatting use the same projection across h5ad, h5mu, Parquet, and DuckDB.
+
 - 2026-09-04 (evening, second): Added a packaged MaxQuant `modificationSpecificPeptides.txt` rule
   producing the `peptidoform` level — the first wide-table peptidoform. The table carries
   modification names and counts but no positions ("2 Oxidation (M)"), so a positioned

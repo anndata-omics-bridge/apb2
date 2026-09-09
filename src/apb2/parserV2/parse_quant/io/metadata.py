@@ -99,6 +99,24 @@ def table_metadata(frame: pl.DataFrame, file_name: str, /) -> dict[str, JsonValu
     }
 
 
+def column_descriptions(frame: pl.DataFrame, /) -> list[dict[str, JsonValue]]:
+    """Describe logical columns without exposing table values or physical storage names."""
+    return [
+        {
+            "name": name,
+            "dtype": _public_dtype_name(frame.schema[name]),
+            "null_count": frame.get_column(name).null_count(),
+        }
+        for name in frame.columns
+    ]
+
+
+def _public_dtype_name(dtype: pl.DataType, /) -> str:
+    """Name a dtype without embedding an Enum's complete category vocabulary."""
+    description = str(dtype)
+    return str(dtype.base_type()) if "Enum(categories=" in description else description
+
+
 def restore_table_schema(
     frame: pl.DataFrame,
     metadata: Mapping[str, object],

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from functools import partial
 from pathlib import Path
 from typing import Protocol
 
@@ -13,6 +14,7 @@ from apb2.parserV2.parse_quant.io.anndata_reader import H5adReader, H5muReader
 from apb2.parserV2.parse_quant.io.anndata_writer import H5adWriter, H5muWriter
 from apb2.parserV2.parse_quant.io.duckdb import DuckDBReader, DuckDBWriter
 from apb2.parserV2.parse_quant.io.errors import UnsupportedResultFormatError
+from apb2.parserV2.parse_quant.io.json_representation import write_result_with_representation
 from apb2.parserV2.parse_quant.io.parquet_reader import ParquetReader
 from apb2.parserV2.parse_quant.io.parquet_writer import ParquetLevelsWriter
 
@@ -85,14 +87,19 @@ def read_parsed_levels(source: Path, /) -> ParsedLevels:
 
 
 def write_parsed_levels(parsed: ParsedLevels, target: Path, /) -> None:
-    """Write a result after inferring its format from the destination path."""
-    writer_for(result_format_for(target)).write(parsed, target)
+    """Write a result and its compact APB JSON representation sidecar."""
+    writer = writer_for(result_format_for(target))
+    write_result_with_representation(
+        parsed,
+        target,
+        partial(writer.write, parsed, target),
+    )
 
 
 def reformat(source: Path, target: Path, /) -> None:
     """Read one APB2 result and write the same value through another format adapter."""
     input_format = result_format_for(source)
-    output_format = result_format_for(target)
+    result_format_for(target)
     parsed = reader_for(input_format).read(source)
     for level, value in parsed.levels.items():
         logger.info(
@@ -102,5 +109,5 @@ def reformat(source: Path, target: Path, /) -> None:
             value.var.frame.height,
             list(value.layers),
         )
-    writer_for(output_format).write(parsed, target)
+    write_parsed_levels(parsed, target)
     logger.info("reformatted {} -> {}", source, target)
