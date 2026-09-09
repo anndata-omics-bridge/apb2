@@ -24,14 +24,14 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field
 
 from apb2.parserV2.vendor_parse_rules.schema.annotation import SampleAnnotation
-from apb2.parserV2.vendor_parse_rules.schema.axis import ColumnGroup, sourced_columns
+from apb2.parserV2.vendor_parse_rules.schema.axis import ColumnGroup
 from apb2.parserV2.vendor_parse_rules.schema.base import (
-    SCHEMA_VERSION,
     ModelBase,
     QuantificationLevel,
+    SchemaVersion,
 )
 from apb2.parserV2.vendor_parse_rules.schema.base_modifications import modification_outputs
 from apb2.parserV2.vendor_parse_rules.schema.fragments import ColumnLabeledFragments
@@ -103,8 +103,8 @@ class LongRecognition:
         expected = {
             column.source
             for group in (rule.columns.obs, rule.columns.var)
-            for column in sourced_columns(group)
-            if column.required
+            for column in group
+            if column.source is not None and column.required
         }
         expected.update(
             layer.source
@@ -137,7 +137,11 @@ class WideRecognition:
     def __init__(self, rule: WideRule) -> None:
         self._rule = rule
         self._required_var = frozenset(
-            {column.source for column in sourced_columns(rule.columns.var) if column.required}
+            {
+                column.source
+                for column in rule.columns.var
+                if column.source is not None and column.required
+            }
             - synthesized_columns(rule)
         )
 
@@ -213,7 +217,7 @@ class _RuleDocumentSchema(ModelBase):
     """
 
     path: Path
-    schema_version: str
+    schema_version: SchemaVersion
     file_version: str
     software_name: str
     software_version_pattern: str
@@ -221,15 +225,6 @@ class _RuleDocumentSchema(ModelBase):
     sample_annotation: SampleAnnotation | None = None
     base: JsonDict
     levels: dict[QuantificationLevel, JsonDict] = Field(min_length=1)
-
-    @model_validator(mode="after")
-    def _is_this_generation(self) -> _RuleDocumentSchema:
-        if self.schema_version != SCHEMA_VERSION:
-            raise ValueError(
-                f"{self.path}: schema_version must be {SCHEMA_VERSION!r} for this rule "
-                f"package; got {self.schema_version!r}"
-            )
-        return self
 
 
 class RuleDocument:

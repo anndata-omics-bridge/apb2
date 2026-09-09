@@ -120,10 +120,8 @@ from apb2.parserV2.vendor_parse_rules.schema.axis import (
     JoinNonempty,
     ProformaIon,
     ProformaSequence,
-    SourcedColumn,
     StrippedSequence,
     computed_columns,
-    sourced_columns,
 )
 from apb2.parserV2.vendor_parse_rules.schema.base_formats import (
     DELIMITED_BASE_FORMATS,
@@ -143,11 +141,7 @@ from apb2.parserV2.vendor_parse_rules.schema.measurements import (
     RegexValuePattern,
     layer_required,
 )
-from apb2.parserV2.vendor_parse_rules.schema.rule import (
-    LongRule,
-    WideRule,
-    column_role_names,
-)
+from apb2.parserV2.vendor_parse_rules.schema.rule import LongRule, WideRule
 
 PRODUCER = "apb2"
 """What this package writes as ``uns['apb']['parse']['produced_by']``.
@@ -328,13 +322,13 @@ class ParseRuleFacade:
             else (rule.columns.var,)
         )
         for group in groups:
-            physical.update(column.source for column in sourced_columns(group))
+            physical.update(column.source for column in group if column.source is not None)
         if isinstance(fragments, ColumnLabeledFragments):
             physical.add(fragments.label_column)
             selected_label = [
                 column.name
                 for group in groups
-                for column in sourced_columns(group)
+                for column in group
                 if column.source == fragments.label_column
             ]
             if selected_label:
@@ -392,12 +386,8 @@ class ParseRuleFacade:
         return WorkingAxisConfiguration(
             final_key_columns=tuple(keys),
             columns=AxisColumnDeclaration(
-                required_selections=ParseRuleFacade._project_selections(
-                    column for column in sourced_columns(group) if column.required
-                ),
-                optional_selections=ParseRuleFacade._project_selections(
-                    column for column in sourced_columns(group) if not column.required
-                ),
+                required_selections=ParseRuleFacade._project_selections(group, required=True),
+                optional_selections=ParseRuleFacade._project_selections(group, required=False),
                 computed=tuple(
                     ParseRuleFacade._project_computed(column, rule)
                     for column in computed_columns(group)
@@ -408,7 +398,7 @@ class ParseRuleFacade:
 
     @staticmethod
     def _project_selections(
-        declared: Iterable[SourcedColumn],
+        group: ColumnGroup, *, required: bool
     ) -> tuple[AxisColumnSelection, ...]:
         return tuple(
             AxisColumnSelection(
@@ -416,7 +406,8 @@ class ParseRuleFacade:
                 source=column.source,
                 logical_type=column.type,
             )
-            for column in declared
+            for column in group
+            if column.source is not None and column.required is required
         )
 
     @staticmethod
@@ -584,12 +575,12 @@ class ParseRuleFacade:
         cannot. Stating both as data is what lets ``apb fasta`` and ``apb proteobench`` run on
         an object this parser wrote.
         """
-        roles: dict[str, JsonValue] = {}
-        roles.update(column_role_names(rule))
         provenance: dict[str, JsonValue] = {
             "produced_by": PRODUCER,
             "rule_json": json.dumps(rule.model_dump(mode="json")),
-            "column_roles": roles,
+            "column_roles": {
+                role: entry.name for entry in rule.columns.var for role in entry.roles
+            },
             "schema_version": rule.schema_version,
             "software_name": rule.software_name,
             "shape": rule.shape,

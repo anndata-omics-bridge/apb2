@@ -21,12 +21,12 @@ from apb2.parserV2.vendor_parse_rules.schema.axis import (
     StrippedSequence,
     WideColumns,
     computed_columns,
-    sourced_columns,
 )
 from apb2.parserV2.vendor_parse_rules.schema.base import (
     AxisColumnType,
     ModelBase,
     QuantificationLevel,
+    SchemaVersion,
 )
 from apb2.parserV2.vendor_parse_rules.schema.base_modifications import (
     Modifications,
@@ -40,9 +40,9 @@ from apb2.parserV2.vendor_parse_rules.schema.parameters import (
     SearchParameterOverride,
 )
 from apb2.parserV2.vendor_parse_rules.schema.roles import (
+    ROLE_CONFIG,
     RoleOwner,
     SemanticRole,
-    role_is_allowed,
 )
 
 _SAMPLE_GROUP = "sample"
@@ -51,7 +51,7 @@ _SAMPLE_GROUP = "sample"
 class _RuleCore(ModelBase):
     """Fields shared by long and wide effective rules."""
 
-    schema_version: str
+    schema_version: SchemaVersion
     file_version: str
     software_name: str
     software_version_pattern: str
@@ -59,7 +59,6 @@ class _RuleCore(ModelBase):
     axis: Axis
     measurements: Measurements
     modifications: Modifications | None = None
-    fragments: Fragments | None = None
     requires_search_parameters: dict[SearchParameterField, ConditionValue] = Field(
         default_factory=dict
     )
@@ -76,8 +75,6 @@ class _RuleCore(ModelBase):
                 f"measurements.primary_layer={self.measurements.primary_layer!r} matches no "
                 f"layer; available: {sorted(names)}"
             )
-        if self.fragments is not None and self.quantification_level != "fragment":
-            raise ValueError("fragments are valid only for quantification_level='fragment'")
         return self
 
 
@@ -86,13 +83,14 @@ class LongRule(_RuleCore):
 
     shape: Literal["long"]
     columns: LongColumns
+    fragments: Fragments | None = None
 
     @model_validator(mode="after")
     def _column_consistency(self) -> LongRule:
-        _check_role_config(self.columns.obs, "obs")
-        _check_role_config(self.columns.var, "var")
-        _check_axis_keys(self.axis.obs_keys, self.columns.obs, "obs")
-        _check_axis_keys(self.axis.var_keys, self.columns.var, "var")
+        if self.fragments is not None and self.quantification_level != "fragment":
+            raise ValueError("fragments are valid only for quantification_level='fragment'")
+        _check_column_group(self.axis.obs_keys, self.columns.obs, "obs")
+        _check_column_group(self.axis.var_keys, self.columns.var, "var")
         _check_computed_columns(self, self.columns.var)
         self._check_obs_computed_columns(self.columns.obs)
         _check_derived_not_selected(self.modifications, (self.columns.obs, self.columns.var))
@@ -108,7 +106,7 @@ class LongRule(_RuleCore):
         ]
         if sequence_derived:
             raise ValueError(f"sequence-derived computed columns are var-only: {sequence_derived}")
-        available = {column.name for column in sourced_columns(obs)}
+        available = {column.name for column in obs if column.source is not None}
         for column in computed_columns(obs):
             missing = [source for source in column.inputs if source not in available]
             if missing:
@@ -123,12 +121,7 @@ class WideRule(_RuleCore):
 
     shape: Literal["wide"]
     columns: WideColumns
-
-    @model_validator(mode="after")
-    def _no_fragments_on_wide(self) -> WideRule:
-        if self.fragments is not None:
-            raise ValueError("fragments require a long rule")
-        return self
+    fragments: None = None
 
     @model_validator(mode="after")
     def _column_consistency(self) -> WideRule:
@@ -144,8 +137,7 @@ class WideRule(_RuleCore):
                     f"Layer {layer.name!r}: wide source must contain "
                     f"'(?P<{_SAMPLE_GROUP}>...)'; got {layer.source!r}"
                 )
-        _check_role_config(self.columns.var, "var")
-        _check_axis_keys(self.axis.var_keys, self.columns.var, "var")
+        _check_column_group(self.axis.var_keys, self.columns.var, "var")
         _check_computed_columns(self, self.columns.var)
         _check_derived_not_selected(self.modifications, (self.columns.var,))
         _check_one_type_per_source((self.columns.var,))
@@ -167,39 +159,28 @@ def rule_json_schema() -> dict[str, object]:
     return _RULE_ADAPTER.json_schema()
 
 
-def _check_axis_keys(keys: list[str], group: ColumnGroup, axis_name: str) -> None:
-    declared = {entry.name for entry in group}
+def _check_column_group(keys: list[str], group: ColumnGroup, owner: RoleOwner) -> None:
+    names = [entry.name for entry in group]
+    if len(set(names)) != len(names):
+        raise ValueError("column entry names must be unique")
+    declared = set(names)
     missing = [key for key in keys if key not in declared]
     if missing:
-        raise ValueError(
-            f"axis.{axis_name}_keys must be declared in columns.{axis_name}: {missing}"
-        )
-    optional_names = {column.name for column in sourced_columns(group) if not column.required}
+        raise ValueError(f"axis.{owner}_keys must be declared in columns.{owner}: {missing}")
+    optional_names = {
+        column.name for column in group if column.source is not None and not column.required
+    }
     optional = [key for key in keys if key in optional_names]
     if optional:
-        raise ValueError(f"axis.{axis_name}_keys must not be optional: {optional}")
-
-
-def _check_role_config(group: ColumnGroup, owner: RoleOwner) -> None:
-    declared: dict[SemanticRole, str] = {}
-    for entry in group:
-        for role in entry.roles:
-            if not role_is_allowed(role, owner):
-                raise ValueError(f"role {role.value!r} is not allowed on columns.{owner}")
-            previous = declared.setdefault(role, entry.name)
-            if previous != entry.name:
-                raise ValueError(
-                    f"role {role.value!r} is declared by both {previous!r} and {entry.name!r}"
-                )
-
-
-def _inline_role_columns(group: ColumnGroup) -> dict[SemanticRole, str]:
-    return {role: entry.name for entry in group for role in entry.roles}
-
-
-def column_role_names(rule: LongRule | WideRule) -> dict[str, str]:
-    """Semantic var roles projected into the stable downstream lookup shape."""
-    return {role.value: name for role, name in _inline_role_columns(rule.columns.var).items()}
+        raise ValueError(f"axis.{owner}_keys must not be optional: {optional}")
+    role_columns: list[tuple[SemanticRole, str]] = [
+        (role, entry.name) for entry in group for role in entry.roles
+    ]
+    invalid = sorted({role for role, _name in role_columns if owner not in ROLE_CONFIG[role]})
+    if invalid:
+        raise ValueError(f"roles are not allowed on columns.{owner}: {invalid}")
+    if len(dict(role_columns)) != len(role_columns):
+        raise ValueError(f"roles must be unique on columns.{owner}")
 
 
 def _check_derived_not_selected(
@@ -209,7 +190,7 @@ def _check_derived_not_selected(
     if modifications is None:
         return
     selected = {
-        column.source for group in groups for column in sourced_columns(group)
+        column.source for group in groups for column in group if column.source is not None
     } & modification_outputs(modifications)
     if selected:
         raise ValueError(
@@ -220,7 +201,9 @@ def _check_derived_not_selected(
 def _check_one_type_per_source(groups: tuple[ColumnGroup, ...]) -> None:
     declared: dict[str, AxisColumnType] = {}
     for group in groups:
-        for column in sourced_columns(group):
+        for column in group:
+            if column.source is None:
+                continue
             if declared.setdefault(column.source, column.type) != column.type:
                 raise ValueError(
                     f"vendor source {column.source!r} has conflicting logical types: "
@@ -228,8 +211,8 @@ def _check_one_type_per_source(groups: tuple[ColumnGroup, ...]) -> None:
                 )
 
 
-def _check_computed_columns(rule: _RuleCore, var: ColumnGroup) -> None:
-    available = {column.name for column in sourced_columns(var)}
+def _check_computed_columns(rule: LongRule | WideRule, var: ColumnGroup) -> None:
+    available = {column.name for column in var if column.source is not None}
     if rule.fragments is not None:
         available.add(rule.fragments.label_output)
     for column in computed_columns(var):
@@ -269,12 +252,8 @@ def _check_computed_column(
     if isinstance(column, ProformaIon):
         if rule.quantification_level not in {"ion", "fragment"}:
             raise ValueError("how='proforma_ion' is valid only for ion or fragment rules")
-        charge_column = column.inputs[1]
-        charge_type = next(
-            (sourced.type for sourced in sourced_columns(var) if sourced.name == charge_column),
-            "string",
-        )
-        if charge_type != "integer":
+        source_types = {entry.name: entry.type for entry in var if entry.source is not None}
+        if source_types.get(column.inputs[1]) != "integer":
             raise ValueError("how='proforma_ion' requires an integer charge source")
         if rule.quantification_level == "ion" and column.name not in rule.axis.var_keys:
             raise ValueError("computed ProForma ion must be an axis.var_keys member")

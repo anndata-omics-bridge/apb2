@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, Field, model_validator
+from pydantic import Field, model_validator
 
 from apb2.parserV2.vendor_parse_rules.schema.base import AxisColumnType, ModelBase
 from apb2.parserV2.vendor_parse_rules.schema.roles import SemanticRole
@@ -102,32 +102,7 @@ class SourcedColumn(ModelBase):
 type ColumnEntry = SourcedColumn | ComputedColumn
 
 
-def _validate_column_group(entries: list[ColumnEntry]) -> list[ColumnEntry]:
-    names = [entry.name for entry in entries]
-    if len(names) != len(set(names)):
-        raise ValueError("column entry names must be unique")
-    for entry in entries:
-        if len(entry.roles) != len(set(entry.roles)):
-            raise ValueError(f"column {entry.name!r} roles must be unique")
-    return entries
-
-
-type ColumnGroup = Annotated[list[ColumnEntry], AfterValidator(_validate_column_group)]
-
-
-def sourced_columns(group: ColumnGroup) -> tuple[SourcedColumn, ...]:
-    """Physical selections in stable authored order."""
-    return tuple(
-        SourcedColumn(
-            name=entry.name,
-            source=entry.source,
-            type=entry.type,
-            required=entry.required,
-            roles=entry.roles,
-        )
-        for entry in group
-        if entry.source is not None
-    )
+type ColumnGroup = list[ColumnEntry]
 
 
 def computed_columns(group: ColumnGroup) -> tuple[ComputedColumn, ...]:

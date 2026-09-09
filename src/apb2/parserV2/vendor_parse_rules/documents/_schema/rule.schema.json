@@ -418,8 +418,7 @@
       "description": "One row per observation-variable pair with exact physical source names.",
       "properties": {
         "schema_version": {
-          "title": "Schema Version",
-          "type": "string"
+          "$ref": "#/$defs/SchemaVersion"
         },
         "file_version": {
           "title": "File Version",
@@ -446,17 +445,6 @@
           "anyOf": [
             {
               "$ref": "#/$defs/Modifications"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "fragments": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Fragments"
             },
             {
               "type": "null"
@@ -499,6 +487,17 @@
         },
         "columns": {
           "$ref": "#/$defs/LongColumns"
+        },
+        "fragments": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Fragments"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -894,6 +893,10 @@
       "title": "SampleAnnotation",
       "type": "object"
     },
+    "SchemaVersion": {
+      "const": "0.4",
+      "type": "string"
+    },
     "SearchParameterField": {
       "enum": [
         "acquisition_method",
@@ -929,12 +932,10 @@
       "type": "object"
     },
     "SemanticRole": {
-      "description": "A semantic name that downstream consumers use to find declared data.",
       "enum": [
         "protein_assignment",
         "fasta_accessions"
       ],
-      "title": "SemanticRole",
       "type": "string"
     },
     "SiteListModifications": {
@@ -1207,8 +1208,7 @@
       "description": "One row per variable with observations captured from layer headers.",
       "properties": {
         "schema_version": {
-          "title": "Schema Version",
-          "type": "string"
+          "$ref": "#/$defs/SchemaVersion"
         },
         "file_version": {
           "title": "File Version",
@@ -1235,17 +1235,6 @@
           "anyOf": [
             {
               "$ref": "#/$defs/Modifications"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "fragments": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Fragments"
             },
             {
               "type": "null"
@@ -1288,6 +1277,11 @@
         },
         "columns": {
           "$ref": "#/$defs/WideColumns"
+        },
+        "fragments": {
+          "default": null,
+          "title": "Fragments",
+          "type": "null"
         }
       },
       "required": [
