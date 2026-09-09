@@ -3,7 +3,7 @@
 The generic claim is that one implementation covers every vendor. The only way to believe it is
 to run both conversions over the same cached export and compare the quantities cell by cell,
 which is what most of this module does. The rest checks the boundary the application owns: it
-reads its own parameter model and hands Parser V2 the two fields schema 0.3 permits.
+reads its own parameter model and hands Parser V2 the two fields schema 0.4 permits.
 """
 
 from __future__ import annotations
@@ -267,5 +267,5 @@ def test_the_provenance_of_a_parsed_level_names_the_rule_it_came_from() -> None:
 
     assert parsed.uns["software_name"] == "AlphaPept"
     assert parsed.uns["quantification_level"] == "ion"
-    assert parsed.uns["schema_version"] == "0.3"
+    assert parsed.uns["schema_version"] == "0.4"
     assert isinstance(parsed.uns["rule_json"], str)

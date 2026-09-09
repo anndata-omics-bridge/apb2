@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.3",
+  "schema_version": "0.4",
   "file_version": "2",
   "software_name": "AlphaDIA",
   "software_version_pattern": "^2\\.",
@@ -21,11 +21,12 @@
       }
     },
     "columns": {
-      "obs": {
-        "select": {
-          "raw_name": "raw.name"
+      "obs": [
+        {
+          "name": "raw_name",
+          "source": "raw.name"
         }
-      }
+      ]
     },
     "modifications": {
       "parser": "site_list",
@@ -85,60 +86,95 @@
         ]
       },
       "columns": {
-        "var": {
-          "select": {
-            "Sequence": "precursor.sequence",
-            "Charge": "precursor.charge",
-            "Mods": "precursor.mods",
-            "Mod_Sites": "precursor.mod_sites",
-            "Genes": "pg.genes",
-            "Proteins": "pg.proteins",
-            "Protein_Group": "pg.name",
-            "Protein_Group_Master": "pg.master_protein",
-            "Decoy": "precursor.decoy"
+        "var": [
+          {
+            "name": "Sequence",
+            "source": "precursor.sequence"
           },
-          "optional_select": {
-            "Channel": "precursor.channel",
-            "Protein_Group_QValue": "pg.qval",
-            "Mz_Observed": "precursor.mz.observed",
-            "Mobility_Observed": "precursor.mobility.observed"
+          {
+            "name": "Charge",
+            "source": "precursor.charge",
+            "type": "integer"
           },
-          "types": {
-            "Charge": "integer",
-            "Decoy": "boolean",
-            "Protein_Group_QValue": "number",
-            "Mz_Observed": "number",
-            "Mobility_Observed": "number"
+          {
+            "name": "Mods",
+            "source": "precursor.mods"
           },
-          "computed": [
-            {
-              "name": "ProForma_peptidoform",
-              "inputs": [
-                "Sequence"
-              ],
-              "how": "proforma_sequence"
-            },
-            {
-              "name": "ProForma_peptide",
-              "inputs": [
-                "Sequence"
-              ],
-              "how": "stripped_sequence"
-            },
-            {
-              "name": "ProForma_ion",
-              "inputs": [
-                "ProForma_peptidoform",
-                "Charge"
-              ],
-              "how": "proforma_ion"
-            }
-          ]
-        }
-      },
-      "column_roles": {
-        "protein_assignment": "Proteins",
-        "fasta_accessions": "Proteins"
+          {
+            "name": "Mod_Sites",
+            "source": "precursor.mod_sites"
+          },
+          {
+            "name": "Genes",
+            "source": "pg.genes"
+          },
+          {
+            "name": "Proteins",
+            "source": "pg.proteins",
+            "roles": [
+              "protein_assignment",
+              "fasta_accessions"
+            ]
+          },
+          {
+            "name": "Protein_Group",
+            "source": "pg.name"
+          },
+          {
+            "name": "Protein_Group_Master",
+            "source": "pg.master_protein"
+          },
+          {
+            "name": "Decoy",
+            "source": "precursor.decoy",
+            "type": "boolean"
+          },
+          {
+            "name": "Channel",
+            "source": "precursor.channel",
+            "required": false
+          },
+          {
+            "name": "Protein_Group_QValue",
+            "source": "pg.qval",
+            "type": "number",
+            "required": false
+          },
+          {
+            "name": "Mz_Observed",
+            "source": "precursor.mz.observed",
+            "type": "number",
+            "required": false
+          },
+          {
+            "name": "Mobility_Observed",
+            "source": "precursor.mobility.observed",
+            "type": "number",
+            "required": false
+          },
+          {
+            "name": "ProForma_peptidoform",
+            "inputs": [
+              "Sequence"
+            ],
+            "how": "proforma_sequence"
+          },
+          {
+            "name": "ProForma_peptide",
+            "inputs": [
+              "Sequence"
+            ],
+            "how": "stripped_sequence"
+          },
+          {
+            "name": "ProForma_ion",
+            "inputs": [
+              "ProForma_peptidoform",
+              "Charge"
+            ],
+            "how": "proforma_ion"
+          }
+        ]
       }
     }
   }

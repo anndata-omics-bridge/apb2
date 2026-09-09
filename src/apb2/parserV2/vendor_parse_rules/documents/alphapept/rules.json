@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.3",
+  "schema_version": "0.4",
   "file_version": "2",
   "software_name": "AlphaPept",
   "software_version_pattern": "^0\\.5\\.",
@@ -21,13 +21,20 @@
       }
     },
     "columns": {
-      "obs": {
-        "select": {
-          "Raw_File": "shortname",
-          "Sample_Group": "sample_group",
-          "File_Path": "filename"
+      "obs": [
+        {
+          "name": "Raw_File",
+          "source": "shortname"
+        },
+        {
+          "name": "Sample_Group",
+          "source": "sample_group"
+        },
+        {
+          "name": "File_Path",
+          "source": "filename"
         }
-      }
+      ]
     },
     "modifications": {
       "source_column": "sequence",
@@ -106,49 +113,64 @@
         ]
       },
       "columns": {
-        "var": {
-          "select": {
-            "Sequence": "sequence",
-            "Sequence_Naked": "sequence_naked",
-            "Charge": "charge",
-            "Precursor": "precursor",
-            "Protein": "protein",
-            "Protein_Group": "protein_group",
-            "Decoy": "decoy"
+        "var": [
+          {
+            "name": "Sequence",
+            "source": "sequence"
           },
-          "types": {
-            "Charge": "integer",
-            "Decoy": "boolean"
+          {
+            "name": "Sequence_Naked",
+            "source": "sequence_naked"
           },
-          "computed": [
-            {
-              "name": "ProForma_peptidoform",
-              "inputs": [
-                "Sequence"
-              ],
-              "how": "proforma_sequence"
-            },
-            {
-              "name": "ProForma_peptide",
-              "inputs": [
-                "Sequence"
-              ],
-              "how": "stripped_sequence"
-            },
-            {
-              "name": "ProForma_ion",
-              "inputs": [
-                "ProForma_peptidoform",
-                "Charge"
-              ],
-              "how": "proforma_ion"
-            }
-          ]
-        }
-      },
-      "column_roles": {
-        "protein_assignment": "Protein_Group",
-        "fasta_accessions": "Protein_Group"
+          {
+            "name": "Charge",
+            "source": "charge",
+            "type": "integer"
+          },
+          {
+            "name": "Precursor",
+            "source": "precursor"
+          },
+          {
+            "name": "Protein",
+            "source": "protein"
+          },
+          {
+            "name": "Protein_Group",
+            "source": "protein_group",
+            "roles": [
+              "protein_assignment",
+              "fasta_accessions"
+            ]
+          },
+          {
+            "name": "Decoy",
+            "source": "decoy",
+            "type": "boolean"
+          },
+          {
+            "name": "ProForma_peptidoform",
+            "inputs": [
+              "Sequence"
+            ],
+            "how": "proforma_sequence"
+          },
+          {
+            "name": "ProForma_peptide",
+            "inputs": [
+              "Sequence"
+            ],
+            "how": "stripped_sequence"
+          },
+          {
+            "name": "ProForma_ion",
+            "inputs": [
+              "ProForma_peptidoform",
+              "Charge"
+            ],
+            "how": "proforma_ion"
+          }
+        ]
       }
     }
   }

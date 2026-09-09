@@ -179,7 +179,7 @@ _DUPLICATE_POLICIES: Mapping[DuplicateMode, DuplicatePolicy] = {
     "keep_first": KeepFirstDuplicate(),
     "aggregate": AggregateNumericDuplicates(),
 }
-"""One policy per executable duplicate mode; schema 0.3 declares no others."""
+"""One policy per executable duplicate mode; schema 0.4 declares no others."""
 
 
 def make_axis_coercer(

@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.3",
+  "schema_version": "0.4",
   "file_version": "1",
   "software_name": "MaxQuant",
   "software_version_pattern": "^(1\\.5|1\\.6|2\\.)",
@@ -49,35 +49,88 @@
         ]
       },
       "columns": {
-        "var": {
-          "select": {
-            "ProForma_peptide": "Sequence",
-            "Proteins": "Proteins",
-            "Leading_Razor_Protein": "Leading razor protein"
+        "var": [
+          {
+            "name": "ProForma_peptide",
+            "source": "Sequence"
           },
-          "optional_select": {
-            "Gene_Names": "Gene names",
-            "Protein_Names": "Protein names",
-            "Length": "Length",
-            "Missed_Cleavages": "Missed cleavages",
-            "Mass": "Mass",
-            "Charges": "Charges",
-            "PEP": "PEP",
-            "Score": "Score",
-            "Start_Position": "Start position",
-            "End_Position": "End position",
-            "Unique_Groups": "Unique (Groups)",
-            "Unique_Proteins": "Unique (Proteins)"
+          {
+            "name": "Proteins",
+            "source": "Proteins",
+            "roles": [
+              "fasta_accessions"
+            ]
           },
-          "types": {
-            "Length": "integer",
-            "Missed_Cleavages": "integer"
+          {
+            "name": "Leading_Razor_Protein",
+            "source": "Leading razor protein",
+            "roles": [
+              "protein_assignment"
+            ]
+          },
+          {
+            "name": "Gene_Names",
+            "source": "Gene names",
+            "required": false
+          },
+          {
+            "name": "Protein_Names",
+            "source": "Protein names",
+            "required": false
+          },
+          {
+            "name": "Length",
+            "source": "Length",
+            "type": "integer",
+            "required": false
+          },
+          {
+            "name": "Missed_Cleavages",
+            "source": "Missed cleavages",
+            "type": "integer",
+            "required": false
+          },
+          {
+            "name": "Mass",
+            "source": "Mass",
+            "required": false
+          },
+          {
+            "name": "Charges",
+            "source": "Charges",
+            "required": false
+          },
+          {
+            "name": "PEP",
+            "source": "PEP",
+            "required": false
+          },
+          {
+            "name": "Score",
+            "source": "Score",
+            "required": false
+          },
+          {
+            "name": "Start_Position",
+            "source": "Start position",
+            "required": false
+          },
+          {
+            "name": "End_Position",
+            "source": "End position",
+            "required": false
+          },
+          {
+            "name": "Unique_Groups",
+            "source": "Unique (Groups)",
+            "required": false
+          },
+          {
+            "name": "Unique_Proteins",
+            "source": "Unique (Proteins)",
+            "required": false
           }
-        }
-      },
-      "column_roles": {
-        "protein_assignment": "Leading_Razor_Protein",
-        "fasta_accessions": "Proteins"
+        ]
       }
     }
   }

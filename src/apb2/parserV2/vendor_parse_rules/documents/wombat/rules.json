@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.3",
+  "schema_version": "0.4",
   "file_version": "3",
   "software_name": "WOMBAT",
   "software_version_pattern": "^0\\.9\\.11$",
@@ -21,32 +21,34 @@
       }
     },
     "columns": {
-      "var": {
-        "select": {
-          "modified_peptide": "modified_peptide",
-          "protein_group": "protein_group"
+      "var": [
+        {
+          "name": "modified_peptide",
+          "source": "modified_peptide"
         },
-        "computed": [
-          {
-            "name": "ProForma_peptidoform",
-            "inputs": [
-              "modified_peptide"
-            ],
-            "how": "proforma_sequence"
-          },
-          {
-            "name": "ProForma_peptide",
-            "inputs": [
-              "modified_peptide"
-            ],
-            "how": "stripped_sequence"
-          }
-        ]
-      }
-    },
-    "column_roles": {
-      "protein_assignment": "protein_group",
-      "fasta_accessions": "protein_group"
+        {
+          "name": "protein_group",
+          "source": "protein_group",
+          "roles": [
+            "protein_assignment",
+            "fasta_accessions"
+          ]
+        },
+        {
+          "name": "ProForma_peptidoform",
+          "inputs": [
+            "modified_peptide"
+          ],
+          "how": "proforma_sequence"
+        },
+        {
+          "name": "ProForma_peptide",
+          "inputs": [
+            "modified_peptide"
+          ],
+          "how": "stripped_sequence"
+        }
+      ]
     },
     "modifications": {
       "source_column": "modified_peptide",
@@ -89,24 +91,21 @@
         ]
       },
       "columns": {
-        "var": {
-          "select": {
-            "charge": "charge"
+        "var": [
+          {
+            "name": "charge",
+            "source": "charge",
+            "type": "integer"
           },
-          "types": {
-            "charge": "integer"
-          },
-          "computed": [
-            {
-              "name": "ProForma_ion",
-              "inputs": [
-                "ProForma_peptidoform",
-                "charge"
-              ],
-              "how": "proforma_ion"
-            }
-          ]
-        }
+          {
+            "name": "ProForma_ion",
+            "inputs": [
+              "ProForma_peptidoform",
+              "charge"
+            ],
+            "how": "proforma_ion"
+          }
+        ]
       }
     },
     "peptidoform": {

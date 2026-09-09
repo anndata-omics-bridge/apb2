@@ -1,4 +1,4 @@
-"""Minimal schema-0.3 documents for the rule shapes no packaged vendor exercises.
+"""Minimal schema-0.4 documents for the rule shapes no packaged vendor exercises.
 
 The packaged set covers most of the architecture, but not all of it: no document declares a
 column-labelled fragment table, an optional column whose absence blocks a chain, or a wide
@@ -20,6 +20,32 @@ from apb2.parserV2.vendor_parse_rules.document import (
 from apb2.parserV2.vendor_parse_rules.schema.base import SCHEMA_VERSION, QuantificationLevel
 
 NO_EVIDENCE = SearchParameterEvidence(acquisition_method="unknown", combine_charge_states=None)
+
+
+def _column_entries(
+    selected: dict[str, str],
+    optional: dict[str, str] | None = None,
+    types: dict[str, str] | None = None,
+    computed: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """Build entry-shaped columns while allowing a computation to replace its source."""
+    logical_types = types or {}
+    computers = {entry["name"]: entry for entry in computed or []}
+    entries: list[dict[str, Any]] = []
+    selected_names: set[str] = set()
+    for declarations, required in ((selected, True), (optional or {}, False)):
+        for name, source in declarations.items():
+            selected_names.add(name)
+            entry: dict[str, Any] = {"name": name, "source": source}
+            if logical_type := logical_types.get(name):
+                entry["type"] = logical_type
+            if not required:
+                entry["required"] = False
+            if computer := computers.get(name):
+                entry.update({key: value for key, value in computer.items() if key != "name"})
+            entries.append(entry)
+    entries.extend(entry for entry in computed or [] if entry["name"] not in selected_names)
+    return entries
 
 
 def document(
@@ -65,13 +91,6 @@ def long_document(
     duplicates: str = "error",
 ) -> RuleDocument:
     """A long rule with one obs key and whatever var declarations a test needs."""
-    var_group: dict[str, Any] = {"select": var_select}
-    if var_optional:
-        var_group["optional_select"] = var_optional
-    if var_types:
-        var_group["types"] = var_types
-    if computed:
-        var_group["computed"] = computed
     return document(
         shape="long",
         base={
@@ -79,7 +98,10 @@ def long_document(
                 "obs_keys": list(obs_select),
                 "var_keys": var_keys or list(var_select)[:1],
             },
-            "columns": {"obs": {"select": obs_select}, "var": var_group},
+            "columns": {
+                "obs": _column_entries(obs_select),
+                "var": _column_entries(var_select, var_optional, var_types, computed),
+            },
             "measurements": {
                 "primary_layer": primary_layer,
                 "duplicates": {"mode": duplicates},
@@ -106,7 +128,7 @@ def wide_document(
                 "obs_keys": obs_keys or ["sample"],
                 "var_keys": var_keys or list(var_select)[:1],
             },
-            "columns": {"var": {"select": var_select}},
+            "columns": {"var": _column_entries(var_select)},
             "measurements": {
                 "primary_layer": primary_layer,
                 "duplicates": {"mode": "error"},

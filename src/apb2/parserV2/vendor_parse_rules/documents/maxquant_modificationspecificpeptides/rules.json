@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.3",
+  "schema_version": "0.4",
   "file_version": "1",
   "software_name": "MaxQuant",
   "software_version_pattern": "^(1\\.5|1\\.6|2\\.)",
@@ -43,35 +43,90 @@
         ]
       },
       "columns": {
-        "var": {
-          "select": {
-            "ProForma_peptide": "Sequence",
-            "Modifications": "Modifications",
-            "Proteins": "Proteins"
+        "var": [
+          {
+            "name": "ProForma_peptide",
+            "source": "Sequence"
           },
-          "optional_select": {
-            "Protein_Groups": "Protein Groups",
-            "Mass": "Mass",
-            "Missed_Cleavages": "Missed cleavages",
-            "Charges": "Charges",
-            "PEP": "PEP",
-            "Score": "Score",
-            "Delta_Score": "Delta score",
-            "Retention_Time": "Retention time",
-            "Unique_Groups": "Unique (Groups)",
-            "Unique_Proteins": "Unique (Proteins)",
-            "Reverse": "Reverse",
-            "Decoy": "Decoy",
-            "Potential_Contaminant": "Potential contaminant"
+          {
+            "name": "Modifications",
+            "source": "Modifications"
           },
-          "types": {
-            "Missed_Cleavages": "integer"
+          {
+            "name": "Proteins",
+            "source": "Proteins",
+            "roles": [
+              "protein_assignment",
+              "fasta_accessions"
+            ]
+          },
+          {
+            "name": "Protein_Groups",
+            "source": "Protein Groups",
+            "required": false
+          },
+          {
+            "name": "Mass",
+            "source": "Mass",
+            "required": false
+          },
+          {
+            "name": "Missed_Cleavages",
+            "source": "Missed cleavages",
+            "type": "integer",
+            "required": false
+          },
+          {
+            "name": "Charges",
+            "source": "Charges",
+            "required": false
+          },
+          {
+            "name": "PEP",
+            "source": "PEP",
+            "required": false
+          },
+          {
+            "name": "Score",
+            "source": "Score",
+            "required": false
+          },
+          {
+            "name": "Delta_Score",
+            "source": "Delta score",
+            "required": false
+          },
+          {
+            "name": "Retention_Time",
+            "source": "Retention time",
+            "required": false
+          },
+          {
+            "name": "Unique_Groups",
+            "source": "Unique (Groups)",
+            "required": false
+          },
+          {
+            "name": "Unique_Proteins",
+            "source": "Unique (Proteins)",
+            "required": false
+          },
+          {
+            "name": "Reverse",
+            "source": "Reverse",
+            "required": false
+          },
+          {
+            "name": "Decoy",
+            "source": "Decoy",
+            "required": false
+          },
+          {
+            "name": "Potential_Contaminant",
+            "source": "Potential contaminant",
+            "required": false
           }
-        }
-      },
-      "column_roles": {
-        "protein_assignment": "Proteins",
-        "fasta_accessions": "Proteins"
+        ]
       }
     }
   }

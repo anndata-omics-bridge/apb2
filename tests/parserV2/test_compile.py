@@ -473,11 +473,11 @@ def test_compilation_injects_the_detected_number_notation_into_axis_coercers(
             "base": {
                 "axis": {"obs_keys": ["sample"], "var_keys": ["Feature"]},
                 "columns": {
-                    "obs": {"select": {"sample": "Sample"}},
-                    "var": {
-                        "select": {"Feature": "Feature", "Score": "Score"},
-                        "types": {"Score": "number"},
-                    },
+                    "obs": [{"name": "sample", "source": "Sample"}],
+                    "var": [
+                        {"name": "Feature", "source": "Feature"},
+                        {"name": "Score", "source": "Score", "type": "number"},
+                    ],
                 },
                 "measurements": {
                     "primary_layer": "Quantity",

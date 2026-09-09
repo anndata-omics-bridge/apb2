@@ -1,4 +1,4 @@
-"""Schema 0.3 packaged-document, composition, and validation contracts."""
+"""Schema 0.4 packaged-document, composition, and validation contracts."""
 
 from __future__ import annotations
 
@@ -19,6 +19,7 @@ from apb2.parserV2.vendor_parse_rules.document import (
     make_rule_document,
 )
 from apb2.parserV2.vendor_parse_rules.loader import PACKAGED, load_rule_document
+from apb2.parserV2.vendor_parse_rules.schema.axis import computed_columns, sourced_columns
 from apb2.parserV2.vendor_parse_rules.schema.base import (
     SCHEMA_VERSION,
     QuantificationLevel,
@@ -84,8 +85,8 @@ def test_entry_shaped_columns_project_roles_and_runtime_selections(tmp_path: Pat
     working = ParseRuleFacade(document, "ion", NO_EVIDENCE).working_parameters
 
     assert isinstance(rule, LongRule)
-    assert rule.columns.obs.names == ("sample",)
-    assert rule.columns.var.names == ("feature",)
+    assert tuple(column.name for column in rule.columns.obs) == ("sample",)
+    assert tuple(column.name for column in rule.columns.var) == ("feature",)
     assert working.var.columns.required_selections[0].logical_type == "integer"
     assert working.provenance["column_roles"] == {
         "protein_assignment": "feature",
@@ -193,7 +194,7 @@ def _required_source(
     var_sources = {
         column.source
         for _axis, group in recognition.column_groups()
-        for column in group.sourced
+        for column in sourced_columns(group)
         if column.required
     }
     return sorted(var_sources & set(header))[0]
@@ -288,7 +289,7 @@ def test_spectronaut_fragment_exposes_its_parent_ion_identity() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "spectronaut")
     fragment = load_rule_document(pair.parser_v2_path).declared("fragment").declaration
 
-    computed = {column.name: column for column in fragment.columns.var.computed}
+    computed = {column.name: column for column in computed_columns(fragment.columns.var)}
 
     assert computed["ProForma_ion"].inputs == ["ProForma_peptidoform", "FG_Charge"]
 
@@ -340,7 +341,7 @@ def test_a_level_without_a_gate_is_applicable_without_any_evidence() -> None:
         document.rule("peptide", NO_EVIDENCE)
 
 
-# ------------------------------------------------------------------ what schema 0.3 refuses
+# ------------------------------------------------------------------ what schema 0.4 refuses
 
 
 def _document_payload() -> dict[str, Any]:
@@ -355,13 +356,13 @@ def _document_payload() -> dict[str, Any]:
         },
         "base": {
             "axis": {"obs_keys": ["sample"], "var_keys": ["feature"]},
-            "columns": {"obs": {"select": {"sample": "Sample"}}},
+            "columns": {"obs": [{"name": "sample", "source": "Sample"}]},
             "measurements": {
                 "primary_layer": "quantity",
                 "layers": [{"name": "quantity", "source": "Quantity"}],
             },
         },
-        "levels": {"ion": {"columns": {"var": {"select": {"feature": "Feature"}}}}},
+        "levels": {"ion": {"columns": {"var": [{"name": "feature", "source": "Feature"}]}}},
     }
 
 
@@ -438,7 +439,7 @@ def test_the_reference_payload_is_valid_so_every_rejection_below_is_the_change(
         ),
     ],
 )
-def test_schema_0_3_refuses_a_legacy_or_illegal_declaration(
+def test_schema_0_4_refuses_a_legacy_or_illegal_declaration(
     mutate: MutatePayload, match: str, tmp_path: Path
 ) -> None:
     payload = _document_payload()
@@ -450,10 +451,18 @@ def test_schema_0_3_refuses_a_legacy_or_illegal_declaration(
 
 def test_a_document_of_the_previous_generation_is_refused_at_the_shell(tmp_path: Path) -> None:
     payload = _document_payload()
-    payload["schema_version"] = "0.2"
+    payload["schema_version"] = "0.3"
 
     with pytest.raises(ValidationError, match="schema_version"):
         make_rule_document(tmp_path / "rules.json", payload)
+
+
+def test_schema_0_4_refuses_column_side_maps(tmp_path: Path) -> None:
+    payload = _document_payload()
+    payload["base"]["columns"]["obs"] = {"select": {"sample": "Sample"}}
+
+    with pytest.raises(ValidationError, match="list_type"):
+        _declared(payload, tmp_path)
 
 
 @pytest.mark.parametrize(
@@ -534,7 +543,7 @@ def test_a_fragment_label_output_colliding_with_a_source_is_refused(tmp_path: Pa
     payload = _document_payload()
     payload["levels"] = {
         "fragment": {
-            "columns": {"var": {"select": {"feature": "Feature"}}},
+            "columns": {"var": [{"name": "feature", "source": "Feature"}]},
             "fragments": {
                 "label_strategy": "positional",
                 "value_columns": ["Quantity"],
@@ -552,7 +561,12 @@ def test_a_column_labeled_fragment_label_may_not_be_selected(tmp_path: Path) -> 
     payload = _document_payload()
     payload["levels"] = {
         "fragment": {
-            "columns": {"var": {"select": {"feature": "Feature", "label": "Info"}}},
+            "columns": {
+                "var": [
+                    {"name": "feature", "source": "Feature"},
+                    {"name": "label", "source": "Info"},
+                ]
+            },
             "fragments": {
                 "label_strategy": "column",
                 "value_columns": ["Quantity"],
@@ -570,7 +584,7 @@ def test_column_labeled_recognition_requires_its_packed_label_column() -> None:
     payload = _document_payload()
     payload["levels"] = {
         "fragment": {
-            "columns": {"var": {"select": {"feature": "Feature"}}},
+            "columns": {"var": [{"name": "feature", "source": "Feature"}]},
             "fragments": {
                 "label_strategy": "column",
                 "value_columns": ["Quantity"],
@@ -588,7 +602,7 @@ def test_column_labeled_recognition_requires_its_packed_label_column() -> None:
 # ------------------------------------------------------------------------ published schema
 
 
-def test_only_schema_0_3_is_published_and_its_unions_are_discriminated() -> None:
+def test_only_schema_0_4_is_published_and_its_unions_are_discriminated() -> None:
     published = rule_json_schema()
     definitions = published["$defs"]
     text = json.dumps(published)

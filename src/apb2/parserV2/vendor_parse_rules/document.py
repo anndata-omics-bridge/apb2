@@ -11,7 +11,7 @@ a file is) and ``search_parameter_overrides`` patches ``measurements.primary_lay
 acquisition mode decides which column carries the quantity). The patch goes into the payload
 *before* validation, so a rule is validated once and is applicable by construction.
 
-``SearchParameterEvidence`` is deliberately smaller than any parameter-file model: schema 0.3
+``SearchParameterEvidence`` is deliberately smaller than any parameter-file model: schema 0.4
 permits exactly two condition fields, this package owns that vocabulary, and the outer
 application translates its own parameter model into this value before entering Parser V2.
 """
@@ -27,7 +27,7 @@ from typing import Literal
 from pydantic import Field, model_validator
 
 from apb2.parserV2.vendor_parse_rules.schema.annotation import SampleAnnotation
-from apb2.parserV2.vendor_parse_rules.schema.axis import ColumnGroup
+from apb2.parserV2.vendor_parse_rules.schema.axis import ColumnGroup, sourced_columns
 from apb2.parserV2.vendor_parse_rules.schema.base import (
     SCHEMA_VERSION,
     ModelBase,
@@ -72,7 +72,7 @@ class RuleNotApplicable(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class SearchParameterEvidence:
-    """The complete parameter vocabulary permitted in schema-0.3 conditions."""
+    """The complete parameter vocabulary permitted in schema-0.4 conditions."""
 
     acquisition_method: Literal["DDA", "DIA", "unknown"]
     combine_charge_states: bool | None
@@ -103,7 +103,7 @@ class LongRecognition:
         expected = {
             column.source
             for group in (rule.columns.obs, rule.columns.var)
-            for column in group.sourced
+            for column in sourced_columns(group)
             if column.required
         }
         expected.update(
@@ -137,7 +137,7 @@ class WideRecognition:
     def __init__(self, rule: WideRule) -> None:
         self._rule = rule
         self._required_var = frozenset(
-            {column.source for column in rule.columns.var.sourced if column.required}
+            {column.source for column in sourced_columns(rule.columns.var) if column.required}
             - synthesized_columns(rule)
         )
 
@@ -407,7 +407,6 @@ def _merge_fragments(base: JsonDict, level: JsonDict) -> JsonDict:
         level,
         mappings=(
             "axis",
-            "column_roles",
             "modifications",
             "fragments",
             "requires_search_parameters",
@@ -451,14 +450,10 @@ def _merge_columns(base: JsonDict, level: JsonDict) -> JsonDict:
         base_group = base[axis]
         level_group = level[axis]
         if isinstance(base_group, list) and isinstance(level_group, list):
-            columns[axis] = [*base_group, *level_group]
-        elif isinstance(base_group, dict) and isinstance(level_group, dict):
-            columns[axis] = _merge_blocks(
-                base_group,
-                level_group,
-                mappings=("select", "optional_select", "types"),
-                sequences=("computed",),
-            )
+            entries = [*base_group, *level_group]
+            columns[axis] = [
+                entry for entry in entries if isinstance(entry, dict) and "source" in entry
+            ] + [entry for entry in entries if not isinstance(entry, dict) or "source" not in entry]
     return columns
 
 

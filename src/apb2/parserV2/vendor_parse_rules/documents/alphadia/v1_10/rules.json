@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.3",
+  "schema_version": "0.4",
   "file_version": "2",
   "software_name": "AlphaDIA",
   "software_version_pattern": "^1\\.10(?:\\.|-|$)",
@@ -66,47 +66,59 @@
         ]
       },
       "columns": {
-        "var": {
-          "select": {
-            "Sequence": "sequence",
-            "Charge": "charge",
-            "Mods": "mods",
-            "Mod_Sites": "mod_sites",
-            "Genes": "genes",
-            "Decoy": "decoy"
+        "var": [
+          {
+            "name": "Sequence",
+            "source": "sequence"
           },
-          "types": {
-            "Charge": "integer",
-            "Decoy": "boolean"
+          {
+            "name": "Charge",
+            "source": "charge",
+            "type": "integer"
           },
-          "computed": [
-            {
-              "name": "ProForma_peptidoform",
-              "inputs": [
-                "Sequence"
-              ],
-              "how": "proforma_sequence"
-            },
-            {
-              "name": "ProForma_peptide",
-              "inputs": [
-                "Sequence"
-              ],
-              "how": "stripped_sequence"
-            },
-            {
-              "name": "ProForma_ion",
-              "inputs": [
-                "ProForma_peptidoform",
-                "Charge"
-              ],
-              "how": "proforma_ion"
-            }
-          ]
-        }
-      },
-      "column_roles": {
-        "protein_assignment": "Genes"
+          {
+            "name": "Mods",
+            "source": "mods"
+          },
+          {
+            "name": "Mod_Sites",
+            "source": "mod_sites"
+          },
+          {
+            "name": "Genes",
+            "source": "genes",
+            "roles": [
+              "protein_assignment"
+            ]
+          },
+          {
+            "name": "Decoy",
+            "source": "decoy",
+            "type": "boolean"
+          },
+          {
+            "name": "ProForma_peptidoform",
+            "inputs": [
+              "Sequence"
+            ],
+            "how": "proforma_sequence"
+          },
+          {
+            "name": "ProForma_peptide",
+            "inputs": [
+              "Sequence"
+            ],
+            "how": "stripped_sequence"
+          },
+          {
+            "name": "ProForma_ion",
+            "inputs": [
+              "ProForma_peptidoform",
+              "Charge"
+            ],
+            "how": "proforma_ion"
+          }
+        ]
       }
     }
   }

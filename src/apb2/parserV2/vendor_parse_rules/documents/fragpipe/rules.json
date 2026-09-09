@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.3",
+  "schema_version": "0.4",
   "file_version": "2",
   "software_name": "FragPipe",
   "software_version_pattern": "^2[23]\\.",
@@ -90,60 +90,78 @@
         ]
       },
       "columns": {
-        "var": {
-          "select": {
-            "Peptide_Sequence": "Peptide Sequence",
-            "Modified_Sequence": "Modified Sequence",
-            "Charge": "Charge",
-            "M_Z": "M/Z",
-            "Protein": "Protein",
-            "Mapped_Proteins": "Mapped Proteins",
-            "Protein_ID": "Protein ID",
-            "Gene": "Gene",
-            "Assigned_Modifications": "Assigned Modifications"
+        "var": [
+          {
+            "name": "Peptide_Sequence",
+            "source": "Peptide Sequence"
           },
-          "types": {
-            "Charge": "integer",
-            "M_Z": "number"
+          {
+            "name": "Modified_Sequence",
+            "source": "Modified Sequence"
           },
-          "computed": [
-            {
-              "name": "Protein",
-              "inputs": [
-                "Protein",
-                "Mapped_Proteins"
-              ],
-              "how": "join_nonempty",
-              "separator": ","
-            },
-            {
-              "name": "ProForma_peptidoform",
-              "inputs": [
-                "Modified_Sequence"
-              ],
-              "how": "proforma_sequence"
-            },
-            {
-              "name": "ProForma_peptide",
-              "inputs": [
-                "Modified_Sequence"
-              ],
-              "how": "stripped_sequence"
-            },
-            {
-              "name": "ProForma_ion",
-              "inputs": [
-                "ProForma_peptidoform",
-                "Charge"
-              ],
-              "how": "proforma_ion"
-            }
-          ]
-        }
-      },
-      "column_roles": {
-        "protein_assignment": "Protein",
-        "fasta_accessions": "Protein"
+          {
+            "name": "Charge",
+            "source": "Charge",
+            "type": "integer"
+          },
+          {
+            "name": "M_Z",
+            "source": "M/Z",
+            "type": "number"
+          },
+          {
+            "name": "Protein",
+            "source": "Protein",
+            "roles": [
+              "protein_assignment",
+              "fasta_accessions"
+            ],
+            "inputs": [
+              "Protein",
+              "Mapped_Proteins"
+            ],
+            "how": "join_nonempty",
+            "separator": ","
+          },
+          {
+            "name": "Mapped_Proteins",
+            "source": "Mapped Proteins"
+          },
+          {
+            "name": "Protein_ID",
+            "source": "Protein ID"
+          },
+          {
+            "name": "Gene",
+            "source": "Gene"
+          },
+          {
+            "name": "Assigned_Modifications",
+            "source": "Assigned Modifications"
+          },
+          {
+            "name": "ProForma_peptidoform",
+            "inputs": [
+              "Modified_Sequence"
+            ],
+            "how": "proforma_sequence"
+          },
+          {
+            "name": "ProForma_peptide",
+            "inputs": [
+              "Modified_Sequence"
+            ],
+            "how": "stripped_sequence"
+          },
+          {
+            "name": "ProForma_ion",
+            "inputs": [
+              "ProForma_peptidoform",
+              "Charge"
+            ],
+            "how": "proforma_ion"
+          }
+        ]
       }
     }
   }

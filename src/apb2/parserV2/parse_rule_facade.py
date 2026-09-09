@@ -122,6 +122,8 @@ from apb2.parserV2.vendor_parse_rules.schema.axis import (
     ProformaSequence,
     SourcedColumn,
     StrippedSequence,
+    computed_columns,
+    sourced_columns,
 )
 from apb2.parserV2.vendor_parse_rules.schema.base_formats import (
     DELIMITED_BASE_FORMATS,
@@ -326,13 +328,13 @@ class ParseRuleFacade:
             else (rule.columns.var,)
         )
         for group in groups:
-            physical.update(column.source for column in group.sourced)
+            physical.update(column.source for column in sourced_columns(group))
         if isinstance(fragments, ColumnLabeledFragments):
             physical.add(fragments.label_column)
             selected_label = [
                 column.name
                 for group in groups
-                for column in group.sourced
+                for column in sourced_columns(group)
                 if column.source == fragments.label_column
             ]
             if selected_label:
@@ -391,15 +393,16 @@ class ParseRuleFacade:
             final_key_columns=tuple(keys),
             columns=AxisColumnDeclaration(
                 required_selections=ParseRuleFacade._project_selections(
-                    column for column in group.sourced if column.required
+                    column for column in sourced_columns(group) if column.required
                 ),
                 optional_selections=ParseRuleFacade._project_selections(
-                    column for column in group.sourced if not column.required
+                    column for column in sourced_columns(group) if not column.required
                 ),
                 computed=tuple(
-                    ParseRuleFacade._project_computed(column, rule) for column in group.computed
+                    ParseRuleFacade._project_computed(column, rule)
+                    for column in computed_columns(group)
                 ),
-                declared_order=group.names,
+                declared_order=tuple(column.name for column in group),
             ),
         )
 
@@ -524,7 +527,7 @@ class ParseRuleFacade:
         declared = rule.modifications
         consumed = any(
             isinstance(column, ProformaSequence | StrippedSequence)
-            for column in rule.columns.var.computed
+            for column in computed_columns(rule.columns.var)
         )
         if declared is None or not consumed:
             return ()
@@ -577,7 +580,7 @@ class ParseRuleFacade:
 
         ``produced_by`` and ``column_roles`` are not decoration. A later APB step needs the
         quantification level and one ``var`` column per semantic role, and must not have to
-        validate a schema-0.3 document to learn a column name — a reader of another generation
+        validate a schema-0.4 document to learn a column name — a reader of another generation
         cannot. Stating both as data is what lets ``apb fasta`` and ``apb proteobench`` run on
         an object this parser wrote.
         """

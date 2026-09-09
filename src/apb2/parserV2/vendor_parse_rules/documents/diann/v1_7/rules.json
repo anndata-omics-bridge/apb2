@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.3",
+  "schema_version": "0.4",
   "file_version": "1",
   "software_name": "DIA-NN",
   "software_version_pattern": "^1\\.[0-7](\\.|$)",
@@ -21,11 +21,12 @@
       }
     },
     "columns": {
-      "obs": {
-        "select": {
-          "Run": "File.Name"
+      "obs": [
+        {
+          "name": "Run",
+          "source": "File.Name"
         }
-      }
+      ]
     },
     "modifications": {
       "source_column": "Modified.Sequence",
@@ -84,49 +85,69 @@
         ]
       },
       "columns": {
-        "var": {
-          "select": {
-            "Modified_Sequence": "Modified.Sequence",
-            "Stripped_Sequence": "Stripped.Sequence",
-            "Precursor_Charge": "Precursor.Charge",
-            "Precursor_Id": "Precursor.Id",
-            "Protein_Group": "Protein.Group",
-            "Protein_Ids": "Protein.Ids",
-            "Protein_Names": "Protein.Names",
-            "Genes": "Genes"
+        "var": [
+          {
+            "name": "Modified_Sequence",
+            "source": "Modified.Sequence"
           },
-          "types": {
-            "Precursor_Charge": "integer"
+          {
+            "name": "Stripped_Sequence",
+            "source": "Stripped.Sequence"
           },
-          "computed": [
-            {
-              "name": "ProForma_peptidoform",
-              "inputs": [
-                "Modified_Sequence"
-              ],
-              "how": "proforma_sequence"
-            },
-            {
-              "name": "ProForma_peptide",
-              "inputs": [
-                "Modified_Sequence"
-              ],
-              "how": "stripped_sequence"
-            },
-            {
-              "name": "ProForma_ion",
-              "inputs": [
-                "ProForma_peptidoform",
-                "Precursor_Charge"
-              ],
-              "how": "proforma_ion"
-            }
-          ]
-        }
-      },
-      "column_roles": {
-        "protein_assignment": "Protein_Group",
-        "fasta_accessions": "Protein_Ids"
+          {
+            "name": "Precursor_Charge",
+            "source": "Precursor.Charge",
+            "type": "integer"
+          },
+          {
+            "name": "Precursor_Id",
+            "source": "Precursor.Id"
+          },
+          {
+            "name": "Protein_Group",
+            "source": "Protein.Group",
+            "roles": [
+              "protein_assignment"
+            ]
+          },
+          {
+            "name": "Protein_Ids",
+            "source": "Protein.Ids",
+            "roles": [
+              "fasta_accessions"
+            ]
+          },
+          {
+            "name": "Protein_Names",
+            "source": "Protein.Names"
+          },
+          {
+            "name": "Genes",
+            "source": "Genes"
+          },
+          {
+            "name": "ProForma_peptidoform",
+            "inputs": [
+              "Modified_Sequence"
+            ],
+            "how": "proforma_sequence"
+          },
+          {
+            "name": "ProForma_peptide",
+            "inputs": [
+              "Modified_Sequence"
+            ],
+            "how": "stripped_sequence"
+          },
+          {
+            "name": "ProForma_ion",
+            "inputs": [
+              "ProForma_peptidoform",
+              "Precursor_Charge"
+            ],
+            "how": "proforma_ion"
+          }
+        ]
       }
     },
     "fragment": {
@@ -149,52 +170,55 @@
         ]
       },
       "columns": {
-        "var": {
-          "select": {
-            "Modified_Sequence": "Modified.Sequence",
-            "Precursor_Charge": "Precursor.Charge",
-            "Protein_Group": "Protein.Group"
+        "var": [
+          {
+            "name": "Modified_Sequence",
+            "source": "Modified.Sequence"
           },
-          "types": {
-            "Precursor_Charge": "integer"
+          {
+            "name": "Precursor_Charge",
+            "source": "Precursor.Charge",
+            "type": "integer"
           },
-          "computed": [
-            {
-              "name": "ProForma_peptidoform",
-              "inputs": [
-                "Modified_Sequence"
-              ],
-              "how": "proforma_sequence"
-            },
-            {
-              "name": "ProForma_peptide",
-              "inputs": [
-                "Modified_Sequence"
-              ],
-              "how": "stripped_sequence"
-            },
-            {
-              "name": "ProForma_ion",
-              "inputs": [
-                "ProForma_peptidoform",
-                "Precursor_Charge"
-              ],
-              "how": "proforma_ion"
-            },
-            {
-              "name": "ProForma_fragment",
-              "inputs": [
-                "ProForma_ion",
-                "fragment_label"
-              ],
-              "how": "proforma_fragment"
-            }
-          ]
-        }
-      },
-      "column_roles": {
-        "protein_assignment": "Protein_Group",
-        "fasta_accessions": "Protein_Group"
+          {
+            "name": "Protein_Group",
+            "source": "Protein.Group",
+            "roles": [
+              "protein_assignment",
+              "fasta_accessions"
+            ]
+          },
+          {
+            "name": "ProForma_peptidoform",
+            "inputs": [
+              "Modified_Sequence"
+            ],
+            "how": "proforma_sequence"
+          },
+          {
+            "name": "ProForma_peptide",
+            "inputs": [
+              "Modified_Sequence"
+            ],
+            "how": "stripped_sequence"
+          },
+          {
+            "name": "ProForma_ion",
+            "inputs": [
+              "ProForma_peptidoform",
+              "Precursor_Charge"
+            ],
+            "how": "proforma_ion"
+          },
+          {
+            "name": "ProForma_fragment",
+            "inputs": [
+              "ProForma_ion",
+              "fragment_label"
+            ],
+            "how": "proforma_fragment"
+          }
+        ]
       },
       "fragments": {
         "label_strategy": "positional",
@@ -233,18 +257,30 @@
         ]
       },
       "columns": {
-        "var": {
-          "select": {
-            "Protein_Group": "Protein.Group",
-            "Protein_Ids": "Protein.Ids",
-            "Protein_Names": "Protein.Names",
-            "Genes": "Genes"
+        "var": [
+          {
+            "name": "Protein_Group",
+            "source": "Protein.Group",
+            "roles": [
+              "protein_assignment"
+            ]
+          },
+          {
+            "name": "Protein_Ids",
+            "source": "Protein.Ids",
+            "roles": [
+              "fasta_accessions"
+            ]
+          },
+          {
+            "name": "Protein_Names",
+            "source": "Protein.Names"
+          },
+          {
+            "name": "Genes",
+            "source": "Genes"
           }
-        }
-      },
-      "column_roles": {
-        "protein_assignment": "Protein_Group",
-        "fasta_accessions": "Protein_Ids"
+        ]
       }
     }
   }

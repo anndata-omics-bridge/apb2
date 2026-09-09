@@ -15,7 +15,7 @@ from apb2.parserV2.parse_quant.io.anndata_writer import NAMESPACE, PARSE_NAMESPA
 from apb2.parserV2.parse_quant.io.json_representation import sidecar_path
 
 _DOCUMENT = {
-    "schema_version": "0.3",
+    "schema_version": "0.4",
     "file_version": "1",
     "software_name": "CliTest",
     "software_version_pattern": "^1$",
@@ -23,8 +23,8 @@ _DOCUMENT = {
     "base": {
         "axis": {"obs_keys": ["sample"], "var_keys": ["feature"]},
         "columns": {
-            "obs": {"select": {"sample": "Run"}},
-            "var": {"select": {"feature": "Precursor"}},
+            "obs": [{"name": "sample", "source": "Run"}],
+            "var": [{"name": "feature", "source": "Precursor"}],
         },
         "measurements": {
             "primary_layer": "Abundance",
@@ -37,7 +37,7 @@ _DOCUMENT = {
 _TSV = "Run\tPrecursor\tIntensity\ns1\tp1\t1.5\ns1\tp2\t2.5\ns2\tp1\t3.5\n"
 
 _MULTILEVEL_DOCUMENT = {
-    "schema_version": "0.3",
+    "schema_version": "0.4",
     "file_version": "1",
     "software_name": "CliTest",
     "software_version_pattern": "^1$",
@@ -45,13 +45,11 @@ _MULTILEVEL_DOCUMENT = {
     "base": {
         "axis": {"obs_keys": ["sample"], "var_keys": ["feature"]},
         "columns": {
-            "obs": {"select": {"sample": "Run"}},
-            "var": {
-                "select": {
-                    "feature": "Precursor",
-                    "protein": "Protein",
-                }
-            },
+            "obs": [{"name": "sample", "source": "Run"}],
+            "var": [
+                {"name": "feature", "source": "Precursor"},
+                {"name": "protein", "source": "Protein"},
+            ],
         },
         "measurements": {
             "primary_layer": "Abundance",

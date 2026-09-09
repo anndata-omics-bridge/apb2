@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from typing import Annotated, Literal
 
-from pydantic import Discriminator, Field, RootModel, Tag, model_validator
+from pydantic import AfterValidator, Field, model_validator
 
 from apb2.parserV2.vendor_parse_rules.schema.base import AxisColumnType, ModelBase
 from apb2.parserV2.vendor_parse_rules.schema.roles import SemanticRole
@@ -100,123 +99,40 @@ class SourcedColumn(ModelBase):
     roles: list[SemanticRole] = Field(default_factory=list)
 
 
-def _column_kind(value: object) -> str:
-    if isinstance(value, Mapping):
-        return "source" if "source" in value else str(value.get("how"))
-    if isinstance(value, SourcedColumn):
-        return "source"
-    return str(getattr(value, "how", None))
+type ColumnEntry = SourcedColumn | ComputedColumn
 
 
-type ColumnEntry = Annotated[
-    Annotated[SourcedColumn, Tag("source")]
-    | Annotated[Coalesce, Tag("coalesce")]
-    | Annotated[JoinNonempty, Tag("join_nonempty")]
-    | Annotated[StrippedSequence, Tag("stripped_sequence")]
-    | Annotated[ProformaSequence, Tag("proforma_sequence")]
-    | Annotated[ProformaIon, Tag("proforma_ion")]
-    | Annotated[ProformaFragment, Tag("proforma_fragment")],
-    Discriminator(_column_kind),
-]
+def _validate_column_group(entries: list[ColumnEntry]) -> list[ColumnEntry]:
+    names = [entry.name for entry in entries]
+    if len(names) != len(set(names)):
+        raise ValueError("column entry names must be unique")
+    for entry in entries:
+        if len(entry.roles) != len(set(entry.roles)):
+            raise ValueError(f"column {entry.name!r} roles must be unique")
+    return entries
 
 
-class LegacyColumnGroup(ModelBase):
-    """Schema-0.3 side maps retained only while packaged rules migrate."""
-
-    select: dict[str, str] = Field(default_factory=dict)
-    optional_select: dict[str, str] = Field(default_factory=dict)
-    types: dict[str, AxisColumnType] = Field(default_factory=dict)
-    computed: list[ComputedColumn] = Field(default_factory=list)
-
-    @model_validator(mode="after")
-    def _consistent_declarations(self) -> LegacyColumnGroup:
-        both = sorted(set(self.select) & set(self.optional_select))
-        if both:
-            raise ValueError(f"column name(s) declared in both selections: {both}")
-        unknown = sorted(set(self.types) - (set(self.select) | set(self.optional_select)))
-        if unknown:
-            raise ValueError(f"types must name selected columns; unknown: {unknown}")
-        names = [column.name for column in self.computed]
-        if len(names) != len(set(names)):
-            raise ValueError("computed column names must be unique")
-        return self
+type ColumnGroup = Annotated[list[ColumnEntry], AfterValidator(_validate_column_group)]
 
 
-class ColumnGroup(RootModel[list[ColumnEntry] | LegacyColumnGroup]):
-    """One axis's columns, temporarily accepting schema-0.3 side maps."""
-
-    @property
-    def entries(self) -> tuple[ColumnEntry, ...]:
-        """Column entries in stable authored order."""
-        if isinstance(self.root, list):
-            return tuple(self.root)
-        types = self.root.types
-        required = [
-            SourcedColumn(name=name, source=source, type=types.get(name, "string"))
-            for name, source in self.root.select.items()
-        ]
-        optional = [
-            SourcedColumn(
-                name=name,
-                source=source,
-                type=types.get(name, "string"),
-                required=False,
-            )
-            for name, source in self.root.optional_select.items()
-        ]
-        computed = {column.name: column for column in self.root.computed}
-        selected_names = {source.name for source in (*required, *optional)}
-        entries: list[ColumnEntry] = []
-        for source in (*required, *optional):
-            column = computed.get(source.name)
-            entries.append(
-                source
-                if column is None
-                else column.model_copy(
-                    update={
-                        "source": source.source,
-                        "type": source.type,
-                        "required": source.required,
-                    }
-                )
-            )
-        entries.extend(column for column in self.root.computed if column.name not in selected_names)
-        return tuple(entries)
-
-    @property
-    def sourced(self) -> tuple[SourcedColumn, ...]:
-        """Physical selections in stable authored order."""
-        return tuple(
-            SourcedColumn(
-                name=entry.name,
-                source=entry.source,
-                type=entry.type,
-                required=entry.required,
-                roles=entry.roles,
-            )
-            for entry in self.entries
-            if entry.source is not None
+def sourced_columns(group: ColumnGroup) -> tuple[SourcedColumn, ...]:
+    """Physical selections in stable authored order."""
+    return tuple(
+        SourcedColumn(
+            name=entry.name,
+            source=entry.source,
+            type=entry.type,
+            required=entry.required,
+            roles=entry.roles,
         )
+        for entry in group
+        if entry.source is not None
+    )
 
-    @property
-    def computed(self) -> tuple[ComputedColumn, ...]:
-        """Computed entries in execution order."""
-        return tuple(entry for entry in self.entries if not isinstance(entry, SourcedColumn))
 
-    @property
-    def names(self) -> tuple[str, ...]:
-        """All logical names in stable authored order."""
-        return tuple(entry.name for entry in self.entries)
-
-    @model_validator(mode="after")
-    def _entry_names_and_roles_are_unique(self) -> ColumnGroup:
-        names = self.names
-        if len(names) != len(set(names)):
-            raise ValueError("column entry names must be unique")
-        for entry in self.entries:
-            if len(entry.roles) != len(set(entry.roles)):
-                raise ValueError(f"column {entry.name!r} roles must be unique")
-        return self
+def computed_columns(group: ColumnGroup) -> tuple[ComputedColumn, ...]:
+    """Computed entries in execution order."""
+    return tuple(entry for entry in group if not isinstance(entry, SourcedColumn))
 
 
 class LongColumns(ModelBase):
@@ -230,10 +146,3 @@ class WideColumns(ModelBase):
     """Variable declarations for a wide source."""
 
     var: ColumnGroup
-
-
-class ColumnRoles(ModelBase):
-    """Schema-0.3 role map retained only while packaged rules migrate."""
-
-    protein_assignment: str | None = Field(default=None, min_length=1)
-    fasta_accessions: str | None = Field(default=None, min_length=1)

@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.3",
+  "schema_version": "0.4",
   "file_version": "2",
   "software_name": "MaxQuant",
   "software_version_pattern": "^(1\\.5|1\\.6|2\\.)",
@@ -22,15 +22,22 @@
       }
     },
     "columns": {
-      "obs": {
-        "select": {
-          "Raw_File": "Raw file"
+      "obs": [
+        {
+          "name": "Raw_File",
+          "source": "Raw file"
         },
-        "optional_select": {
-          "Experiment": "Experiment",
-          "Fraction": "Fraction"
+        {
+          "name": "Experiment",
+          "source": "Experiment",
+          "required": false
+        },
+        {
+          "name": "Fraction",
+          "source": "Fraction",
+          "required": false
         }
-      }
+      ]
     },
     "modifications": {
       "source_column": "Modified sequence",
@@ -97,63 +104,86 @@
         ]
       },
       "columns": {
-        "var": {
-          "select": {
-            "Sequence": "Sequence",
-            "Modified_Sequence": "Modified sequence",
-            "Modifications": "Modifications",
-            "Charge": "Charge",
-            "Mass": "Mass",
-            "Proteins": "Proteins"
+        "var": [
+          {
+            "name": "Sequence",
+            "source": "Sequence"
           },
-          "optional_select": {
-            "Leading_Proteins": "Leading proteins",
-            "Leading_Razor_Protein": "Leading razor protein",
-            "Leading_Proteins_Legacy": "Leading Proteins",
-            "Leading_Razor_Protein_Legacy": "Leading Razor Protein"
+          {
+            "name": "Modified_Sequence",
+            "source": "Modified sequence"
           },
-          "types": {
-            "Charge": "integer",
-            "Mass": "number"
+          {
+            "name": "Modifications",
+            "source": "Modifications"
           },
-          "computed": [
-            {
-              "name": "Proteins",
-              "inputs": [
-                "Proteins",
-                "Leading_Proteins",
-                "Leading_Proteins_Legacy"
-              ],
-              "how": "coalesce"
-            },
-            {
-              "name": "ProForma_peptidoform",
-              "inputs": [
-                "Modified_Sequence"
-              ],
-              "how": "proforma_sequence"
-            },
-            {
-              "name": "ProForma_peptide",
-              "inputs": [
-                "Modified_Sequence"
-              ],
-              "how": "stripped_sequence"
-            },
-            {
-              "name": "ProForma_ion",
-              "inputs": [
-                "ProForma_peptidoform",
-                "Charge"
-              ],
-              "how": "proforma_ion"
-            }
-          ]
-        }
-      },
-      "column_roles": {
-        "protein_assignment": "Proteins",
-        "fasta_accessions": "Proteins"
+          {
+            "name": "Charge",
+            "source": "Charge",
+            "type": "integer"
+          },
+          {
+            "name": "Mass",
+            "source": "Mass",
+            "type": "number"
+          },
+          {
+            "name": "Proteins",
+            "source": "Proteins",
+            "roles": [
+              "protein_assignment",
+              "fasta_accessions"
+            ],
+            "inputs": [
+              "Proteins",
+              "Leading_Proteins",
+              "Leading_Proteins_Legacy"
+            ],
+            "how": "coalesce"
+          },
+          {
+            "name": "Leading_Proteins",
+            "source": "Leading proteins",
+            "required": false
+          },
+          {
+            "name": "Leading_Razor_Protein",
+            "source": "Leading razor protein",
+            "required": false
+          },
+          {
+            "name": "Leading_Proteins_Legacy",
+            "source": "Leading Proteins",
+            "required": false
+          },
+          {
+            "name": "Leading_Razor_Protein_Legacy",
+            "source": "Leading Razor Protein",
+            "required": false
+          },
+          {
+            "name": "ProForma_peptidoform",
+            "inputs": [
+              "Modified_Sequence"
+            ],
+            "how": "proforma_sequence"
+          },
+          {
+            "name": "ProForma_peptide",
+            "inputs": [
+              "Modified_Sequence"
+            ],
+            "how": "stripped_sequence"
+          },
+          {
+            "name": "ProForma_ion",
+            "inputs": [
+              "ProForma_peptidoform",
+              "Charge"
+            ],
+            "how": "proforma_ion"
+          }
+        ]
       }
     }
   }

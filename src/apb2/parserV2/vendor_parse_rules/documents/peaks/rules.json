@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.3",
+  "schema_version": "0.4",
   "file_version": "2",
   "software_name": "PEAKS",
   "software_version_pattern": "^13(?:\\.|\\s|$)",
@@ -100,53 +100,71 @@
         ]
       },
       "columns": {
-        "var": {
-          "select": {
-            "Peptide": "Peptide",
-            "Charge": "z",
-            "Mz": "m/z",
-            "RT_Range": "RT range",
-            "Quality": "Quality",
-            "Significance": "Significance",
-            "Avg_Area": "Avg. Area",
-            "Accession": "Accession"
+        "var": [
+          {
+            "name": "Peptide",
+            "source": "Peptide"
           },
-          "types": {
-            "Charge": "integer",
-            "Mz": "number",
-            "Quality": "number",
-            "Significance": "number",
-            "Avg_Area": "number"
+          {
+            "name": "Charge",
+            "source": "z",
+            "type": "integer"
           },
-          "computed": [
-            {
-              "name": "ProForma_peptidoform",
-              "inputs": [
-                "Peptide"
-              ],
-              "how": "proforma_sequence"
-            },
-            {
-              "name": "ProForma_peptide",
-              "inputs": [
-                "Peptide"
-              ],
-              "how": "stripped_sequence"
-            },
-            {
-              "name": "ProForma_ion",
-              "inputs": [
-                "ProForma_peptidoform",
-                "Charge"
-              ],
-              "how": "proforma_ion"
-            }
-          ]
-        }
-      },
-      "column_roles": {
-        "protein_assignment": "Accession",
-        "fasta_accessions": "Accession"
+          {
+            "name": "Mz",
+            "source": "m/z",
+            "type": "number"
+          },
+          {
+            "name": "RT_Range",
+            "source": "RT range"
+          },
+          {
+            "name": "Quality",
+            "source": "Quality",
+            "type": "number"
+          },
+          {
+            "name": "Significance",
+            "source": "Significance",
+            "type": "number"
+          },
+          {
+            "name": "Avg_Area",
+            "source": "Avg. Area",
+            "type": "number"
+          },
+          {
+            "name": "Accession",
+            "source": "Accession",
+            "roles": [
+              "protein_assignment",
+              "fasta_accessions"
+            ]
+          },
+          {
+            "name": "ProForma_peptidoform",
+            "inputs": [
+              "Peptide"
+            ],
+            "how": "proforma_sequence"
+          },
+          {
+            "name": "ProForma_peptide",
+            "inputs": [
+              "Peptide"
+            ],
+            "how": "stripped_sequence"
+          },
+          {
+            "name": "ProForma_ion",
+            "inputs": [
+              "ProForma_peptidoform",
+              "Charge"
+            ],
+            "how": "proforma_ion"
+          }
+        ]
       }
     }
   }

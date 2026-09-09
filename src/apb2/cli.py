@@ -45,7 +45,7 @@ def convert(
     --params is the vendor parameter file and is required unless --rule-config is given.
     --software disambiguates packaged rule detection. --params-software selects the
     parameter parser independently for compound workflows. --rule-config selects an
-    explicit schema-0.3 document. --output is a basename apb2 appends .h5ad or .h5mu to;
+    explicit schema-0.4 document. --output is a basename apb2 appends .h5ad or .h5mu to;
     the name may contain dots, it simply must not already carry the appended suffix.
     --strict promotes layer-contract warnings to errors.
     """

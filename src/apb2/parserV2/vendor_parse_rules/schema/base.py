@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-SCHEMA_VERSION = "0.3"
+SCHEMA_VERSION = "0.4"
 
 type TableShape = Literal["long", "wide"]
 type QuantificationLevel = Literal["ion", "peptidoform", "peptide", "protein", "fragment"]

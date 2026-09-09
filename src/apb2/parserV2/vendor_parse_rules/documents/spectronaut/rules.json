@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.3",
+  "schema_version": "0.4",
   "file_version": "2",
   "software_name": "Spectronaut",
   "software_version_pattern": "^(19|20)\\..*",
@@ -159,84 +159,171 @@
         ]
       },
       "columns": {
-        "obs": {
-          "select": {
-            "E_Errors": "E.Errors",
-            "E_LFQMethod": "E.LFQMethod",
-            "E_Warnings": "E.Warnings",
-            "R_FileName": "R.FileName",
-            "R_Condition": "R.Condition",
-            "R_Fraction": "R.Fraction",
-            "R_Replicate": "R.Replicate",
-            "R_Label": "R.Label"
+        "obs": [
+          {
+            "name": "E_Errors",
+            "source": "E.Errors"
+          },
+          {
+            "name": "E_LFQMethod",
+            "source": "E.LFQMethod"
+          },
+          {
+            "name": "E_Warnings",
+            "source": "E.Warnings"
+          },
+          {
+            "name": "R_FileName",
+            "source": "R.FileName"
+          },
+          {
+            "name": "R_Condition",
+            "source": "R.Condition"
+          },
+          {
+            "name": "R_Fraction",
+            "source": "R.Fraction"
+          },
+          {
+            "name": "R_Replicate",
+            "source": "R.Replicate"
+          },
+          {
+            "name": "R_Label",
+            "source": "R.Label"
           }
-        },
-        "var": {
-          "select": {
-            "PG_GroupLabel": "PG.GroupLabel",
-            "PG_ProteinAccessions": "PG.ProteinAccessions",
-            "PG_ProteinGroups": "PG.ProteinGroups",
-            "PEP_GroupingKey": "PEP.GroupingKey",
-            "PEP_GroupingKeyType": "PEP.GroupingKeyType",
-            "PEP_StrippedSequence": "PEP.StrippedSequence",
-            "EG_ModifiedSequence": "EG.ModifiedSequence",
-            "EG_ModifiedPeptide": "EG.ModifiedPeptide",
-            "EG_IntPIMID": "EG.IntPIMID",
-            "EG_UserGroup": "EG.UserGroup",
-            "EG_Workflow": "EG.Workflow",
-            "EG_IsDecoy": "EG.IsDecoy",
-            "EG_iRTPredicted": "EG.iRTPredicted",
-            "EG_AvgProfileQvalue": "EG.AvgProfileQvalue",
-            "EG_MaxProfileQvalue": "EG.MaxProfileQvalue",
-            "EG_MinProfileQvalue": "EG.MinProfileQvalue",
-            "EG_PercentileQvalue": "EG.PercentileQvalue",
-            "FG_Charge": "FG.Charge",
-            "FG_IntMID": "FG.IntMID",
-            "FG_LabeledSequence": "FG.LabeledSequence",
-            "FG_Mass": "FG.Mass",
-            "FG_PrecMz": "FG.PrecMz",
-            "FG_XICDBID": "FG.XICDBID"
+        ],
+        "var": [
+          {
+            "name": "PG_GroupLabel",
+            "source": "PG.GroupLabel"
           },
-          "types": {
-            "EG_IsDecoy": "boolean",
-            "EG_iRTPredicted": "number",
-            "EG_AvgProfileQvalue": "number",
-            "EG_MaxProfileQvalue": "number",
-            "EG_MinProfileQvalue": "number",
-            "EG_PercentileQvalue": "number",
-            "FG_Charge": "integer",
-            "FG_Mass": "number",
-            "FG_PrecMz": "number"
+          {
+            "name": "PG_ProteinAccessions",
+            "source": "PG.ProteinAccessions",
+            "roles": [
+              "fasta_accessions"
+            ]
           },
-          "computed": [
-            {
-              "name": "ProForma_peptidoform",
-              "inputs": [
-                "EG_ModifiedSequence"
-              ],
-              "how": "proforma_sequence"
-            },
-            {
-              "name": "ProForma_peptide",
-              "inputs": [
-                "EG_ModifiedSequence"
-              ],
-              "how": "stripped_sequence"
-            },
-            {
-              "name": "ProForma_ion",
-              "inputs": [
-                "ProForma_peptidoform",
-                "FG_Charge"
-              ],
-              "how": "proforma_ion"
-            }
-          ]
-        }
-      },
-      "column_roles": {
-        "protein_assignment": "PG_ProteinGroups",
-        "fasta_accessions": "PG_ProteinAccessions"
+          {
+            "name": "PG_ProteinGroups",
+            "source": "PG.ProteinGroups",
+            "roles": [
+              "protein_assignment"
+            ]
+          },
+          {
+            "name": "PEP_GroupingKey",
+            "source": "PEP.GroupingKey"
+          },
+          {
+            "name": "PEP_GroupingKeyType",
+            "source": "PEP.GroupingKeyType"
+          },
+          {
+            "name": "PEP_StrippedSequence",
+            "source": "PEP.StrippedSequence"
+          },
+          {
+            "name": "EG_ModifiedSequence",
+            "source": "EG.ModifiedSequence"
+          },
+          {
+            "name": "EG_ModifiedPeptide",
+            "source": "EG.ModifiedPeptide"
+          },
+          {
+            "name": "EG_IntPIMID",
+            "source": "EG.IntPIMID"
+          },
+          {
+            "name": "EG_UserGroup",
+            "source": "EG.UserGroup"
+          },
+          {
+            "name": "EG_Workflow",
+            "source": "EG.Workflow"
+          },
+          {
+            "name": "EG_IsDecoy",
+            "source": "EG.IsDecoy",
+            "type": "boolean"
+          },
+          {
+            "name": "EG_iRTPredicted",
+            "source": "EG.iRTPredicted",
+            "type": "number"
+          },
+          {
+            "name": "EG_AvgProfileQvalue",
+            "source": "EG.AvgProfileQvalue",
+            "type": "number"
+          },
+          {
+            "name": "EG_MaxProfileQvalue",
+            "source": "EG.MaxProfileQvalue",
+            "type": "number"
+          },
+          {
+            "name": "EG_MinProfileQvalue",
+            "source": "EG.MinProfileQvalue",
+            "type": "number"
+          },
+          {
+            "name": "EG_PercentileQvalue",
+            "source": "EG.PercentileQvalue",
+            "type": "number"
+          },
+          {
+            "name": "FG_Charge",
+            "source": "FG.Charge",
+            "type": "integer"
+          },
+          {
+            "name": "FG_IntMID",
+            "source": "FG.IntMID"
+          },
+          {
+            "name": "FG_LabeledSequence",
+            "source": "FG.LabeledSequence"
+          },
+          {
+            "name": "FG_Mass",
+            "source": "FG.Mass",
+            "type": "number"
+          },
+          {
+            "name": "FG_PrecMz",
+            "source": "FG.PrecMz",
+            "type": "number"
+          },
+          {
+            "name": "FG_XICDBID",
+            "source": "FG.XICDBID"
+          },
+          {
+            "name": "ProForma_peptidoform",
+            "inputs": [
+              "EG_ModifiedSequence"
+            ],
+            "how": "proforma_sequence"
+          },
+          {
+            "name": "ProForma_peptide",
+            "inputs": [
+              "EG_ModifiedSequence"
+            ],
+            "how": "stripped_sequence"
+          },
+          {
+            "name": "ProForma_ion",
+            "inputs": [
+              "ProForma_peptidoform",
+              "FG_Charge"
+            ],
+            "how": "proforma_ion"
+          }
+        ]
       }
     },
     "fragment": {
@@ -268,64 +355,103 @@
         ]
       },
       "columns": {
-        "obs": {
-          "select": {
-            "R_FileName": "R.FileName",
-            "R_Condition": "R.Condition"
+        "obs": [
+          {
+            "name": "R_FileName",
+            "source": "R.FileName"
+          },
+          {
+            "name": "R_Condition",
+            "source": "R.Condition"
           }
-        },
-        "var": {
-          "select": {
-            "PG_ProteinGroups": "PG.ProteinGroups",
-            "PG_ProteinAccessions": "PG.ProteinAccessions",
-            "PEP_StrippedSequence": "PEP.StrippedSequence",
-            "EG_ModifiedSequence": "EG.ModifiedSequence",
-            "EG_PrecursorId": "EG.PrecursorId",
-            "FG_Charge": "FG.Charge",
-            "F_FrgIon": "F.FrgIon",
-            "F_Charge": "F.Charge",
-            "F_FrgLossType": "F.FrgLossType",
-            "F_FrgType": "F.FrgType",
-            "F_FrgNum": "F.FrgNum",
-            "F_FrgMz": "F.FrgMz",
-            "F_TheoreticalMz": "F.TheoreticalMz"
+        ],
+        "var": [
+          {
+            "name": "PG_ProteinGroups",
+            "source": "PG.ProteinGroups",
+            "roles": [
+              "protein_assignment"
+            ]
           },
-          "types": {
-            "FG_Charge": "integer",
-            "F_Charge": "integer",
-            "F_FrgNum": "integer",
-            "F_FrgMz": "number",
-            "F_TheoreticalMz": "number"
+          {
+            "name": "PG_ProteinAccessions",
+            "source": "PG.ProteinAccessions",
+            "roles": [
+              "fasta_accessions"
+            ]
           },
-          "computed": [
-            {
-              "name": "ProForma_peptidoform",
-              "inputs": [
-                "EG_ModifiedSequence"
-              ],
-              "how": "proforma_sequence"
-            },
-            {
-              "name": "ProForma_peptide",
-              "inputs": [
-                "EG_ModifiedSequence"
-              ],
-              "how": "stripped_sequence"
-            },
-            {
-              "name": "ProForma_ion",
-              "inputs": [
-                "ProForma_peptidoform",
-                "FG_Charge"
-              ],
-              "how": "proforma_ion"
-            }
-          ]
-        }
-      },
-      "column_roles": {
-        "protein_assignment": "PG_ProteinGroups",
-        "fasta_accessions": "PG_ProteinAccessions"
+          {
+            "name": "PEP_StrippedSequence",
+            "source": "PEP.StrippedSequence"
+          },
+          {
+            "name": "EG_ModifiedSequence",
+            "source": "EG.ModifiedSequence"
+          },
+          {
+            "name": "EG_PrecursorId",
+            "source": "EG.PrecursorId"
+          },
+          {
+            "name": "FG_Charge",
+            "source": "FG.Charge",
+            "type": "integer"
+          },
+          {
+            "name": "F_FrgIon",
+            "source": "F.FrgIon"
+          },
+          {
+            "name": "F_Charge",
+            "source": "F.Charge",
+            "type": "integer"
+          },
+          {
+            "name": "F_FrgLossType",
+            "source": "F.FrgLossType"
+          },
+          {
+            "name": "F_FrgType",
+            "source": "F.FrgType"
+          },
+          {
+            "name": "F_FrgNum",
+            "source": "F.FrgNum",
+            "type": "integer"
+          },
+          {
+            "name": "F_FrgMz",
+            "source": "F.FrgMz",
+            "type": "number"
+          },
+          {
+            "name": "F_TheoreticalMz",
+            "source": "F.TheoreticalMz",
+            "type": "number"
+          },
+          {
+            "name": "ProForma_peptidoform",
+            "inputs": [
+              "EG_ModifiedSequence"
+            ],
+            "how": "proforma_sequence"
+          },
+          {
+            "name": "ProForma_peptide",
+            "inputs": [
+              "EG_ModifiedSequence"
+            ],
+            "how": "stripped_sequence"
+          },
+          {
+            "name": "ProForma_ion",
+            "inputs": [
+              "ProForma_peptidoform",
+              "FG_Charge"
+            ],
+            "how": "proforma_ion"
+          }
+        ]
       }
     },
     "protein": {
@@ -367,39 +493,80 @@
         ]
       },
       "columns": {
-        "obs": {
-          "select": {
-            "E_Errors": "E.Errors",
-            "E_LFQMethod": "E.LFQMethod",
-            "E_Warnings": "E.Warnings",
-            "R_FileName": "R.FileName",
-            "R_Condition": "R.Condition",
-            "R_Fraction": "R.Fraction",
-            "R_Replicate": "R.Replicate",
-            "R_Label": "R.Label"
-          }
-        },
-        "var": {
-          "select": {
-            "PG_GroupLabel": "PG.GroupLabel",
-            "PG_ProteinAccessions": "PG.ProteinAccessions",
-            "PG_ProteinGroups": "PG.ProteinGroups",
-            "PG_Cscore": "PG.Cscore",
-            "PG_PEP": "PG.PEP",
-            "PG_Pvalue": "PG.Pvalue",
-            "PG_Qvalue": "PG.Qvalue"
+        "obs": [
+          {
+            "name": "E_Errors",
+            "source": "E.Errors"
           },
-          "types": {
-            "PG_Cscore": "number",
-            "PG_PEP": "number",
-            "PG_Pvalue": "number",
-            "PG_Qvalue": "number"
+          {
+            "name": "E_LFQMethod",
+            "source": "E.LFQMethod"
+          },
+          {
+            "name": "E_Warnings",
+            "source": "E.Warnings"
+          },
+          {
+            "name": "R_FileName",
+            "source": "R.FileName"
+          },
+          {
+            "name": "R_Condition",
+            "source": "R.Condition"
+          },
+          {
+            "name": "R_Fraction",
+            "source": "R.Fraction"
+          },
+          {
+            "name": "R_Replicate",
+            "source": "R.Replicate"
+          },
+          {
+            "name": "R_Label",
+            "source": "R.Label"
           }
-        }
-      },
-      "column_roles": {
-        "protein_assignment": "PG_ProteinGroups",
-        "fasta_accessions": "PG_ProteinAccessions"
+        ],
+        "var": [
+          {
+            "name": "PG_GroupLabel",
+            "source": "PG.GroupLabel"
+          },
+          {
+            "name": "PG_ProteinAccessions",
+            "source": "PG.ProteinAccessions",
+            "roles": [
+              "fasta_accessions"
+            ]
+          },
+          {
+            "name": "PG_ProteinGroups",
+            "source": "PG.ProteinGroups",
+            "roles": [
+              "protein_assignment"
+            ]
+          },
+          {
+            "name": "PG_Cscore",
+            "source": "PG.Cscore",
+            "type": "number"
+          },
+          {
+            "name": "PG_PEP",
+            "source": "PG.PEP",
+            "type": "number"
+          },
+          {
+            "name": "PG_Pvalue",
+            "source": "PG.Pvalue",
+            "type": "number"
+          },
+          {
+            "name": "PG_Qvalue",
+            "source": "PG.Qvalue",
+            "type": "number"
+          }
+        ]
       }
     }
   }

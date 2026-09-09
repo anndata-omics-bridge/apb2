@@ -96,44 +96,20 @@
       "type": "object"
     },
     "ColumnEntry": {
-      "oneOf": [
+      "anyOf": [
         {
           "$ref": "#/$defs/SourcedColumn"
         },
         {
-          "$ref": "#/$defs/Coalesce"
-        },
-        {
-          "$ref": "#/$defs/JoinNonempty"
-        },
-        {
-          "$ref": "#/$defs/StrippedSequence"
-        },
-        {
-          "$ref": "#/$defs/ProformaSequence"
-        },
-        {
-          "$ref": "#/$defs/ProformaIon"
-        },
-        {
-          "$ref": "#/$defs/ProformaFragment"
+          "$ref": "#/$defs/ComputedColumn"
         }
       ]
     },
     "ColumnGroup": {
-      "anyOf": [
-        {
-          "items": {
-            "$ref": "#/$defs/ColumnEntry"
-          },
-          "type": "array"
-        },
-        {
-          "$ref": "#/$defs/LegacyColumnGroup"
-        }
-      ],
-      "description": "One axis's columns, temporarily accepting schema-0.3 side maps.",
-      "title": "ColumnGroup"
+      "items": {
+        "$ref": "#/$defs/ColumnEntry"
+      },
+      "type": "array"
     },
     "ColumnLabeledFragments": {
       "additionalProperties": false,
@@ -172,40 +148,6 @@
         "label_column"
       ],
       "title": "ColumnLabeledFragments",
-      "type": "object"
-    },
-    "ColumnRoles": {
-      "additionalProperties": false,
-      "description": "Schema-0.3 role map retained only while packaged rules migrate.",
-      "properties": {
-        "protein_assignment": {
-          "anyOf": [
-            {
-              "minLength": 1,
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Protein Assignment"
-        },
-        "fasta_accessions": {
-          "anyOf": [
-            {
-              "minLength": 1,
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Fasta Accessions"
-        }
-      },
-      "title": "ColumnRoles",
       "type": "object"
     },
     "ComputedColumn": {
@@ -453,42 +395,6 @@
         }
       ]
     },
-    "LegacyColumnGroup": {
-      "additionalProperties": false,
-      "description": "Schema-0.3 side maps retained only while packaged rules migrate.",
-      "properties": {
-        "select": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "title": "Select",
-          "type": "object"
-        },
-        "optional_select": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "title": "Optional Select",
-          "type": "object"
-        },
-        "types": {
-          "additionalProperties": {
-            "$ref": "#/$defs/AxisColumnType"
-          },
-          "title": "Types",
-          "type": "object"
-        },
-        "computed": {
-          "items": {
-            "$ref": "#/$defs/ComputedColumn"
-          },
-          "title": "Computed",
-          "type": "array"
-        }
-      },
-      "title": "LegacyColumnGroup",
-      "type": "object"
-    },
     "LongColumns": {
       "additionalProperties": false,
       "description": "Observation and variable declarations for a long source.",
@@ -535,9 +441,6 @@
         },
         "measurements": {
           "$ref": "#/$defs/Measurements"
-        },
-        "column_roles": {
-          "$ref": "#/$defs/ColumnRoles"
         },
         "modifications": {
           "anyOf": [
@@ -1327,9 +1230,6 @@
         },
         "measurements": {
           "$ref": "#/$defs/Measurements"
-        },
-        "column_roles": {
-          "$ref": "#/$defs/ColumnRoles"
         },
         "modifications": {
           "anyOf": [

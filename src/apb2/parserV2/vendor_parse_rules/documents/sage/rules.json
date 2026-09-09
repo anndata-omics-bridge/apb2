@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.3",
+  "schema_version": "0.4",
   "file_version": "2",
   "software_name": "Sage",
   "software_version_pattern": "^0\\.",
@@ -30,40 +30,49 @@
       ]
     },
     "columns": {
-      "var": {
-        "select": {
-          "Peptide": "peptide",
-          "Proteins": "proteins",
-          "Q_Value": "q_value",
-          "Score": "score",
-          "Spectral_Angle": "spectral_angle"
+      "var": [
+        {
+          "name": "Peptide",
+          "source": "peptide"
         },
-        "types": {
-          "Q_Value": "number",
-          "Score": "number",
-          "Spectral_Angle": "number"
+        {
+          "name": "Proteins",
+          "source": "proteins",
+          "roles": [
+            "protein_assignment",
+            "fasta_accessions"
+          ]
         },
-        "computed": [
-          {
-            "name": "ProForma_peptidoform",
-            "inputs": [
-              "Peptide"
-            ],
-            "how": "proforma_sequence"
-          },
-          {
-            "name": "ProForma_peptide",
-            "inputs": [
-              "Peptide"
-            ],
-            "how": "stripped_sequence"
-          }
-        ]
-      }
-    },
-    "column_roles": {
-      "protein_assignment": "Proteins",
-      "fasta_accessions": "Proteins"
+        {
+          "name": "Q_Value",
+          "source": "q_value",
+          "type": "number"
+        },
+        {
+          "name": "Score",
+          "source": "score",
+          "type": "number"
+        },
+        {
+          "name": "Spectral_Angle",
+          "source": "spectral_angle",
+          "type": "number"
+        },
+        {
+          "name": "ProForma_peptidoform",
+          "inputs": [
+            "Peptide"
+          ],
+          "how": "proforma_sequence"
+        },
+        {
+          "name": "ProForma_peptide",
+          "inputs": [
+            "Peptide"
+          ],
+          "how": "stripped_sequence"
+        }
+      ]
     },
     "modifications": {
       "source_column": "peptide",
@@ -103,24 +112,21 @@
         "primary_layer": "Intensity"
       },
       "columns": {
-        "var": {
-          "select": {
-            "Charge": "charge"
+        "var": [
+          {
+            "name": "Charge",
+            "source": "charge",
+            "type": "integer"
           },
-          "types": {
-            "Charge": "integer"
-          },
-          "computed": [
-            {
-              "name": "ProForma_ion",
-              "inputs": [
-                "ProForma_peptidoform",
-                "Charge"
-              ],
-              "how": "proforma_ion"
-            }
-          ]
-        }
+          {
+            "name": "ProForma_ion",
+            "inputs": [
+              "ProForma_peptidoform",
+              "Charge"
+            ],
+            "how": "proforma_ion"
+          }
+        ]
       }
     },
     "peptidoform": {

@@ -515,7 +515,7 @@ class WorkingParseConfiguration:
             var            key ("ProForma_ion",); 13 declared columns, 4 of them computed
             measurements   primary "Intensity", mode "aggregate", 5 layers
             modifications  (TokenRegexModificationConfig(...),) with 5 resolved entries
-            provenance     {"rule_json": "<2803 characters>", "schema_version": "0.3",
+            provenance     {"rule_json": "<2803 characters>", "schema_version": "0.4",
                             "software_name": "MaxQuant", "shape": "long",
                             "quantification_level": "ion"}
 

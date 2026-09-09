@@ -24,13 +24,13 @@ def _packaged() -> tuple[Path, ...]:
 
 
 PACKAGED: tuple[Path, ...] = _packaged()
-"""Every schema-0.3 rules.json Parser V2 ships, in stable path order."""
+"""Every schema-0.4 rules.json Parser V2 ships, in stable path order."""
 
 
 def load_rule_document(path: Path) -> RuleDocument:
     """Read one rules.json. The single entry point of this package.
 
-    Raises when the file is not a readable schema-0.3 document, so a ``RuleDocument`` in hand
+    Raises when the file is not a readable schema-0.4 document, so a ``RuleDocument`` in hand
     means the shell parsed; a level's blocks are validated when that level is composed, which
     is the only place they can be — a level is validated as a whole rule.
     """

@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.3",
+  "schema_version": "0.4",
   "file_version": "1",
   "software_name": "MaxQuant",
   "software_version_pattern": "^(1\\.5|1\\.6|2\\.)",
@@ -56,39 +56,100 @@
         ]
       },
       "columns": {
-        "var": {
-          "select": {
-            "Protein_IDs": "Protein IDs"
+        "var": [
+          {
+            "name": "Protein_IDs",
+            "source": "Protein IDs",
+            "roles": [
+              "protein_assignment",
+              "fasta_accessions"
+            ]
           },
-          "optional_select": {
-            "Majority_Protein_IDs": "Majority protein IDs",
-            "Fasta_Headers": "Fasta headers",
-            "Gene_Names": "Gene names",
-            "Protein_Names": "Protein names",
-            "Number_Of_Proteins": "Number of proteins",
-            "Peptides": "Peptides",
-            "Razor_Unique_Peptides": "Razor + unique peptides",
-            "Unique_Peptides": "Unique peptides",
-            "Sequence_Coverage_Percent": "Sequence coverage [%]",
-            "Mol_Weight_kDa": "Mol. weight [kDa]",
-            "Q_Value": "Q-value",
-            "Score": "Score",
-            "Only_Identified_By_Site": "Only identified by site",
-            "Reverse": "Reverse",
-            "Decoy": "Decoy",
-            "Potential_Contaminant": "Potential contaminant"
+          {
+            "name": "Majority_Protein_IDs",
+            "source": "Majority protein IDs",
+            "required": false
           },
-          "types": {
-            "Number_Of_Proteins": "integer",
-            "Peptides": "integer",
-            "Razor_Unique_Peptides": "integer",
-            "Unique_Peptides": "integer"
+          {
+            "name": "Fasta_Headers",
+            "source": "Fasta headers",
+            "required": false
+          },
+          {
+            "name": "Gene_Names",
+            "source": "Gene names",
+            "required": false
+          },
+          {
+            "name": "Protein_Names",
+            "source": "Protein names",
+            "required": false
+          },
+          {
+            "name": "Number_Of_Proteins",
+            "source": "Number of proteins",
+            "type": "integer",
+            "required": false
+          },
+          {
+            "name": "Peptides",
+            "source": "Peptides",
+            "type": "integer",
+            "required": false
+          },
+          {
+            "name": "Razor_Unique_Peptides",
+            "source": "Razor + unique peptides",
+            "type": "integer",
+            "required": false
+          },
+          {
+            "name": "Unique_Peptides",
+            "source": "Unique peptides",
+            "type": "integer",
+            "required": false
+          },
+          {
+            "name": "Sequence_Coverage_Percent",
+            "source": "Sequence coverage [%]",
+            "required": false
+          },
+          {
+            "name": "Mol_Weight_kDa",
+            "source": "Mol. weight [kDa]",
+            "required": false
+          },
+          {
+            "name": "Q_Value",
+            "source": "Q-value",
+            "required": false
+          },
+          {
+            "name": "Score",
+            "source": "Score",
+            "required": false
+          },
+          {
+            "name": "Only_Identified_By_Site",
+            "source": "Only identified by site",
+            "required": false
+          },
+          {
+            "name": "Reverse",
+            "source": "Reverse",
+            "required": false
+          },
+          {
+            "name": "Decoy",
+            "source": "Decoy",
+            "required": false
+          },
+          {
+            "name": "Potential_Contaminant",
+            "source": "Potential contaminant",
+            "required": false
           }
-        }
-      },
-      "column_roles": {
-        "protein_assignment": "Protein_IDs",
-        "fasta_accessions": "Protein_IDs"
+        ]
       }
     }
   }
