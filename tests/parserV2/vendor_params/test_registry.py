@@ -66,3 +66,5 @@ def test_maxquant_keeps_parser_specific_ms2frac_option() -> None:
     assert ftms.fragment_mass_tolerance.unit == "ppm"
     assert itms.fragment_mass_tolerance is not None
     assert itms.fragment_mass_tolerance.value == 0.5
+    # The ITMS entry carries MatchToleranceInPpm="false", so its tolerance is in daltons.
+    assert itms.fragment_mass_tolerance.unit == "Da"

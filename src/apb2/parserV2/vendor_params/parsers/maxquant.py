@@ -190,7 +190,8 @@ def _tolerance_pair(document: FlatDocument) -> tuple[MassTolerance, MassToleranc
         unit="ppm",
     )
     frag_value = float(_msms_field(document, "MatchTolerance"))
-    in_ppm = bool(_msms_field(document, "MatchToleranceInPpm"))
+    # mqpar writes this as the attribute text "true"/"false", and bool("false") is True.
+    in_ppm = _msms_field(document, "MatchToleranceInPpm").lower() == "true"
     fragment = MassTolerance(mode="absolute", value=frag_value, unit="ppm" if in_ppm else "Da")
     return precursor, fragment
 
