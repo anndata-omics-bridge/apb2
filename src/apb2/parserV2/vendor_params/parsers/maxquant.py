@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import collections.abc
+import math
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import IO
@@ -126,12 +127,24 @@ def _text(value: object, field: str) -> str:
 
 
 def _joined_text(value: object, field: str) -> str:
-    """Return one or more text values as a comma-delimited string."""
+    """Return zero or more text values as a comma-delimited string.
+
+    An empty mqpar element (``<field />`` or whitespace-only) reads as ``None``, which pandas
+    stores as a missing value. It means the search declared no entries, which is valid input
+    rather than a malformed field, so it yields the empty string.
+    """
     if isinstance(value, str):
         return value
-    if not isinstance(value, pd.Series):
-        raise TypeError(f"MaxQuant {field} must contain text values")
-    return ",".join(_text(item, field) for item in value)
+    if isinstance(value, pd.Series):
+        return ",".join(_text(item, field) for item in value)
+    if _is_missing(value):
+        return ""
+    raise TypeError(f"MaxQuant {field} must contain text values")
+
+
+def _is_missing(value: object) -> bool:
+    """Report whether a squeezed mqpar selection holds no value."""
+    return value is None or value is pd.NA or (isinstance(value, float) and math.isnan(value))
 
 
 def _field(series: pd.Series, name: str) -> str:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import io
+import re
 from pathlib import Path
 
 import pytest
@@ -48,3 +50,53 @@ def test_maxquant_matches_proteobench(xml_name: str, expected_name: str) -> None
     ]
     mismatches = proteobench_params.compare(params, expected, fields)
     assert not mismatches, "; ".join(mismatches)
+
+
+_BASE_MQPAR = "mqpar1.5.3.30_MBR.xml"
+
+# MaxQuant writes an unused modification list either self-closed or as an empty element pair.
+# Both spellings appear in real files; mqpar_maxdia.xml uses the second for
+# variableModificationsFirstSearch.
+EMPTY_SPELLINGS = [
+    "<{field} />",
+    "<{field}>\n</{field}>",
+]
+
+
+def _mqpar_with_empty(field: str, spelling: str) -> io.StringIO:
+    """Rewrite the base mqpar so one modification list declares no entries."""
+    source = (PROTEOBENCH_PARAMS / _BASE_MQPAR).read_text(encoding="utf-8")
+    replaced, count = re.subn(
+        rf"<{field}>.*?</{field}>",
+        spelling.format(field=field),
+        source,
+        count=1,
+        flags=re.DOTALL,
+    )
+    assert count == 1, f"base mqpar does not contain a populated <{field}>"
+    return io.StringIO(replaced)
+
+
+@pytest.mark.parametrize("spelling", EMPTY_SPELLINGS)
+def test_empty_variable_modifications_parse_as_none_declared(spelling: str) -> None:
+    if not (PROTEOBENCH_PARAMS / _BASE_MQPAR).exists():
+        pytest.skip("ProteoBench fixture missing")
+
+    params = extract_params(_mqpar_with_empty("variableModifications", spelling))
+
+    assert params.variable_mods == []
+    assert [mod.source for mod in params.fixed_mods] == ["C[Carbamidomethyl]"]
+
+
+@pytest.mark.parametrize("spelling", EMPTY_SPELLINGS)
+def test_empty_fixed_modifications_parse_as_none_declared(spelling: str) -> None:
+    if not (PROTEOBENCH_PARAMS / _BASE_MQPAR).exists():
+        pytest.skip("ProteoBench fixture missing")
+
+    params = extract_params(_mqpar_with_empty("fixedModifications", spelling))
+
+    assert params.fixed_mods == []
+    assert [mod.source for mod in params.variable_mods] == [
+        "M[Oxidation]",
+        "Protein N-term[Acetyl]",
+    ]
