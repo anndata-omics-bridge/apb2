@@ -15,9 +15,13 @@ PROTEOBENCH_PARAMS = Path(__file__).resolve().parent / "params"
 
 CASES = [
     ("mqpar1.5.3.30_MBR.xml", "mqpar1.5.3.30_MBR_sel.json"),
+    ("mqpar1.5.3.30_noMBR.xml", "mqpar1.5.3.30_noMBR_sel.json"),
     ("mqpar_MQ1.6.3.3_MBR.xml", "mqpar_MQ1.6.3.3_MBR_sel.json"),
     ("mqpar_MQ2.1.3.0_noMBR.xml", "mqpar_MQ2.1.3.0_noMBR_sel.json"),
     ("mqpar_mq2.6.2.0_1mc_MBR.xml", "mqpar_mq2.6.2.0_1mc_MBR_sel.json"),
+    # maxDIA writes <variableModificationsFirstSearch> as an empty element pair, the second
+    # spelling of "no entries declared" that the empty-modification tests below cover.
+    ("mqpar_maxdia.xml", "mqpar_maxdia_sel.json"),
 ]
 
 

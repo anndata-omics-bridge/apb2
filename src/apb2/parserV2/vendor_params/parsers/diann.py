@@ -264,6 +264,21 @@ def _arguments(cmd_dict: dict[str, _CommandValue], name: str) -> list[str] | Non
     return value
 
 
+def _digestion_enzyme(cmd_dict: dict[str, _CommandValue]) -> str:
+    """Resolve ``--cut`` into an enzyme name, or DIA-NN's no-digestion mode.
+
+    ``--cut`` has three states, not two. Absent, it leaves DIA-NN's Trypsin/P default. With
+    arguments, it names the cleavage rule. Written bare, it declares that no digestion rule
+    applies -- a deliberate search mode, so it is reported rather than rejected.
+    """
+    value = cmd_dict.get("cut")
+    if value is None:
+        return "Trypsin/P"
+    if isinstance(value, bool):
+        return "No digestion"
+    return _normalize_enzyme("".join(value))
+
+
 def _flag(cmd_dict: dict[str, _CommandValue], name: str) -> bool | None:
     """Return a command-line flag, rejecting unexpected arguments."""
     value = cmd_dict.get(name)
@@ -371,7 +386,6 @@ def _from_cmdline(cmd_dict: dict[str, _CommandValue]) -> DiannParameterData:
     An option the command line does not carry is left out of the record entirely, so the
     stage below it in the precedence order keeps whatever it decided.
     """
-    enzyme = _arguments(cmd_dict, "cut")
     out: DiannParameterData = {
         "quantification_method": _quantification_strategy(cmd_dict),
         "protein_inference": _protein_inference(cmd_dict),
@@ -379,7 +393,7 @@ def _from_cmdline(cmd_dict: dict[str, _CommandValue]) -> DiannParameterData:
         "abundance_normalization_ions": (
             "None" if "no-norm" in cmd_dict else "Cross-run normalization"
         ),
-        "enzyme": "Trypsin/P" if enzyme is None else _normalize_enzyme("".join(enzyme)),
+        "enzyme": _digestion_enzyme(cmd_dict),
     }
     reanalyse = _flag(cmd_dict, "reanalyse")
     if reanalyse is not None:
