@@ -202,6 +202,14 @@ from apb2.parserV2.parse_quant.data.parsed import (
 - `varp: dict[str, polars.DataFrame]`
 - `uns: dict[str, JsonValue]`
 
+### Semantic conversion roles
+
+For rule-driven conversion, `ParsedLevel.uns` contains `column_roles` and `layer_roles` inside parse provenance. `column_roles` maps a semantic role such as `protein_assignment` to one logical var-column name. `layer_roles` maps a role such as `abundance` to an ordered list of retained layer names. The allowed role/owner combinations come from the packaged [role policy](../src/apb2/parserV2/vendor_parse_rules/schema/role_policy.json).
+
+These maps are JSON-compatible provenance rather than Python strategy objects. Consumers may use them to discover scientific meaning without knowing vendor-specific names, while readers and writers preserve them without interpretation.
+
+### Structural layer roles
+
 Layer tables remain wide Polars frames. Their leading columns are authored variable keys and their
 remaining columns are observation values. They are not converted to NumPy arrays until an h5ad or
 h5mu writer performs the matrix projection. `FinalLayerTable.role` defaults to
@@ -210,7 +218,7 @@ comparisons. `AuxiliaryLayerRole()` is for numeric diagnostics such as counts or
 writer still validates, encodes, stores, and restores these layers, but excludes them from occupancy
 comparisons and does not allow one to be the primary layer.
 
-The role-bearing layer field is:
+The structural-role-bearing layer field is:
 
 ```python
 @dataclass(slots=True)

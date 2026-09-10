@@ -21,12 +21,16 @@ vendor column name, it illustrates a generic contract; it never creates a vendor
 The words **must**, **must not**, and **only** are normative. Examples are explanatory unless an
 invariant or test explicitly adopts them.
 
+The current rule storage version is schema `0.4`; [How rules-driven conversion works](rule-based.md) is the concise authoring guide. Supplement C.1–C.5 preserves the schema `0.2 → 0.3` migration record, while C.6 states the current entry-shaped column and semantic-role extension.
+
 ## 1. Executive decision
 
 Parser V2 is a forward-only pipeline built from fully configured runtime strategies. A parser
 holds no `rules.json` model and contains no vendor, level, layout, encoding, duplicate-mode, or
 output-format dispatch. `ParseRuleCompiler` consumes those declarations once, constructs the
 required behavior objects, and injects them into one `Parser` per compatible quantification level.
+
+Rule storage schema `0.4` declares obs/var columns as ordered sourced-or-computed entries with inline type, optionality, and semantic roles. Measurement layers carry the same `roles` field; owner permissions come from one packaged JSON policy. The facade projects semantic roles into storage-neutral provenance before constructing runtime strategies.
 
 The computational result is:
 
@@ -1390,8 +1394,7 @@ level, software, parameter, strictness, FASTA, or annotation option.
 
 The implementation must preserve these invariants:
 
-- schema 0.3 makes `axis` identity-only, moves primary/duplicates/layers under `measurements`,
-  declares bounded physical input policy, and admits only executable duplicate modes;
+- schema `0.4` keeps `axis` identity-only, stores primary/duplicates/layers under `measurements`, declares obs/var columns as ordered entries, validates semantic-role ownership from packaged policy, and admits only executable duplicate modes;
 - one generic key-plan derivation compiles every axis of every effective rule;
 - level-specific physical projection occurs during reading and before decomposition;
 - delimiter-packed fragments are separated before and then reuse ordinary long decomposition;
@@ -1966,11 +1969,13 @@ composition, parameter resolution, dependency projection, and atomic physical-so
 `ParseRuleCompiler` is descriptive rather than a GoF pattern claim: it translates declarative
 configuration into an executable object graph. No class is named Factory or Builder.
 
-### C. Rule document and `rules.json` 0.3
+### C. Rule document and `rules.json` evolution
 
 The rule package is a declarative storage boundary. Pydantic models validate what may be authored;
 they do not implement parsing behavior. Discriminators and shape validators are correct here and
 are consumed once when the facade and compiler construct runtime values.
+
+C.1–C.5 record the schema `0.3` migration that separated axis identity from measurement ownership. C.6 extends that design with the current schema `0.4` entry and role model.
 
 #### C.1 `RuleDocument` retains `_shell`
 
@@ -2399,16 +2404,15 @@ Multiple input tables remain an architectural extension, not a fake option on th
 record. The first real multi-file implementation adds a distinct source type and a reader that
 assembles one `LevelSourceTable`; it does not pre-author a generic role or join language now.
 
-#### C.5 Complete rule-package migration
+#### C.5 Schema 0.3 rule-package migration (historical)
 
-Schema 0.3 is a clean generation under:
+Schema `0.3` was introduced as a clean generation under:
 
 ```text
 apb2/src/apb2/parserV2/vendor_parse_rules/
 ```
 
-The complete folder is copied and changed together if the new schema is implemented. Parser V2
-must not mix models, loader, schema, or documents from two generations.
+The complete folder was copied and changed together. Parser V2 did not mix models, loader, schema, or documents from two generations.
 
 | Area | Required migration |
 | --- | --- |
@@ -2419,7 +2423,17 @@ must not mix models, loader, schema, or documents from two generations.
 | all 12 packaged documents | migrate measurement paths and declare only real extension hints; MaxQuant alone adds `file_name`, Spectronaut alone enables format detection; retain all 19 effective levels and current layer selectors |
 | tests | validate every document, effective level, gate/override alternative, recognition result, and migration invariant |
 
-The unchanged current package remains the parity oracle during implementation.
+The schema-`0.2` package remained the parity oracle during that migration.
+
+#### C.6 Schema 0.4 column entries and semantic roles
+
+Schema `0.4` removes the name-joined `select`, `optional_select`, `types`, `computed`, and `column_roles` maps. `columns.obs` and `columns.var` are ordered lists whose sourced or computed entries carry `name`, `source` or `how`, logical `type`, `required`, dependencies, and semantic `roles` together. Entry-name uniqueness is the remaining join invariant.
+
+Measurement layers also carry semantic `roles`. The packaged `schema/role_policy.json` maps each owner—`obs`, `var`, or `layer`—to its allowed role vocabulary. The generated JSON Schema derives the same vocabulary, while effective-rule validation rejects a role on an unconfigured owner. Var roles are unique within `columns.var`; layer roles may repeat because several layers can represent abundance.
+
+`measurements.primary_layer` remains structural and singular. It selects the layer projected to AnnData `X` and makes that source required. `roles: ["abundance"]` is semantic and plural across layers; it classifies raw, normalized, MS1, MS2, LFQ, iBAQ, peak-area, and other abundance values independently of which one is primary.
+
+The facade projects var roles to `column_roles: role → logical column name` and layer roles to `layer_roles: role → ordered retained layer names`. It recomputes the layer map after source resolution so an absent optional layer is never advertised.
 
 ### D. Rule facade and parsing parameters
 
@@ -3193,24 +3207,24 @@ and reinterpret it as a different mode.
 
 #### G.1 Current rule coverage
 
-The unchanged schema-0.2 package under `apb2/src/apb2/vendor_parse_rules/documents/`, audited on
-2026-08-20, contains:
+The schema-`0.4` package under `apb2/src/apb2/parserV2/vendor_parse_rules/documents/`, audited on 2026-09-10, contains:
 
-- 12 rule documents;
-- 19 effective declared levels and therefore 38 obs/var axis plans;
-- 12 long levels and 7 wide levels;
-- one delimiter-packed positional fragment level;
+- 17 rule documents;
+- 28 effective declared levels and therefore 56 obs/var axis plans;
+- 18 long levels and 10 wide levels;
+- two delimiter-packed positional fragment declarations;
 - token-regex and site-list modification representations;
 - numeric, regex-numeric, and factor layer encodings;
-- 13 `error`, 5 `keep_first`, and 1 numeric `aggregate` duplicate configurations;
-- direct selected keys, nested computed keys, and multi-column keys;
+- 19 `error`, 8 `keep_first`, and 1 numeric `aggregate` duplicate configurations;
+- ordered sourced and computed column entries, including nested and multi-column keys;
+- configured var and layer roles, including 55 authored abundance tags;
 - parameter gates and a DIA-NN primary-layer override.
 
 Column-labelled packed fragments are supported by the current schema but have no packaged
 document. No packaged document currently declares a true multi-file input. Both therefore require
 focused contract fixtures, while parity fixtures come from the packaged set.
 
-The architecture must cover that set through declarations, not through 19 cases.
+The architecture must cover that set through declarations, not through 28 cases.
 
 | Required behavior | Architectural owner |
 | --- | --- |
@@ -3233,12 +3247,15 @@ The architecture must cover that set through declarations, not through 19 cases.
 
 Tests must prove:
 
-- all 12 copied documents validate as schema 0.3;
-- all 19 effective levels and every gate/override alternative validate;
+- all 17 packaged documents validate as schema `0.4`;
+- all 28 effective levels and every gate/override alternative validate;
 - no document contains `axis.x_layer`, `axis.duplicates`, root-level `layers`, or override
   `x_layer`;
 - every effective rule has identity-only `axis` plus one valid `measurements` block;
-- schema 0.3 rejects the legacy `keep_all_as_raw_table` duplicate mode;
+- schema `0.4` rejects the legacy `keep_all_as_raw_table` duplicate mode;
+- obs/var entries carry sourced or computed facts inline and have unique names;
+- role vocabulary and owner permissions match the packaged policy;
+- every effective primary and every declared non-primary abundance layer is tagged;
 - the primary layer names exactly one unique declared layer;
 - base/level measurement merging preserves authored order;
 - recognition results remain at parity with the unchanged package;
@@ -3645,9 +3662,9 @@ The implementation does not contain:
 - parser-side layer decoders;
 - a Builder or service locator.
 
-#### H.4 Final implementation gate
+#### H.4 Accepted implementation gate (historical)
 
-Implementation may begin when the following statements are accepted together:
+Implementation began after the following statements were accepted together:
 
 1. schema 0.3 migrates identity, measurements, overrides, and input policy as one rule-package
    generation;
