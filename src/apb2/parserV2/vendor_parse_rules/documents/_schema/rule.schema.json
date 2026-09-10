@@ -256,6 +256,13 @@
           "default": false,
           "title": "Required",
           "type": "boolean"
+        },
+        "roles": {
+          "items": {
+            "$ref": "#/$defs/SemanticRole"
+          },
+          "title": "Roles",
+          "type": "array"
         }
       },
       "required": [
@@ -624,6 +631,13 @@
           "default": false,
           "title": "Required",
           "type": "boolean"
+        },
+        "roles": {
+          "items": {
+            "$ref": "#/$defs/SemanticRole"
+          },
+          "title": "Roles",
+          "type": "array"
         }
       },
       "required": [
@@ -933,8 +947,9 @@
     },
     "SemanticRole": {
       "enum": [
-        "protein_assignment",
-        "fasta_accessions"
+        "abundance",
+        "fasta_accessions",
+        "protein_assignment"
       ],
       "type": "string"
     },

@@ -694,8 +694,8 @@ def test_an_optional_long_layer_absent_from_the_header_is_omitted() -> None:
         obs_select={"sample": "Sample"},
         var_select={"Feature": "Feature"},
         layers=[
-            {"name": "Quantity", "source": "Quantity"},
-            {"name": "Score", "source": "Score"},
+            {"name": "Quantity", "source": "Quantity", "roles": ["abundance"]},
+            {"name": "Other", "source": "Other", "roles": ["abundance"]},
         ],
     )
     facade = synthetic.facade(document)
@@ -706,6 +706,7 @@ def test_an_optional_long_layer_absent_from_the_header_is_omitted() -> None:
 
     assert [source.name for source in decomposition.layer_sources] == ["Quantity"]
     assert resolved.ann_data.layer_contract.required_names == ("Quantity",)
+    assert resolved.provenance["layer_roles"] == {"abundance": ["Quantity"]}
 
 
 def test_a_required_long_layer_absent_from_the_header_is_incompatible() -> None:

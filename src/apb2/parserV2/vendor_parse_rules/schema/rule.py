@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from typing import Annotated, Literal
 
 from pydantic import Field, TypeAdapter, model_validator
@@ -75,6 +76,9 @@ class _RuleCore(ModelBase):
                 f"measurements.primary_layer={self.measurements.primary_layer!r} matches no "
                 f"layer; available: {sorted(names)}"
             )
+        _check_role_owners(
+            "layer", (role for layer in self.measurements.layers for role in layer.roles)
+        )
         return self
 
 
@@ -176,11 +180,15 @@ def _check_column_group(keys: list[str], group: ColumnGroup, owner: RoleOwner) -
     role_columns: list[tuple[SemanticRole, str]] = [
         (role, entry.name) for entry in group for role in entry.roles
     ]
-    invalid = sorted({role for role, _name in role_columns if owner not in ROLE_CONFIG[role]})
-    if invalid:
-        raise ValueError(f"roles are not allowed on columns.{owner}: {invalid}")
+    _check_role_owners(owner, (role for role, _name in role_columns))
     if len(dict(role_columns)) != len(role_columns):
         raise ValueError(f"roles must be unique on columns.{owner}")
+
+
+def _check_role_owners(owner: RoleOwner, roles: Iterable[SemanticRole]) -> None:
+    invalid = sorted(set(roles) - ROLE_CONFIG[owner])
+    if invalid:
+        raise ValueError(f"roles are not allowed on {owner}: {invalid}")
 
 
 def _check_derived_not_selected(

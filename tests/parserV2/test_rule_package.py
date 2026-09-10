@@ -69,6 +69,7 @@ def _without_primary_layer(rule: V2Rule) -> dict[str, Any]:
 
 def test_entry_shaped_columns_project_roles_and_runtime_selections(tmp_path: Path) -> None:
     payload = _document_payload()
+    payload["base"]["measurements"]["layers"][0]["roles"] = ["abundance"]
     payload["levels"]["ion"]["columns"]["var"] = [
         {
             "name": "feature",
@@ -86,19 +87,30 @@ def test_entry_shaped_columns_project_roles_and_runtime_selections(tmp_path: Pat
         "protein_assignment": "feature",
         "fasta_accessions": "feature",
     }
+    assert working.provenance["layer_roles"] == {"abundance": ["quantity"]}
 
 
-def test_role_configuration_allows_existing_roles_only_on_var() -> None:
-    assert (
-        dict.fromkeys(("protein_assignment", "fasta_accessions"), frozenset({"var"})) == ROLE_CONFIG
-    )
+def test_role_configuration_owns_the_role_vocabulary() -> None:
+    assert {
+        "obs": frozenset(),
+        "var": frozenset({"fasta_accessions", "protein_assignment"}),
+        "layer": frozenset({"abundance"}),
+    } == ROLE_CONFIG
 
 
 def test_entry_role_is_rejected_on_an_unconfigured_owner(tmp_path: Path) -> None:
     payload = _document_payload()
     payload["base"]["columns"]["obs"][0]["roles"] = ["protein_assignment"]
 
-    with pytest.raises(ValidationError, match=r"not allowed on columns\.obs"):
+    with pytest.raises(ValidationError, match=r"not allowed on obs"):
+        _declared(payload, tmp_path)
+
+
+def test_role_is_rejected_on_an_unconfigured_layer(tmp_path: Path) -> None:
+    payload = _document_payload()
+    payload["base"]["measurements"]["layers"][0]["roles"] = ["protein_assignment"]
+
+    with pytest.raises(ValidationError, match=r"not allowed on layer"):
         _declared(payload, tmp_path)
 
 
@@ -144,6 +156,7 @@ def test_the_primary_layer_names_exactly_one_layer_and_is_required(
     assert len(names) == len(set(names))
     assert len(primary) == 1
     assert layer_required(rule.measurements.primary_layer, primary[0])
+    assert "abundance" in primary[0].roles
     # Promotion changes what is required, never the authored order.
     assert names == [layer.name for layer in rule.measurements.layers]
 
@@ -307,6 +320,10 @@ def test_diann_v2_swaps_only_the_primary_layer_for_dda_evidence() -> None:
     assert document.declared("ion").declaration.measurements.primary_layer == (
         "Precursor_Normalised"
     )
+    assert {layer.name for layer in dda.measurements.layers if "abundance" in layer.roles} == {
+        "Ms1_Normalised",
+        "Precursor_Normalised",
+    }
     # Everything except which layer is primary -- and therefore which layer promotion made
     # required -- is the same declaration under either evidence.
     assert _without_primary_layer(dda) == _without_primary_layer(dia)
@@ -601,6 +618,7 @@ def test_only_schema_0_4_is_published_and_its_unions_are_discriminated() -> None
         assert name in definitions
     assert "primary_layer" in json.dumps(definitions["Measurements"])
     assert sorted(definitions["Axis"]["properties"]) == ["obs_keys", "var_keys"]
+    assert definitions["SemanticRole"]["enum"] == sorted(set().union(*ROLE_CONFIG.values()))
 
 
 def test_the_input_policy_publishes_its_delimiter_and_number_alternatives() -> None:

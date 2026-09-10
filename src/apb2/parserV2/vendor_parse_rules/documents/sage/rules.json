@@ -23,6 +23,9 @@
         {
           "name": "Intensity",
           "source": "^(?P<sample>.+)\\.(?:mzML|mzml|mzML\\.gz|mzml\\.gz|mgf|raw|d)$",
+          "roles": [
+            "abundance"
+          ],
           "missing_values": [
             0
           ]

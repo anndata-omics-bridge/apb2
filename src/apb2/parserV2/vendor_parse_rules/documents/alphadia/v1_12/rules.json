@@ -67,6 +67,9 @@
           {
             "name": "Intensity",
             "source": "intensity",
+            "roles": [
+              "abundance"
+            ],
             "missing_values": [
               0
             ]

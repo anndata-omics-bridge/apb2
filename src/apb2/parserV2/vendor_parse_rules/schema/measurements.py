@@ -9,6 +9,7 @@ from typing import Annotated, Literal
 from pydantic import Discriminator, Field, Tag, model_validator
 
 from apb2.parserV2.vendor_parse_rules.schema.base import DuplicateMode, ModelBase
+from apb2.parserV2.vendor_parse_rules.schema.roles import SemanticRole
 
 
 class Duplicates(ModelBase):
@@ -57,6 +58,7 @@ class NumericLayer(ModelBase):
     missing_values: list[float] = Field(default_factory=list)
     value_pattern: ValuePattern = Field(default_factory=NoValuePattern)
     required: bool = False
+    roles: list[SemanticRole] = Field(default_factory=list)
 
 
 class FactorLayer(ModelBase):
@@ -67,6 +69,7 @@ class FactorLayer(ModelBase):
     source: str
     categories: dict[str, int] = Field(min_length=1)
     required: bool = False
+    roles: list[SemanticRole] = Field(default_factory=list)
 
 
 def _layer_encoding(value: object) -> str:

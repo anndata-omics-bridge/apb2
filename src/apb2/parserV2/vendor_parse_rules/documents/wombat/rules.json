@@ -86,7 +86,10 @@
         "layers": [
           {
             "name": "Abundance",
-            "source": "^abundance_(?P<sample>.+)$"
+            "source": "^abundance_(?P<sample>.+)$",
+            "roles": [
+              "abundance"
+            ]
           }
         ]
       },
@@ -119,7 +122,10 @@
         "layers": [
           {
             "name": "Abundance",
-            "source": "^abundance_(?P<sample>.+)$"
+            "source": "^abundance_(?P<sample>.+)$",
+            "roles": [
+              "abundance"
+            ]
           },
           {
             "name": "Number_Of_Psms",

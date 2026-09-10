@@ -1,0 +1,10 @@
+{
+  "obs": [],
+  "var": [
+    "fasta_accessions",
+    "protein_assignment"
+  ],
+  "layer": [
+    "abundance"
+  ]
+}

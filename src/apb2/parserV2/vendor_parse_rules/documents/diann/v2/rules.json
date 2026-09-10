@@ -64,11 +64,17 @@
         "layers": [
           {
             "name": "Ms1_Normalised",
-            "source": "Ms1.Normalised"
+            "source": "Ms1.Normalised",
+            "roles": [
+              "abundance"
+            ]
           },
           {
             "name": "Precursor_Normalised",
-            "source": "Precursor.Normalised"
+            "source": "Precursor.Normalised",
+            "roles": [
+              "abundance"
+            ]
           },
           {
             "name": "Precursor_Quantity",
@@ -176,7 +182,10 @@
         "layers": [
           {
             "name": "PG_MaxLFQ",
-            "source": "PG.MaxLFQ"
+            "source": "PG.MaxLFQ",
+            "roles": [
+              "abundance"
+            ]
           },
           {
             "name": "Genes_MaxLFQ",

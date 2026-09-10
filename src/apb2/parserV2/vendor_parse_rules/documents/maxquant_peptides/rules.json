@@ -35,6 +35,9 @@
           {
             "name": "Intensity",
             "source": "^Intensity (?P<sample>.+)$",
+            "roles": [
+              "abundance"
+            ],
             "missing_values": [
               0
             ]

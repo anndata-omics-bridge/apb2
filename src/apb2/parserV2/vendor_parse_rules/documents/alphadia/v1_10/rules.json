@@ -59,6 +59,9 @@
           {
             "name": "Intensity",
             "source": "^(?P<sample>(?!(?:mod_seq_charge_hash|genes|decoy|mods|mod_sites|sequence|charge|proteins|pg)$).+)$",
+            "roles": [
+              "abundance"
+            ],
             "missing_values": [
               0
             ]

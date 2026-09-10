@@ -76,7 +76,10 @@
         "layers": [
           {
             "name": "FG_Quantity",
-            "source": "FG.Quantity"
+            "source": "FG.Quantity",
+            "roles": [
+              "abundance"
+            ]
           },
           {
             "name": "EG_MaxChannelQvalue",
@@ -342,7 +345,10 @@
         "layers": [
           {
             "name": "F_PeakArea",
-            "source": "F.PeakArea"
+            "source": "F.PeakArea",
+            "roles": [
+              "abundance"
+            ]
           },
           {
             "name": "F_FrgMz",
@@ -468,7 +474,10 @@
         "layers": [
           {
             "name": "PG_Quantity",
-            "source": "PG.Quantity"
+            "source": "PG.Quantity",
+            "roles": [
+              "abundance"
+            ]
           },
           {
             "name": "PG_Cscore_Run_Wise",

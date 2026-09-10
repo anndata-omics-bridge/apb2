@@ -72,7 +72,10 @@
         "layers": [
           {
             "name": "Intensity",
-            "source": "ms1_int_sum_apex_dn"
+            "source": "ms1_int_sum_apex_dn",
+            "roles": [
+              "abundance"
+            ]
           },
           {
             "name": "MS1_Int_Sum_Apex",

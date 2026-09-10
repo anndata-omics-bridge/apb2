@@ -64,7 +64,10 @@
         "layers": [
           {
             "name": "Precursor_Normalised",
-            "source": "Precursor.Normalised"
+            "source": "Precursor.Normalised",
+            "roles": [
+              "abundance"
+            ]
           },
           {
             "name": "Precursor_Quantity",
@@ -161,7 +164,10 @@
         "layers": [
           {
             "name": "Fragment_Quant_Raw",
-            "source": "Fragment.Quant.Raw"
+            "source": "Fragment.Quant.Raw",
+            "roles": [
+              "abundance"
+            ]
           },
           {
             "name": "Fragment_Correlations",
@@ -244,7 +250,10 @@
         "layers": [
           {
             "name": "PG_Normalised",
-            "source": "PG.Normalised"
+            "source": "PG.Normalised",
+            "roles": [
+              "abundance"
+            ]
           },
           {
             "name": "PG_Quantity",

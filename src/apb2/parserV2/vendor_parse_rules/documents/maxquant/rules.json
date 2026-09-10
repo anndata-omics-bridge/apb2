@@ -83,7 +83,10 @@
         "layers": [
           {
             "name": "Intensity",
-            "source": "Intensity"
+            "source": "Intensity",
+            "roles": [
+              "abundance"
+            ]
           },
           {
             "name": "MS_MS_Count",

@@ -67,6 +67,9 @@
           {
             "name": "Precursor_Intensity",
             "source": "precursor.intensity",
+            "roles": [
+              "abundance"
+            ],
             "missing_values": [
               0
             ]

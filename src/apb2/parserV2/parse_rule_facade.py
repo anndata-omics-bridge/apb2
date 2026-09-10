@@ -177,6 +177,16 @@ class _ResolvedLayers:
     plain_numeric_columns: frozenset[str]
 
 
+def _layer_roles(
+    layers: Sequence[Layer | WorkingMeasurementLayer],
+) -> dict[str, JsonValue]:
+    roles = sorted({role for layer in layers for role in layer.roles})
+    projected: dict[str, JsonValue] = {
+        role: [layer.name for layer in layers if role in layer.roles] for role in roles
+    }
+    return projected
+
+
 class ParseRuleFacade:
     """One simplified interface over rule composition, projection, and source resolution."""
 
@@ -477,6 +487,7 @@ class ParseRuleFacade:
             source=layer.source,
             raw_presence=ParseRuleFacade._project_presence(layer),
             ann_data_encoding=ParseRuleFacade._project_encoding(layer),
+            roles=tuple(layer.roles),
         )
 
     @staticmethod
@@ -569,11 +580,8 @@ class ParseRuleFacade:
     def _project_provenance(rule: LongRule | WideRule) -> Mapping[str, JsonValue]:
         """What the parse section records: who wrote it, the rule, and the facts steps read.
 
-        ``produced_by`` and ``column_roles`` are not decoration. A later APB step needs the
-        quantification level and one ``var`` column per semantic role, and must not have to
-        validate a schema-0.4 document to learn a column name — a reader of another generation
-        cannot. Stating both as data is what lets ``apb fasta`` and ``apb proteobench`` run on
-        an object this parser wrote.
+        ``produced_by`` and the role maps are not decoration. Later APB steps must not have
+        to validate a schema-0.4 document to learn which columns and layers carry a meaning.
         """
         provenance: dict[str, JsonValue] = {
             "produced_by": PRODUCER,
@@ -581,6 +589,7 @@ class ParseRuleFacade:
             "column_roles": {
                 role: entry.name for entry in rule.columns.var for role in entry.roles
             },
+            "layer_roles": _layer_roles(rule.measurements.layers),
             "schema_version": rule.schema_version,
             "software_name": rule.software_name,
             "shape": rule.shape,
@@ -631,7 +640,7 @@ class ParseRuleFacade:
                     populated_ratio=_POPULATED_RATIO,
                 ),
             ),
-            provenance=working.provenance,
+            provenance={**working.provenance, "layer_roles": _layer_roles(layers.retained)},
         )
 
     # ------------------------------------------------------------------------ modifications

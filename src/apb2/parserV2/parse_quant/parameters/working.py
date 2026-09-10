@@ -448,6 +448,7 @@ class WorkingMeasurementLayer:
     source: str
     raw_presence: RawValuePresenceDeclaration
     ann_data_encoding: AnnDataLayerEncodingDeclaration
+    roles: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
