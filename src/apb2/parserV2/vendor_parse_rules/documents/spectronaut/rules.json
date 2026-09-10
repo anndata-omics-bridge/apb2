@@ -133,15 +133,24 @@
           },
           {
             "name": "EG_ReferenceQuantity_Settings",
-            "source": "EG.ReferenceQuantity (Settings)"
+            "source": "EG.ReferenceQuantity (Settings)",
+            "roles": [
+              "abundance"
+            ]
           },
           {
             "name": "EG_TargetQuantity_Settings",
-            "source": "EG.TargetQuantity (Settings)"
+            "source": "EG.TargetQuantity (Settings)",
+            "roles": [
+              "abundance"
+            ]
           },
           {
             "name": "EG_TotalQuantity_Settings",
-            "source": "EG.TotalQuantity (Settings)"
+            "source": "EG.TotalQuantity (Settings)",
+            "roles": [
+              "abundance"
+            ]
           },
           {
             "name": "EG_UsedForPeptideQuantity",

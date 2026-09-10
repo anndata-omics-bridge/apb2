@@ -79,19 +79,31 @@
           },
           {
             "name": "MS1_Int_Sum_Apex",
-            "source": "ms1_int_sum_apex"
+            "source": "ms1_int_sum_apex",
+            "roles": [
+              "abundance"
+            ]
           },
           {
             "name": "MS1_Int_Sum_Area",
-            "source": "ms1_int_sum_area"
+            "source": "ms1_int_sum_area",
+            "roles": [
+              "abundance"
+            ]
           },
           {
             "name": "MS1_Int_Max_Apex",
-            "source": "ms1_int_max_apex"
+            "source": "ms1_int_max_apex",
+            "roles": [
+              "abundance"
+            ]
           },
           {
             "name": "MS1_Int_Max_Area",
-            "source": "ms1_int_max_area"
+            "source": "ms1_int_max_area",
+            "roles": [
+              "abundance"
+            ]
           },
           {
             "name": "Score",

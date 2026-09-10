@@ -50,6 +50,34 @@ _LEVEL_CASES = [
     pytest.param(pair, level, id=f"{pair.key}/{level}") for pair, level in level_pairs()
 ]
 _DOCUMENT_CASES = [pytest.param(pair, id=pair.key) for pair in document_pairs()]
+_NON_PRIMARY_ABUNDANCE: dict[tuple[str, QuantificationLevel], tuple[str, ...]] = {
+    ("alphapept", "ion"): (
+        "MS1_Int_Sum_Apex",
+        "MS1_Int_Sum_Area",
+        "MS1_Int_Max_Apex",
+        "MS1_Int_Max_Area",
+    ),
+    ("diann/v1", "ion"): ("Precursor_Quantity", "Ms1_Area"),
+    ("diann/v1", "protein"): ("PG_Normalised", "PG_Quantity", "Genes_MaxLFQ"),
+    ("diann/v1_7", "ion"): ("Precursor_Quantity", "Ms1_Area"),
+    ("diann/v1_7", "protein"): ("PG_Quantity", "Genes_MaxLFQ"),
+    ("diann/v2", "ion"): ("Ms1_Normalised", "Precursor_Quantity", "Ms1_Area"),
+    ("diann/v2", "protein"): ("Genes_MaxLFQ",),
+    ("maxquant_peptides", "peptide"): ("LFQ_Intensity",),
+    ("maxquant_proteingroups", "protein"): ("LFQ_Intensity", "iBAQ"),
+    ("spectronaut", "ion"): (
+        "EG_ReferenceQuantity_Settings",
+        "EG_TargetQuantity_Settings",
+        "EG_TotalQuantity_Settings",
+    ),
+    ("spectronaut/v15", "ion"): (
+        "EG_TargetQuantity_Settings",
+        "EG_TotalQuantity_Settings",
+        "FG_MS1RawQuantity",
+        "FG_MS2RawQuantity",
+    ),
+    ("spectronaut/v15", "fragment"): ("F_PeakHeight",),
+}
 
 
 type MutatePayload = Callable[[dict[str, Any]], object]
@@ -159,6 +187,20 @@ def test_the_primary_layer_names_exactly_one_layer_and_is_required(
     assert "abundance" in primary[0].roles
     # Promotion changes what is required, never the authored order.
     assert names == [layer.name for layer in rule.measurements.layers]
+
+
+@pytest.mark.parametrize(("pair", "level"), _LEVEL_CASES)
+def test_every_declared_abundance_layer_is_tagged(
+    pair: PackagedDocument, level: QuantificationLevel
+) -> None:
+    rule = load_rule_document(pair.parser_v2_path).declared(level).declaration
+    actual = {layer.name for layer in rule.measurements.layers if "abundance" in layer.roles}
+    expected = {
+        rule.measurements.primary_layer,
+        *_NON_PRIMARY_ABUNDANCE.get((pair.key, level), ()),
+    }
+
+    assert actual == expected
 
 
 @pytest.mark.parametrize(("pair", "level"), _LEVEL_CASES)
@@ -320,10 +362,6 @@ def test_diann_v2_swaps_only_the_primary_layer_for_dda_evidence() -> None:
     assert document.declared("ion").declaration.measurements.primary_layer == (
         "Precursor_Normalised"
     )
-    assert {layer.name for layer in dda.measurements.layers if "abundance" in layer.roles} == {
-        "Ms1_Normalised",
-        "Precursor_Normalised",
-    }
     # Everything except which layer is primary -- and therefore which layer promotion made
     # required -- is the same declaration under either evidence.
     assert _without_primary_layer(dda) == _without_primary_layer(dia)

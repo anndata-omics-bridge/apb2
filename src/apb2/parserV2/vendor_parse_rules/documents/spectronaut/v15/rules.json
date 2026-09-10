@@ -118,11 +118,17 @@
           },
           {
             "name": "EG_TargetQuantity_Settings",
-            "source": "EG.TargetQuantity (Settings)"
+            "source": "EG.TargetQuantity (Settings)",
+            "roles": [
+              "abundance"
+            ]
           },
           {
             "name": "EG_TotalQuantity_Settings",
-            "source": "EG.TotalQuantity (Settings)"
+            "source": "EG.TotalQuantity (Settings)",
+            "roles": [
+              "abundance"
+            ]
           },
           {
             "name": "EG_UsedForPeptideQuantity",
@@ -134,11 +140,17 @@
           },
           {
             "name": "FG_MS1RawQuantity",
-            "source": "FG.MS1RawQuantity"
+            "source": "FG.MS1RawQuantity",
+            "roles": [
+              "abundance"
+            ]
           },
           {
             "name": "FG_MS2RawQuantity",
-            "source": "FG.MS2RawQuantity"
+            "source": "FG.MS2RawQuantity",
+            "roles": [
+              "abundance"
+            ]
           },
           {
             "name": "FG_SignalToNoise",
@@ -301,7 +313,10 @@
           },
           {
             "name": "F_PeakHeight",
-            "source": "F.PeakHeight"
+            "source": "F.PeakHeight",
+            "roles": [
+              "abundance"
+            ]
           },
           {
             "name": "F_InterferenceScore",

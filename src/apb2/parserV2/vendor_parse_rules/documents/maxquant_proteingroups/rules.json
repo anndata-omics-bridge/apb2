@@ -45,6 +45,9 @@
           {
             "name": "LFQ_Intensity",
             "source": "^LFQ intensity (?P<sample>.+)$",
+            "roles": [
+              "abundance"
+            ],
             "missing_values": [
               0
             ]
@@ -52,6 +55,9 @@
           {
             "name": "iBAQ",
             "source": "^iBAQ (?P<sample>.+)$",
+            "roles": [
+              "abundance"
+            ],
             "missing_values": [
               0
             ]

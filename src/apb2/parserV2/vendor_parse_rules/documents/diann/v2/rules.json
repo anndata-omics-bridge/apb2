@@ -78,11 +78,17 @@
           },
           {
             "name": "Precursor_Quantity",
-            "source": "Precursor.Quantity"
+            "source": "Precursor.Quantity",
+            "roles": [
+              "abundance"
+            ]
           },
           {
             "name": "Ms1_Area",
-            "source": "Ms1.Area"
+            "source": "Ms1.Area",
+            "roles": [
+              "abundance"
+            ]
           },
           {
             "name": "Q_Value",
@@ -189,7 +195,10 @@
           },
           {
             "name": "Genes_MaxLFQ",
-            "source": "Genes.MaxLFQ"
+            "source": "Genes.MaxLFQ",
+            "roles": [
+              "abundance"
+            ]
           }
         ]
       },
