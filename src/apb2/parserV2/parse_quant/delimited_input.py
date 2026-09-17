@@ -308,7 +308,7 @@ class DelimitedInputReader:
                 schema_overrides=overrides,
                 decimal_comma=self.evidence.number_format.decimal_mark == ",",
             ).select(list(self.plan.projected_columns))
-            return LevelSourceTable(frame=frame)
+            return LevelSourceTable(frame=_without_empty_rows(frame))
         frame = (
             pl.scan_csv(
                 self.path,
@@ -321,7 +321,14 @@ class DelimitedInputReader:
             .select(list(self.plan.projected_columns))
             .collect()
         )
-        return LevelSourceTable(frame=frame)
+        return LevelSourceTable(frame=_without_empty_rows(frame))
+
+
+def _without_empty_rows(frame: pl.DataFrame) -> pl.DataFrame:
+    """Discard physical spacer rows carrying no value in any projected column."""
+    if not frame.columns:
+        return frame
+    return frame.filter(pl.any_horizontal(pl.all().is_not_null()))
 
 
 def make_delimited_reader(

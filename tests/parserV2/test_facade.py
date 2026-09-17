@@ -36,10 +36,10 @@ from apb2.parserV2.parse_quant.parameters.resolved import ResolvedLevelPlan
 from apb2.parserV2.parse_quant.parameters.source import (
     DelimitedFragmentDecompositionConfig,
     DelimitedSourceEvidence,
+    FrameSourceEvidence,
     LevelReadPlan,
     LongDecompositionConfig,
     NumericTextFormat,
-    ParquetSourceEvidence,
     PositionalFragmentSeparationConfig,
     WideDecompositionConfig,
     WideRawLayerPlan,
@@ -60,9 +60,13 @@ _EVIDENCES = (
     SearchParameterEvidence(acquisition_method="DIA", combine_charge_states=True),
 )
 
-# The two cached exports that do not carry their level's columns; the legacy suite skips the
-# same two conversions for the same reason.
-_INCOMPATIBLE = {("spectronaut", "fragment"), ("wombat", "ion")}
+# Cached exports that do not carry their level's columns; conversion skips those unavailable
+# levels for the same reason.
+_INCOMPATIBLE = {
+    ("spectronaut", "fragment"),
+    ("spectronaut/v21", "fragment"),
+    ("wombat", "ion"),
+}
 
 _LEVEL_CASES = [
     pytest.param(pair, level, id=f"{pair.key}/{level}") for pair, level in level_pairs()
@@ -259,7 +263,7 @@ def test_the_alphadia_wide_ion_level_resolves_exactly_as_specified() -> None:
 
 
 def test_the_diann_fragment_level_separates_packed_values_before_decomposing() -> None:
-    path = Path("src/apb2/parserV2/vendor_parse_rules/documents/diann/v1/rules.json")
+    path = Path("src/apb2/parserV2/vendor_parse_rules/documents/diann/v1_8/rules.json")
     facade = ParseRuleFacade(load_rule_document(path), "fragment", _EVIDENCES[0])
     header = (
         "Run",
@@ -322,7 +326,7 @@ def test_a_token_regex_rule_resolves_its_accessions_at_projection() -> None:
 
 
 def test_a_directly_selected_key_is_its_own_input() -> None:
-    path = Path("src/apb2/parserV2/vendor_parse_rules/documents/diann/v1/rules.json")
+    path = Path("src/apb2/parserV2/vendor_parse_rules/documents/diann/v1_8/rules.json")
     facade = ParseRuleFacade(load_rule_document(path), "protein", _EVIDENCES[0])
     header = ("Run", "Protein.Group", "Protein.Ids", "Protein.Names", "Genes", "PG.MaxLFQ")
 
@@ -820,7 +824,7 @@ def test_parquet_evidence_keeps_its_physical_schema() -> None:
         var_select={"Feature": "Feature"},
     )
     facade = synthetic.facade(document)
-    evidence = ParquetSourceEvidence(
+    evidence = FrameSourceEvidence(
         columns=("Sample", "Feature", "Quantity", "Unused"),
         dtypes=(
             ("Sample", pl.String()),
@@ -858,7 +862,7 @@ def test_an_aggregate_rule_needs_layer_values_this_source_delivers_as_numbers() 
 
 
 def test_a_missing_modification_source_makes_the_level_incompatible() -> None:
-    path = Path("src/apb2/parserV2/vendor_parse_rules/documents/diann/v1/rules.json")
+    path = Path("src/apb2/parserV2/vendor_parse_rules/documents/diann/v1_8/rules.json")
     facade = ParseRuleFacade(load_rule_document(path), "ion", _EVIDENCES[0])
     header = (
         "Run",
@@ -889,7 +893,7 @@ def test_the_facade_exposes_only_resolution_and_header_only_construction() -> No
 
 
 def test_the_facade_retains_no_rule_model_after_construction() -> None:
-    pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1")
+    pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1_8")
     facade = ParseRuleFacade(load_rule_document(pair.parser_v2_path), "ion", _EVIDENCES[0])
 
     assert not _contains_model(facade.working_parameters)

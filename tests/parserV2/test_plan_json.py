@@ -117,6 +117,19 @@ def test_the_notation_the_source_was_read_under_survives_into_the_record() -> No
     assert encoding["number_format"] == {"decimal_mark": ",", "thousands_marks": ["."]}
 
 
+def test_the_declared_numeric_type_survives_into_the_record() -> None:
+    document = synthetic.long_document(
+        obs_select={"sample": "Sample"},
+        var_select={"Feature": "Feature"},
+        layers=[{"name": "Quantity", "source": "Quantity", "type": "integer"}],
+    )
+    plan = synthetic.facade(document).resolve_source(evidence(("Sample", "Feature", "Quantity")))
+
+    encoding = json.loads(resolved_plan_json(plan))["ann_data"]["layer_encodings"][0]
+
+    assert encoding["type"] == "integer"
+
+
 # --------------------------------------------------------------------------------- stability
 
 

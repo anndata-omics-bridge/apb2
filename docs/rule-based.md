@@ -1,8 +1,25 @@
 # How rules-driven conversion works
 
-APB2 keeps vendor-table knowledge in declarative `rules.json` documents. A rule declares the physical table shape, observation and variable identity, sourced or computed axis columns, measurement layers, semantic roles, and the quantification levels the table can produce. Supporting another layout normally means adding a rule rather than another Python reader.
+APB2 keeps vendor-table knowledge in one declarative `rules.json` document per software/version. Each document contains a nonempty `tables` list; every table declares its physical input, observation and variable identity, sourced or computed axis columns, measurement layers, semantic roles, and supported quantification levels. Supporting another layout normally means adding a table declaration rather than another Python reader.
 
-The current rule format is schema `0.4`. The generated [JSON Schema](../src/apb2/parserV2/vendor_parse_rules/documents/_schema/rule.schema.json) is the complete machine-readable contract.
+The current rule format is schema `0.7`. The generated [document schema](../src/apb2/parserV2/vendor_parse_rules/documents/_schema/document.schema.json) describes the authored shell and physical inputs. Table-local base/level composition is then validated against the [effective-rule schema](../src/apb2/parserV2/vendor_parse_rules/documents/_schema/rule.schema.json). Older documents must be migrated; there is no compatibility model.
+
+## One software, multiple input tables
+
+Software metadata belongs at the document root. Each `tables` entry contains `input`, `base`, `levels`, and optionally `prepare: {"how": "maxquant"}` or `prepare: {"how": "alphadia"}`. Preparation is table-local: a direct-input group and a prepared group can coexist. Each rule describes one physical or prepared table; there is no separate join schema. Shared declarations merge only within a table, and each level belongs to one group.
+
+The [MaxQuant document](../src/apb2/parserV2/vendor_parse_rules/documents/maxquant/rules.json) has two groups: direct evidence at run resolution, and joined wide exports at experiment resolution.
+
+| Input file | Shape | Level |
+| --- | --- | --- |
+| `evidence.txt` | long | ion |
+| `modificationSpecificPeptides.txt` | wide | peptidoform |
+| `peptides.txt` | wide | peptide |
+| `proteinGroups.txt` | wide | protein |
+
+The function in [joins/maxquant.py](../src/apb2/parserV2/joins/maxquant.py) accepts any nonempty subset of the three higher-level exports, unpivots their quantities and joins shared evidence-ID references plus experiment. Namespaced source columns preserve each table's measurements, with repeated cells handled by the rule's `keep_first` policy. All three higher-level rules inherit `Experiment` observations from their table's `base`. Evidence is never joined: its direct rule inherits `Raw_File` observations and retains `Experiment` and `Fraction` metadata. All 15 nonempty input combinations remain supported.
+
+The function in [joins/alphadia.py](../src/apb2/parserV2/joins/alphadia.py) enriches AlphaDIA 1.12 matrix intensities with precursor metadata and returns long rows. Parent composition prepares once per requested group. Each level projects from that group's shared frame, excluding wholly absent identities before ordinary decomposition. Tool modules import neither schemas nor parser orchestration. After parsing, explicit bijective observation mappings permit alignment; incompatible resolutions are [written separately](conversion.md#output-naming).
 
 ## Long format
 
@@ -18,45 +35,63 @@ P2	b	21
 
 ```json title="rules.json"
 {
-  "schema_version": "0.4",
+  "schema_version": "0.7",
   "file_version": "1",
   "software_name": "MinimalLongExample",
   "software_version_pattern": "^1$",
-  "input": {
-    "shape": "long",
-    "extensions": [".tsv"]
-  },
-  "base": {
-    "axis": {
-      "obs_keys": ["sample"],
-      "var_keys": ["protein"]
-    },
-    "columns": {
-      "obs": [
-        {"name": "sample", "source": "sample"}
-      ],
-      "var": [
-        {
-          "name": "protein",
-          "source": "protein",
-          "roles": ["protein_assignment", "fasta_accessions"]
+  "tables": [
+    {
+      "input": {
+        "shape": "long",
+        "extensions": [
+          ".tsv"
+        ]
+      },
+      "base": {
+        "axis": {
+          "obs_keys": [
+            "sample"
+          ],
+          "var_keys": [
+            "protein"
+          ]
+        },
+        "columns": {
+          "obs": [
+            {
+              "name": "sample",
+              "source": "sample"
+            }
+          ],
+          "var": [
+            {
+              "name": "protein",
+              "source": "protein",
+              "roles": [
+                "protein_assignment",
+                "fasta_accessions"
+              ]
+            }
+          ]
+        },
+        "measurements": {
+          "primary_layer": "Intensity",
+          "layers": [
+            {
+              "name": "Intensity",
+              "source": "Intensity",
+              "roles": [
+                "abundance"
+              ]
+            }
+          ]
         }
-      ]
-    },
-    "measurements": {
-      "primary_layer": "Intensity",
-      "layers": [
-        {
-          "name": "Intensity",
-          "source": "Intensity",
-          "roles": ["abundance"]
-        }
-      ]
+      },
+      "levels": {
+        "protein": {}
+      }
     }
-  },
-  "levels": {
-    "protein": {}
-  }
+  ]
 }
 ```
 
@@ -78,42 +113,57 @@ P2	20	21
 
 ```json title="rules.json"
 {
-  "schema_version": "0.4",
+  "schema_version": "0.7",
   "file_version": "1",
   "software_name": "MinimalWideExample",
   "software_version_pattern": "^1$",
-  "input": {
-    "shape": "wide",
-    "extensions": [".tsv"]
-  },
-  "base": {
-    "axis": {
-      "obs_keys": ["sample"],
-      "var_keys": ["protein"]
-    },
-    "columns": {
-      "var": [
-        {
-          "name": "protein",
-          "source": "protein",
-          "roles": ["protein_assignment", "fasta_accessions"]
+  "tables": [
+    {
+      "input": {
+        "shape": "wide",
+        "extensions": [
+          ".tsv"
+        ]
+      },
+      "base": {
+        "axis": {
+          "obs_keys": [
+            "sample"
+          ],
+          "var_keys": [
+            "protein"
+          ]
+        },
+        "columns": {
+          "var": [
+            {
+              "name": "protein",
+              "source": "protein",
+              "roles": [
+                "protein_assignment",
+                "fasta_accessions"
+              ]
+            }
+          ]
+        },
+        "measurements": {
+          "primary_layer": "Intensity",
+          "layers": [
+            {
+              "name": "Intensity",
+              "source": "^[Ii]ntensity_(?P<sample>.+)$",
+              "roles": [
+                "abundance"
+              ]
+            }
+          ]
         }
-      ]
-    },
-    "measurements": {
-      "primary_layer": "Intensity",
-      "layers": [
-        {
-          "name": "Intensity",
-          "source": "^[Ii]ntensity_(?P<sample>.+)$",
-          "roles": ["abundance"]
-        }
-      ]
+      },
+      "levels": {
+        "protein": {}
+      }
     }
-  },
-  "levels": {
-    "protein": {}
-  }
+  ]
 }
 ```
 
@@ -155,6 +205,8 @@ A var role identifies one logical column. A layer role may occur on several laye
 
 `measurements.primary_layer` is separate: it names the one layer projected to AnnData `X` and makes that source required. It does not imply that sibling abundance layers are auxiliary or semantically unclassified.
 
+Numeric layers default to logical `"type": "number"`. Declare `"type": "integer"` only when every non-missing measurement is a whole count; conversion rejects fractional and infinite values. Null and NaN remain valid missing cells, so AnnData may still store an integer layer in a `Float64` matrix. Factor layers continue to use `encoding_mode` and have no numeric type.
+
 ```json
 "measurements": {
   "primary_layer": "Intensity",
@@ -171,7 +223,7 @@ Semantic rule roles are distinct from the result model's structural `Measurement
 
 ## Authoring and verification
 
-Rule documents may place shared declarations under `base` and level-specific declarations under `levels.<level>`. Composition produces one effective rule and validates all references at that boundary. Search-parameter overrides may replace `measurements.primary_layer` without changing the authored layer inventory.
+Each table places shared declarations under `base` and level-specific declarations under `levels.<level>`. Composition produces one effective rule using that table's input and validates all references at that boundary. Search-parameter overrides may replace `measurements.primary_layer` without changing the authored layer inventory.
 
 Run `make check` in the APB2 repository after changing rules. A rule migration also requires the conversion corpus described in the workspace instructions because schema validation alone cannot prove real vendor files still bind and convert.
 

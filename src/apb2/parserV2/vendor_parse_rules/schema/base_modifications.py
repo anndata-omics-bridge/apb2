@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import re
 from typing import Annotated, Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from apb2.parserV2.vendor_parse_rules.schema.base import (
     ModelBase,
@@ -48,8 +49,34 @@ class SiteListModifications(ModelBase):
     map: list[ModificationMapEntry] = Field(min_length=1)
 
 
+class EmbeddedSiteListModifications(ModelBase):
+    """Modification names whose list entries also contain their localization."""
+
+    parser: Literal["embedded_site_list"]
+    sequence_column: str
+    modification_column: str
+    delimiter: str = ";"
+    entry_pattern: str
+    site_base: int = Field(default=1, ge=0, le=1)
+    case_sensitive: bool = False
+    unknown_policy: UnknownPolicy = "preserve"
+    output_column: str = "proforma_sequence"
+    map: list[ModificationMapEntry] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _pattern_captures_token_and_site(self) -> EmbeddedSiteListModifications:
+        try:
+            groups = re.compile(self.entry_pattern).groupindex
+        except re.error as error:
+            raise ValueError(f"entry_pattern is not a valid regex: {error}") from error
+        missing = {"token", "site"} - set(groups)
+        if missing:
+            raise ValueError(f"entry_pattern requires named groups: {sorted(missing)}")
+        return self
+
+
 type Modifications = Annotated[
-    TokenRegexModifications | SiteListModifications,
+    TokenRegexModifications | SiteListModifications | EmbeddedSiteListModifications,
     Field(discriminator="parser"),
 ]
 

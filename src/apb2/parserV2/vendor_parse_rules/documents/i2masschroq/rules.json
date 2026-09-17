@@ -1,0 +1,101 @@
+{
+  "schema_version": "0.7",
+  "file_version": "1",
+  "software_name": "i2MassChroQ",
+  "software_version_pattern": "^1\\..*",
+  "sample_annotation": {
+    "matching": {
+      "mode": "exact",
+      "normalize": "mass_spec_basename"
+    }
+  },
+  "tables": [
+    {
+      "input": {
+        "shape": "long",
+        "extensions": [
+          ".tsv",
+          ".txt"
+        ]
+      },
+      "base": {
+        "axis": {
+          "obs_keys": [
+            "Raw_File"
+          ]
+        },
+        "measurements": {
+          "duplicates": {
+            "mode": "error"
+          }
+        },
+        "columns": {
+          "obs": [
+            {
+              "name": "Raw_File",
+              "source": "rawfile"
+            }
+          ]
+        }
+      },
+      "levels": {
+        "ion": {
+          "axis": {
+            "var_keys": [
+              "ProForma_ion"
+            ]
+          },
+          "measurements": {
+            "primary_layer": "Intensity",
+            "layers": [
+              {
+                "name": "Intensity",
+                "source": "area",
+                "roles": [
+                  "abundance"
+                ]
+              }
+            ]
+          },
+          "columns": {
+            "var": [
+              {
+                "name": "Sequence",
+                "source": "sequence"
+              },
+              {
+                "name": "ProForma_peptide",
+                "source": "sequence"
+              },
+              {
+                "name": "ProForma_peptidoform",
+                "source": "ProForma"
+              },
+              {
+                "name": "Charge",
+                "source": "charge",
+                "type": "integer"
+              },
+              {
+                "name": "Proteins",
+                "source": "proteins",
+                "roles": [
+                  "protein_assignment",
+                  "fasta_accessions"
+                ]
+              },
+              {
+                "name": "ProForma_ion",
+                "inputs": [
+                  "ProForma_peptidoform",
+                  "Charge"
+                ],
+                "how": "proforma_ion"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

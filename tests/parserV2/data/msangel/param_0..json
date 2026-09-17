@@ -1,0 +1,33 @@
+{
+  "msAngelVersion": "2.2.10",
+  "operations": [
+    {
+      "searchEnginesWithForms": [
+        [
+          "Mascot",
+          {
+            "paramMap": {
+              "CLE": "Trypsin/P",
+              "PFA": "2",
+              "MODS": "Carbamidomethyl (C)",
+              "IT_MODS": "Oxidation (M),Acetyl (Protein N-term)",
+              "TOL": "10",
+              "TOLU": "ppm",
+              "ITOL": "0.02",
+              "ITOLU": "Da",
+              "CHARGE": "2+, 3+ and 4+"
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "validationConfig": {
+        "psmExpectedFdr": 1,
+        "psmFilters": [
+          {"parameter": "PEP_SEQ_LENGTH", "threshold": 7}
+        ]
+      }
+    }
+  ]
+}

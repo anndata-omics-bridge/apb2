@@ -474,6 +474,18 @@ class SiteListRules:
     entries: tuple[ModificationMapEntry, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class EmbeddedSiteListRules:
+    """How one vendor embeds each modification's site in its modification token."""
+
+    delimiter: str
+    entry_pattern: str
+    site_base: int
+    case_sensitive: bool
+    unknown_policy: UnknownModificationPolicy
+    entries: tuple[ModificationMapEntry, ...]
+
+
 def normalize_token_regex(modified_sequence: str, config: TokenRegexRules) -> ModifiedSequence:
     """Normalize one inline-token sequence: strip, tokenize, resolve, render."""
     pattern = re.compile(config.token_pattern)
@@ -574,6 +586,74 @@ def normalize_site_list(
     )
 
 
+def _embedded_location(site: str, stripped: str, site_base: int) -> ModificationLocation:
+    """Resolve a terminal label or residue-plus-position site from one list entry."""
+    normalized = site.strip().lower()
+    if normalized in {"protein n-term", "peptide n-term", "any n-term", "n-term"}:
+        return TerminalOnlyLocation("N-term")
+    if normalized in {"protein c-term", "peptide c-term", "any c-term", "c-term"}:
+        return TerminalOnlyLocation("C-term")
+    match = re.fullmatch(r"(?P<residue>[A-Za-z])(?P<site>\d+)", site.strip())
+    if match is None:
+        raise PackedSiteMismatchError(f"unrecognized embedded modification site {site!r}")
+    index = int(match.group("site")) - site_base
+    if index < 0 or index >= len(stripped):
+        raise PackedSiteMismatchError(
+            f"modification site {site!r} falls outside sequence {stripped!r}"
+        )
+    residue = match.group("residue").upper()
+    if stripped[index].upper() != residue:
+        raise PackedSiteMismatchError(
+            f"modification site {site!r} points to {stripped[index]!r} in sequence {stripped!r}"
+        )
+    return ResidueLocation(index, stripped[index])
+
+
+def normalize_embedded_site_list(
+    sequence: str,
+    modifications: str,
+    config: EmbeddedSiteListRules,
+) -> ModifiedSequence:
+    """Normalize a bare sequence plus entries shaped like ``Oxidation (M5)``."""
+    stripped = "".join(character for character in sequence if character.isalpha())
+    pattern = re.compile(config.entry_pattern)
+    occurrences: list[ModificationOccurrence] = []
+    unknown_tokens: dict[int, str] = {}
+    unknown_token_list: list[str] = []
+    for raw_entry in modifications.split(config.delimiter):
+        if not raw_entry.strip():
+            continue
+        match = pattern.fullmatch(raw_entry.strip())
+        if match is None or not {"token", "site"} <= set(match.groupdict()):
+            raise PackedSiteMismatchError(
+                f"modification entry does not match the declared token/site pattern: {raw_entry!r}"
+            )
+        raw_token = match.group("token").strip()
+        location = _embedded_location(match.group("site"), stripped, config.site_base)
+        entry = _matched_entry(
+            config.entries,
+            raw_token,
+            location,
+            case_sensitive=config.case_sensitive,
+        )
+        if entry is not None:
+            occurrences.append(location.occurrence(entry, raw_token))
+            continue
+        _apply_unknown_policy(
+            config.unknown_policy,
+            raw_token,
+            location,
+            len(stripped),
+            unknown_tokens,
+            unknown_token_list,
+        )
+    return ModifiedSequence(
+        stripped_sequence=stripped,
+        proforma_sequence=render_proforma(stripped, occurrences, unknown_tokens),
+        unknown_tokens=tuple(unknown_token_list),
+    )
+
+
 # --------------------------------------------------------------- the normalizers Parser injects
 
 
@@ -648,5 +728,27 @@ class SiteListNormalizer:
         )
         results = _normalize_once_per_distinct(
             rows, lambda key: normalize_site_list(*key, self.rules)
+        )
+        return _derived(results, self.proforma_output, self.stripped_output)
+
+
+@dataclass(frozen=True, slots=True)
+class EmbeddedSiteListNormalizer:
+    """Normalize a bare sequence beside modification entries carrying their sites."""
+
+    rules: EmbeddedSiteListRules
+    sources: tuple[str, ...]
+    proforma_output: str
+    stripped_output: str
+
+    def normalize(self, columns: tuple[pl.Series, ...], /) -> dict[str, pl.Series]:
+        sequences, modifications = columns
+        rows = zip(
+            (value or "" for value in sequences.cast(pl.String).to_list()),
+            (value or "" for value in modifications.cast(pl.String).to_list()),
+            strict=True,
+        )
+        results = _normalize_once_per_distinct(
+            rows, lambda key: normalize_embedded_site_list(*key, self.rules)
         )
         return _derived(results, self.proforma_output, self.stripped_output)

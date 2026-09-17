@@ -1,0 +1,142 @@
+{
+  "schema_version": "0.7",
+  "file_version": "1",
+  "software_name": "quantms",
+  "software_version_pattern": "^v?1\\..*",
+  "sample_annotation": {
+    "matching": {
+      "mode": "exact",
+      "normalize": "mass_spec_basename"
+    }
+  },
+  "tables": [
+    {
+      "input": {
+        "shape": "long",
+        "extensions": [
+          ".csv"
+        ]
+      },
+      "base": {
+        "axis": {
+          "obs_keys": [
+            "Raw_File"
+          ]
+        },
+        "measurements": {
+          "duplicates": {
+            "mode": "error"
+          }
+        },
+        "columns": {
+          "obs": [
+            {
+              "name": "Raw_File",
+              "source": "Reference"
+            },
+            {
+              "name": "Condition",
+              "source": "Condition",
+              "required": false
+            },
+            {
+              "name": "Bio_Replicate",
+              "source": "BioReplicate",
+              "required": false
+            },
+            {
+              "name": "Run",
+              "source": "Run",
+              "required": false
+            }
+          ]
+        },
+        "modifications": {
+          "parser": "token_regex",
+          "source_column": "PeptideSequence",
+          "token_pattern": "\\(([^)]+)\\)",
+          "token_position": "after_residue",
+          "unknown_policy": "preserve",
+          "map": [
+            {
+              "token": "Carbamidomethyl",
+              "accession": "UNIMOD:4"
+            },
+            {
+              "token": "Oxidation",
+              "accession": "UNIMOD:35"
+            },
+            {
+              "token": "Acetyl",
+              "accession": "UNIMOD:1"
+            }
+          ]
+        }
+      },
+      "levels": {
+        "ion": {
+          "axis": {
+            "var_keys": [
+              "ProForma_ion"
+            ]
+          },
+          "measurements": {
+            "primary_layer": "Intensity",
+            "layers": [
+              {
+                "name": "Intensity",
+                "source": "Intensity",
+                "roles": [
+                  "abundance"
+                ]
+              }
+            ]
+          },
+          "columns": {
+            "var": [
+              {
+                "name": "Modified_Sequence",
+                "source": "PeptideSequence"
+              },
+              {
+                "name": "Charge",
+                "source": "PrecursorCharge",
+                "type": "integer"
+              },
+              {
+                "name": "Protein",
+                "source": "ProteinName",
+                "roles": [
+                  "protein_assignment",
+                  "fasta_accessions"
+                ]
+              },
+              {
+                "name": "ProForma_peptidoform",
+                "inputs": [
+                  "Modified_Sequence"
+                ],
+                "how": "proforma_sequence"
+              },
+              {
+                "name": "ProForma_peptide",
+                "inputs": [
+                  "Modified_Sequence"
+                ],
+                "how": "stripped_sequence"
+              },
+              {
+                "name": "ProForma_ion",
+                "inputs": [
+                  "ProForma_peptidoform",
+                  "Charge"
+                ],
+                "how": "proforma_ion"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

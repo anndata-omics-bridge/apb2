@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from typing import Protocol
@@ -29,6 +29,24 @@ from apb2.parserV2.parse_quant.data.parsed import (
 _EXAMPLE_LIMIT = 5
 
 type Key = tuple[str, ...]
+type KeyNormalization = Callable[[Key], Key]
+
+_MASS_SPEC_SUFFIX = re.compile(
+    r"(?:\.mzml\.gz|\.mzml|\.raw|\.mgf|\.d|\.wiff)$",
+    flags=re.IGNORECASE,
+)
+
+
+def normalize_mass_spec_basename(key: Key, /) -> Key:
+    """Reduce file-backed run identifiers to extensionless basenames."""
+    return tuple(
+        _MASS_SPEC_SUFFIX.sub("", value.replace("\\", "/").rsplit("/", maxsplit=1)[-1])
+        for value in key
+    )
+
+
+def _identity(key: Key, /) -> Key:
+    return key
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,18 +75,25 @@ class AnnotationMatching(Protocol):
 class ExactAnnotationMatching:
     """Reserve only identifiers whose text is exactly equal."""
 
+    normalization: KeyNormalization = _identity
+
     def pair(
         self,
         observations: Sequence[Key],
         identifiers: Sequence[Sequence[Key]],
         /,
     ) -> KeyPairing:
+        normalized_observations, normalized_identifiers = _normalize_pairing_inputs(
+            observations,
+            identifiers,
+            self.normalization,
+        )
         lookup = {
             identifier: row
-            for row, row_identifiers in enumerate(identifiers)
+            for row, row_identifiers in enumerate(normalized_identifiers)
             for identifier in row_identifiers
         }
-        rows = tuple(lookup.get(observation) for observation in observations)
+        rows = tuple(lookup.get(observation) for observation in normalized_observations)
         return KeyPairing(annotation_rows=rows, corrections=(), near_misses={})
 
 
@@ -79,6 +104,7 @@ class FuzzyAnnotationMatching:
     cutoff: float
     margin: float
     near_miss_limit: int
+    normalization: KeyNormalization = _identity
 
     def pair(
         self,
@@ -86,14 +112,19 @@ class FuzzyAnnotationMatching:
         identifiers: Sequence[Sequence[Key]],
         /,
     ) -> KeyPairing:
-        exact = ExactAnnotationMatching().pair(observations, identifiers)
-        assigned = list(exact.annotation_rows)
+        normalized_observations, normalized_identifiers = _normalize_pairing_inputs(
+            observations,
+            identifiers,
+            self.normalization,
+        )
+        assigned = list(_exact_rows(normalized_observations, normalized_identifiers))
         used_rows = {row for row in assigned if row is not None}
         unmatched_observations = [index for index, row in enumerate(assigned) if row is None]
         unmatched_rows = [row for row in range(len(identifiers)) if row not in used_rows]
         scores = {
             (obs_index, row): max(
-                _similarity(observations[obs_index], identifier) for identifier in identifiers[row]
+                _similarity(normalized_observations[obs_index], identifier)
+                for identifier in normalized_identifiers[row]
             )
             for obs_index in unmatched_observations
             for row in unmatched_rows
@@ -203,7 +234,18 @@ def annotation_matching_for(level: ParsedLevel, /) -> AnnotationMatching:
         return ExactAnnotationMatching()
     if not isinstance(declaration, dict):
         raise AnnotationError("persisted sample_annotation_matching must be an object")
+    normalization_name = declaration.get("normalize")
+    if normalization_name is None:
+        normalization = _identity
+    elif normalization_name == "mass_spec_basename":
+        normalization = normalize_mass_spec_basename
+    else:
+        raise AnnotationError(
+            f"unsupported persisted annotation key normalization {normalization_name!r}"
+        )
     mode = declaration.get("mode")
+    if mode == "exact":
+        return ExactAnnotationMatching(normalization=normalization)
     if mode != "fuzzy":
         raise AnnotationError(f"unsupported persisted annotation matching mode {mode!r}")
     cutoff_value = declaration.get("cutoff")
@@ -231,6 +273,7 @@ def annotation_matching_for(level: ParsedLevel, /) -> AnnotationMatching:
         cutoff=cutoff,
         margin=margin,
         near_miss_limit=near_miss_limit,
+        normalization=normalization,
     )
 
 
@@ -336,6 +379,67 @@ def _aligned_metadata(
 
 def _similarity(left: Key, right: Key) -> float:
     return SequenceMatcher(None, _normalized(left), _normalized(right), autojunk=False).ratio()
+
+
+def _exact_rows(
+    observations: Sequence[Key],
+    identifiers: Sequence[Sequence[Key]],
+    /,
+) -> tuple[int | None, ...]:
+    lookup = {
+        identifier: row
+        for row, row_identifiers in enumerate(identifiers)
+        for identifier in row_identifiers
+    }
+    return tuple(lookup.get(observation) for observation in observations)
+
+
+def _normalize_pairing_inputs(
+    observations: Sequence[Key],
+    identifiers: Sequence[Sequence[Key]],
+    normalization: KeyNormalization,
+    /,
+) -> tuple[tuple[Key, ...], tuple[tuple[Key, ...], ...]]:
+    normalized_observations = tuple(normalization(key) for key in observations)
+    normalized_identifiers = tuple(
+        tuple(dict.fromkeys(normalization(key) for key in row)) for row in identifiers
+    )
+    _reject_normalization_collisions(observations, normalized_observations, "observation")
+    annotation_keys = tuple(
+        (row, original, normalized)
+        for row, row_identifiers in enumerate(identifiers)
+        for original, normalized in zip(
+            row_identifiers,
+            (normalization(key) for key in row_identifiers),
+            strict=True,
+        )
+    )
+    owners: dict[Key, tuple[int, Key]] = {}
+    for row, original, normalized in annotation_keys:
+        previous = owners.setdefault(normalized, (row, original))
+        if previous[0] != row:
+            raise AnnotationError(
+                "annotation normalization collision: "
+                f"{_display_key(previous[1])!r} and {_display_key(original)!r} both become "
+                f"{_display_key(normalized)!r}"
+            )
+    return normalized_observations, normalized_identifiers
+
+
+def _reject_normalization_collisions(
+    originals: Sequence[Key],
+    normalized: Sequence[Key],
+    label: str,
+    /,
+) -> None:
+    owners: dict[Key, Key] = {}
+    for original, clean in zip(originals, normalized, strict=True):
+        previous = owners.setdefault(clean, original)
+        if previous != original:
+            raise AnnotationError(
+                f"{label} normalization collision: {_display_key(previous)!r} and "
+                f"{_display_key(original)!r} both become {_display_key(clean)!r}"
+            )
 
 
 def _normalized(key: Key) -> str:

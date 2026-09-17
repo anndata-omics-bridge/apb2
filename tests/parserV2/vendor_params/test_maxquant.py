@@ -68,7 +68,7 @@ EMPTY_SPELLINGS = [
 
 
 def _mqpar_with_empty(field: str, spelling: str) -> io.StringIO:
-    """Rewrite the base mqpar so one modification list declares no entries."""
+    """Rewrite the base mqpar so one list declares no entries."""
     source = (PROTEOBENCH_PARAMS / _BASE_MQPAR).read_text(encoding="utf-8")
     replaced, count = re.subn(
         rf"<{field}>.*?</{field}>",
@@ -104,3 +104,13 @@ def test_empty_fixed_modifications_parse_as_none_declared(spelling: str) -> None
         "M[Oxidation]",
         "Protein N-term[Acetyl]",
     ]
+
+
+@pytest.mark.parametrize("spelling", EMPTY_SPELLINGS)
+def test_empty_enzymes_parse_as_missing(spelling: str) -> None:
+    if not (PROTEOBENCH_PARAMS / _BASE_MQPAR).exists():
+        pytest.skip("ProteoBench fixture missing")
+
+    params = extract_params(_mqpar_with_empty("enzymes", spelling))
+
+    assert params.enzyme is None

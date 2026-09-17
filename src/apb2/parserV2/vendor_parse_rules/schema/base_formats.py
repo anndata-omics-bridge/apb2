@@ -9,7 +9,7 @@ from pydantic import Field
 
 from apb2.parserV2.vendor_parse_rules.schema.base import ModelBase
 
-type SupportedExtension = Literal[".tsv", ".txt", ".csv", ".parquet"]
+type SupportedExtension = Literal[".tsv", ".txt", ".csv", ".parquet", ".xlsx"]
 type TextEncoding = Literal["utf8", "utf8-lossy", "windows-1252"]
 type DecimalMark = Literal[".", ","]
 type SingleCharacter = Annotated[str, Field(min_length=1, max_length=1)]
@@ -32,6 +32,7 @@ DELIMITED_BASE_FORMATS: dict[SupportedExtension, BaseDelimitedFormat] = {
     ".csv": BaseDelimitedFormat(delimiter=","),
 }
 PARQUET_EXTENSIONS: frozenset[SupportedExtension] = frozenset({".parquet"})
+WORKBOOK_EXTENSIONS: frozenset[SupportedExtension] = frozenset({".xlsx", ".txt"})
 
 
 class DetectedDelimiter(ModelBase):

@@ -21,7 +21,7 @@ vendor column name, it illustrates a generic contract; it never creates a vendor
 The words **must**, **must not**, and **only** are normative. Examples are explanatory unless an
 invariant or test explicitly adopts them.
 
-The current rule storage version is schema `0.4`; [How rules-driven conversion works](rule-based.md) is the concise authoring guide. Supplement C.1–C.5 preserves the schema `0.2 → 0.3` migration record, while C.6 states the current entry-shaped column and semantic-role extension.
+The current rule storage version is schema `0.7`; [How rules-driven conversion works](rule-based.md) is the concise authoring guide. Supplement C.1–C.6 preserves the earlier migrations; schema `0.7` retains entry-shaped columns, semantic roles, grouped input tables and logical numeric measurement types while adding rule-selected input preparation.
 
 ## 1. Executive decision
 
@@ -30,7 +30,7 @@ holds no `rules.json` model and contains no vendor, level, layout, encoding, dup
 output-format dispatch. `ParseRuleCompiler` consumes those declarations once, constructs the
 required behavior objects, and injects them into one `Parser` per compatible quantification level.
 
-Rule storage schema `0.4` declares obs/var columns as ordered sourced-or-computed entries with inline type, optionality, and semantic roles. Measurement layers carry the same `roles` field; owner permissions come from one packaged JSON policy. The facade projects semantic roles into storage-neutral provenance before constructing runtime strategies.
+Rule storage schema `0.7` declares `tables: [{input, base, levels, prepare?}]` under shared software metadata. Each table group independently selects direct input or an ordinary preparation function from the independent `joins` package. Parent composition binds and reads each selected prepared group's inputs once. A direct group and a prepared group can coexist, as in MaxQuant. Obs/var columns remain ordered sourced-or-computed entries with inline type, optionality, and semantic roles. Numeric layers may declare logical type `integer`; omitted numeric types mean `number`. The facade projects declarations into storage-neutral runtime plans.
 
 The computational result is:
 
@@ -134,7 +134,7 @@ The specification stays close to V5. These are the only intentional changes:
 | Parser V2 owns its boundary errors: rule applicability in `vendor_parse_rules/document.py`, shared parse/source errors in `parse_quant/errors.py`, and strategy-local errors beside their raiser | V5 named error categories but did not assign them to the folder dependency graph; importing the existing top-level `apb2.errors` would be an upward dependency | Keep catchable errors at the boundary that defines their meaning without creating a generic cross-package error module |
 | `parserV2` has an explicit directed import graph: `parse_quant/data` owns pipeline values, `parse_quant/parameters` owns working and source-resolved parameters, `parse_quant/io` owns parsed-result adapters and depends only on `data`, `parse_quant/contracts.py` owns Parser-consumed Protocols, source readers remain parent modules, parent-level `parse_rule_facade.py` translates `RuleDocument` into parameters, and the inward-only `vendor_parse_rules/schema/` child owns Pydantic storage declarations | V5 named implementation areas but did not assign concrete modules or prohibit child-to-parent and cyclic/excess sibling imports | Make directory nesting express dependency direction: a module owned by one child moves into that child; sibling edges are one-way and limited to one direct target, while genuine multi-child composition stays in the parent |
 | One-class private helpers are private methods; module-level `make_*` and `*_for` names are reserved for construction and selection | V5 showed several one-client parser and writer helpers as free functions | Put implementation details with their sole owner, reduce module namespace and forwarding code, and keep the construction boundary visible |
-| Omitted CLI level composes compatible `ParsedLevel` values as MuData | The initial specification explicitly excluded MuData assembly | Match APB's compound-conversion contract without changing parsing: one parser per level, one output-adapter loop, and one `.h5mu` container |
+| Omitted CLI level composes compatible `ParsedLevel` values as `ParsedLevels` and delegates persistence to the selected result writer | The initial specification explicitly excluded multi-level assembly | Match APB's compound-conversion contract without coupling parsing to one container: one parser per level, one storage-neutral collection, one selected writer |
 | Result I/O operates on `ParsedLevels` through format-selected readers and writers | V5 specified only parser-owned one-level writing | Give later tools and `apb2 reformat` one storage-neutral boundary; keep `Parser.convert()` unchanged because Parser still owns one level |
 | `ParsedLevel` includes axis-aligned and sparse pairwise Polars frames | V5 stopped at axes, layers, and `uns` | Carry the AnnData/MuData slots later tools need without importing their containers into computation |
 | Final layers distinguish measurement and auxiliary roles | V5 treated every retained numeric layer as an occupancy peer | Let downstream tools persist diagnostic matrices without allowing their density or sparsity to alter quantitative matrix-occupancy checks |
@@ -246,10 +246,9 @@ Omitting the CLI level changes only the outer composition:
 compile_parsers(document.levels)
     -> for each compatible Parser: parse() -> ParsedLevel
     -> ParsedLevels({level: parsed_level, ...}, shared_uns)
-    -> MuDataWriter loops over levels
-    -> each level's configured AnnDataWriter.to_anndata(parsed_level)
-    -> prefix modality var_names and assemble MuData(axis=0)
-    -> atomic .h5mu write
+    -> write_parsed_levels(parsed, target)
+    -> suffix-selected H5MU, Parquet, or DuckDB writer
+    -> atomic result plus APB JSON representation
 ```
 
 Each selected parser still performs its own ordinary single-level read and parse. Sharing a full
@@ -1807,7 +1806,7 @@ shape contracts are checked at each collaborator boundary.
 | `BoundInputReader` | Read one already bound source using one resolved level projection | delimited table, Parquet table; later file-set reader only when a declared file set exists |
 | `SourceDecomposer` | Convert one physical table shape to common raw axes and wide raw layers | long, wide, delimiter-fragment composition |
 | `FragmentTableSeparator` | Turn one packed fragment table into scalar-long rows | positional labels, column-derived labels |
-| `ModificationNormalizer` | Normalize one declared vendor modification representation | token-regex, site-list |
+| `ModificationNormalizer` | Normalize one declared vendor modification representation | token-regex, parallel site-list, embedded-site list |
 | `AxisValueCoercer` | Coerce one selected axis series to one declared logical type | string, integer, number, boolean |
 | `ColumnComputer` | Materialize one declared computed column | coalesce, join-nonempty, stripped sequence, ProForma sequence, ProForma ion, ProForma fragment |
 | `RawValuePresence` | Mark raw layer scalars that semantically claim a cell without converting them | null-only, plain numeric, regex numeric |
@@ -2205,7 +2204,7 @@ The existing layer declaration features are retained under `measurements.layers`
 
 - `name` and `source` identify the logical layer and physical exact column or wide regex;
 - `required` participates in source compatibility;
-- numeric layers may declare `missing_values` and a one-capture `value_pattern`;
+- numeric layers default to `type: "number"`, may declare `type: "integer"`, and may declare `missing_values` and a one-capture `value_pattern`;
 - factor layers declare their category-to-code mapping.
 
 These declarations do not authorize parser-side conversion. Facade projection separates physical
@@ -2286,12 +2285,12 @@ The optional fields are honest only at this storage boundary. Absence means “u
 format”; presence means “this rule explicitly enables bounded detection.” The facade consumes
 them and emits concrete candidate tuples. No parsing strategy receives `None` or a detection mode.
 
-DIA-NN v1 therefore says only:
+DIA-NN 1.8/1.9 therefore says only:
 
 ```json
 "input": {
   "shape": "long",
-  "extensions": [".tsv"]
+  "extensions": [".tsv", ".txt", ".parquet"]
 }
 ```
 
@@ -2385,9 +2384,7 @@ class InputContract:
 `DelimitedFile` supplies an explicit dialect, which the compiler still verifies against the
 projected contract and compatible header. `SingleFile` uses its suffix to choose among several
 declared interpretations. When a rule has exactly one physical interpretation, its extension is
-a hint rather than a filename gate: a TSV-formatted cached fixture named `input_file.txt` still
-binds to that sole TSV contract. `Folder` requires `file_name` and selects exactly that path. Thus
-MaxQuant selects `evidence.txt` and ignores unrelated files in the same folder.
+a hint rather than a filename gate: a TSV-formatted cached fixture named `input_file.txt` still binds to that sole TSV contract. `Folder` requires `file_name` and selects exactly that path for one compilation. The application boundary may detect several rule documents against the same folder, but every resulting parser remains bound to one table and one level.
 
 Facade projection turns each extension hint into its shared concrete contract, then applies only
 the document's detection overrides. Each decimal candidate produces one `NumericTextFormat`, with
@@ -2400,9 +2397,7 @@ nonempty candidate lists, and essential complete-rule references. We author and 
 these documents; the schema does not accumulate validators for harmless duplicate spellings or
 every theoretical combination.
 
-Multiple input tables remain an architectural extension, not a fake option on the current input
-record. The first real multi-file implementation adds a distinct source type and a reader that
-assembles one `LevelSourceTable`; it does not pre-author a generic role or join language now.
+A vendor-result folder or explicit companion list supplies table-local physical inputs. MaxQuant's direct evidence group produces ions at raw-file resolution; its preparation function unpivots only higher-level exports and joins evidence-ID references plus experiment. AlphaDIA 1.12 joins authoritative matrix quantities with precursor metadata. `prepare_source` composes reads with independent tool functions; `PreparedTable` shares the frame within its group. Direct evidence never acquires preparation provenance or join fan-out. The parsing-owned `observation_groups` module aligns explicit, complete bijections without changing measurement cells and otherwise separates observation identities. The parent conversion facade writes each group and returns actual output paths; backend writers make no scientific alignment decisions. Relationship records are JSON in existing parse provenance, not a new storage schema.
 
 #### C.5 Schema 0.3 rule-package migration (historical)
 
@@ -2691,6 +2686,7 @@ class PlainNumericAnnDataEncodingConfig:
     layer_name: str
     missing_values: tuple[float, ...]
     number_format: NumericTextFormat
+    type: Literal["number", "integer"] = "number"
 
 
 @dataclass(frozen=True, slots=True)
@@ -2700,6 +2696,7 @@ class RegexNumericAnnDataEncodingConfig:
     missing_values: tuple[float, ...]
     pattern: str
     number_format: NumericTextFormat
+    type: Literal["number", "integer"] = "number"
 
 
 @dataclass(frozen=True, slots=True)
@@ -3059,10 +3056,7 @@ Source binding is allowed to branch on evidence outcomes:
 
 These are facts about a physical source, not behavior selectors inside computation.
 
-`Folder` does not imply a Builder. It is one complete caller-supplied source value, and the
-compiler resolves it in one operation. If a future rule genuinely reads several files, a new
-file-set declaration and bound reader implement that behavior behind the existing
-`BoundInputReader` Protocol.
+`Folder` does not imply a Builder. For one compiler invocation it is one complete caller-supplied source value, resolved to exactly one named table. The conversion facade can invoke that compiler once per detected document/level pair and collect every parsed value before one write. If a future rule genuinely reads several files for one level, a new file-set declaration and bound reader implement that behavior behind the existing `BoundInputReader` Protocol.
 
 #### E.3 Polars reader boundary
 
@@ -3207,24 +3201,22 @@ and reinterpret it as a different mode.
 
 #### G.1 Current rule coverage
 
-The schema-`0.4` package under `apb2/src/apb2/parserV2/vendor_parse_rules/documents/`, audited on 2026-09-10, contains:
+The schema-`0.7` package under `apb2/src/apb2/parserV2/vendor_parse_rules/documents/`, audited on 2026-09-17, contains:
 
-- 17 rule documents;
-- 28 effective declared levels and therefore 56 obs/var axis plans;
-- 18 long levels and 10 wide levels;
+- 19 rule documents with 19 table groups;
+- 35 effective declared levels and therefore 70 obs/var axis plans;
+- 26 long levels and 9 wide levels;
 - two delimiter-packed positional fragment declarations;
 - token-regex and site-list modification representations;
 - numeric, regex-numeric, and factor layer encodings;
-- 19 `error`, 8 `keep_first`, and 1 numeric `aggregate` duplicate configurations;
+- 20 `error`, 14 `keep_first`, and 1 numeric `aggregate` duplicate configurations;
 - ordered sourced and computed column entries, including nested and multi-column keys;
-- configured var and layer roles, including 55 authored abundance tags;
+- configured var and layer roles, including authored abundance tags;
 - parameter gates and a DIA-NN primary-layer override.
 
-Column-labelled packed fragments are supported by the current schema but have no packaged
-document. No packaged document currently declares a true multi-file input. Both therefore require
-focused contract fixtures, while parity fixtures come from the packaged set.
+Column-labelled packed fragments are supported by the current schema but have no packaged document and therefore require focused contract fixtures. AlphaDIA 1.12 and the higher-level MaxQuant group prepare a shared table before rule-defined decomposition; MaxQuant evidence remains direct. Coherent join fixtures exercise every MaxQuant input subset, observation alignment/separation, and measurement-preserving backend round-trips.
 
-The architecture must cover that set through declarations, not through 28 cases.
+The architecture covers that set through declarations, not vendor-specific parser cases.
 
 | Required behavior | Architectural owner |
 | --- | --- |
@@ -3247,12 +3239,12 @@ The architecture must cover that set through declarations, not through 28 cases.
 
 Tests must prove:
 
-- all 17 packaged documents validate as schema `0.4`;
-- all 28 effective levels and every gate/override alternative validate;
+- all 19 packaged documents validate as schema `0.7`;
+- all 35 effective levels and every gate/override alternative validate;
 - no document contains `axis.x_layer`, `axis.duplicates`, root-level `layers`, or override
   `x_layer`;
 - every effective rule has identity-only `axis` plus one valid `measurements` block;
-- schema `0.4` rejects the legacy `keep_all_as_raw_table` duplicate mode;
+- schema `0.7` rejects schema-0.5 documents, the legacy `keep_all_as_raw_table` duplicate mode, and older document shapes;
 - obs/var entries carry sourced or computed facts inline and have unique names;
 - role vocabulary and owner permissions match the packaged policy;
 - every effective primary and every declared non-primary abundance layer is tagged;
@@ -3263,7 +3255,7 @@ Tests must prove:
 - every input declaration has at least one supported extension hint;
 - shared `.tsv`, `.txt`, `.csv`, and `.parquet` base formats are tested once;
 - only Spectronaut enables delimiter and numeric-format detection;
-- MaxQuant declares the exact folder `file_name` `evidence.txt`;
+- one MaxQuant document separates direct `evidence.txt` from a prepared higher-level group, recognizing all nonempty subsets and renamed companions;
 - every resolved delimited plan partitions all projected columns into disjoint text and
   native-numeric sets;
 - every fragment declaration retains at least one packed value source and has a collision-free
@@ -3272,7 +3264,7 @@ Tests must prove:
 Physical-input fixtures additionally cover tab, semicolon, and comma delimiters; explicit and
 detected dialects; quoted delimiters; comma decimals; grouped values such as `100,000,000`;
 deliberately ambiguous
-numeric evidence; UTF-8 BOM input; MaxQuant `Folder` resolution to `evidence.txt`; explicit
+numeric evidence; UTF-8 BOM input; MaxQuant `Folder` resolution of full and partial level bundles; explicit
 `DelimitedFile` evidence; and Parquet physical dtypes. They assert the complete read-dtype partition and that
 ambiguous evidence fails before a full table read.
 
@@ -3343,9 +3335,8 @@ parser collaborators are not called.
 Import Linter is the merge-blocking enforcement mechanism. `make lint` and therefore `make check`
 run `lint-imports`. When the first Parser V2 package skeleton is created, `.importlinter` gains:
 
-- an exhaustive `layers` contract for the `parserV2` container, with `conversion`,
-  `detect_document`, `compile`, and `parse_rule_facade` above the independent
-  `parse_quant | vendor_params | vendor_parse_rules` children;
+- an exhaustive `layers` contract for the `parserV2` container, with `conversion_facade`, `detect_document`, `compile`, `prepare_source`, and `parse_rule_facade` above the independent `parse_quant | vendor_params | vendor_parse_rules | joins` children;
+- an exhaustive `layers` contract keeping the AlphaDIA and MaxQuant join modules independent of one another;
 - an exhaustive `layers` contract for the `parse_quant` container, with modules directly in
   `parse_quant` above `io`, and with the single declared child edge `io -> data` while
   `parameters` remains independent;
@@ -3363,8 +3354,7 @@ Do not add a wrapper script. The resulting static checks must verify:
   `vendor_parse_rules` nor any parent module;
 - computation modules in `parse_quant` import neither the I/O modules, Pydantic, pandas, NumPy,
   AnnData, nor PyArrow storage objects;
-- no module under `parse_quant/`, `vendor_params/`, or `vendor_parse_rules/` imports a module
-  directly in `parserV2/`, and none of the three child packages imports another;
+- no module under `parse_quant/`, `vendor_params/`, `vendor_parse_rules/`, or `joins/` imports a module directly in `parserV2/`, and none of the four child packages imports another;
 - the complete child graph inside `parse_quant/` is exactly `io -> data`; every child has at most
   one direct sibling target, and no child imports upward;
 - no module under `parse_quant/data/` or `parse_quant/parameters/` imports a sibling or its parent;
@@ -3375,9 +3365,7 @@ Do not add a wrapper script. The resulting static checks must verify:
   result readers and writers under `parse_quant/io/` import only `data/parsed.py`, I/O-owned
   metadata, validation, errors, and their external backend libraries; none imports Parser, raw
   data, contracts, parameters, or parsing strategies;
-- `parse_rule_facade.py` is the projection boundary between `vendor_parse_rules` and
-  `parse_quant.parameters`; `compile.py` owns runtime strategy construction; `detect_document.py`
-  owns header-only rule selection; and `conversion_facade.py` owns the complete CLI-facing workflow;
+- `parse_rule_facade.py` projects `vendor_parse_rules` into `parse_quant.parameters`; `compile.py` constructs runtime strategies; `prepare_source.py` composes physical input binding with tool joins; `detect_document.py` selects rules using physical headers or the prepared schema; and `conversion_facade.py` owns the complete CLI-facing workflow;
 - only parent-level Parser V2 composition modules import `vendor_params`; `conversion_facade.py`
   constructs `SearchParameterEvidence` before calling the facade;
 - source input adapters remain parent modules because they compose `data/` and `parameters/`;
@@ -3425,9 +3413,14 @@ This is the recommended initial structure. It is deliberately coarser than one f
 apb2/src/apb2/parserV2/
 ├── __init__.py                 # package marker; no eager imports or composition
 ├── conversion_facade.py        # CLI-facing workflows, summary, and error translation
-├── detect_document.py          # header-only packaged document selection
+├── detect_document.py          # packaged selection from headers or prepared schema
 ├── parse_rule_facade.py        # RuleDocument -> parsing parameter values
 ├── compile.py                  # compiler, output declarations, registries, injection
+├── prepare_source.py           # physical input binding, join factory, shared preparation
+├── joins/
+│   ├── __init__.py             # empty marker; no re-exports
+│   ├── alphadia.py             # authoritative matrix plus precursor metadata
+│   └── maxquant.py             # long/wide normalization and foreign-key joins
 ├── vendor_params/
 │   ├── __init__.py             # package marker; no broad re-exports
 │   ├── registry.py             # software-name dispatch
@@ -3444,6 +3437,7 @@ apb2/src/apb2/parserV2/
 │   ├── __init__.py             # parse package marker; no adapter re-exports
 │   ├── delimited_input.py       # binding, evidence, configured Polars text reader
 │   ├── parquet_input.py         # binding, evidence, configured Polars Parquet reader
+│   ├── prepared_input.py        # per-level projection of the shared prepared frame
 │   ├── errors.py                # shared parse/source boundary errors
 │   ├── data/
 │   │   ├── __init__.py         # data package marker; no broad re-exports
@@ -3683,7 +3677,6 @@ Implementation began after the following statements were accepted together:
    client-owned Protocols; and
 9. one-class private helpers are private methods, while free construction functions remain at the
    explicit composition boundary; and
-10. omitting CLI `LEVEL` collects compatible single-level results in `ParsedLevels` and lets the
-    AnnData/MuData adapter perform the only multi-level loop and `.h5mu` write;
+10. omitting CLI `LEVEL` collects compatible single-level results in `ParsedLevels` and lets the selected result writer persist H5MU, Parquet, or DuckDB;
 11. result readers and writers operate on `ParsedLevels`, with exact Parquet/DuckDB fidelity and
     explicit canonical h5ad/h5mu projection.

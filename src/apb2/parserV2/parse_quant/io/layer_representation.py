@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import cast
+from typing import Literal, cast
 
 import polars as pl
 
@@ -19,6 +19,7 @@ def quantitative_representation(
     values: pl.DataFrame,
     /,
     *,
+    logical_type: Literal["number", "integer"] = "number",
     observation_limit: int = OBSERVATION_SUMMARY_LIMIT,
     quantile_sample_limit: int = QUANTILE_SAMPLE_LIMIT,
 ) -> dict[str, JsonValue]:
@@ -51,6 +52,7 @@ def quantitative_representation(
     quartile_method = "linear_exact" if sample_exact else "linear_deterministic_grid_sample"
     return {
         "value_kind": "quantitative",
+        "type": logical_type,
         "dtype": _numeric_dtype(values),
         "statistics": accumulator.statistics(
             sample,

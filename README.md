@@ -26,6 +26,8 @@ APB2 is a refactoring and performance improvement of the now-discontinued [AnnDa
 
 APB2 is based on the work of [ProteoBench](https://github.com/proteobench/proteobench): it ports ProteoBench's parsing infrastructure — search-parameter parsing, vendor file-format parsing, modification parsing — into one rules-driven converter. See the ProteoBench preprint: [ProteoBench: the community-curated platform for comparing proteomics data analysis workflows](https://www.biorxiv.org/content/10.64898/2025.12.09.692895v2) (bioRxiv, 2025, doi:10.64898/2025.12.09.692895).
 
+Packaged conversion rules include AlphaDIA, AlphaPept, DIA-NN, FragPipe, i2MassChroQ, MaxQuant, MSAngel, PEAKS, ProlineStudio, quantms, Sage, Spectronaut, and WOMBAT; the complete version and input-format matrix is in [supported software](docs/supported_software.md).
+
 The work that became APB2 was discussed and started during the Copenhagen ProteoBench Hackathon,
 13–17 April 2026, as one of the efforts to improve the backend of the
 [ProteoBench platform](https://proteobench.cubimed.rub.de/). The hackathon included the public
@@ -42,30 +44,26 @@ both prolfquapp and ProteoBench, and hopefully other tools analysing quantificat
 
 ### Convert
 
-Use a packaged rule selected from the vendor parameter file and source header:
+Use a packaged rule selected from the vendor parameter file and source header. `DATA` may be one vendor table or a vendor-result directory:
 
 ```bash
 apb2 convert DATA LEVEL --params PARAMETER_FILE [--software VENDOR] [--output BASENAME]
 ```
 
-Omit `LEVEL` to convert every compatible level into one shared-observation MuData container:
+Omit `LEVEL` to convert every compatible level into one APB2 result:
 
 ```bash
-apb2 convert DATA --params PARAMETER_FILE [--software VENDOR] [--output BASENAME]
+apb2 convert DATA --params PARAMETER_FILE [--software VENDOR] [--format FORMAT] [--output BASENAME]
 ```
 
-Use an explicit schema-0.3 rule document, with optional search-parameter evidence:
+Use an explicit schema-0.7 rule document, with optional search-parameter evidence:
 
 ```bash
 apb2 convert DATA LEVEL --rule-config RULES_JSON [--params PARAMETER_FILE] \
   [--params-software VENDOR] [--output BASENAME]
 ```
 
-`LEVEL` is one of `ion`, `peptidoform`, `peptide`, `protein`, or `fragment`. The output basename
-must not already carry the suffix APB2 appends: `.h5ad` with an explicit level, `.h5mu` without
-one. A no-level conversion writes MuData even when only one level is compatible. `--strict`
-promotes layer-contract warnings to errors. The command performs conversion only—FASTA annotation
-and protein inference are outside Parser V2.
+`LEVEL` is one of `ion`, `peptidoform`, `peptide`, `protein`, or `fragment`. MaxQuant accepts any nonempty subset of evidence, modification-specific peptide, peptide and protein-group exports. Evidence stays separate from the higher-level join; an omitted level converts every available level. `--format` selects `hdf5`, `parquet`, or `duckdb`. HDF5 uses `.h5ad` with an explicit level and `.h5mu` otherwise. Complete one-to-one observation aliases are aligned; fractionated or unmapped resolutions produce separate outputs such as `result.raw_file.h5mu` and `result.experiment.h5mu`. See [output naming](docs/conversion.md#output-naming). `--strict` promotes layer-contract warnings to errors. The command performs conversion only; FASTA annotation and protein inference are outside Parser V2.
 
 ### Reformat a parsed result
 

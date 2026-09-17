@@ -1,0 +1,16 @@
+sequence
+modifications
+master_quant_peptide_ion_charge
+samesets_accessions
+subsets_accessions
+best_score_sample_A
+best_score_sample_B
+psm_count_sample_A
+psm_count_sample_B
+elution_time_sample_A
+elution_time_sample_B
+corrected_time_sample_A
+corrected_time_sample_B
+abundance_sample_A
+abundance_sample_B
+quant_is_valid_for_protein_set

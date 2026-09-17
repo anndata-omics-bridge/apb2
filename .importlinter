@@ -20,8 +20,18 @@ layers =
     conversion_facade
     detect_document
     compile
+    prepare_source
     parse_rule_facade
-    parse_quant | vendor_params | vendor_parse_rules
+    parse_quant | vendor_params | vendor_parse_rules | joins
+
+[importlinter:contract:tool-joins-remain-independent]
+name = tool joins remain independent of one another
+type = layers
+exhaustive = True
+containers =
+    apb2.parserV2.joins
+layers =
+    alphadia | maxquant
 
 [importlinter:contract:vendor-parameter-directory-nesting-is-the-import-rule]
 name = vendor parameter dispatch descends into its parser package
@@ -40,7 +50,7 @@ exhaustive = True
 containers =
     apb2.parserV2.vendor_params.parsers
 layers =
-    alphadia | alphapept | diann | fragpipe | maxquant | metamorpheus | msaid | peaks | sage | spectronaut | wombat
+    alphadia | alphapept | diann | fragpipe | i2masschroq | maxquant | metamorpheus | msaid | msangel | peaks | prolinestudio | quantms | sage | spectronaut | wombat
     shared
 
 [importlinter:contract:shared-vendor-parameter-code-is-inward-only]
@@ -71,7 +81,7 @@ containers =
 layers =
     (parser) | (decomposition) | (duplicates)
     contracts
-    axis_columns | modifications | fragments | delimited_input | parquet_input
+    axis_columns | modifications | fragments | delimited_input | excel_input | parquet_input | prepared_input | observation_groups
     errors
     io
     data | parameters
@@ -103,6 +113,7 @@ source_modules =
     apb2.parserV2.parse_quant.parameters
     apb2.parserV2.parse_quant.contracts
     apb2.parserV2.parse_quant.errors
+    apb2.parserV2.parse_quant.observation_groups
 forbidden_modules =
     pydantic
     pandas

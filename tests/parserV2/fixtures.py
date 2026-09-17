@@ -14,7 +14,8 @@ import json
 import os
 import re
 import tempfile
-from dataclasses import dataclass
+import zipfile
+from dataclasses import dataclass, replace
 from functools import cache
 from pathlib import Path
 
@@ -22,7 +23,10 @@ import polars as pl
 import pytest
 
 from apb2.parserV2.compile import header_predicate
+from apb2.parserV2.parse_quant.excel_input import sheet_header
+from apb2.parserV2.parse_quant.parameters.source import PreparedTable, SingleFile
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
+from apb2.parserV2.prepare_source import prepare_source
 from apb2.parserV2.vendor_parse_rules.document import (
     RuleDocument,
     RuleNotApplicable,
@@ -45,6 +49,14 @@ SEARCH_EVIDENCES = (
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 """Committed per-rule artifacts: header snapshot, ~500-row sample, conversion expectations."""
+
+TABLE_FIXTURES: dict[tuple[str, QuantificationLevel], str] = {
+    ("maxquant", "ion"): "maxquant",
+    ("maxquant", "peptidoform"): "maxquant_modificationspecificpeptides",
+    ("maxquant", "peptide"): "maxquant_peptides",
+    ("maxquant", "protein"): "maxquant_proteingroups",
+}
+"""Separate input fixtures belonging to one consolidated rule document, not rule aliases."""
 
 
 def committed_dir(key: str) -> Path | None:
@@ -161,6 +173,8 @@ def _delimited_header(path: Path, delimiters: tuple[str, ...]) -> tuple[str, ...
 
 def _header_of(path: Path) -> tuple[str, ...]:
     """The column names one cached export carries, without reading its rows."""
+    if zipfile.is_zipfile(path):
+        return sheet_header(path, "Quantified peptide ions")
     suffix = path.suffix.lower()
     if suffix == ".parquet":
         return tuple(pl.read_parquet_schema(path))
@@ -179,11 +193,12 @@ class PackagedDocument:
 
     key: str
     parser_v2_path: Path
+    sample_key: str
 
     def data_path(self) -> Path | None:
         """A real readable export: the corpus one when admitted, else the committed sample."""
         found = _admitted_export(self.parser_v2_path)
-        return found if found is not None else committed_sample(self.key)
+        return found if found is not None else committed_sample(self.sample_key)
 
     def required_data_path(self) -> Path:
         """The cached real export, skipping the test when the corpus carries none."""
@@ -199,10 +214,21 @@ class PackagedDocument:
         instead would let the test proceed and fail on a fact about the corpus rather than
         about the code under test.
         """
+        document = load_rule_document(self.parser_v2_path)
+        level: QuantificationLevel = next(
+            level
+            for level in document.levels
+            if TABLE_FIXTURES.get((self.key, level), self.key) == self.sample_key
+        )
+        preparation = document.declared(level).preparation
+        if preparation is not None:
+            source = prepare_source(SingleFile(self.required_data_path()), preparation)
+            assert isinstance(source, PreparedTable)
+            return tuple(source.frame.columns)
         found = _admitted_export(self.parser_v2_path)
         if found is not None:
             return _header_of(found)
-        committed = _committed_header(self.key)
+        committed = _committed_header(self.sample_key)
         if committed is None:
             pytest.skip(f"no export or committed header for {self.key}; set APB2_TEST_DATA")
         return committed
@@ -222,14 +248,18 @@ class PackagedDocument:
 def document_pairs() -> tuple[PackagedDocument, ...]:
     """Every document Parser V2 packages, in packaged order."""
     return tuple(
-        PackagedDocument(key=document_key(path), parser_v2_path=path) for path in PARSER_V2_PACKAGED
+        PackagedDocument(key=document_key(path), parser_v2_path=path, sample_key=document_key(path))
+        for path in PARSER_V2_PACKAGED
     )
 
 
 def level_pairs() -> tuple[tuple[PackagedDocument, QuantificationLevel], ...]:
     """Every ``(document, level)`` Parser V2 declares, in packaged order."""
     return tuple(
-        (document, level)
+        (
+            replace(document, sample_key=TABLE_FIXTURES.get((document.key, level), document.key)),
+            level,
+        )
         for document in document_pairs()
         for level in load_rule_document(document.parser_v2_path).levels
     )

@@ -56,9 +56,13 @@ axes of every `obsp` matrix while remapping coordinates. It never filters only `
 ## Matching
 
 Exact matching is the default. Exact aliases named `<key>_alias` or `<key>_aliases` are supported.
-The PEAKS rule opts into token-wise fuzzy matching. Exact pairs are reserved first; a fuzzy pair is
-accepted only when it reaches the configured cutoff and is the unambiguous best candidate from both
-directions. Accepted corrections and bounded near misses are available through
+A vendor rule may persist `normalize: "mass_spec_basename"` for either exact or fuzzy matching.
+This compares only extensionless basenames after removing path components and the case-insensitive
+`.mzML`, `.mzML.gz`, `.raw`, `.mgf`, `.d`, or `.wiff` suffix; original observation values and
+diagnostics remain unchanged, and two distinct identifiers that normalize to the same value are an
+error. The PEAKS rule opts into token-wise fuzzy matching. Exact pairs are reserved first; a fuzzy
+pair is accepted only when it reaches the configured cutoff and is the unambiguous best candidate
+from both directions. Accepted corrections and bounded near misses are available through
 `annotation.matches` and are persisted with the result.
 
 See the [Python API](api.md#annotate-samples) to inspect matching evidence or apply annotation to

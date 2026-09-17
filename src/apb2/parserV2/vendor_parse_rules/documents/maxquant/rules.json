@@ -1,193 +1,592 @@
 {
-  "schema_version": "0.4",
-  "file_version": "2",
+  "schema_version": "0.7",
+  "file_version": "5",
   "software_name": "MaxQuant",
   "software_version_pattern": "^(1\\.5|1\\.6|2\\.)",
-  "input": {
-    "shape": "long",
-    "extensions": [
-      ".txt"
-    ],
-    "file_name": "evidence.txt"
-  },
-  "base": {
-    "axis": {
-      "obs_keys": [
-        "Raw_File"
-      ]
-    },
-    "measurements": {
-      "duplicates": {
-        "mode": "aggregate"
-      }
-    },
-    "columns": {
-      "obs": [
-        {
-          "name": "Raw_File",
-          "source": "Raw file"
-        },
-        {
-          "name": "Experiment",
-          "source": "Experiment",
-          "required": false
-        },
-        {
-          "name": "Fraction",
-          "source": "Fraction",
-          "required": false
-        }
-      ]
-    },
-    "modifications": {
-      "source_column": "Modified sequence",
-      "parser": "token_regex",
-      "token_pattern": "\\(([^()]*(?:\\([^()]*\\)[^()]*)*)\\)",
-      "token_position": "after_residue",
-      "case_sensitive": false,
-      "unknown_policy": "preserve",
-      "output_column": "proforma_sequence",
-      "map": [
-        {
-          "token": "ac",
-          "accession": "UNIMOD:1"
-        },
-        {
-          "token": "ox",
-          "accession": "UNIMOD:35"
-        },
-        {
-          "token": "Acetyl (Protein N-term)",
-          "accession": "UNIMOD:1"
-        },
-        {
-          "token": "Oxidation (M)",
-          "accession": "UNIMOD:35"
-        },
-        {
-          "token": "Carbamidomethyl (C)",
-          "accession": "UNIMOD:4"
-        }
-      ]
-    }
-  },
-  "levels": {
-    "ion": {
-      "axis": {
-        "var_keys": [
-          "ProForma_ion"
-        ]
+  "tables": [
+    {
+      "input": {
+        "shape": "long",
+        "extensions": [
+          ".txt"
+        ],
+        "file_name": "evidence.txt"
       },
-      "measurements": {
-        "primary_layer": "Intensity",
-        "layers": [
-          {
-            "name": "Intensity",
-            "source": "Intensity",
-            "roles": [
-              "abundance"
+      "base": {
+        "axis": {
+          "obs_keys": [
+            "Raw_File"
+          ]
+        },
+        "columns": {
+          "obs": [
+            {
+              "name": "Raw_File",
+              "source": "Raw file"
+            },
+            {
+              "name": "Experiment",
+              "source": "Experiment",
+              "required": false
+            },
+            {
+              "name": "Fraction",
+              "source": "Fraction",
+              "required": false
+            }
+          ]
+        },
+        "measurements": {
+          "duplicates": {
+            "mode": "aggregate"
+          },
+          "primary_layer": "Intensity"
+        }
+      },
+      "levels": {
+        "ion": {
+          "axis": {
+            "var_keys": [
+              "ProForma_ion"
             ]
           },
-          {
-            "name": "MS_MS_Count",
-            "source": "MS/MS count"
+          "measurements": {
+            "layers": [
+              {
+                "name": "Intensity",
+                "source": "Intensity",
+                "roles": [
+                  "abundance"
+                ]
+              },
+              {
+                "name": "MS_MS_Count",
+                "source": "MS/MS count",
+                "type": "integer"
+              },
+              {
+                "name": "Retention_Time",
+                "source": "Retention time"
+              },
+              {
+                "name": "Score",
+                "source": "Score"
+              },
+              {
+                "name": "PEP",
+                "source": "PEP"
+              }
+            ]
           },
-          {
-            "name": "Retention_Time",
-            "source": "Retention time"
+          "columns": {
+            "var": [
+              {
+                "name": "Sequence",
+                "source": "Sequence"
+              },
+              {
+                "name": "Modified_Sequence",
+                "source": "Modified sequence"
+              },
+              {
+                "name": "Modifications",
+                "source": "Modifications"
+              },
+              {
+                "name": "Charge",
+                "source": "Charge",
+                "type": "integer"
+              },
+              {
+                "name": "Mass",
+                "source": "Mass",
+                "type": "number"
+              },
+              {
+                "name": "Proteins",
+                "source": "Proteins",
+                "roles": [
+                  "protein_assignment",
+                  "fasta_accessions"
+                ],
+                "inputs": [
+                  "Proteins",
+                  "Leading_Proteins",
+                  "Leading_Proteins_Legacy"
+                ],
+                "how": "coalesce"
+              },
+              {
+                "name": "Leading_Proteins",
+                "source": "Leading proteins",
+                "required": false
+              },
+              {
+                "name": "Leading_Razor_Protein",
+                "source": "Leading razor protein",
+                "required": false
+              },
+              {
+                "name": "Leading_Proteins_Legacy",
+                "source": "Leading Proteins",
+                "required": false
+              },
+              {
+                "name": "Leading_Razor_Protein_Legacy",
+                "source": "Leading Razor Protein",
+                "required": false
+              },
+              {
+                "name": "ProForma_peptidoform",
+                "inputs": [
+                  "Modified_Sequence"
+                ],
+                "how": "proforma_sequence"
+              },
+              {
+                "name": "ProForma_peptide",
+                "inputs": [
+                  "Modified_Sequence"
+                ],
+                "how": "stripped_sequence"
+              },
+              {
+                "name": "ProForma_ion",
+                "inputs": [
+                  "ProForma_peptidoform",
+                  "Charge"
+                ],
+                "how": "proforma_ion"
+              }
+            ]
           },
-          {
-            "name": "Score",
-            "source": "Score"
-          },
-          {
-            "name": "PEP",
-            "source": "PEP"
+          "modifications": {
+            "source_column": "Modified sequence",
+            "parser": "token_regex",
+            "token_pattern": "\\(([^()]*(?:\\([^()]*\\)[^()]*)*)\\)",
+            "token_position": "after_residue",
+            "case_sensitive": false,
+            "unknown_policy": "preserve",
+            "output_column": "proforma_sequence",
+            "map": [
+              {
+                "token": "ac",
+                "accession": "UNIMOD:1"
+              },
+              {
+                "token": "ox",
+                "accession": "UNIMOD:35"
+              },
+              {
+                "token": "Acetyl (Protein N-term)",
+                "accession": "UNIMOD:1"
+              },
+              {
+                "token": "Oxidation (M)",
+                "accession": "UNIMOD:35"
+              },
+              {
+                "token": "Carbamidomethyl (C)",
+                "accession": "UNIMOD:4"
+              }
+            ]
           }
+        }
+      }
+    },
+    {
+      "prepare": {
+        "how": "maxquant"
+      },
+      "input": {
+        "shape": "long",
+        "extensions": [
+          ".txt"
         ]
       },
-      "columns": {
-        "var": [
-          {
-            "name": "Sequence",
-            "source": "Sequence"
+      "base": {
+        "axis": {
+          "obs_keys": [
+            "Experiment"
+          ]
+        },
+        "columns": {
+          "obs": [
+            {
+              "name": "Experiment",
+              "source": "Experiment"
+            }
+          ]
+        },
+        "measurements": {
+          "duplicates": {
+            "mode": "keep_first"
           },
-          {
-            "name": "Modified_Sequence",
-            "source": "Modified sequence"
+          "primary_layer": "Intensity"
+        }
+      },
+      "levels": {
+        "peptidoform": {
+          "axis": {
+            "var_keys": [
+              "ProForma_peptide",
+              "Modifications"
+            ]
           },
-          {
-            "name": "Modifications",
-            "source": "Modifications"
+          "measurements": {
+            "layers": [
+              {
+                "name": "Intensity",
+                "source": "peptidoform.Intensity",
+                "roles": [
+                  "abundance"
+                ],
+                "missing_values": [
+                  0
+                ]
+              }
+            ]
           },
-          {
-            "name": "Charge",
-            "source": "Charge",
-            "type": "integer"
-          },
-          {
-            "name": "Mass",
-            "source": "Mass",
-            "type": "number"
-          },
-          {
-            "name": "Proteins",
-            "source": "Proteins",
-            "roles": [
-              "protein_assignment",
-              "fasta_accessions"
-            ],
-            "inputs": [
-              "Proteins",
-              "Leading_Proteins",
-              "Leading_Proteins_Legacy"
-            ],
-            "how": "coalesce"
-          },
-          {
-            "name": "Leading_Proteins",
-            "source": "Leading proteins",
-            "required": false
-          },
-          {
-            "name": "Leading_Razor_Protein",
-            "source": "Leading razor protein",
-            "required": false
-          },
-          {
-            "name": "Leading_Proteins_Legacy",
-            "source": "Leading Proteins",
-            "required": false
-          },
-          {
-            "name": "Leading_Razor_Protein_Legacy",
-            "source": "Leading Razor Protein",
-            "required": false
-          },
-          {
-            "name": "ProForma_peptidoform",
-            "inputs": [
-              "Modified_Sequence"
-            ],
-            "how": "proforma_sequence"
-          },
-          {
-            "name": "ProForma_peptide",
-            "inputs": [
-              "Modified_Sequence"
-            ],
-            "how": "stripped_sequence"
-          },
-          {
-            "name": "ProForma_ion",
-            "inputs": [
-              "ProForma_peptidoform",
-              "Charge"
-            ],
-            "how": "proforma_ion"
+          "columns": {
+            "var": [
+              {
+                "name": "ProForma_peptide",
+                "source": "peptidoform.Sequence"
+              },
+              {
+                "name": "Modifications",
+                "source": "peptidoform.Modifications"
+              },
+              {
+                "name": "Proteins",
+                "source": "peptidoform.Proteins",
+                "roles": [
+                  "protein_assignment",
+                  "fasta_accessions"
+                ]
+              },
+              {
+                "name": "Protein_Groups",
+                "source": "peptidoform.Protein Groups",
+                "required": false
+              },
+              {
+                "name": "Mass",
+                "source": "peptidoform.Mass",
+                "required": false
+              },
+              {
+                "name": "Missed_Cleavages",
+                "source": "peptidoform.Missed cleavages",
+                "type": "integer",
+                "required": false
+              },
+              {
+                "name": "Charges",
+                "source": "peptidoform.Charges",
+                "required": false
+              },
+              {
+                "name": "PEP",
+                "source": "peptidoform.PEP",
+                "required": false
+              },
+              {
+                "name": "Score",
+                "source": "peptidoform.Score",
+                "required": false
+              },
+              {
+                "name": "Delta_Score",
+                "source": "peptidoform.Delta score",
+                "required": false
+              },
+              {
+                "name": "Retention_Time",
+                "source": "peptidoform.Retention time",
+                "required": false
+              },
+              {
+                "name": "Unique_Groups",
+                "source": "peptidoform.Unique (Groups)",
+                "required": false
+              },
+              {
+                "name": "Unique_Proteins",
+                "source": "peptidoform.Unique (Proteins)",
+                "required": false
+              },
+              {
+                "name": "Reverse",
+                "source": "peptidoform.Reverse",
+                "required": false
+              },
+              {
+                "name": "Decoy",
+                "source": "peptidoform.Decoy",
+                "required": false
+              },
+              {
+                "name": "Potential_Contaminant",
+                "source": "peptidoform.Potential contaminant",
+                "required": false
+              }
+            ]
           }
-        ]
+        },
+        "peptide": {
+          "axis": {
+            "var_keys": [
+              "ProForma_peptide"
+            ]
+          },
+          "measurements": {
+            "layers": [
+              {
+                "name": "Intensity",
+                "source": "peptide.Intensity",
+                "roles": [
+                  "abundance"
+                ],
+                "missing_values": [
+                  0
+                ]
+              },
+              {
+                "name": "LFQ_Intensity",
+                "source": "peptide.LFQ intensity",
+                "roles": [
+                  "abundance"
+                ],
+                "missing_values": [
+                  0
+                ]
+              }
+            ]
+          },
+          "columns": {
+            "var": [
+              {
+                "name": "ProForma_peptide",
+                "source": "peptide.Sequence"
+              },
+              {
+                "name": "Proteins",
+                "source": "peptide.Proteins",
+                "roles": [
+                  "fasta_accessions"
+                ]
+              },
+              {
+                "name": "Leading_Razor_Protein",
+                "source": "peptide.Leading razor protein",
+                "roles": [
+                  "protein_assignment"
+                ]
+              },
+              {
+                "name": "Gene_Names",
+                "source": "peptide.Gene names",
+                "required": false
+              },
+              {
+                "name": "Protein_Names",
+                "source": "peptide.Protein names",
+                "required": false
+              },
+              {
+                "name": "Length",
+                "source": "peptide.Length",
+                "type": "integer",
+                "required": false
+              },
+              {
+                "name": "Missed_Cleavages",
+                "source": "peptide.Missed cleavages",
+                "type": "integer",
+                "required": false
+              },
+              {
+                "name": "Mass",
+                "source": "peptide.Mass",
+                "required": false
+              },
+              {
+                "name": "Charges",
+                "source": "peptide.Charges",
+                "required": false
+              },
+              {
+                "name": "PEP",
+                "source": "peptide.PEP",
+                "required": false
+              },
+              {
+                "name": "Score",
+                "source": "peptide.Score",
+                "required": false
+              },
+              {
+                "name": "Start_Position",
+                "source": "peptide.Start position",
+                "required": false
+              },
+              {
+                "name": "End_Position",
+                "source": "peptide.End position",
+                "required": false
+              },
+              {
+                "name": "Unique_Groups",
+                "source": "peptide.Unique (Groups)",
+                "required": false
+              },
+              {
+                "name": "Unique_Proteins",
+                "source": "peptide.Unique (Proteins)",
+                "required": false
+              }
+            ]
+          }
+        },
+        "protein": {
+          "axis": {
+            "var_keys": [
+              "Protein_IDs"
+            ]
+          },
+          "measurements": {
+            "layers": [
+              {
+                "name": "Intensity",
+                "source": "protein.Intensity",
+                "roles": [
+                  "abundance"
+                ],
+                "missing_values": [
+                  0
+                ]
+              },
+              {
+                "name": "LFQ_Intensity",
+                "source": "protein.LFQ intensity",
+                "roles": [
+                  "abundance"
+                ],
+                "missing_values": [
+                  0
+                ]
+              },
+              {
+                "name": "iBAQ",
+                "source": "protein.iBAQ",
+                "roles": [
+                  "abundance"
+                ],
+                "missing_values": [
+                  0
+                ]
+              }
+            ]
+          },
+          "columns": {
+            "var": [
+              {
+                "name": "Protein_IDs",
+                "source": "protein.Protein IDs",
+                "roles": [
+                  "protein_assignment",
+                  "fasta_accessions"
+                ]
+              },
+              {
+                "name": "Majority_Protein_IDs",
+                "source": "protein.Majority protein IDs",
+                "required": false
+              },
+              {
+                "name": "Fasta_Headers",
+                "source": "protein.Fasta headers",
+                "required": false
+              },
+              {
+                "name": "Gene_Names",
+                "source": "protein.Gene names",
+                "required": false
+              },
+              {
+                "name": "Protein_Names",
+                "source": "protein.Protein names",
+                "required": false
+              },
+              {
+                "name": "Number_Of_Proteins",
+                "source": "protein.Number of proteins",
+                "type": "integer",
+                "required": false
+              },
+              {
+                "name": "Peptides",
+                "source": "protein.Peptides",
+                "type": "integer",
+                "required": false
+              },
+              {
+                "name": "Razor_Unique_Peptides",
+                "source": "protein.Razor + unique peptides",
+                "type": "integer",
+                "required": false
+              },
+              {
+                "name": "Unique_Peptides",
+                "source": "protein.Unique peptides",
+                "type": "integer",
+                "required": false
+              },
+              {
+                "name": "Sequence_Coverage_Percent",
+                "source": "protein.Sequence coverage [%]",
+                "required": false
+              },
+              {
+                "name": "Mol_Weight_kDa",
+                "source": "protein.Mol. weight [kDa]",
+                "required": false
+              },
+              {
+                "name": "Q_Value",
+                "source": "protein.Q-value",
+                "required": false
+              },
+              {
+                "name": "Score",
+                "source": "protein.Score",
+                "required": false
+              },
+              {
+                "name": "Only_Identified_By_Site",
+                "source": "protein.Only identified by site",
+                "required": false
+              },
+              {
+                "name": "Reverse",
+                "source": "protein.Reverse",
+                "required": false
+              },
+              {
+                "name": "Decoy",
+                "source": "protein.Decoy",
+                "required": false
+              },
+              {
+                "name": "Potential_Contaminant",
+                "source": "protein.Potential contaminant",
+                "required": false
+              }
+            ]
+          }
+        }
       }
     }
-  }
+  ]
 }

@@ -1,493 +1,497 @@
 {
-  "schema_version": "0.4",
+  "schema_version": "0.7",
   "file_version": "1",
   "software_name": "Spectronaut",
   "software_version_pattern": "^15\\..*",
-  "input": {
-    "shape": "long",
-    "extensions": [
-      ".tsv"
-    ],
-    "delimiter": {
-      "mode": "detect",
-      "candidates": [
-        "\t",
-        ";",
-        ","
-      ]
-    },
-    "numbers": {
-      "mode": "detect",
-      "decimal_candidates": [
-        ".",
-        ","
-      ],
-      "thousands_candidates": [
-        ",",
-        ".",
-        " "
-      ]
-    },
-    "encoding": {
-      "mode": "detect",
-      "candidates": [
-        "utf8",
-        "windows-1252"
-      ]
-    }
-  },
-  "base": {
-    "axis": {
-      "obs_keys": [
-        "Run"
-      ]
-    },
-    "measurements": {
-      "duplicates": {
-        "mode": "error"
-      }
-    },
-    "modifications": {
-      "source_column": "EG.ModifiedSequence",
-      "parser": "token_regex",
-      "token_pattern": "\\[([^\\[\\]]+)\\]",
-      "token_position": "after_residue",
-      "case_sensitive": false,
-      "unknown_policy": "preserve",
-      "output_column": "proforma_sequence",
-      "map": [
-        {
-          "token": "Acetyl (Protein N-term)",
-          "accession": "UNIMOD:1"
+  "tables": [
+    {
+      "input": {
+        "shape": "long",
+        "extensions": [
+          ".tsv"
+        ],
+        "delimiter": {
+          "mode": "detect",
+          "candidates": [
+            "\t",
+            ";",
+            ","
+          ]
         },
-        {
-          "token": "Oxidation (M)",
-          "accession": "UNIMOD:35"
+        "numbers": {
+          "mode": "detect",
+          "decimal_candidates": [
+            ".",
+            ","
+          ],
+          "thousands_candidates": [
+            ",",
+            ".",
+            " "
+          ]
         },
-        {
-          "token": "Carbamidomethyl (C)",
-          "accession": "UNIMOD:4"
+        "encoding": {
+          "mode": "detect",
+          "candidates": [
+            "utf8",
+            "windows-1252"
+          ]
         }
-      ]
-    }
-  },
-  "levels": {
-    "ion": {
-      "axis": {
-        "var_keys": [
-          "ProForma_ion"
-        ]
       },
-      "measurements": {
-        "primary_layer": "FG_Quantity",
-        "duplicates": {
-          "mode": "keep_first"
+      "base": {
+        "axis": {
+          "obs_keys": [
+            "Run"
+          ]
         },
-        "layers": [
-          {
-            "name": "FG_Quantity",
-            "source": "FG.Quantity",
-            "roles": [
-              "abundance"
-            ]
-          },
-          {
-            "name": "EG_Qvalue",
-            "source": "EG.Qvalue",
-            "required": true
-          },
-          {
-            "name": "EG_PEP",
-            "source": "EG.PEP"
-          },
-          {
-            "name": "EG_Pvalue",
-            "source": "EG.Pvalue"
-          },
-          {
-            "name": "EG_Cscore",
-            "source": "EG.Cscore"
-          },
-          {
-            "name": "EG_ApexRT",
-            "source": "EG.ApexRT"
-          },
-          {
-            "name": "EG_IsImputed",
-            "source": "EG.IsImputed"
-          },
-          {
-            "name": "EG_TargetQuantity_Settings",
-            "source": "EG.TargetQuantity (Settings)",
-            "roles": [
-              "abundance"
-            ]
-          },
-          {
-            "name": "EG_TotalQuantity_Settings",
-            "source": "EG.TotalQuantity (Settings)",
-            "roles": [
-              "abundance"
-            ]
-          },
-          {
-            "name": "EG_UsedForPeptideQuantity",
-            "source": "EG.UsedForPeptideQuantity"
-          },
-          {
-            "name": "EG_UsedForProteinGroupQuantity",
-            "source": "EG.UsedForProteinGroupQuantity"
-          },
-          {
-            "name": "FG_MS1RawQuantity",
-            "source": "FG.MS1RawQuantity",
-            "roles": [
-              "abundance"
-            ]
-          },
-          {
-            "name": "FG_MS2RawQuantity",
-            "source": "FG.MS2RawQuantity",
-            "roles": [
-              "abundance"
-            ]
-          },
-          {
-            "name": "FG_SignalToNoise",
-            "source": "FG.SignalToNoise"
-          },
-          {
-            "name": "FG_ShapeQualityScore",
-            "source": "FG.ShapeQualityScore"
+        "measurements": {
+          "duplicates": {
+            "mode": "error"
           }
-        ]
-      },
-      "columns": {
-        "obs": [
-          {
-            "name": "R_Label",
-            "source": "R.Label",
-            "required": false
-          },
-          {
-            "name": "R_FileName",
-            "source": "R.FileName",
-            "required": false
-          },
-          {
-            "name": "Run",
-            "inputs": [
-              "R_Label",
-              "R_FileName"
-            ],
-            "how": "coalesce"
-          }
-        ],
-        "var": [
-          {
-            "name": "PG_ProteinGroups",
-            "source": "PG.ProteinGroups",
-            "roles": [
-              "protein_assignment",
-              "fasta_accessions"
-            ]
-          },
-          {
-            "name": "EG_ModifiedSequence",
-            "source": "EG.ModifiedSequence"
-          },
-          {
-            "name": "FG_Charge",
-            "source": "FG.Charge",
-            "type": "integer"
-          },
-          {
-            "name": "PG_Genes",
-            "source": "PG.Genes",
-            "required": false
-          },
-          {
-            "name": "PG_Organisms",
-            "source": "PG.Organisms",
-            "required": false
-          },
-          {
-            "name": "PEP_StrippedSequence",
-            "source": "PEP.StrippedSequence",
-            "required": false
-          },
-          {
-            "name": "PEP_NrOfMissedCleavages",
-            "source": "PEP.NrOfMissedCleavages",
-            "required": false
-          },
-          {
-            "name": "EG_IsDecoy",
-            "source": "EG.IsDecoy",
-            "type": "boolean",
-            "required": false
-          },
-          {
-            "name": "EG_AvgProfileQvalue",
-            "source": "EG.AvgProfileQvalue",
-            "type": "number",
-            "required": false
-          },
-          {
-            "name": "EG_MaxProfileQvalue",
-            "source": "EG.MaxProfileQvalue",
-            "type": "number",
-            "required": false
-          },
-          {
-            "name": "EG_MinProfileQvalue",
-            "source": "EG.MinProfileQvalue",
-            "type": "number",
-            "required": false
-          },
-          {
-            "name": "EG_PercentileQvalue",
-            "source": "EG.PercentileQvalue",
-            "type": "number",
-            "required": false
-          },
-          {
-            "name": "FG_Id",
-            "source": "FG.Id",
-            "required": false
-          },
-          {
-            "name": "FG_PrecMz",
-            "source": "FG.PrecMz",
-            "type": "number",
-            "required": false
-          },
-          {
-            "name": "FG_FragmentCount",
-            "source": "FG.FragmentCount",
-            "required": false
-          },
-          {
-            "name": "ProForma_peptidoform",
-            "inputs": [
-              "EG_ModifiedSequence"
-            ],
-            "how": "proforma_sequence"
-          },
-          {
-            "name": "ProForma_peptide",
-            "inputs": [
-              "EG_ModifiedSequence"
-            ],
-            "how": "stripped_sequence"
-          },
-          {
-            "name": "ProForma_ion",
-            "inputs": [
-              "ProForma_peptidoform",
-              "FG_Charge"
-            ],
-            "how": "proforma_ion"
-          }
-        ]
-      }
-    },
-    "fragment": {
-      "axis": {
-        "var_keys": [
-          "FG_Id",
-          "F_FrgIon",
-          "F_Charge",
-          "F_FrgLossType"
-        ]
-      },
-      "measurements": {
-        "primary_layer": "F_PeakArea",
-        "layers": [
-          {
-            "name": "F_PeakArea",
-            "source": "F.PeakArea",
-            "roles": [
-              "abundance"
-            ]
-          },
-          {
-            "name": "F_PeakHeight",
-            "source": "F.PeakHeight",
-            "roles": [
-              "abundance"
-            ]
-          },
-          {
-            "name": "F_InterferenceScore",
-            "source": "F.InterferenceScore"
-          }
-        ]
-      },
-      "columns": {
-        "obs": [
-          {
-            "name": "R_Label",
-            "source": "R.Label",
-            "required": false
-          },
-          {
-            "name": "R_FileName",
-            "source": "R.FileName",
-            "required": false
-          },
-          {
-            "name": "Run",
-            "inputs": [
-              "R_Label",
-              "R_FileName"
-            ],
-            "how": "coalesce"
-          }
-        ],
-        "var": [
-          {
-            "name": "PG_ProteinGroups",
-            "source": "PG.ProteinGroups",
-            "roles": [
-              "protein_assignment",
-              "fasta_accessions"
-            ]
-          },
-          {
-            "name": "EG_ModifiedSequence",
-            "source": "EG.ModifiedSequence"
-          },
-          {
-            "name": "FG_Id",
-            "source": "FG.Id"
-          },
-          {
-            "name": "FG_Charge",
-            "source": "FG.Charge",
-            "type": "integer"
-          },
-          {
-            "name": "F_FrgIon",
-            "source": "F.FrgIon"
-          },
-          {
-            "name": "F_Charge",
-            "source": "F.Charge",
-            "type": "integer"
-          },
-          {
-            "name": "F_FrgLossType",
-            "source": "F.FrgLossType"
-          },
-          {
-            "name": "PG_Genes",
-            "source": "PG.Genes",
-            "required": false
-          },
-          {
-            "name": "PEP_StrippedSequence",
-            "source": "PEP.StrippedSequence",
-            "required": false
-          },
-          {
-            "name": "F_Rank",
-            "source": "F.Rank",
-            "required": false
-          },
-          {
-            "name": "F_ExcludedFromQuantification",
-            "source": "F.ExcludedFromQuantification",
-            "required": false
-          },
-          {
-            "name": "ProForma_peptidoform",
-            "inputs": [
-              "EG_ModifiedSequence"
-            ],
-            "how": "proforma_sequence"
-          },
-          {
-            "name": "ProForma_peptide",
-            "inputs": [
-              "EG_ModifiedSequence"
-            ],
-            "how": "stripped_sequence"
-          },
-          {
-            "name": "ProForma_ion",
-            "inputs": [
-              "ProForma_peptidoform",
-              "FG_Charge"
-            ],
-            "how": "proforma_ion"
-          }
-        ]
-      }
-    },
-    "protein": {
-      "axis": {
-        "var_keys": [
-          "PG_ProteinGroups"
-        ]
-      },
-      "measurements": {
-        "primary_layer": "PG_Quantity",
-        "duplicates": {
-          "mode": "keep_first"
         },
-        "layers": [
-          {
-            "name": "PG_Quantity",
-            "source": "PG.Quantity",
-            "roles": [
-              "abundance"
-            ]
-          }
-        ]
+        "modifications": {
+          "source_column": "EG.ModifiedSequence",
+          "parser": "token_regex",
+          "token_pattern": "\\[([^\\[\\]]+)\\]",
+          "token_position": "after_residue",
+          "case_sensitive": false,
+          "unknown_policy": "preserve",
+          "output_column": "proforma_sequence",
+          "map": [
+            {
+              "token": "Acetyl (Protein N-term)",
+              "accession": "UNIMOD:1"
+            },
+            {
+              "token": "Oxidation (M)",
+              "accession": "UNIMOD:35"
+            },
+            {
+              "token": "Carbamidomethyl (C)",
+              "accession": "UNIMOD:4"
+            }
+          ]
+        }
       },
-      "columns": {
-        "obs": [
-          {
-            "name": "R_Label",
-            "source": "R.Label",
-            "required": false
-          },
-          {
-            "name": "R_FileName",
-            "source": "R.FileName",
-            "required": false
-          },
-          {
-            "name": "Run",
-            "inputs": [
-              "R_Label",
-              "R_FileName"
-            ],
-            "how": "coalesce"
-          }
-        ],
-        "var": [
-          {
-            "name": "PG_ProteinGroups",
-            "source": "PG.ProteinGroups",
-            "roles": [
-              "protein_assignment",
-              "fasta_accessions"
+      "levels": {
+        "ion": {
+          "axis": {
+            "var_keys": [
+              "ProForma_ion"
             ]
           },
-          {
-            "name": "PG_Genes",
-            "source": "PG.Genes",
-            "required": false
+          "measurements": {
+            "primary_layer": "FG_Quantity",
+            "duplicates": {
+              "mode": "keep_first"
+            },
+            "layers": [
+              {
+                "name": "FG_Quantity",
+                "source": "FG.Quantity",
+                "roles": [
+                  "abundance"
+                ]
+              },
+              {
+                "name": "EG_Qvalue",
+                "source": "EG.Qvalue",
+                "required": true
+              },
+              {
+                "name": "EG_PEP",
+                "source": "EG.PEP"
+              },
+              {
+                "name": "EG_Pvalue",
+                "source": "EG.Pvalue"
+              },
+              {
+                "name": "EG_Cscore",
+                "source": "EG.Cscore"
+              },
+              {
+                "name": "EG_ApexRT",
+                "source": "EG.ApexRT"
+              },
+              {
+                "name": "EG_IsImputed",
+                "source": "EG.IsImputed"
+              },
+              {
+                "name": "EG_TargetQuantity_Settings",
+                "source": "EG.TargetQuantity (Settings)",
+                "roles": [
+                  "abundance"
+                ]
+              },
+              {
+                "name": "EG_TotalQuantity_Settings",
+                "source": "EG.TotalQuantity (Settings)",
+                "roles": [
+                  "abundance"
+                ]
+              },
+              {
+                "name": "EG_UsedForPeptideQuantity",
+                "source": "EG.UsedForPeptideQuantity"
+              },
+              {
+                "name": "EG_UsedForProteinGroupQuantity",
+                "source": "EG.UsedForProteinGroupQuantity"
+              },
+              {
+                "name": "FG_MS1RawQuantity",
+                "source": "FG.MS1RawQuantity",
+                "roles": [
+                  "abundance"
+                ]
+              },
+              {
+                "name": "FG_MS2RawQuantity",
+                "source": "FG.MS2RawQuantity",
+                "roles": [
+                  "abundance"
+                ]
+              },
+              {
+                "name": "FG_SignalToNoise",
+                "source": "FG.SignalToNoise"
+              },
+              {
+                "name": "FG_ShapeQualityScore",
+                "source": "FG.ShapeQualityScore"
+              }
+            ]
           },
-          {
-            "name": "PG_Organisms",
-            "source": "PG.Organisms",
-            "required": false
+          "columns": {
+            "obs": [
+              {
+                "name": "R_Label",
+                "source": "R.Label",
+                "required": false
+              },
+              {
+                "name": "R_FileName",
+                "source": "R.FileName",
+                "required": false
+              },
+              {
+                "name": "Run",
+                "inputs": [
+                  "R_Label",
+                  "R_FileName"
+                ],
+                "how": "coalesce"
+              }
+            ],
+            "var": [
+              {
+                "name": "PG_ProteinGroups",
+                "source": "PG.ProteinGroups",
+                "roles": [
+                  "protein_assignment",
+                  "fasta_accessions"
+                ]
+              },
+              {
+                "name": "EG_ModifiedSequence",
+                "source": "EG.ModifiedSequence"
+              },
+              {
+                "name": "FG_Charge",
+                "source": "FG.Charge",
+                "type": "integer"
+              },
+              {
+                "name": "PG_Genes",
+                "source": "PG.Genes",
+                "required": false
+              },
+              {
+                "name": "PG_Organisms",
+                "source": "PG.Organisms",
+                "required": false
+              },
+              {
+                "name": "PEP_StrippedSequence",
+                "source": "PEP.StrippedSequence",
+                "required": false
+              },
+              {
+                "name": "PEP_NrOfMissedCleavages",
+                "source": "PEP.NrOfMissedCleavages",
+                "required": false
+              },
+              {
+                "name": "EG_IsDecoy",
+                "source": "EG.IsDecoy",
+                "type": "boolean",
+                "required": false
+              },
+              {
+                "name": "EG_AvgProfileQvalue",
+                "source": "EG.AvgProfileQvalue",
+                "type": "number",
+                "required": false
+              },
+              {
+                "name": "EG_MaxProfileQvalue",
+                "source": "EG.MaxProfileQvalue",
+                "type": "number",
+                "required": false
+              },
+              {
+                "name": "EG_MinProfileQvalue",
+                "source": "EG.MinProfileQvalue",
+                "type": "number",
+                "required": false
+              },
+              {
+                "name": "EG_PercentileQvalue",
+                "source": "EG.PercentileQvalue",
+                "type": "number",
+                "required": false
+              },
+              {
+                "name": "FG_Id",
+                "source": "FG.Id",
+                "required": false
+              },
+              {
+                "name": "FG_PrecMz",
+                "source": "FG.PrecMz",
+                "type": "number",
+                "required": false
+              },
+              {
+                "name": "FG_FragmentCount",
+                "source": "FG.FragmentCount",
+                "required": false
+              },
+              {
+                "name": "ProForma_peptidoform",
+                "inputs": [
+                  "EG_ModifiedSequence"
+                ],
+                "how": "proforma_sequence"
+              },
+              {
+                "name": "ProForma_peptide",
+                "inputs": [
+                  "EG_ModifiedSequence"
+                ],
+                "how": "stripped_sequence"
+              },
+              {
+                "name": "ProForma_ion",
+                "inputs": [
+                  "ProForma_peptidoform",
+                  "FG_Charge"
+                ],
+                "how": "proforma_ion"
+              }
+            ]
           }
-        ]
+        },
+        "fragment": {
+          "axis": {
+            "var_keys": [
+              "FG_Id",
+              "F_FrgIon",
+              "F_Charge",
+              "F_FrgLossType"
+            ]
+          },
+          "measurements": {
+            "primary_layer": "F_PeakArea",
+            "layers": [
+              {
+                "name": "F_PeakArea",
+                "source": "F.PeakArea",
+                "roles": [
+                  "abundance"
+                ]
+              },
+              {
+                "name": "F_PeakHeight",
+                "source": "F.PeakHeight",
+                "roles": [
+                  "abundance"
+                ]
+              },
+              {
+                "name": "F_InterferenceScore",
+                "source": "F.InterferenceScore"
+              }
+            ]
+          },
+          "columns": {
+            "obs": [
+              {
+                "name": "R_Label",
+                "source": "R.Label",
+                "required": false
+              },
+              {
+                "name": "R_FileName",
+                "source": "R.FileName",
+                "required": false
+              },
+              {
+                "name": "Run",
+                "inputs": [
+                  "R_Label",
+                  "R_FileName"
+                ],
+                "how": "coalesce"
+              }
+            ],
+            "var": [
+              {
+                "name": "PG_ProteinGroups",
+                "source": "PG.ProteinGroups",
+                "roles": [
+                  "protein_assignment",
+                  "fasta_accessions"
+                ]
+              },
+              {
+                "name": "EG_ModifiedSequence",
+                "source": "EG.ModifiedSequence"
+              },
+              {
+                "name": "FG_Id",
+                "source": "FG.Id"
+              },
+              {
+                "name": "FG_Charge",
+                "source": "FG.Charge",
+                "type": "integer"
+              },
+              {
+                "name": "F_FrgIon",
+                "source": "F.FrgIon"
+              },
+              {
+                "name": "F_Charge",
+                "source": "F.Charge",
+                "type": "integer"
+              },
+              {
+                "name": "F_FrgLossType",
+                "source": "F.FrgLossType"
+              },
+              {
+                "name": "PG_Genes",
+                "source": "PG.Genes",
+                "required": false
+              },
+              {
+                "name": "PEP_StrippedSequence",
+                "source": "PEP.StrippedSequence",
+                "required": false
+              },
+              {
+                "name": "F_Rank",
+                "source": "F.Rank",
+                "required": false
+              },
+              {
+                "name": "F_ExcludedFromQuantification",
+                "source": "F.ExcludedFromQuantification",
+                "required": false
+              },
+              {
+                "name": "ProForma_peptidoform",
+                "inputs": [
+                  "EG_ModifiedSequence"
+                ],
+                "how": "proforma_sequence"
+              },
+              {
+                "name": "ProForma_peptide",
+                "inputs": [
+                  "EG_ModifiedSequence"
+                ],
+                "how": "stripped_sequence"
+              },
+              {
+                "name": "ProForma_ion",
+                "inputs": [
+                  "ProForma_peptidoform",
+                  "FG_Charge"
+                ],
+                "how": "proforma_ion"
+              }
+            ]
+          }
+        },
+        "protein": {
+          "axis": {
+            "var_keys": [
+              "PG_ProteinGroups"
+            ]
+          },
+          "measurements": {
+            "primary_layer": "PG_Quantity",
+            "duplicates": {
+              "mode": "keep_first"
+            },
+            "layers": [
+              {
+                "name": "PG_Quantity",
+                "source": "PG.Quantity",
+                "roles": [
+                  "abundance"
+                ]
+              }
+            ]
+          },
+          "columns": {
+            "obs": [
+              {
+                "name": "R_Label",
+                "source": "R.Label",
+                "required": false
+              },
+              {
+                "name": "R_FileName",
+                "source": "R.FileName",
+                "required": false
+              },
+              {
+                "name": "Run",
+                "inputs": [
+                  "R_Label",
+                  "R_FileName"
+                ],
+                "how": "coalesce"
+              }
+            ],
+            "var": [
+              {
+                "name": "PG_ProteinGroups",
+                "source": "PG.ProteinGroups",
+                "roles": [
+                  "protein_assignment",
+                  "fasta_accessions"
+                ]
+              },
+              {
+                "name": "PG_Genes",
+                "source": "PG.Genes",
+                "required": false
+              },
+              {
+                "name": "PG_Organisms",
+                "source": "PG.Organisms",
+                "required": false
+              }
+            ]
+          }
+        }
       }
     }
-  }
+  ]
 }

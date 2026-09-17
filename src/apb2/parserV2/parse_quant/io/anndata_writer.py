@@ -21,7 +21,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Protocol, cast
+from typing import Literal, Protocol, cast
 
 import numpy as np
 import pandas as pd
@@ -70,6 +70,8 @@ UNKNOWN_FACTOR_CODE = -1
 _EXAMPLE_LIMIT = 5
 _DERIVED_EMPTY_RATIO = 0.001
 _DERIVED_POPULATED_RATIO = 0.5
+
+type NumericType = Literal["number", "integer"]
 
 LEVEL_VAR_PREFIXES: Mapping[ParsedLevelName, str] = {
     "ion": "ion:",
@@ -134,6 +136,33 @@ def _masked(numbers: pl.Expr, missing_values: tuple[float, ...]) -> pl.Expr:
     return pl.when(numbers.is_in(list(missing_values))).then(None).otherwise(numbers)
 
 
+def _validate_numeric_type(
+    layer_name: str,
+    values: pl.DataFrame,
+    numeric_type: NumericType,
+    /,
+) -> pl.DataFrame:
+    """Reject values that contradict an integer declaration without changing storage dtype."""
+    if numeric_type == "number":
+        return values
+    examples: list[float] = []
+    for column in values.get_columns():
+        invalid = (
+            column.is_not_null()
+            & ~column.is_nan().fill_null(False)
+            & (~column.is_finite().fill_null(False) | (column != column.floor()).fill_null(False))
+        )
+        examples.extend(column.filter(invalid).head(_EXAMPLE_LIMIT - len(examples)).to_list())
+        if len(examples) == _EXAMPLE_LIMIT:
+            break
+    if examples:
+        raise InvalidResultError(
+            f"integer layer {layer_name!r} contains fractional or infinite values; "
+            f"examples={examples}"
+        )
+    return values
+
+
 @dataclass(frozen=True, slots=True)
 class PlainNumericAnnDataEncoder:
     """Directly parseable scalars become floats; declared missing values become missing.
@@ -148,6 +177,7 @@ class PlainNumericAnnDataEncoder:
     layer_name: str
     missing_values: tuple[float, ...]
     number_format: NumberNotation
+    type: NumericType = "number"
 
     def encode(self, values: pl.DataFrame, /) -> pl.DataFrame:
         columns = tuple(values.columns)
@@ -200,12 +230,13 @@ class PlainNumericAnnDataEncoder:
                 f"{len(set(unreadable))} distinct unreadable token(s) became missing, "
                 f"examples={sorted(set(unreadable))[:_EXAMPLE_LIMIT]}"
             )
-        return prepared.select(
+        encoded = prepared.select(
             [
                 _masked(pl.col(label), self.missing_values).alias(column)
                 for column, label in zip(columns, number_labels, strict=True)
             ]
         )
+        return _validate_numeric_type(self.layer_name, encoded, self.type)
 
     def representation(
         self,
@@ -217,12 +248,13 @@ class PlainNumericAnnDataEncoder:
         """Return bounded quantitative summaries of this encoded layer."""
         return quantitative_representation(
             self.encode(values),
+            logical_type=self.type,
             observation_limit=observation_limit,
         )
 
     def projected(self) -> AnnDataLayerEncoder:
         """Return a pass-through encoder for already numeric matrix values."""
-        return ProjectedNumericAnnDataEncoder(layer_name=self.layer_name)
+        return ProjectedNumericAnnDataEncoder(layer_name=self.layer_name, type=self.type)
 
     @staticmethod
     def _temporary_labels(
@@ -254,9 +286,10 @@ class RegexNumericAnnDataEncoder:
     missing_values: tuple[float, ...]
     pattern: str
     number_format: NumberNotation
+    type: NumericType = "number"
 
     def encode(self, values: pl.DataFrame, /) -> pl.DataFrame:
-        return values.select(
+        encoded = values.select(
             [
                 _masked(
                     as_numbers(
@@ -269,6 +302,7 @@ class RegexNumericAnnDataEncoder:
                 for column in values.columns
             ]
         )
+        return _validate_numeric_type(self.layer_name, encoded, self.type)
 
     def representation(
         self,
@@ -280,12 +314,13 @@ class RegexNumericAnnDataEncoder:
         """Return bounded quantitative summaries of this encoded layer."""
         return quantitative_representation(
             self.encode(values),
+            logical_type=self.type,
             observation_limit=observation_limit,
         )
 
     def projected(self) -> AnnDataLayerEncoder:
         """Return a pass-through encoder for already extracted matrix values."""
-        return ProjectedNumericAnnDataEncoder(layer_name=self.layer_name)
+        return ProjectedNumericAnnDataEncoder(layer_name=self.layer_name, type=self.type)
 
 
 @dataclass(frozen=True, slots=True)
@@ -335,10 +370,11 @@ class ProjectedNumericAnnDataEncoder:
     """Pass already projected quantitative matrix values through unchanged."""
 
     layer_name: str
+    type: NumericType = "number"
 
     def encode(self, values: pl.DataFrame, /) -> pl.DataFrame:
         _require_numeric_values(self.layer_name, values)
-        return values
+        return _validate_numeric_type(self.layer_name, values, self.type)
 
     def representation(
         self,
@@ -350,6 +386,7 @@ class ProjectedNumericAnnDataEncoder:
         """Return bounded quantitative summaries without re-encoding values."""
         return quantitative_representation(
             self.encode(values),
+            logical_type=self.type,
             observation_limit=observation_limit,
         )
 
@@ -1116,20 +1153,32 @@ def _encoder_from_stored_config(
     notation = _notation_from_stored_config(
         object_mapping(config.get("number_format"), f"number format for {layer_name!r}")
     )
+    numeric_type = _numeric_type(config.get("type", "number"), layer_name)
     if kind == "regex_numeric":
         return RegexNumericAnnDataEncoder(
             layer_name=layer_name,
             missing_values=missing_values,
             pattern=string_value(config.get("pattern"), f"pattern for {layer_name!r}"),
             number_format=notation,
+            type=numeric_type,
         )
     if kind == "plain_numeric":
         return PlainNumericAnnDataEncoder(
             layer_name=layer_name,
             missing_values=missing_values,
             number_format=notation,
+            type=numeric_type,
         )
     raise AnnDataPlanError(f"unsupported stored layer encoding kind {kind!r}")
+
+
+def _numeric_type(value: object, layer_name: str) -> NumericType:
+    numeric_type = string_value(value, f"numeric type for {layer_name!r}")
+    if numeric_type not in {"number", "integer"}:
+        raise AnnDataPlanError(
+            f"numeric type for {layer_name!r} must be 'number' or 'integer', got {numeric_type!r}"
+        )
+    return cast(NumericType, numeric_type)
 
 
 def _notation_from_stored_config(config: Mapping[str, object]) -> NumberNotation:

@@ -1,11 +1,11 @@
-"""The ``apb2 convert`` command: a thin adapter over Parser V2."""
+"""The ``apb2 convert`` command: a thin adapter over Parser V2 workflows."""
 
 from __future__ import annotations
 
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 from cyclopts import App, Parameter
 from loguru import logger
@@ -13,7 +13,7 @@ from loguru import logger
 from apb2 import annotation_facade
 from apb2.parserV2 import conversion_facade
 
-app = App(name="apb2", help="Rules-driven vendor-table conversion", help_on_error=True)
+app = App(name="apb2", help="Rules-driven vendor-result conversion", help_on_error=True)
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,13 +25,21 @@ class ConvertCliOptions:
     software: str | None = None
     params_software: str | None = None
     output: Path | None = None
+    storage_format: Annotated[
+        Literal["hdf5", "parquet", "duckdb"],
+        Parameter(name="--format"),
+    ] = "hdf5"
     strict: bool = False
+    companion: Annotated[
+        tuple[Path, ...],
+        Parameter(help="Additional input for the rule's join function; repeat for multiple files"),
+    ] = ()
 
 
 DEFAULT_CONVERT_CLI_OPTIONS = ConvertCliOptions()
 
-ANNDATA_SUFFIX = ".h5ad"
-MUDATA_SUFFIX = ".h5mu"
+_SINGLE_LEVEL_SUFFIX = {"hdf5": ".h5ad", "parquet": ".parquet", "duckdb": ".duckdb"}
+_MULTI_LEVEL_SUFFIX = {"hdf5": ".h5mu", "parquet": ".parquet", "duckdb": ".duckdb"}
 
 
 @app.command
@@ -40,16 +48,21 @@ def convert(
     level: conversion_facade.QuantificationLevel | None = None,
     options: Annotated[ConvertCliOptions, Parameter(name="*")] = DEFAULT_CONVERT_CLI_OPTIONS,
 ) -> int:
-    """Convert one level to AnnData, or every compatible level to MuData when LEVEL is omitted.
+    """Convert one vendor table or result directory.
 
+    An explicit LEVEL selects one level; omitting it converts every compatible level.
+    --companion adds a physical input to the rule-selected preparation function. A directory
+    supplies its vendor tables together. Levels with incompatible observation identities
+    are written separately with observation-key suffixes; one-to-one aliases are aligned.
     --params is the vendor parameter file and is required unless --rule-config is given.
     --software disambiguates packaged rule detection. --params-software selects the
     parameter parser independently for compound workflows. --rule-config selects an
-    explicit schema-0.4 document. --output is a basename apb2 appends .h5ad or .h5mu to;
-    the name may contain dots, it simply must not already carry the appended suffix.
-    --strict promotes layer-contract warnings to errors.
+    explicit schema-0.7 document. --format selects hdf5, parquet, or duckdb. --output is a
+    basename to which apb2 appends the selected suffix; the name may contain dots, it simply
+    must not already carry that suffix. --strict promotes layer-contract warnings to errors.
     """
-    output_suffix = MUDATA_SUFFIX if level is None else ANNDATA_SUFFIX
+    suffixes = _MULTI_LEVEL_SUFFIX if level is None else _SINGLE_LEVEL_SUFFIX
+    output_suffix = suffixes[options.storage_format]
     # Only the extension this command appends is refused, and only to stop a doubled
     # suffix. A dotted basename is a legal name — ``ion.apb2`` beside ``ion`` is how a caller
     # comparing two converters spells the pair — and rejecting it is not this check's job.
@@ -76,6 +89,7 @@ def convert(
                     parameters_path=options.params,
                     parameters_software=options.params_software,
                     checks=checks,
+                    companions=options.companion,
                 )
             else:
                 result = conversion_facade.convert_from_rule_config(
@@ -86,6 +100,7 @@ def convert(
                     parameters_path=options.params,
                     parameters_software=options.params_software,
                     checks=checks,
+                    companions=options.companion,
                 )
         else:
             if options.params is None:
@@ -99,6 +114,7 @@ def convert(
                     software=options.software,
                     parameters_software=options.params_software,
                     checks=checks,
+                    companions=options.companion,
                 )
             else:
                 result = conversion_facade.convert_from_packaged_rules(
@@ -109,6 +125,7 @@ def convert(
                     software=options.software,
                     parameters_software=options.params_software,
                     checks=checks,
+                    companions=options.companion,
                 )
             logger.info(
                 "vendor={} software_version={}",
@@ -118,7 +135,7 @@ def convert(
     except conversion_facade.ConversionError as error:
         logger.error(str(error))
         return 1
-    _log_result(output, result)
+    _log_result(result)
     return 0
 
 
@@ -173,7 +190,7 @@ def annotate(
     return 0
 
 
-def _log_result(output: Path, result: conversion_facade.ConversionSummary) -> None:
+def _log_result(result: conversion_facade.ConversionSummary) -> None:
     for level in result.levels:
         logger.info(
             "level={} shape=({}, {}) layers={}",
@@ -182,7 +199,8 @@ def _log_result(output: Path, result: conversion_facade.ConversionSummary) -> No
             level.variable_count,
             list(level.layer_names),
         )
-    logger.info("wrote {}", output)
+    for output in result.outputs:
+        logger.info("wrote {}", output)
 
 
 def main() -> int:

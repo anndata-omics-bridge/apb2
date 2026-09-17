@@ -461,31 +461,35 @@ def test_compilation_injects_the_detected_number_notation_into_axis_coercers(
             "file_version": "1",
             "software_name": "Localized",
             "software_version_pattern": "^1$",
-            "input": {
-                "shape": "long",
-                "extensions": [".tsv"],
-                "numbers": {
-                    "mode": "detect",
-                    "decimal_candidates": [".", ","],
-                    "thousands_candidates": [",", ".", " "],
-                },
-            },
-            "base": {
-                "axis": {"obs_keys": ["sample"], "var_keys": ["Feature"]},
-                "columns": {
-                    "obs": [{"name": "sample", "source": "Sample"}],
-                    "var": [
-                        {"name": "Feature", "source": "Feature"},
-                        {"name": "Score", "source": "Score", "type": "number"},
-                    ],
-                },
-                "measurements": {
-                    "primary_layer": "Quantity",
-                    "duplicates": {"mode": "error"},
-                    "layers": [{"name": "Quantity", "source": "Quantity"}],
-                },
-            },
-            "levels": {"ion": {}},
+            "tables": [
+                {
+                    "input": {
+                        "shape": "long",
+                        "extensions": [".tsv"],
+                        "numbers": {
+                            "mode": "detect",
+                            "decimal_candidates": [".", ","],
+                            "thousands_candidates": [",", ".", " "],
+                        },
+                    },
+                    "base": {
+                        "axis": {"obs_keys": ["sample"], "var_keys": ["Feature"]},
+                        "columns": {
+                            "obs": [{"name": "sample", "source": "Sample"}],
+                            "var": [
+                                {"name": "Feature", "source": "Feature"},
+                                {"name": "Score", "source": "Score", "type": "number"},
+                            ],
+                        },
+                        "measurements": {
+                            "primary_layer": "Quantity",
+                            "duplicates": {"mode": "error"},
+                            "layers": [{"name": "Quantity", "source": "Quantity"}],
+                        },
+                    },
+                    "levels": {"ion": {}},
+                }
+            ],
         },
     )
     path = written(
@@ -549,7 +553,7 @@ def test_a_compiled_parser_holds_no_registry_and_no_output_declaration(
 
 
 def test_several_levels_return_a_list_in_canonical_order() -> None:
-    pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1")
+    pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1_8")
     document = load_rule_document(pair.parser_v2_path)
     path = pair.required_data_path()
 
@@ -566,7 +570,7 @@ def test_several_levels_return_a_list_in_canonical_order() -> None:
 
 
 def test_mudata_compilation_retains_each_parsers_configured_anndata_writer() -> None:
-    pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1")
+    pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1_8")
     document = load_rule_document(pair.parser_v2_path)
     path = pair.required_data_path()
 
@@ -603,7 +607,7 @@ def test_an_incompatible_level_does_not_poison_the_compatible_ones() -> None:
 def test_a_source_that_satisfies_nothing_says_so_and_names_every_reason(
     tmp_path: Path,
 ) -> None:
-    pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1")
+    pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1_8")
     document = load_rule_document(pair.parser_v2_path)
     path = written(tmp_path, ("Unrelated",), ("x",))
 
@@ -638,7 +642,7 @@ def test_a_gated_level_is_skipped_without_evidence_that_admits_it() -> None:
 
 
 def test_each_level_of_one_document_gets_its_own_strategy_graph() -> None:
-    pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1")
+    pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1_8")
     document = load_rule_document(pair.parser_v2_path)
     path = pair.required_data_path()
 

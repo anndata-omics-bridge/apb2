@@ -1,0 +1,6 @@
+rawfile
+sequence
+ProForma
+charge
+proteins
+area

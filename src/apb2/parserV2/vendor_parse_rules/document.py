@@ -11,7 +11,7 @@ a file is) and ``search_parameter_overrides`` patches ``measurements.primary_lay
 acquisition mode decides which column carries the quantity). The patch goes into the payload
 *before* validation, so a rule is validated once and is applicable by construction.
 
-``SearchParameterEvidence`` is deliberately smaller than any parameter-file model: schema 0.4
+``SearchParameterEvidence`` is deliberately smaller than any parameter-file model: schema 0.7
 permits exactly two condition fields, this package owns that vocabulary, and the outer
 application translates its own parameter model into this value before entering Parser V2.
 """
@@ -24,11 +24,12 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from apb2.parserV2.vendor_parse_rules.schema.annotation import SampleAnnotation
 from apb2.parserV2.vendor_parse_rules.schema.axis import ColumnGroup
 from apb2.parserV2.vendor_parse_rules.schema.base import (
+    LEVELS,
     ModelBase,
     QuantificationLevel,
     SchemaVersion,
@@ -72,7 +73,7 @@ class RuleNotApplicable(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class SearchParameterEvidence:
-    """The complete parameter vocabulary permitted in schema-0.4 conditions."""
+    """The complete parameter vocabulary permitted in schema-0.7 conditions."""
 
     acquisition_method: Literal["DDA", "DIA", "unknown"]
     combine_charge_states: bool | None
@@ -191,10 +192,10 @@ def _fragment_label_present(rule: LongRule | WideRule, header_set: set[str]) -> 
 
 @dataclass(frozen=True, slots=True)
 class EffectiveRule:
-    """One level's validated declaration, its document's input policy, and its recognition.
+    """One level's validated declaration, its table's input policy, and its recognition.
 
     All three travel together so projection is a total function of one value: the input
-    declaration is the same for every level of a document and is not copied onto
+    declaration is the same for every level of a table and is not copied onto
     ``RuleDocument``, and rebuilding the recognition elsewhere is how two answers to one
     question start to drift.
     """
@@ -202,9 +203,25 @@ class EffectiveRule:
     input: Input
     declaration: LongRule | WideRule
     recognition: Recognition
+    preparation: str | None = None
 
 
 # ------------------------------------------------------------------ the document shell
+
+
+class _PreparationSchema(ModelBase):
+    """Select a registered function; the level rules describe its output."""
+
+    how: Literal["alphadia", "maxquant"]
+
+
+class _RuleTableSchema(ModelBase):
+    """One physical input and the level declarations composed only within that table."""
+
+    input: Input
+    base: JsonDict
+    levels: dict[QuantificationLevel, JsonDict] = Field(min_length=1)
+    prepare: _PreparationSchema | None = None
 
 
 class _RuleDocumentSchema(ModelBase):
@@ -212,7 +229,7 @@ class _RuleDocumentSchema(ModelBase):
 
     The fragments stay raw dicts through the base-times-level merge — merging dicts needs no
     models, presence is key membership — and cross the single typed boundary,
-    ``validate_rule``, only once composed. That boundary is also the only validator:
+    ``validate_rule``, only once composed. Cross-block semantics are validated there:
     unknown keys and wrong types ride through the merge and are reported there with paths.
     """
 
@@ -221,10 +238,15 @@ class _RuleDocumentSchema(ModelBase):
     file_version: str
     software_name: str
     software_version_pattern: str
-    input: Input
     sample_annotation: SampleAnnotation | None = None
-    base: JsonDict
-    levels: dict[QuantificationLevel, JsonDict] = Field(min_length=1)
+    tables: list[_RuleTableSchema] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _unique_level_ownership(self) -> _RuleDocumentSchema:
+        levels = [level for table in self.tables for level in table.levels]
+        if len(levels) != len(set(levels)):
+            raise ValueError("each quantification level must belong to exactly one table")
+        return self
 
 
 class RuleDocument:
@@ -249,7 +271,13 @@ class RuleDocument:
 
     @property
     def levels(self) -> tuple[QuantificationLevel, ...]:
-        return tuple(self._shell.levels)
+        declared = {level for table in self._shell.tables for level in table.levels}
+        return tuple(level for level in LEVELS if level in declared)
+
+    @property
+    def table_levels(self) -> tuple[tuple[QuantificationLevel, ...], ...]:
+        """The level groups that share one input, in authored table order."""
+        return tuple(tuple(table.levels) for table in self._shell.tables)
 
     def declared(self, level: QuantificationLevel) -> EffectiveRule:
         """The rule this file *declares* for ``level``, gates and overrides ignored.
@@ -257,7 +285,8 @@ class RuleDocument:
         For callers that have no evidence and cannot have any: recognizing a vendor from
         column headers, and the sweep over every packaged level.
         """
-        return self._effective(self._payload_for(level))
+        table = self._table_for(level)
+        return self._effective(self._payload_for(level, table), table)
 
     def rule(
         self,
@@ -269,15 +298,16 @@ class RuleDocument:
         Raises ``RuleNotApplicable`` — naming what went wrong — when the file has no such
         level, or when its parameter gate excludes this evidence.
         """
-        payload = self._payload_for(level)
-        declared = self._effective(payload)
+        table = self._table_for(level)
+        payload = self._payload_for(level, table)
+        declared = self._effective(payload, table)
         self._require_gate_admits(
             declared.declaration.requires_search_parameters,
             evidence,
             level,
         )
         patched = _with_primary_layer_override(payload, evidence)
-        return declared if patched is payload else self._effective(patched)
+        return declared if patched is payload else self._effective(patched, table)
 
     def matches(self, headers: Iterable[str]) -> bool:
         """Whether any level this file declares recognizes these headers.
@@ -289,35 +319,39 @@ class RuleDocument:
         header_set = frozenset(headers)
         return any(self.declared(level).recognition.matches(header_set) for level in self.levels)
 
-    def _effective(self, payload: JsonDict) -> EffectiveRule:
+    def _effective(self, payload: JsonDict, table: _RuleTableSchema) -> EffectiveRule:
         declaration = validate_rule(payload)
         return EffectiveRule(
-            input=self._shell.input,
+            input=table.input,
             declaration=declaration,
             recognition=recognition_for(declaration),
+            preparation=table.prepare.how if table.prepare is not None else None,
         )
 
-    def _payload_for(self, level: QuantificationLevel) -> JsonDict:
-        """Compose one declared level over the common document base."""
-        try:
-            level_fragment = self._shell.levels[level]
-        except KeyError as error:
-            raise RuleNotApplicable(
-                f"{self.path} has no level {level!r}; available: {sorted(self.levels)}"
-            ) from error
+    def _table_for(self, level: QuantificationLevel) -> _RuleTableSchema:
+        for table in self._shell.tables:
+            if level in table.levels:
+                return table
+        raise RuleNotApplicable(
+            f"{self.path} has no level {level!r}; available: {list(self.levels)}"
+        )
+
+    def _payload_for(self, level: QuantificationLevel, table: _RuleTableSchema) -> JsonDict:
+        """Compose one declared level over its own table's base."""
+        level_fragment = table.levels[level]
         return {
             "schema_version": self._shell.schema_version,
             "file_version": self._shell.file_version,
             "software_name": self._shell.software_name,
             "software_version_pattern": self._shell.software_version_pattern,
             "quantification_level": level,
-            "shape": self._shell.input.shape,
+            "shape": table.input.shape,
             **(
                 {"sample_annotation": self._shell.sample_annotation.model_dump(mode="json")}
                 if self._shell.sample_annotation is not None
                 else {}
             ),
-            **_merge_fragments(self._shell.base, level_fragment),
+            **_merge_fragments(table.base, level_fragment),
         }
 
     def _require_gate_admits(
@@ -386,6 +420,15 @@ def _condition_fields(condition: dict[str, ConditionValue]) -> tuple[SearchParam
 def make_rule_document(path: Path, payload: JsonDict) -> RuleDocument:
     """Validate one raw rules.json payload and return the document it describes."""
     return RuleDocument(_RuleDocumentSchema.model_validate({"path": path, **payload}))
+
+
+def document_json_schema() -> dict[str, object]:
+    """Describe the authored document shell; effective rules validate merged fragments."""
+    schema = _RuleDocumentSchema.model_json_schema()
+    schema["properties"].pop("path")
+    schema["required"].remove("path")
+    schema["title"] = "RuleDocument"
+    return schema
 
 
 # ---------------------------------------------------- the file: the base-level merge

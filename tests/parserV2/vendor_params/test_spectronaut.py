@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from io import StringIO
 from pathlib import Path
 
 import pytest
@@ -51,3 +52,22 @@ def test_spectronaut_matches_proteobench(txt_name: str) -> None:
     ]
     mismatches = proteobench_params.compare(params, expected, fields)
     assert not mismatches, f"{txt_name}: " + "; ".join(mismatches)
+
+
+@pytest.mark.parametrize(
+    ("charge_block", "expected"),
+    (
+        ("Peptide Charge:\t3", (3, 3)),
+        ("Peptide Charge:\tTrue\nMax Charge:\t5\nMin Charge:\t1", (1, 5)),
+    ),
+)
+def test_spectronaut_reads_scalar_and_enabled_charge_ranges(
+    charge_block: str,
+    expected: tuple[int, int],
+) -> None:
+    template = (PROTEOBENCH_PARAMS / "Spectronaut_dynamic.txt").read_text(encoding="utf-8")
+    source = template.replace("Peptide Charge:\tFalse", charge_block)
+
+    params = extract_params(StringIO(source))
+
+    assert (params.min_precursor_charge, params.max_precursor_charge) == expected

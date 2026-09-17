@@ -25,8 +25,10 @@ from apb2.annotation.data.model import (
 from apb2.annotation.matching.core import (
     ExactAnnotationMatching,
     FuzzyAnnotationMatching,
+    annotation_matching_for,
     make_annotation_table,
     match_annotation,
+    normalize_mass_spec_basename,
 )
 from apb2.annotation.prolfquapp import ProlfquappAnnotationParameters
 from apb2.cli import annotate as annotate_command
@@ -324,6 +326,144 @@ def test_exact_aliases_match_without_fuzzy_correction() -> None:
     match = annotation.matches.levels["ion"]
     assert match.matched_rows.to_list() == [True]
     assert match.corrections == ()
+
+
+@pytest.mark.parametrize(
+    ("observed", "expected"),
+    [
+        ("/data/run_A.mzML", "run_A"),
+        (r"C:\data\run_A.MZML.GZ", "run_A"),
+        ("/data/run_A.RAW", "run_A"),
+        ("/data/run_A.mgf", "run_A"),
+        ("/data/run_A.d", "run_A"),
+        ("/data/run_A.WIFF", "run_A"),
+        ("/data/run_A", "run_A"),
+    ],
+)
+def test_mass_spec_basename_normalization_matches_without_changing_evidence(
+    observed: str,
+    expected: str,
+) -> None:
+    table = make_annotation_table(
+        pl.DataFrame({"raw_file": [expected], "condition": ["A"]}),
+        ("raw_file",),
+        (),
+        IN_MEMORY_ANNOTATION,
+    )
+
+    matches = match_annotation(
+        table,
+        _parsed((observed,)),
+        {
+            "ion": ExactAnnotationMatching(
+                normalization=normalize_mass_spec_basename,
+            )
+        },
+    )
+
+    match = matches.levels["ion"]
+    assert match.matched_rows.to_list() == [True]
+    assert match.corrections == ()
+    assert match.coverage.quant_only_examples == ()
+
+
+def test_mass_spec_basename_normalization_rejects_observation_collisions() -> None:
+    table = make_annotation_table(
+        pl.DataFrame({"raw_file": ["run_A"], "condition": ["A"]}),
+        ("raw_file",),
+        (),
+        IN_MEMORY_ANNOTATION,
+    )
+
+    with pytest.raises(AnnotationError, match="observation normalization collision"):
+        match_annotation(
+            table,
+            _parsed(("/first/run_A.raw", "/second/run_A.mzML")),
+            {
+                "ion": ExactAnnotationMatching(
+                    normalization=normalize_mass_spec_basename,
+                )
+            },
+        )
+
+
+def test_mass_spec_basename_normalization_rejects_annotation_collisions() -> None:
+    table = make_annotation_table(
+        pl.DataFrame(
+            {
+                "raw_file": ["/first/run_A.raw", "/second/run_A.mzML"],
+                "condition": ["A", "B"],
+            }
+        ),
+        ("raw_file",),
+        (),
+        IN_MEMORY_ANNOTATION,
+    )
+
+    with pytest.raises(AnnotationError, match="annotation normalization collision"):
+        match_annotation(
+            table,
+            _parsed(("run_A",)),
+            {
+                "ion": ExactAnnotationMatching(
+                    normalization=normalize_mass_spec_basename,
+                )
+            },
+        )
+
+
+def test_fuzzy_mass_spec_matching_preserves_original_correction_labels() -> None:
+    observed = "LFQ_timstofSCP_diaPASEF_Condition_A_Sample_Alpha_01.mzML"
+    expected = "LFQ_ttSCP_diaPASEF_Condition_A_Sample_Alpha_01"
+    table = make_annotation_table(
+        pl.DataFrame(
+            {
+                "raw_file": [expected, expected.replace("_01", "_02")],
+                "condition": ["A", "B"],
+            }
+        ),
+        ("raw_file",),
+        (),
+        IN_MEMORY_ANNOTATION,
+    )
+
+    matches = match_annotation(
+        table,
+        _parsed((observed,)),
+        {
+            "ion": FuzzyAnnotationMatching(
+                cutoff=0.6,
+                margin=0.01,
+                near_miss_limit=3,
+                normalization=normalize_mass_spec_basename,
+            )
+        },
+    )
+
+    match = matches.levels["ion"]
+    assert match.matched_rows.to_list() == [True]
+    assert [(item.observed, item.expected) for item in match.corrections] == [(observed, expected)]
+
+
+def test_persisted_exact_matching_constructs_mass_spec_normalization() -> None:
+    parsed = _parsed(
+        ("/data/run_A.mzML",),
+        matching={"mode": "exact", "normalize": "mass_spec_basename"},
+    )
+    table = make_annotation_table(
+        pl.DataFrame({"raw_file": ["run_A"], "condition": ["A"]}),
+        ("raw_file",),
+        (),
+        IN_MEMORY_ANNOTATION,
+    )
+
+    matches = match_annotation(
+        table,
+        parsed,
+        {"ion": annotation_matching_for(parsed.levels["ion"])},
+    )
+
+    assert matches.levels["ion"].matched_rows.to_list() == [True]
 
 
 def test_prolfquapp_logs_annotation_only_as_warning_and_quant_only_as_info() -> None:

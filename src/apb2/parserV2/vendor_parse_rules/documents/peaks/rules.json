@@ -1,174 +1,179 @@
 {
-  "schema_version": "0.4",
+  "schema_version": "0.7",
   "file_version": "2",
   "software_name": "PEAKS",
   "software_version_pattern": "^13(?:\\.|\\s|$)",
-  "input": {
-    "shape": "wide",
-    "extensions": [
-      ".csv"
-    ]
-  },
   "sample_annotation": {
     "matching": {
       "mode": "fuzzy",
       "cutoff": 0.6,
-      "margin": 0.1,
-      "near_miss_limit": 3
+      "margin": 0.01,
+      "near_miss_limit": 3,
+      "normalize": "mass_spec_basename"
     }
   },
-  "base": {
-    "axis": {
-      "obs_keys": [
-        "sample"
-      ]
-    },
-    "measurements": {
-      "duplicates": {
-        "mode": "error"
-      }
-    },
-    "modifications": {
-      "source_column": "Peptide",
-      "parser": "token_regex",
-      "token_pattern": "\\(([^()]+)\\)",
-      "token_position": "after_residue",
-      "case_sensitive": false,
-      "unknown_policy": "preserve",
-      "output_column": "proforma_sequence",
-      "map": [
-        {
-          "token": "+15.99",
-          "accession": "UNIMOD:35"
-        },
-        {
-          "token": "+57.02",
-          "accession": "UNIMOD:4"
-        },
-        {
-          "token": "+42.01",
-          "accession": "UNIMOD:1"
-        },
-        {
-          "token": "+15.9949",
-          "accession": "UNIMOD:35"
-        },
-        {
-          "token": "+57.02146",
-          "accession": "UNIMOD:4"
-        },
-        {
-          "token": "+42.0106",
-          "accession": "UNIMOD:1"
-        }
-      ]
-    }
-  },
-  "levels": {
-    "ion": {
-      "axis": {
-        "var_keys": [
-          "ProForma_ion"
+  "tables": [
+    {
+      "input": {
+        "shape": "wide",
+        "extensions": [
+          ".csv"
         ]
       },
-      "measurements": {
-        "primary_layer": "Normalized_Area",
-        "layers": [
-          {
-            "name": "Normalized_Area",
-            "source": "^(?P<sample>LFQ_.+?)(?:\\.raw|_raw)? Normalized Area$",
-            "roles": [
-              "abundance"
-            ],
-            "missing_values": [
-              0
-            ]
-          },
-          {
-            "name": "Sample_Mz",
-            "source": "^(?P<sample>LFQ_.+?)(?:\\.raw|_raw)? m/z$"
-          },
-          {
-            "name": "Sample_RT_Mean",
-            "source": "^(?P<sample>LFQ_.+?)(?:\\.raw|_raw)? RT mean$"
-          },
-          {
-            "name": "AScore",
-            "source": "^(?P<sample>LFQ_.+?)(?:\\.raw|_raw)? AScore$",
-            "value_pattern": {
-              "mode": "regex",
-              "pattern": ":(-?\\d+(?:\\.\\d+)?)(?:;|$)"
+      "base": {
+        "axis": {
+          "obs_keys": [
+            "sample"
+          ]
+        },
+        "measurements": {
+          "duplicates": {
+            "mode": "error"
+          }
+        },
+        "modifications": {
+          "source_column": "Peptide",
+          "parser": "token_regex",
+          "token_pattern": "\\(([^()]+)\\)",
+          "token_position": "after_residue",
+          "case_sensitive": false,
+          "unknown_policy": "preserve",
+          "output_column": "proforma_sequence",
+          "map": [
+            {
+              "token": "+15.99",
+              "accession": "UNIMOD:35"
+            },
+            {
+              "token": "+57.02",
+              "accession": "UNIMOD:4"
+            },
+            {
+              "token": "+42.01",
+              "accession": "UNIMOD:1"
+            },
+            {
+              "token": "+15.9949",
+              "accession": "UNIMOD:35"
+            },
+            {
+              "token": "+57.02146",
+              "accession": "UNIMOD:4"
+            },
+            {
+              "token": "+42.0106",
+              "accession": "UNIMOD:1"
             }
-          }
-        ]
+          ]
+        }
       },
-      "columns": {
-        "var": [
-          {
-            "name": "Peptide",
-            "source": "Peptide"
-          },
-          {
-            "name": "Charge",
-            "source": "z",
-            "type": "integer"
-          },
-          {
-            "name": "Mz",
-            "source": "m/z",
-            "type": "number"
-          },
-          {
-            "name": "RT_Range",
-            "source": "RT range"
-          },
-          {
-            "name": "Quality",
-            "source": "Quality",
-            "type": "number"
-          },
-          {
-            "name": "Significance",
-            "source": "Significance",
-            "type": "number"
-          },
-          {
-            "name": "Avg_Area",
-            "source": "Avg. Area",
-            "type": "number"
-          },
-          {
-            "name": "Accession",
-            "source": "Accession",
-            "roles": [
-              "protein_assignment",
-              "fasta_accessions"
+      "levels": {
+        "ion": {
+          "axis": {
+            "var_keys": [
+              "ProForma_ion"
             ]
           },
-          {
-            "name": "ProForma_peptidoform",
-            "inputs": [
-              "Peptide"
-            ],
-            "how": "proforma_sequence"
+          "measurements": {
+            "primary_layer": "Normalized_Area",
+            "layers": [
+              {
+                "name": "Normalized_Area",
+                "source": "^(?P<sample>LFQ_.+?)(?:\\.raw|_raw)? Normalized Area$",
+                "roles": [
+                  "abundance"
+                ],
+                "missing_values": [
+                  0
+                ]
+              },
+              {
+                "name": "Sample_Mz",
+                "source": "^(?P<sample>LFQ_.+?)(?:\\.raw|_raw)? m/z$"
+              },
+              {
+                "name": "Sample_RT_Mean",
+                "source": "^(?P<sample>LFQ_.+?)(?:\\.raw|_raw)? RT mean$"
+              },
+              {
+                "name": "AScore",
+                "source": "^(?P<sample>LFQ_.+?)(?:\\.raw|_raw)? AScore$",
+                "value_pattern": {
+                  "mode": "regex",
+                  "pattern": ":(-?\\d+(?:\\.\\d+)?)(?:;|$)"
+                }
+              }
+            ]
           },
-          {
-            "name": "ProForma_peptide",
-            "inputs": [
-              "Peptide"
-            ],
-            "how": "stripped_sequence"
-          },
-          {
-            "name": "ProForma_ion",
-            "inputs": [
-              "ProForma_peptidoform",
-              "Charge"
-            ],
-            "how": "proforma_ion"
+          "columns": {
+            "var": [
+              {
+                "name": "Peptide",
+                "source": "Peptide"
+              },
+              {
+                "name": "Charge",
+                "source": "z",
+                "type": "integer"
+              },
+              {
+                "name": "Mz",
+                "source": "m/z",
+                "type": "number"
+              },
+              {
+                "name": "RT_Range",
+                "source": "RT range"
+              },
+              {
+                "name": "Quality",
+                "source": "Quality",
+                "type": "number"
+              },
+              {
+                "name": "Significance",
+                "source": "Significance",
+                "type": "number"
+              },
+              {
+                "name": "Avg_Area",
+                "source": "Avg. Area",
+                "type": "number"
+              },
+              {
+                "name": "Accession",
+                "source": "Accession",
+                "roles": [
+                  "protein_assignment",
+                  "fasta_accessions"
+                ]
+              },
+              {
+                "name": "ProForma_peptidoform",
+                "inputs": [
+                  "Peptide"
+                ],
+                "how": "proforma_sequence"
+              },
+              {
+                "name": "ProForma_peptide",
+                "inputs": [
+                  "Peptide"
+                ],
+                "how": "stripped_sequence"
+              },
+              {
+                "name": "ProForma_ion",
+                "inputs": [
+                  "ProForma_peptidoform",
+                  "Charge"
+                ],
+                "how": "proforma_ion"
+              }
+            ]
           }
-        ]
+        }
       }
     }
-  }
+  ]
 }

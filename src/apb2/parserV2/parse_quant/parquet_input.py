@@ -13,17 +13,17 @@ from pathlib import Path
 import polars as pl
 
 from apb2.parserV2.parse_quant.data.source import LevelSourceTable
-from apb2.parserV2.parse_quant.parameters.source import LevelReadPlan, ParquetSourceEvidence
+from apb2.parserV2.parse_quant.parameters.source import FrameSourceEvidence, LevelReadPlan
 
 
-def schema_evidence(path: Path) -> ParquetSourceEvidence:
+def schema_evidence(path: Path) -> FrameSourceEvidence:
     """Read the physical schema, in file order.
 
     No header predicate, because there is nothing to choose between: a Parquet file has one
     reading. Whether this level can use those columns is source resolution's answer.
     """
     schema = pl.read_parquet_schema(path)
-    return ParquetSourceEvidence(columns=tuple(schema), dtypes=tuple(schema.items()))
+    return FrameSourceEvidence(columns=tuple(schema), dtypes=tuple(schema.items()))
 
 
 @dataclass(frozen=True, slots=True)

@@ -3,7 +3,7 @@
 The generic claim is that one implementation covers every vendor. The only way to believe it is
 to run both conversions over the same cached export and compare the quantities cell by cell,
 which is what most of this module does. The rest checks the boundary the application owns: it
-reads its own parameter model and hands Parser V2 the two fields schema 0.4 permits.
+reads its own parameter model and hands Parser V2 the two fields schema 0.7 permits.
 """
 
 from __future__ import annotations
@@ -99,7 +99,7 @@ def parser_v2_conversion(
 
 
 def test_the_packaged_fragment_level_parses_its_own_export() -> None:
-    pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1")
+    pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1_8")
     data = pair.required_data_path()
     facade = ParseRuleFacade(
         load_rule_document(pair.parser_v2_path), "fragment", evidence_for(pair)
@@ -125,7 +125,7 @@ def test_the_packaged_fragment_level_parses_its_own_export() -> None:
 
 
 def test_each_level_reads_only_its_own_columns_from_one_shared_source() -> None:
-    pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1")
+    pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1_8")
     data = pair.required_data_path()
 
     parsers = compile_parsers(
@@ -267,5 +267,5 @@ def test_the_provenance_of_a_parsed_level_names_the_rule_it_came_from() -> None:
 
     assert parsed.uns["software_name"] == "AlphaPept"
     assert parsed.uns["quantification_level"] == "ion"
-    assert parsed.uns["schema_version"] == "0.4"
+    assert parsed.uns["schema_version"] == "0.7"
     assert isinstance(parsed.uns["rule_json"], str)

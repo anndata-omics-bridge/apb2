@@ -1,0 +1,11 @@
+{
+  "sample": "sample.csv.gz",
+  "params": "param_0..yml",
+  "levels": {
+    "ion": {
+      "observations": 6,
+      "variables": 131,
+      "layers": ["Intensity"]
+    }
+  }
+}

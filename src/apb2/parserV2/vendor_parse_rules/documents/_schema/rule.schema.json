@@ -227,6 +227,92 @@
       "title": "Duplicates",
       "type": "object"
     },
+    "EmbeddedSiteListModifications": {
+      "additionalProperties": false,
+      "description": "Modification names whose list entries also contain their localization.",
+      "properties": {
+        "parser": {
+          "const": "embedded_site_list",
+          "title": "Parser",
+          "type": "string"
+        },
+        "sequence_column": {
+          "title": "Sequence Column",
+          "type": "string"
+        },
+        "modification_column": {
+          "title": "Modification Column",
+          "type": "string"
+        },
+        "delimiter": {
+          "default": ";",
+          "title": "Delimiter",
+          "type": "string"
+        },
+        "entry_pattern": {
+          "title": "Entry Pattern",
+          "type": "string"
+        },
+        "site_base": {
+          "default": 1,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Site Base",
+          "type": "integer"
+        },
+        "case_sensitive": {
+          "default": false,
+          "title": "Case Sensitive",
+          "type": "boolean"
+        },
+        "unknown_policy": {
+          "$ref": "#/$defs/UnknownPolicy",
+          "default": "preserve"
+        },
+        "output_column": {
+          "default": "proforma_sequence",
+          "title": "Output Column",
+          "type": "string"
+        },
+        "map": {
+          "items": {
+            "$ref": "#/$defs/ModificationMapEntry"
+          },
+          "minItems": 1,
+          "title": "Map",
+          "type": "array"
+        }
+      },
+      "required": [
+        "parser",
+        "sequence_column",
+        "modification_column",
+        "entry_pattern",
+        "map"
+      ],
+      "title": "EmbeddedSiteListModifications",
+      "type": "object"
+    },
+    "ExactSampleMatching": {
+      "additionalProperties": false,
+      "description": "Exact matching after an explicitly declared key normalization.",
+      "properties": {
+        "mode": {
+          "const": "exact",
+          "title": "Mode",
+          "type": "string"
+        },
+        "normalize": {
+          "$ref": "#/$defs/SampleKeyNormalization"
+        }
+      },
+      "required": [
+        "mode",
+        "normalize"
+      ],
+      "title": "ExactSampleMatching",
+      "type": "object"
+    },
     "FactorLayer": {
       "additionalProperties": false,
       "description": "A categorical layer encoded through its declared category map.",
@@ -317,6 +403,17 @@
           "minimum": 1,
           "title": "Near Miss Limit",
           "type": "integer"
+        },
+        "normalize": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SampleKeyNormalization"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -571,6 +668,7 @@
     "Modifications": {
       "discriminator": {
         "mapping": {
+          "embedded_site_list": "#/$defs/EmbeddedSiteListModifications",
           "site_list": "#/$defs/SiteListModifications",
           "token_regex": "#/$defs/TokenRegexModifications"
         },
@@ -582,6 +680,9 @@
         },
         {
           "$ref": "#/$defs/SiteListModifications"
+        },
+        {
+          "$ref": "#/$defs/EmbeddedSiteListModifications"
         }
       ]
     },
@@ -607,6 +708,15 @@
           "const": "numeric",
           "default": "numeric",
           "title": "Encoding Mode",
+          "type": "string"
+        },
+        "type": {
+          "default": "number",
+          "enum": [
+            "number",
+            "integer"
+          ],
+          "title": "Type",
           "type": "string"
         },
         "name": {
@@ -898,7 +1008,7 @@
       "description": "Document-level policy used when later matching sample annotations.",
       "properties": {
         "matching": {
-          "$ref": "#/$defs/FuzzySampleMatching"
+          "$ref": "#/$defs/SampleMatching"
         }
       },
       "required": [
@@ -907,8 +1017,29 @@
       "title": "SampleAnnotation",
       "type": "object"
     },
+    "SampleKeyNormalization": {
+      "const": "mass_spec_basename",
+      "type": "string"
+    },
+    "SampleMatching": {
+      "discriminator": {
+        "mapping": {
+          "exact": "#/$defs/ExactSampleMatching",
+          "fuzzy": "#/$defs/FuzzySampleMatching"
+        },
+        "propertyName": "mode"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ExactSampleMatching"
+        },
+        {
+          "$ref": "#/$defs/FuzzySampleMatching"
+        }
+      ]
+    },
     "SchemaVersion": {
-      "const": "0.4",
+      "const": "0.7",
       "type": "string"
     },
     "SearchParameterField": {

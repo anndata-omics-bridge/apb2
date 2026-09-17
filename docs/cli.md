@@ -4,7 +4,7 @@ APB2 exposes three commands:
 
 | Command | Purpose | Guide |
 | --- | --- | --- |
-| `apb2 convert` | Parse a vendor table into h5ad or h5mu | [Convert vendor results](conversion.md) |
+| `apb2 convert` | Parse a vendor table or result directory into HDF5, Parquet, or DuckDB | [Convert vendor results](conversion.md) |
 | `apb2 reformat` | Change the storage format of an APB2 result | [Read and write results](result_io.md) |
 | `apb2 annotate` | Attach sample metadata to an APB2 result | [Annotate samples](sample_annotation.md) |
 
@@ -20,17 +20,18 @@ apb2 convert DATA [LEVEL] [OPTIONS]
 
 | Argument or option | Meaning |
 | --- | --- |
-| `DATA` | Vendor result table |
+| `DATA` | Vendor result table or directory containing named result tables |
 | `LEVEL` | Optional quantification level; omit it to write every compatible level |
 | `--params PATH` | Vendor search-parameter file |
-| `--rule-config PATH` | Explicit schema-0.3 rule document |
+| `--companion PATH` | Additional input to preparation; repeat for multiple files |
+| `--rule-config PATH` | Explicit schema-0.7 rule document |
 | `--software NAME` | Disambiguate packaged rule selection |
 | `--params-software NAME` | Select the parameter-file parser independently |
-| `--output BASENAME` | Output basename without `.h5ad` or `.h5mu` |
+| `--format FORMAT` | `hdf5`, `parquet`, or `duckdb`; default `hdf5` |
+| `--output BASENAME` | Output basename without the selected suffix |
 | `--strict` | Promote layer-contract warnings to errors |
 
-One of `--params` or `--rule-config` is required. An explicit `LEVEL` writes `.h5ad`; an omitted
-level writes `.h5mu`.
+One of `--params` or `--rule-config` is required. A directory or explicit companions supply the table groups. An explicit `LEVEL` selects one decomposition; omission converts all supported levels. HDF5 uses `.h5ad` for an explicit level and `.h5mu` otherwise. Parquet and DuckDB retain their suffixes. Compatible one-to-one observation aliases are aligned; incompatible resolutions get separate key-qualified outputs, such as `result.raw_file.h5mu` and `result.experiment.h5mu`. The CLI reports every actual path; see [output naming](conversion.md#output-naming).
 
 See [Convert vendor results](conversion.md) for worked examples.
 

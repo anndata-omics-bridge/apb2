@@ -17,6 +17,9 @@ from apb2.parserV2.parse_quant.parameters.source import NumericTextFormat
 type DuplicateMode = Literal["error", "keep_first", "aggregate"]
 """How several raw scalars claiming one measurement cell become one scalar."""
 
+type NumericType = Literal["number", "integer"]
+"""Logical numeric type declared for a measurement layer."""
+
 
 # ---------------------------------------------------------------------------- raw presence
 
@@ -68,6 +71,7 @@ class PlainNumericAnnDataEncodingConfig:
     layer_name: str
     missing_values: tuple[float, ...]
     number_format: NumericTextFormat
+    type: NumericType = "number"
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,6 +83,7 @@ class RegexNumericAnnDataEncodingConfig:
     missing_values: tuple[float, ...]
     pattern: str
     number_format: NumericTextFormat
+    type: NumericType = "number"
 
 
 @dataclass(frozen=True, slots=True)

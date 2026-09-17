@@ -53,6 +53,7 @@ class NumericLayer(ModelBase):
     """A quantitative layer encoded numerically only at an output boundary."""
 
     encoding_mode: Literal["numeric"] = "numeric"
+    type: Literal["number", "integer"] = "number"
     name: str
     source: str
     missing_values: list[float] = Field(default_factory=list)

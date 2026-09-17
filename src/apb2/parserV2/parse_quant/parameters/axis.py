@@ -212,4 +212,23 @@ class SiteListModificationConfig:
     entries: tuple[ModificationMapEntry, ...]
 
 
-type ModificationConfig = TokenRegexModificationConfig | SiteListModificationConfig
+@dataclass(frozen=True, slots=True)
+class EmbeddedSiteListModificationConfig:
+    """Delimited modification entries that each contain their own site."""
+
+    kind: Literal["embedded_site_list"]
+    sequence_column: str
+    modification_column: str
+    delimiter: str
+    entry_pattern: str
+    site_base: int
+    case_sensitive: bool
+    unknown_policy: UnknownModificationPolicy
+    proforma_output: str
+    stripped_output: str
+    entries: tuple[ModificationMapEntry, ...]
+
+
+type ModificationConfig = (
+    TokenRegexModificationConfig | SiteListModificationConfig | EmbeddedSiteListModificationConfig
+)

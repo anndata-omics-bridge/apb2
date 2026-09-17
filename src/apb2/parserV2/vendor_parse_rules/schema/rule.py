@@ -159,7 +159,7 @@ def validate_rule(payload: object) -> LongRule | WideRule:
 
 
 def rule_json_schema() -> dict[str, object]:
-    """Return the JSON Schema for complete schema-0.4 effective rules."""
+    """Return the JSON Schema for complete schema-0.7 effective rules."""
     return _RULE_ADAPTER.json_schema()
 
 

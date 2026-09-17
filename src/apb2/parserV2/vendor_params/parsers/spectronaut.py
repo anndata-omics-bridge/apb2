@@ -81,6 +81,17 @@ def _required(lines: list[str], term: str) -> str:
     return required_settings_value(lines, term, software="Spectronaut")
 
 
+def _peptide_charge_range(lines: list[str]) -> tuple[int | None, int | None]:
+    """Read either Spectronaut's scalar charge or its enabled min/max range."""
+    charge_raw = settings_value(lines, "Peptide Charge:")
+    if charge_raw is None or charge_raw == "False":
+        return None, None
+    if charge_raw == "True":
+        return int(_required(lines, "Min Charge:")), int(_required(lines, "Max Charge:"))
+    charge = int(charge_raw)
+    return charge, charge
+
+
 def _extract_tolerances(
     lines: list[str],
     system: str,
@@ -168,11 +179,7 @@ def extract_params(source: _Source) -> Parameters:
     ident_psm = _qvalue(settings_value(lines, "Precursor Qvalue Cutoff:"))
     ident_protein = _qvalue(settings_value(lines, "Protein Qvalue Cutoff (Experiment):"))
 
-    charge_raw = settings_value(lines, "Peptide Charge:")
-    if charge_raw is None or charge_raw == "False":
-        min_z = max_z = None
-    else:
-        min_z = max_z = int(charge_raw)
+    min_z, max_z = _peptide_charge_range(lines)
 
     return Parameters(
         software_name="Spectronaut",

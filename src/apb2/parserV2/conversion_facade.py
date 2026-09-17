@@ -1,28 +1,30 @@
-"""Application workflows for one Parser V2 source-to-AnnData conversion."""
+"""Application workflows for one Parser V2 source-to-result conversion."""
 
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+import re
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from functools import partial
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal
 
+from loguru import logger
 from pydantic import ValidationError
 
 from apb2.parserV2.compile import (
     AnnDataOutput,
     ParseRuleCompiler,
-    compile_mudata_parsers,
 )
 from apb2.parserV2.detect_document import (
     UNKNOWN_SEARCH_PARAMETERS,
-    DetectedRuleDocument,
+    DetectedRuleSet,
     RuleDetectionError,
-    detect_rule_document,
+    RuleUnavailableError,
+    detect_rule_documents,
     guess_software,
     search_parameter_evidence,
+    select_document_levels,
     software_slug,
 )
 from apb2.parserV2.parse_quant.axis_columns import AxisCoercionError, ColumnComputationError
@@ -35,16 +37,16 @@ from apb2.parserV2.parse_quant.errors import (
 )
 from apb2.parserV2.parse_quant.fragments import PackedLengthError
 from apb2.parserV2.parse_quant.io import formats
-from apb2.parserV2.parse_quant.io.anndata_writer import MuDataLevelError
-from apb2.parserV2.parse_quant.io.errors import AnnDataLayerContractError, ResultIOError
-from apb2.parserV2.parse_quant.io.json_representation import write_result_with_representation
+from apb2.parserV2.parse_quant.io.errors import ResultIOError
 from apb2.parserV2.parse_quant.modifications import (
     PackedSiteMismatchError,
     UnknownModificationError,
 )
-from apb2.parserV2.parse_quant.parameters.source import SingleFile
+from apb2.parserV2.parse_quant.observation_groups import group_observations
+from apb2.parserV2.parse_quant.parameters.source import Folder, InputFiles, InputSource, SingleFile
 from apb2.parserV2.parse_quant.parser import AxisShapeError, CanonicalKeyCollisionError
 from apb2.parserV2.parse_rule_facade import PRODUCER, ParseRuleFacade
+from apb2.parserV2.prepare_source import InputPreparationError
 from apb2.parserV2.vendor_params.parsers.shared.model import Parameters, ParamsError
 from apb2.parserV2.vendor_params.registry import parse_params
 from apb2.parserV2.vendor_parse_rules.document import (
@@ -53,7 +55,7 @@ from apb2.parserV2.vendor_parse_rules.document import (
     SearchParameterEvidence,
 )
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
-from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
+from apb2.parserV2.vendor_parse_rules.schema.base import LEVELS, QuantificationLevel
 
 type AnnDataChecks = Literal["standard", "strict"]
 type RuleSelectionMethod = Literal["software_version", "columns", "rule_config"]
@@ -86,12 +88,13 @@ class ConversionSummary:
     software: str
     version: str | None
     levels: tuple[LevelConversionSummary, ...]
+    outputs: tuple[Path, ...]
 
 
 _EXPECTED_CONVERSION_FAILURES = (
+    InputPreparationError,
     AggregateTypeError,
     AmbiguousDialectError,
-    AnnDataLayerContractError,
     AxisCoercionError,
     AxisShapeError,
     CanonicalKeyCollisionError,
@@ -99,13 +102,13 @@ _EXPECTED_CONVERSION_FAILURES = (
     DuplicateCellError,
     IncompatibleSourceError,
     json.JSONDecodeError,
-    MuDataLevelError,
     OSError,
     PackedLengthError,
     PackedSiteMismatchError,
     ParamsError,
     RuleDetectionError,
     RuleNotApplicable,
+    ResultIOError,
     StorageLabelError,
     UnknownModificationError,
     ValidationError,
@@ -121,17 +124,18 @@ def convert_from_rule_config(
     parameters_path: Path | None,
     parameters_software: str | None,
     checks: AnnDataChecks,
+    companions: tuple[Path, ...] = (),
 ) -> ConversionSummary:
-    """Convert one level using an explicitly supplied schema-0.4 rule document."""
+    """Convert one level using an explicitly supplied schema-0.7 rule document."""
     try:
         document, parameters, evidence = _explicit_conversion_inputs(
             rule_config=rule_config,
             parameters_path=parameters_path,
             parameters_software=parameters_software,
         )
-        parsed = _parse_and_write(
-            data=data,
-            level=level,
+        parsed, outputs = _parse_document_and_write(
+            source=_input_source(data, companions),
+            levels=(level,),
             output=output,
             document=document,
             evidence=evidence,
@@ -141,7 +145,8 @@ def convert_from_rule_config(
             parameters_path=parameters_path,
         )
         return _conversion_summary(
-            {level: parsed},
+            parsed.levels,
+            outputs=outputs,
             software=software_slug(document.software_name),
             version=parameters.software_version if parameters is not None else None,
         )
@@ -157,16 +162,18 @@ def convert_all_from_rule_config(
     parameters_path: Path | None,
     parameters_software: str | None,
     checks: AnnDataChecks,
+    companions: tuple[Path, ...] = (),
 ) -> ConversionSummary:
-    """Convert every compatible level of an explicit schema-0.4 document to MuData."""
+    """Convert every compatible level of an explicit schema-0.7 document."""
     try:
         document, parameters, evidence = _explicit_conversion_inputs(
             rule_config=rule_config,
             parameters_path=parameters_path,
             parameters_software=parameters_software,
         )
-        parsed = _parse_all_and_write(
-            data=data,
+        parsed, outputs = _parse_document_and_write(
+            source=_input_source(data, companions),
+            levels=document.levels,
             output=output,
             document=document,
             evidence=evidence,
@@ -177,6 +184,7 @@ def convert_all_from_rule_config(
         )
         return _conversion_summary(
             parsed.levels,
+            outputs=outputs,
             software=software_slug(document.software_name),
             version=parameters.software_version if parameters is not None else None,
         )
@@ -193,20 +201,22 @@ def convert_from_packaged_rules(
     software: str | None,
     parameters_software: str | None,
     checks: AnnDataChecks,
+    companions: tuple[Path, ...] = (),
 ) -> ConversionSummary:
     """Detect a packaged document from the source and parameter file, then convert it."""
     try:
-        detected, parameters, method = _packaged_conversion_inputs(
+        source, detected, parameters, method = _packaged_conversion_inputs(
             data=data,
             parameters_path=parameters_path,
             software=software,
             parameters_software=parameters_software,
+            levels=(level,),
+            companions=companions,
         )
-        parsed = _parse_and_write(
-            data=data,
-            level=level,
+        parsed, outputs = _parse_detected_and_write(
+            source=source,
             output=output,
-            document=detected.document,
+            detected=detected,
             evidence=search_parameter_evidence(parameters),
             checks=checks,
             selection_method=method,
@@ -214,7 +224,8 @@ def convert_from_packaged_rules(
             parameters_path=parameters_path,
         )
         return _conversion_summary(
-            {level: parsed},
+            parsed.levels,
+            outputs=outputs,
             software=detected.software,
             version=detected.version,
         )
@@ -230,19 +241,22 @@ def convert_all_from_packaged_rules(
     software: str | None,
     parameters_software: str | None,
     checks: AnnDataChecks,
+    companions: tuple[Path, ...] = (),
 ) -> ConversionSummary:
-    """Detect one packaged document and convert every compatible level to MuData."""
+    """Detect and convert every compatible packaged level from one file or folder."""
     try:
-        detected, parameters, method = _packaged_conversion_inputs(
+        source, detected, parameters, method = _packaged_conversion_inputs(
             data=data,
             parameters_path=parameters_path,
             software=software,
             parameters_software=parameters_software,
+            levels=LEVELS,
+            companions=companions,
         )
-        parsed = _parse_all_and_write(
-            data=data,
+        parsed, outputs = _parse_detected_and_write(
+            source=source,
             output=output,
-            document=detected.document,
+            detected=detected,
             evidence=search_parameter_evidence(parameters),
             checks=checks,
             selection_method=method,
@@ -251,6 +265,7 @@ def convert_all_from_packaged_rules(
         )
         return _conversion_summary(
             parsed.levels,
+            outputs=outputs,
             software=detected.software,
             version=detected.version,
         )
@@ -281,9 +296,11 @@ def _packaged_conversion_inputs(
     parameters_path: Path,
     software: str | None,
     parameters_software: str | None,
-) -> tuple[DetectedRuleDocument, Parameters, RuleSelectionMethod]:
-    """Parse parameters and detect one packaged rule document once."""
-    source = SingleFile(path=data)
+    levels: Iterable[QuantificationLevel],
+    companions: tuple[Path, ...] = (),
+) -> tuple[InputSource, DetectedRuleSet, Parameters, RuleSelectionMethod]:
+    """Parse parameters and detect one packaged rule for each requested level."""
+    source = _input_source(data, companions)
     parser_slug = parameters_software or software or guess_software(source)
     if parser_slug is None:
         raise ConversionError(
@@ -291,19 +308,31 @@ def _packaged_conversion_inputs(
             "or --rule-config PATH"
         )
     parameters = parse_params(parameters_path, software=parser_slug)
-    detected = detect_rule_document(parameters, source)
+    detected = detect_rule_documents(parameters, source, levels)
     if software is not None and detected.software != software:
         raise ConversionError(
             f"--software {software!r} does not match the detected vendor {detected.software!r}"
         )
     method: RuleSelectionMethod = "software_version" if detected.version is not None else "columns"
-    return detected, parameters, method
+    return source, detected, parameters, method
 
 
-def _parse_and_write(
+def _input_source(data: Path, companions: tuple[Path, ...] = ()) -> InputSource:
+    """Bind an explicit file set, a folder, or a single input before preparation."""
+    if companions:
+        paths = (data, *companions)
+        if any(not path.is_file() for path in paths):
+            raise ConversionError("primary and companion inputs must be existing files")
+        if len({path.name for path in paths}) != len(paths):
+            raise ConversionError("explicit companion inputs must have distinct filenames")
+        return InputFiles(path=data, files={path.name: path for path in paths})
+    return Folder(path=data) if data.is_dir() else SingleFile(path=data)
+
+
+def _parse_document_and_write(
     *,
-    data: Path,
-    level: QuantificationLevel,
+    source: InputSource,
+    levels: tuple[QuantificationLevel, ...],
     output: Path,
     document: RuleDocument,
     evidence: SearchParameterEvidence,
@@ -311,47 +340,64 @@ def _parse_and_write(
     selection_method: RuleSelectionMethod,
     parameters: Parameters | None,
     parameters_path: Path | None,
-) -> ParsedLevel:
-    facade = ParseRuleFacade(document, level, evidence)
-    parser = ParseRuleCompiler(facade=facade, output=AnnDataOutput(checks=checks)).compile(
-        SingleFile(path=data)
-    )
-    parsed = parser.parse()
-    parsed.uns.update(_shared_parse_provenance(selection_method, parameters, parameters_path))
-    write_result_with_representation(
-        ParsedLevels(levels={level: parsed}, uns={}),
-        output,
-        partial(parser.convert, parsed, output),
-    )
-    return parsed
-
-
-def _parse_all_and_write(
-    *,
-    data: Path,
-    output: Path,
-    document: RuleDocument,
-    evidence: SearchParameterEvidence,
-    checks: AnnDataChecks,
-    selection_method: RuleSelectionMethod,
-    parameters: Parameters | None,
-    parameters_path: Path | None,
-) -> ParsedLevels:
-    """Parse every compatible level independently, then write their storage composition."""
-    parsers, writer = compile_mudata_parsers(
-        document=document,
-        levels=document.levels,
-        parameter_evidence=evidence,
-        source=SingleFile(path=data),
+) -> tuple[ParsedLevels, tuple[Path, ...]]:
+    """Select one explicit document with the same table checks as packaged conversion."""
+    selected = select_document_levels(document, source, levels, evidence)
+    if not selected:
+        names = {
+            level: document.declared(level).input.file_name
+            for level in levels
+            if level in document.levels
+        }
+        raise RuleUnavailableError(
+            f"requested levels {list(levels)} are unavailable from {source.path}; "
+            f"expected named tables: {names}"
+        )
+    return _parse_detected_and_write(
+        source=source,
+        output=output,
+        detected=DetectedRuleSet(
+            software=software_slug(document.software_name),
+            version=parameters.software_version if parameters is not None else None,
+            levels=selected,
+        ),
+        evidence=evidence,
         checks=checks,
+        selection_method=selection_method,
+        parameters=parameters,
+        parameters_path=parameters_path,
+    )
+
+
+def _parse_detected_and_write(
+    *,
+    source: InputSource,
+    output: Path,
+    detected: DetectedRuleSet,
+    evidence: SearchParameterEvidence,
+    checks: AnnDataChecks,
+    selection_method: RuleSelectionMethod,
+    parameters: Parameters | None,
+    parameters_path: Path | None,
+) -> tuple[ParsedLevels, tuple[Path, ...]]:
+    """Parse selected levels, align compatible observations, and write each resolution."""
+    compiled = tuple(
+        (
+            selection,
+            ParseRuleCompiler(
+                facade=ParseRuleFacade(selection.document, selection.level, evidence),
+                output=AnnDataOutput(checks=checks),
+            ).compile(selection.source),
+        )
+        for selection in detected.levels
     )
     shared = _shared_parse_provenance(selection_method, parameters, parameters_path)
     levels: dict[QuantificationLevel, ParsedLevel] = {}
-    for parser in parsers:
+    for selection, parser in compiled:
+        logger.info("level={} source={}", selection.level, selection.source_path)
         parsed = parser.parse()
         parsed.uns.update(shared)
-        level = cast(QuantificationLevel, parser.level)
-        levels[level] = parsed
+        levels[selection.level] = parsed
     combined = ParsedLevels(
         levels=levels,
         uns={
@@ -360,12 +406,32 @@ def _parse_all_and_write(
             "quantification_levels": [str(level) for level in levels],
         },
     )
-    write_result_with_representation(
-        combined,
-        output,
-        partial(writer.write, combined, output),
-    )
-    return combined
+    groups = group_observations(combined)
+    outputs = _group_output_paths(groups, output)
+    for group, target in zip(groups, outputs, strict=True):
+        formats.write_parsed_levels(group, target)
+    combined.levels = {
+        name: group.levels[name] for name in LEVELS for group in groups if name in group.levels
+    }
+    return combined, outputs
+
+
+def _group_output_paths(groups: tuple[ParsedLevels, ...], output: Path) -> tuple[Path, ...]:
+    """Name split artifacts before writing; never leave a misleading combined result."""
+    if len(groups) == 1:
+        return (output,)
+    qualifiers = [
+        re.sub(
+            r"[^a-z0-9_]+", "_", "_".join(next(iter(group.levels.values())).obs.key_columns).lower()
+        )
+        for group in groups
+    ]
+    if len(set(qualifiers)) != len(qualifiers) or not all(qualifiers):
+        raise ConversionError("observation keys do not produce distinct output filenames")
+    outputs = tuple(output.with_name(f"{output.stem}.{key}{output.suffix}") for key in qualifiers)
+    if output.exists():
+        raise ConversionError(f"split conversion would leave an existing combined target: {output}")
+    return outputs
 
 
 def _shared_parse_provenance(
@@ -396,10 +462,12 @@ def _conversion_summary(
     *,
     software: str,
     version: str | None,
+    outputs: tuple[Path, ...],
 ) -> ConversionSummary:
     return ConversionSummary(
         software=software,
         version=version,
+        outputs=outputs,
         levels=tuple(
             LevelConversionSummary(
                 level=level,

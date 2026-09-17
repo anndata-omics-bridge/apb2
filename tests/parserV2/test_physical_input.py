@@ -13,18 +13,21 @@ import polars as pl
 import pytest
 
 from apb2.parserV2 import compile as composition
-from apb2.parserV2.parse_quant import delimited_input, parquet_input
+from apb2.parserV2.parse_quant import delimited_input, excel_input, parquet_input
 from apb2.parserV2.parse_quant.contracts import BoundInputReader
 from apb2.parserV2.parse_quant.errors import AmbiguousDialectError, IncompatibleSourceError
 from apb2.parserV2.parse_quant.parameters.source import (
     DelimitedFile,
     DelimitedFormatContract,
+    ExcelFormatContract,
+    ExcelSourceEvidence,
     Folder,
+    FrameSourceEvidence,
     InputContract,
     LevelReadPlan,
     NumericTextFormat,
     ParquetFormatContract,
-    ParquetSourceEvidence,
+    PreparedTable,
     SingleFile,
 )
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
@@ -51,6 +54,7 @@ TEXT = DelimitedFormatContract(
     number_format_candidates=(DOT, COMMA),
 )
 PARQUET = ParquetFormatContract(extensions=(".parquet",))
+WORKBOOK = ExcelFormatContract(extensions=(".txt",), sheet_name="Quantified peptide ions")
 
 
 def accepts_sample_and_feature(header: tuple[str, ...]) -> bool:
@@ -311,7 +315,8 @@ def test_a_read_returns_the_projection_in_plan_order(tmp_path: Path) -> None:
 
 
 def contract(
-    *formats: DelimitedFormatContract | ParquetFormatContract, **kwargs: object
+    *formats: DelimitedFormatContract | ExcelFormatContract | ParquetFormatContract,
+    **kwargs: object,
 ) -> InputContract:
     file_name = kwargs.get("file_name")
     assert file_name is None or isinstance(file_name, str)
@@ -369,18 +374,34 @@ def test_a_folder_bound_to_a_rule_declaring_no_candidate_names_is_incompatible(
         composition.bind_source(Folder(path=tmp_path), contract(TEXT))
 
 
-def test_the_maxquant_document_names_the_table_a_folder_must_resolve(tmp_path: Path) -> None:
+def test_the_maxquant_ion_table_selects_direct_evidence_input() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "maxquant")
     facade = ParseRuleFacade(
         load_rule_document(pair.parser_v2_path),
         "ion",
         synthetic.NO_EVIDENCE,
     )
-    write(tmp_path / "evidence.txt", "Raw file\tSequence\n")
+    assert facade.working_parameters.preparation is None
+    assert facade.working_parameters.input.file_name == "evidence.txt"
 
-    bound = composition.bind_source(Folder(path=tmp_path), facade.working_parameters.input)
 
-    assert bound.path.name == "evidence.txt"
+# ------------------------------------------------------------------------------- parquet
+
+
+def test_a_workbook_with_a_txt_suffix_reads_its_declared_sheet() -> None:
+    pair = next(candidate for candidate in document_pairs() if candidate.key == "prolinestudio")
+    path = pair.required_data_path()
+    source = SingleFile(path=path)
+    bound = composition.bind_source(source, contract(WORKBOOK))
+
+    evidence = composition.source_evidence(
+        source, bound, lambda columns: "quant_is_valid_for_protein_set" in columns
+    )
+    assert isinstance(evidence, ExcelSourceEvidence)
+    reader = composition.make_reader(bound, evidence, plan("sequence", "modifications"))
+
+    assert isinstance(reader, excel_input.ExcelInputReader)
+    assert reader.read().frame.columns == ["sequence", "modifications"]
 
 
 # ------------------------------------------------------------------------------- parquet
@@ -421,7 +442,7 @@ def test_binding_and_evidence_route_a_parquet_source_without_a_dialect(
 
     evidence = composition.source_evidence(source, bound, accepts_sample_and_feature)
 
-    assert isinstance(evidence, ParquetSourceEvidence)
+    assert isinstance(evidence, FrameSourceEvidence)
     reader = composition.make_reader(bound, evidence, plan("Sample"))
     assert isinstance(reader, parquet_input.ParquetInputReader)
 
@@ -430,7 +451,7 @@ def test_binding_and_evidence_route_a_parquet_source_without_a_dialect(
 
 
 def test_two_levels_of_one_document_read_their_own_projections(tmp_path: Path) -> None:
-    pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1")
+    pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1_8")
     document = load_rule_document(pair.parser_v2_path)
     header = (
         "Run",
@@ -492,6 +513,11 @@ def test_every_cached_vendor_export_resolves_to_one_unambiguous_reading(
         pytest.skip(f"no cached export for {pair.key}")
     facade = pair.first_admitted_facade()
     source = SingleFile(path=path)
+    if facade.working_parameters.preparation is not None:
+        prepared = composition.prepare_source(source, facade.working_parameters.preparation)
+        assert isinstance(prepared, PreparedTable)
+        assert tuple(prepared.frame.columns) == pair.header()
+        return
     bound = composition.bind_source(source, facade.working_parameters.input)
 
     # A document with several levels shares one binding, so the predicate that decides a
@@ -500,8 +526,11 @@ def test_every_cached_vendor_export_resolves_to_one_unambiguous_reading(
     evidence = composition.source_evidence(source, bound, document.matches)
 
     assert evidence.columns == pair.header()
-    if isinstance(evidence, ParquetSourceEvidence):
+    if isinstance(evidence, FrameSourceEvidence):
         assert len(evidence.dtypes) == len(evidence.columns)
+    elif isinstance(evidence, ExcelSourceEvidence):
+        assert isinstance(bound.format, ExcelFormatContract)
+        assert evidence.sheet_name == bound.format.sheet_name
     else:
         assert isinstance(bound.format, DelimitedFormatContract)
         assert evidence.number_format in bound.format.number_format_candidates

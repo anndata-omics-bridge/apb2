@@ -1,0 +1,160 @@
+{
+  "schema_version": "0.7",
+  "file_version": "1",
+  "software_name": "MSAngel",
+  "software_version_pattern": "^2\\..*",
+  "tables": [
+    {
+      "input": {
+        "shape": "wide",
+        "extensions": [
+          ".txt",
+          ".xlsx"
+        ],
+        "sheet_name": "Quantified peptide ions"
+      },
+      "base": {
+        "axis": {
+          "obs_keys": [
+            "sample"
+          ]
+        },
+        "measurements": {
+          "duplicates": {
+            "mode": "keep_first"
+          },
+          "layers": [
+            {
+              "name": "Abundance",
+              "source": "^abundance_(?:DDA_)?(?P<sample>.+)$",
+              "roles": [
+                "abundance"
+              ]
+            },
+            {
+              "name": "Raw_Abundance",
+              "source": "^raw_abundance_(?:DDA_)?(?P<sample>.+)$",
+              "required": true,
+              "roles": [
+                "abundance"
+              ]
+            },
+            {
+              "name": "Best_Score",
+              "source": "^best_score_(?:DDA_)?(?P<sample>.+)$"
+            },
+            {
+              "name": "PSM_Count",
+              "source": "^psm_count_(?:DDA_)?(?P<sample>.+)$",
+              "type": "integer"
+            },
+            {
+              "name": "Elution_Time",
+              "source": "^elution_time_(?:DDA_)?(?P<sample>.+)$"
+            },
+            {
+              "name": "Corrected_Time",
+              "source": "^corrected_time_(?:DDA_)?(?P<sample>.+)$"
+            }
+          ]
+        },
+        "columns": {
+          "var": [
+            {
+              "name": "Sequence",
+              "source": "sequence"
+            },
+            {
+              "name": "Modifications",
+              "source": "modifications"
+            },
+            {
+              "name": "Charge",
+              "source": "master_quant_peptide_ion_charge",
+              "type": "integer"
+            },
+            {
+              "name": "Same_Set_Proteins",
+              "source": "samesets_accessions"
+            },
+            {
+              "name": "Subset_Proteins",
+              "source": "subsets_accessions",
+              "required": false
+            },
+            {
+              "name": "Proteins",
+              "inputs": [
+                "Same_Set_Proteins",
+                "Subset_Proteins"
+              ],
+              "separator": ";",
+              "how": "join_nonempty",
+              "roles": [
+                "protein_assignment",
+                "fasta_accessions"
+              ]
+            },
+            {
+              "name": "ProForma_peptidoform",
+              "inputs": [
+                "Sequence"
+              ],
+              "how": "proforma_sequence"
+            },
+            {
+              "name": "ProForma_peptide",
+              "inputs": [
+                "Sequence"
+              ],
+              "how": "stripped_sequence"
+            },
+            {
+              "name": "ProForma_ion",
+              "inputs": [
+                "ProForma_peptidoform",
+                "Charge"
+              ],
+              "how": "proforma_ion"
+            }
+          ]
+        },
+        "modifications": {
+          "parser": "embedded_site_list",
+          "sequence_column": "sequence",
+          "modification_column": "modifications",
+          "delimiter": ";",
+          "entry_pattern": "^(?P<token>.+?)\\s+\\((?P<site>[^)]+)\\)$",
+          "site_base": 1,
+          "unknown_policy": "preserve",
+          "map": [
+            {
+              "token": "Carbamidomethyl",
+              "accession": "UNIMOD:4"
+            },
+            {
+              "token": "Oxidation",
+              "accession": "UNIMOD:35"
+            },
+            {
+              "token": "Acetyl",
+              "accession": "UNIMOD:1"
+            }
+          ]
+        }
+      },
+      "levels": {
+        "ion": {
+          "axis": {
+            "var_keys": [
+              "ProForma_ion"
+            ]
+          },
+          "measurements": {
+            "primary_layer": "Abundance"
+          }
+        }
+      }
+    }
+  ]
+}

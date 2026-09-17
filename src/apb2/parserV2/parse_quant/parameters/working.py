@@ -38,7 +38,7 @@ from apb2.parserV2.parse_quant.parameters.axis import (
     AxisColumnDeclaration,
     ModificationConfig,
 )
-from apb2.parserV2.parse_quant.parameters.measurements import DuplicateMode
+from apb2.parserV2.parse_quant.parameters.measurements import DuplicateMode, NumericType
 from apb2.parserV2.parse_quant.parameters.source import InputContract
 
 # Ruff RUF036 wants ``None`` last; the specification's ordering is otherwise identical.
@@ -284,6 +284,7 @@ class PlainNumericEncodingDeclaration:
 
     kind: Literal["plain_numeric"]
     missing_values: tuple[float, ...]
+    type: NumericType = "number"
 
 
 @dataclass(frozen=True, slots=True)
@@ -308,6 +309,7 @@ class RegexNumericEncodingDeclaration:
     kind: Literal["regex_numeric"]
     missing_values: tuple[float, ...]
     pattern: str
+    type: NumericType = "number"
 
 
 @dataclass(frozen=True, slots=True)
@@ -516,7 +518,7 @@ class WorkingParseConfiguration:
             var            key ("ProForma_ion",); 13 declared columns, 4 of them computed
             measurements   primary "Intensity", mode "aggregate", 5 layers
             modifications  (TokenRegexModificationConfig(...),) with 5 resolved entries
-            provenance     {"rule_json": "<2803 characters>", "schema_version": "0.4",
+            provenance     {"rule_json": "<2803 characters>", "schema_version": "0.7",
                             "software_name": "MaxQuant", "shape": "long",
                             "quantification_level": "ion"}
 
@@ -548,3 +550,4 @@ class WorkingParseConfiguration:
     measurements: WorkingMeasurements
     modifications: tuple[ModificationConfig, ...]
     provenance: Mapping[str, JsonValue]
+    preparation: str | None = None

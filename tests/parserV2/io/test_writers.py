@@ -357,6 +357,54 @@ def test_regex_encoding_extracts_the_number_and_treats_no_match_as_missing() -> 
     assert encoded.get_column("obs_0").to_list() == [12.5, None, None, None]
 
 
+def test_integer_encoding_accepts_whole_values_null_nan_and_unreadable_tokens() -> None:
+    encoder = PlainNumericAnnDataEncoder(
+        layer_name="MS_MS_Count",
+        missing_values=(),
+        number_format=DOT,
+        type="integer",
+    )
+
+    encoded = encoder.encode(block([1, 2.0, None, float("nan"), "unreadable"]))
+    values = encoded.get_column("obs_0").to_list()
+
+    assert values[:3] == [1.0, 2.0, None]
+    assert np.isnan(values[3])
+    assert values[4] is None
+    assert encoded.schema["obs_0"] == pl.Float64
+
+
+@pytest.mark.parametrize("invalid", [1.5, float("inf"), float("-inf")])
+def test_integer_encoding_rejects_fractional_and_infinite_values(invalid: float) -> None:
+    encoder = PlainNumericAnnDataEncoder(
+        layer_name="MS_MS_Count",
+        missing_values=(),
+        number_format=DOT,
+        type="integer",
+    )
+
+    with pytest.raises(
+        InvalidResultError,
+        match=r"integer layer 'MS_MS_Count'.*examples=",
+    ):
+        encoder.encode(block([1.0, invalid, None]))
+
+
+def test_integer_validation_bounds_reported_examples() -> None:
+    encoder = RegexNumericAnnDataEncoder(
+        layer_name="Spectral_Count",
+        missing_values=(),
+        pattern=r"value=(\S+)",
+        number_format=DOT,
+        type="integer",
+    )
+
+    with pytest.raises(InvalidResultError) as error:
+        encoder.encode(block([f"value={value + 0.5}" for value in range(10)]))
+
+    assert str(error.value).count(".5") == 5
+
+
 def test_factor_encoding_maps_declared_labels_and_codes_the_rest_as_unknown() -> None:
     encoder = FactorAnnDataEncoder(
         layer_name="Match_Type",

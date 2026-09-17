@@ -1,0 +1,11 @@
+{
+  "sample": "sample.txt",
+  "params": "sample.txt",
+  "levels": {
+    "ion": {
+      "observations": 2,
+      "variables": 2,
+      "layers": ["Abundance", "Best_Score", "PSM_Count", "Elution_Time", "Corrected_Time"]
+    }
+  }
+}

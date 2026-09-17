@@ -1,0 +1,31 @@
+Project:
+* Name: diaPASEF_ProteoBench
++ analyse_diaPASEF
+  Database Search Parameters:
+    Precursor Mass Error Tolerance: 15.00PPM
+    Fragment Mass Error Tolerance: 15.00PPM
+    Enzyme: Trypsin/P
+    Digest Mode: Specific
+    Missed Cleavage: 1
+    Target Database: ProteoBench
+    Taxonomy: all species
+    Peptide Length: 6 to 30
+    Fixed Modifications:
+    - Carbamidomethylation
+    Variable Modifications:
+    - Oxidation (M)
+    Max Variable PTM Per Peptide: 1
+  Precursor Filter:
+    Precursor FDR(%): 1.00
+  Protein Filter:
+    Proteins -10LgP >= 0
+    Proteins Unique Peptides >= 1
+  Label Free Quantification Parameters:
+    Q Method: ID-directed LFQ
+    Increased Sensitivity: Enabled
+    FDR Threshold(%): 0.0000
+    RT Range: 0.0000 <= RT <= Max
+    Peptide Feature: Avg. area>=0.000000, Quality>=0.000000, 1<=charge<=5,  and Detected in at least 0 samples per a group
+    Protein: Significance Method ANOVA, Modified Form Exclusion, Min Significance 0.0000, 0.0000<=fold change<=64.0000, at least 1 peptide used
+    Normalization: TIC
+    Normalization Strategy: RT Dependent

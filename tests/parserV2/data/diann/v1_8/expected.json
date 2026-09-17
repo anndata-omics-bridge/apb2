@@ -9,6 +9,7 @@
       "variables": 281,
       "layers": [
         "Precursor_Normalised",
+        "Ms1_Normalised",
         "Precursor_Quantity",
         "Ms1_Area",
         "Q_Value",

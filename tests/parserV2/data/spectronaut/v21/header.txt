@@ -1,0 +1,77 @@
+E.Errors
+E.Warnings
+E.LFQMethod
+R.Condition
+R.Replicate
+R.Fraction
+R.FileName
+R.Label
+PG.LibraryQvalue
+PG.Pvalue
+PG.Qvalue
+PG.PEP
+PG.Cscore (Run-Wise)
+PG.QValue (Run-Wise)
+PG.PEP (Run-Wise)
+PG.PValue (Run-Wise)
+PG.Cscore
+PG.RunEvidenceCount
+PG.ProteinGroups
+PG.GroupLabel
+PG.ProteinAccessions
+PG.Quantity
+PEP.GroupingKey
+PEP.GroupingKeyType
+PEP.StrippedSequence
+PEP.NrOfMissedCleavages
+PEP.IsProteotypic
+PEP.RunEvidenceCount
+PEP.Rank
+PEP.UsedForProteinGroupQuantity
+PEP.AllOccurringOrganisms
+EG.InSourceFragmentationClass
+EG.InSourceFragmentationParentID
+EG.InSourceFragmentationParentQvalue
+EG.InSourceFragmentationDeltaRT
+EG.UserGroup
+EG.MinProfileQvalue
+EG.PercentileQvalue
+EG.AvgProfileQvalue
+EG.MaxProfileQvalue
+EG.GlobalPrecursorQvalue
+EG.LibraryQvalue
+EG.ModifiedSequence
+EG.ModifiedPeptide
+EG.IsDecoy
+EG.UsedForProteinGroupQuantity
+EG.UsedForPeptideQuantity
+EG.IntPIMID
+EG.Workflow
+EG.iRTPredicted
+EG.iRTEmpirical
+EG.ApexRT
+EG.RTPredicted
+EG.IsVerified
+EG.Cscore
+EG.NormalizedCscore
+EG.GlobalCScore
+EG.Qvalue
+EG.PEP
+EG.MinChannelQvalue
+EG.MaxChannelQvalue
+EG.IsUserPeak
+EG.IsImputed
+EG.TargetQuantity (Settings)
+EG.ReferenceQuantity (Settings)
+EG.TotalQuantity (Settings)
+FG.XICDBID
+FG.Charge
+FG.Mass
+FG.Qvalue
+FG.CScore
+FG.PrecMz
+FG.PrecMzCalibrated
+FG.LabeledSequence
+FG.IntMID
+FG.PrecWindowNumber
+FG.Quantity

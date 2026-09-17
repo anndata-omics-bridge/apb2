@@ -12,6 +12,7 @@ table has.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -62,7 +63,26 @@ class Folder:
     path: Path
 
 
-type InputSource = SingleFile | DelimitedFile | Folder
+@dataclass(frozen=True, slots=True)
+class InputFiles:
+    """Explicit physical inputs; keys may bind renamed files to canonical vendor names."""
+
+    path: Path
+    files: Mapping[str, Path]
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedTable:
+    """One preparation result shared by detection and every requested level."""
+
+    path: Path
+    frame: pl.DataFrame
+    how: str
+    source_paths: tuple[Path, ...]
+    duration_seconds: float
+
+
+type InputSource = SingleFile | DelimitedFile | Folder | InputFiles | PreparedTable
 
 
 # ------------------------------------------------------------------- rule-permitted formats
@@ -91,7 +111,15 @@ class ParquetFormatContract:
     extensions: tuple[str, ...]
 
 
-type PhysicalFormatContract = DelimitedFormatContract | ParquetFormatContract
+@dataclass(frozen=True, slots=True)
+class ExcelFormatContract:
+    """One named sheet in an Excel workbook, independent of its filename suffix."""
+
+    extensions: tuple[str, ...]
+    sheet_name: str
+
+
+type PhysicalFormatContract = DelimitedFormatContract | ParquetFormatContract | ExcelFormatContract
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,14 +145,23 @@ class DelimitedSourceEvidence:
 
 
 @dataclass(frozen=True, slots=True)
-class ParquetSourceEvidence:
-    """One Parquet file's physical schema; ``dtypes`` names and order match ``columns``."""
+class FrameSourceEvidence:
+    """Native schema from a Parquet file or a prepared frame, in column order."""
 
     columns: tuple[str, ...]
     dtypes: tuple[tuple[str, pl.DataType], ...]
 
 
-type SourceEvidence = DelimitedSourceEvidence | ParquetSourceEvidence
+@dataclass(frozen=True, slots=True)
+class ExcelSourceEvidence:
+    """The header exposed by one named workbook sheet."""
+
+    columns: tuple[str, ...]
+    sheet_name: str
+    number_format: NumericTextFormat
+
+
+type SourceEvidence = DelimitedSourceEvidence | FrameSourceEvidence | ExcelSourceEvidence
 
 
 # --------------------------------------------------------------------- resolved read + shape

@@ -2,11 +2,20 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field
 
 from apb2.parserV2.vendor_parse_rules.schema.base import ModelBase
+
+type SampleKeyNormalization = Literal["mass_spec_basename"]
+
+
+class ExactSampleMatching(ModelBase):
+    """Exact matching after an explicitly declared key normalization."""
+
+    mode: Literal["exact"]
+    normalize: SampleKeyNormalization
 
 
 class FuzzySampleMatching(ModelBase):
@@ -16,9 +25,16 @@ class FuzzySampleMatching(ModelBase):
     cutoff: float = Field(ge=0.0, le=1.0)
     margin: float = Field(ge=0.0, le=1.0)
     near_miss_limit: int = Field(ge=1, le=50)
+    normalize: SampleKeyNormalization | None = None
+
+
+type SampleMatching = Annotated[
+    ExactSampleMatching | FuzzySampleMatching,
+    Field(discriminator="mode"),
+]
 
 
 class SampleAnnotation(ModelBase):
     """Document-level policy used when later matching sample annotations."""
 
-    matching: FuzzySampleMatching
+    matching: SampleMatching

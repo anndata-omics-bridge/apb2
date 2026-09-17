@@ -26,7 +26,7 @@ from functools import partial
 from pathlib import Path
 from typing import Literal
 
-from apb2.parserV2.parse_quant import delimited_input, parquet_input
+from apb2.parserV2.parse_quant import delimited_input, excel_input, parquet_input
 from apb2.parserV2.parse_quant.axis_columns import (
     BooleanAxisCoercer,
     CoalesceColumn,
@@ -42,6 +42,7 @@ from apb2.parserV2.parse_quant.contracts import (
     AxisPhaseRuntimePlan,
     AxisRuntimePlan,
     AxisValueCoercer,
+    BoundInputReader,
     ColumnComputer,
     DuplicatePolicy,
     FragmentTableSeparator,
@@ -52,6 +53,7 @@ from apb2.parserV2.parse_quant.contracts import (
     SourceDecomposer,
 )
 from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation
+from apb2.parserV2.parse_quant.data.parsed import JsonValue
 from apb2.parserV2.parse_quant.decomposition import (
     DelimitedFragmentSourceDecomposer,
     LongSourceDecomposer,
@@ -84,6 +86,8 @@ from apb2.parserV2.parse_quant.io.anndata_writer import (
 )
 from apb2.parserV2.parse_quant.io.parquet_writer import ParquetWriter
 from apb2.parserV2.parse_quant.modifications import (
+    EmbeddedSiteListNormalizer,
+    EmbeddedSiteListRules,
     SiteListNormalizer,
     SiteListRules,
     TokenRegexNormalizer,
@@ -95,6 +99,7 @@ from apb2.parserV2.parse_quant.parameters.axis import (
     AxisSourcePlan,
     CoalesceColumnConfig,
     ComputedColumnConfig,
+    EmbeddedSiteListModificationConfig,
     JoinNonemptyColumnConfig,
     ModificationConfig,
     ProformaIonColumnConfig,
@@ -118,17 +123,20 @@ from apb2.parserV2.parse_quant.parameters.resolved import ResolvedLevelPlan
 from apb2.parserV2.parse_quant.parameters.source import (
     DecompositionConfig,
     DelimitedFile,
+    ExcelFormatContract,
+    ExcelSourceEvidence,
     Folder,
     FragmentSeparationConfig,
+    FrameSourceEvidence,
     InputContract,
     InputSource,
     LevelReadPlan,
     LongDecompositionConfig,
     NumericTextFormat,
     ParquetFormatContract,
-    ParquetSourceEvidence,
     PhysicalFormatContract,
     PositionalFragmentSeparationConfig,
+    PreparedTable,
     SingleFile,
     SourceEvidence,
     WideDecompositionConfig,
@@ -141,7 +149,9 @@ from apb2.parserV2.parse_quant.parameters.working import (
     WorkingParseConfiguration,
 )
 from apb2.parserV2.parse_quant.parser import Parser
+from apb2.parserV2.parse_quant.prepared_input import PreparedInputReader
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
+from apb2.parserV2.prepare_source import prepare_source
 from apb2.parserV2.vendor_parse_rules.document import (
     RuleDocument,
     RuleNotApplicable,
@@ -179,7 +189,7 @@ _DUPLICATE_POLICIES: Mapping[DuplicateMode, DuplicatePolicy] = {
     "keep_first": KeepFirstDuplicate(),
     "aggregate": AggregateNumericDuplicates(),
 }
-"""One policy per executable duplicate mode; schema 0.4 declares no others."""
+"""One policy per executable duplicate mode; schema 0.7 declares no others."""
 
 
 def make_axis_coercer(
@@ -228,6 +238,20 @@ def make_modification_normalizer(config: ModificationConfig) -> ModificationNorm
                 entries=config.entries,
             ),
             sources=(config.sequence_column, config.modification_column, config.site_column),
+            proforma_output=config.proforma_output,
+            stripped_output=config.stripped_output,
+        )
+    if isinstance(config, EmbeddedSiteListModificationConfig):
+        return EmbeddedSiteListNormalizer(
+            rules=EmbeddedSiteListRules(
+                delimiter=config.delimiter,
+                entry_pattern=config.entry_pattern,
+                site_base=config.site_base,
+                case_sensitive=config.case_sensitive,
+                unknown_policy=config.unknown_policy,
+                entries=config.entries,
+            ),
+            sources=(config.sequence_column, config.modification_column),
             proforma_output=config.proforma_output,
             stripped_output=config.stripped_output,
         )
@@ -321,11 +345,13 @@ def make_anndata_layer_encoder(config: AnnDataLayerEncodingConfig) -> AnnDataLay
             missing_values=config.missing_values,
             pattern=config.pattern,
             number_format=_notation(config.number_format),
+            type=config.type,
         )
     return PlainNumericAnnDataEncoder(
         layer_name=config.layer_name,
         missing_values=config.missing_values,
         number_format=_notation(config.number_format),
+        type=config.type,
     )
 
 
@@ -413,14 +439,37 @@ def _compile_level[WriterT: ParsedLevelWriter](
 ) -> tuple[Parser, WriterT]:
     """Resolve one source once, then construct its parser and configured writer together."""
     working = facade.working_parameters
-    bound = bind_source(source, working.input)
-    evidence = source_evidence(source, bound, header_predicate(working))
+    source = prepare_source(source, working.preparation)
+    preparation: dict[str, JsonValue] = {}
+    reader_from: Callable[[ResolvedLevelPlan], BoundInputReader]
+    if isinstance(source, PreparedTable):
+        evidence = FrameSourceEvidence(
+            columns=tuple(source.frame.columns), dtypes=tuple(source.frame.schema.items())
+        )
+        reader_from = partial(PreparedInputReader, source.frame)
+        preparation = {
+            "input_preparation": {
+                "how": source.how,
+                "sources": [str(path) for path in source.source_paths],
+                "duration_seconds": source.duration_seconds,
+                "rows": source.frame.height,
+                "estimated_size_bytes": source.frame.estimated_size(),
+            }
+        }
+    else:
+        bound = bind_source(source, working.input)
+        evidence = source_evidence(source, bound, header_predicate(working))
+
+        def read_physical(plan: ResolvedLevelPlan) -> BoundInputReader:
+            return make_reader(bound, evidence, plan.read)
+
+        reader_from = read_physical
     resolved = facade.resolve_source(evidence)
     writer = writer_from(resolved)
     return (
         Parser(
             level=resolved.level,
-            input_reader=make_reader(bound, evidence, resolved.read),
+            input_reader=reader_from(resolved),
             decomposer=make_source_decomposer(
                 resolved.decomposition, resolved.obs.source, resolved.var.source
             ),
@@ -437,7 +486,11 @@ def _compile_level[WriterT: ParsedLevelWriter](
             writer=writer,
             # The plan is provenance too: what the rule permitted is already in
             # ``rule_json``, and this is what this source actually resolved to.
-            provenance={**resolved.provenance, PLAN_JSON_KEY: resolved_plan_json(resolved)},
+            provenance={
+                **resolved.provenance,
+                **preparation,
+                PLAN_JSON_KEY: resolved_plan_json(resolved),
+            },
         ),
         writer,
     )
@@ -486,10 +539,16 @@ def compile_parsers(
     """
     parsers: list[Parser] = []
     skipped: dict[str, str] = {}
+    prepared: dict[tuple[QuantificationLevel, ...], InputSource] = {}
     for level in _requested_levels(levels):
         try:
             facade = ParseRuleFacade(document, level, parameter_evidence)
-            parsers.append(ParseRuleCompiler(facade=facade, output=output).compile(source))
+            how = facade.working_parameters.preparation
+            table = next(table for table in document.table_levels if level in table)
+            if how is not None and table not in prepared:
+                prepared[table] = prepare_source(source, how)
+            level_source = source if how is None else prepared[table]
+            parsers.append(ParseRuleCompiler(facade=facade, output=output).compile(level_source))
         except (RuleNotApplicable, IncompatibleSourceError) as reason:
             skipped[level] = str(reason)
     if not parsers:
@@ -512,10 +571,16 @@ def compile_mudata_parsers(
     writers: dict[QuantificationLevel, AnnDataWriter] = {}
     skipped: dict[str, str] = {}
     writer_from = partial(make_anndata_writer, checks=checks)
+    prepared: dict[tuple[QuantificationLevel, ...], InputSource] = {}
     for level in _requested_levels(levels):
         try:
             facade = ParseRuleFacade(document, level, parameter_evidence)
-            parser, writer = _compile_level(facade, source, writer_from)
+            how = facade.working_parameters.preparation
+            table = next(table for table in document.table_levels if level in table)
+            if how is not None and table not in prepared:
+                prepared[table] = prepare_source(source, how)
+            level_source = source if how is None else prepared[table]
+            parser, writer = _compile_level(facade, level_source, writer_from)
             parsers.append(parser)
             writers[level] = writer
         except (RuleNotApplicable, IncompatibleSourceError) as reason:
@@ -570,7 +635,11 @@ def _modification_sources(working: WorkingParseConfiguration) -> tuple[str, ...]
         for column in (
             (config.sequence_column, config.modification_column, config.site_column)
             if isinstance(config, SiteListModificationConfig)
-            else (config.source_column,)
+            else (
+                (config.sequence_column, config.modification_column)
+                if isinstance(config, EmbeddedSiteListModificationConfig)
+                else (config.source_column,)
+            )
         )
     )
 
@@ -613,6 +682,8 @@ def source_evidence(
     """Observe the physical evidence one bound table exposes, before any full read."""
     if isinstance(bound.format, ParquetFormatContract):
         return parquet_input.schema_evidence(bound.path)
+    if isinstance(bound.format, ExcelFormatContract):
+        return excel_input.schema_evidence(bound.path, bound.format, accepts)
     if isinstance(source, DelimitedFile):
         return delimited_input.stated_evidence(source, bound.format, accepts)
     return delimited_input.detected_evidence(bound.path, bound.format, accepts)
@@ -626,6 +697,8 @@ def source_recognition_evidence(
     """Observe only schema/header evidence for packaged-rule recognition."""
     if isinstance(bound.format, ParquetFormatContract):
         return parquet_input.schema_evidence(bound.path)
+    if isinstance(bound.format, ExcelFormatContract):
+        return excel_input.schema_evidence(bound.path, bound.format, accepts)
     if isinstance(source, DelimitedFile):
         return delimited_input.stated_evidence(source, bound.format, accepts)
     return delimited_input.detected_header_evidence(bound.path, bound.format, accepts)
@@ -635,10 +708,16 @@ def make_reader(
     bound: BoundTable,
     evidence: SourceEvidence,
     plan: LevelReadPlan,
-) -> delimited_input.DelimitedInputReader | parquet_input.ParquetInputReader:
+) -> (
+    delimited_input.DelimitedInputReader
+    | excel_input.ExcelInputReader
+    | parquet_input.ParquetInputReader
+):
     """Construct the reader this bound source, its evidence, and one level plan describe."""
-    if isinstance(evidence, ParquetSourceEvidence):
+    if isinstance(evidence, FrameSourceEvidence):
         return parquet_input.make_parquet_reader(bound.path, plan)
+    if isinstance(evidence, ExcelSourceEvidence):
+        return excel_input.make_excel_reader(bound.path, evidence, plan)
     return delimited_input.make_delimited_reader(bound.path, evidence, plan)
 
 
@@ -646,7 +725,9 @@ def _path_of(source: InputSource, contract: InputContract) -> Path:
     """The one file this source names, resolving an exact folder file name when needed."""
     if isinstance(source, SingleFile | DelimitedFile):
         return source.path
-    return _folder_path(source, contract)
+    if isinstance(source, Folder):
+        return _folder_path(source, contract)
+    raise IncompatibleSourceError("multiple/prepared inputs require a preparation rule")
 
 
 def _folder_path(source: Folder, contract: InputContract) -> Path:

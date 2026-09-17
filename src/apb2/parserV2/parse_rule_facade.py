@@ -41,6 +41,7 @@ from apb2.parserV2.parse_quant.parameters.axis import (
     AxisSourcePlan,
     CoalesceColumnConfig,
     ComputedColumnConfig,
+    EmbeddedSiteListModificationConfig,
     JoinNonemptyColumnConfig,
     ModificationConfig,
     ModificationMapEntry,
@@ -71,14 +72,16 @@ from apb2.parserV2.parse_quant.parameters.source import (
     DelimitedFormatContract,
     DelimitedFragmentDecompositionConfig,
     DelimitedSourceEvidence,
+    ExcelFormatContract,
+    ExcelSourceEvidence,
     FragmentSeparationConfig,
+    FrameSourceEvidence,
     InputContract,
     LevelReadPlan,
     LongDecompositionConfig,
     LongRawLayerSource,
     NumericTextFormat,
     ParquetFormatContract,
-    ParquetSourceEvidence,
     PhysicalFormatContract,
     PositionalFragmentSeparationConfig,
     SourceEvidence,
@@ -126,11 +129,15 @@ from apb2.parserV2.vendor_parse_rules.schema.axis import (
 from apb2.parserV2.vendor_parse_rules.schema.base_formats import (
     DELIMITED_BASE_FORMATS,
     PARQUET_EXTENSIONS,
+    WORKBOOK_EXTENSIONS,
     BaseDelimitedFormat,
     DetectedNumberFormat,
     SupportedExtension,
 )
-from apb2.parserV2.vendor_parse_rules.schema.base_modifications import SiteListModifications
+from apb2.parserV2.vendor_parse_rules.schema.base_modifications import (
+    EmbeddedSiteListModifications,
+    SiteListModifications,
+)
 from apb2.parserV2.vendor_parse_rules.schema.fragments import ColumnLabeledFragments
 from apb2.parserV2.vendor_parse_rules.schema.input import Input
 from apb2.parserV2.vendor_parse_rules.schema.measurements import (
@@ -234,6 +241,7 @@ class ParseRuleFacade:
             measurements=ParseRuleFacade._project_measurements(rule),
             modifications=modifications,
             provenance=ParseRuleFacade._project_provenance(rule),
+            preparation=effective.preparation,
         )
 
     @staticmethod
@@ -260,6 +268,10 @@ class ParseRuleFacade:
             ):
                 raise ValueError("Parquet input cannot declare text-format detection")
             return ParquetFormatContract(extensions=(extension,))
+        if declared.sheet_name is not None:
+            if extension not in WORKBOOK_EXTENSIONS:
+                raise ValueError(f"workbook sheet input cannot use extension {extension!r}")
+            return ExcelFormatContract(extensions=(extension,), sheet_name=declared.sheet_name)
         base = DELIMITED_BASE_FORMATS[extension]
         delimiters = (
             (base.delimiter,)
@@ -518,9 +530,10 @@ class ParseRuleFacade:
                 kind="regex_numeric",
                 missing_values=tuple(layer.missing_values),
                 pattern=layer.value_pattern.pattern,
+                type=layer.type,
             )
         return PlainNumericEncodingDeclaration(
-            kind="plain_numeric", missing_values=tuple(layer.missing_values)
+            kind="plain_numeric", missing_values=tuple(layer.missing_values), type=layer.type
         )
 
     @staticmethod
@@ -562,6 +575,22 @@ class ParseRuleFacade:
                     entries=entries,
                 ),
             )
+        if isinstance(declared, EmbeddedSiteListModifications):
+            return (
+                EmbeddedSiteListModificationConfig(
+                    kind="embedded_site_list",
+                    sequence_column=declared.sequence_column,
+                    modification_column=declared.modification_column,
+                    delimiter=declared.delimiter,
+                    entry_pattern=declared.entry_pattern,
+                    site_base=declared.site_base,
+                    case_sensitive=declared.case_sensitive,
+                    unknown_policy=declared.unknown_policy,
+                    proforma_output=declared.output_column,
+                    stripped_output=_STRIPPED_OUTPUT,
+                    entries=entries,
+                ),
+            )
         return (
             TokenRegexModificationConfig(
                 kind="token_regex",
@@ -581,7 +610,7 @@ class ParseRuleFacade:
         """What the parse section records: who wrote it, the rule, and the facts steps read.
 
         ``produced_by`` and the role maps are not decoration. Later APB steps must not have
-        to validate a schema-0.4 document to learn which columns and layers carry a meaning.
+        to validate a schema-0.7 document to learn which columns and layers carry a meaning.
         """
         provenance: dict[str, JsonValue] = {
             "produced_by": PRODUCER,
@@ -597,7 +626,8 @@ class ParseRuleFacade:
         }
         if rule.sample_annotation is not None:
             provenance["sample_annotation_matching"] = rule.sample_annotation.matching.model_dump(
-                mode="json"
+                mode="json",
+                exclude_none=True,
             )
         return provenance
 
@@ -969,7 +999,7 @@ class ParseRuleFacade:
         )
         needed = lexical | layers.source_columns
         projected = tuple(name for name in evidence.columns if name in needed)
-        if isinstance(evidence, ParquetSourceEvidence):
+        if isinstance(evidence, FrameSourceEvidence):
             # Parquet carries its own schema; overriding it would discard physical types.
             return LevelReadPlan(
                 projected_columns=projected,
@@ -1059,7 +1089,7 @@ class ParseRuleFacade:
         """
         if self._configuration.measurements.duplicate_mode != "aggregate":
             return
-        if isinstance(evidence, ParquetSourceEvidence):
+        if isinstance(evidence, FrameSourceEvidence):
             numeric = frozenset(name for name, dtype in evidence.dtypes if dtype.is_numeric())
             offenders = sorted(layers.source_columns - numeric)
         else:
@@ -1087,6 +1117,8 @@ def _ordered_unique(values: Iterable[str]) -> tuple[str, ...]:
 def _modification_sources(config: ModificationConfig) -> tuple[str, ...]:
     if isinstance(config, SiteListModificationConfig):
         return (config.sequence_column, config.modification_column, config.site_column)
+    if isinstance(config, EmbeddedSiteListModificationConfig):
+        return (config.sequence_column, config.modification_column)
     return (config.source_column,)
 
 
@@ -1163,7 +1195,7 @@ def _phase(
 
 def _resolved_numbers(evidence: SourceEvidence) -> NumericTextFormat:
     """The notation a retained token must be read with; Parquet values are already numbers."""
-    if isinstance(evidence, DelimitedSourceEvidence):
+    if isinstance(evidence, DelimitedSourceEvidence | ExcelSourceEvidence):
         return evidence.number_format
     return NumericTextFormat(decimal_mark=".", thousands_marks=())
 
@@ -1207,10 +1239,12 @@ def _encoding_config(
             missing_values=declaration.missing_values,
             pattern=declaration.pattern,
             number_format=numbers,
+            type=declaration.type,
         )
     return PlainNumericAnnDataEncodingConfig(
         kind="plain_numeric",
         layer_name=layer.name,
         missing_values=declaration.missing_values,
         number_format=numbers,
+        type=declaration.type,
     )

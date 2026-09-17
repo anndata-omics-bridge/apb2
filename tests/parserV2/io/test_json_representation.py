@@ -198,6 +198,7 @@ def test_version_two_representation_is_structured_bounded_and_deterministic(
     intensity = level["layers"][0]
     assert intensity["name"] == "Intensity"
     assert intensity["value_kind"] == "quantitative"
+    assert intensity["type"] == "number"
     assert intensity["unit"] == "arbitrary units"
     assert intensity["scale"] == "linear"
     assert intensity["statistics"] == {
@@ -525,6 +526,35 @@ def test_factor_layer_has_bounded_categorical_counts_and_no_numeric_summary(
     assert "observation_summaries" not in status
 
 
+def test_quantitative_sidecar_preserves_declared_integer_semantics(tmp_path: Path) -> None:
+    artifact = tmp_path / "integer.parquet"
+    artifact.mkdir()
+
+    document: dict[str, Any] = project_result(_factor_result(), artifact)
+    count = document["levels"][0]["layers"][1]
+
+    assert count["name"] == "Count"
+    assert count["type"] == "integer"
+    assert count["value_kind"] == "quantitative"
+
+
+def test_stored_plans_without_numeric_type_default_to_number(tmp_path: Path) -> None:
+    parsed = _factor_result()
+    plan = json.loads(str(parsed.levels["ion"].uns["plan_json"]))
+    for encoding in plan["ann_data"]["layer_encodings"][:2]:
+        del encoding["type"]
+    parsed.levels["ion"].uns["plan_json"] = json.dumps(plan)
+    artifact = tmp_path / "legacy-plan.parquet"
+    artifact.mkdir()
+
+    document: dict[str, Any] = project_result(parsed, artifact)
+
+    assert [layer["type"] for layer in document["levels"][0]["layers"][:2]] == [
+        "number",
+        "number",
+    ]
+
+
 def test_factor_missing_code_is_reserved(tmp_path: Path) -> None:
     artifact = tmp_path / "factor.parquet"
     artifact.mkdir()
@@ -690,6 +720,7 @@ def _factor_plan() -> str:
                         "layer_name": name,
                         "missing_values": [],
                         "number_format": {"decimal_mark": ".", "thousands_marks": []},
+                        "type": "integer" if name == "Count" else "number",
                     }
                     for name in ("Intensity", "Count")
                 ]

@@ -15,22 +15,26 @@ This table has one row per packaged rule document.
 | [AlphaDIA 1.12](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/alphadia/v1_12/rules.json) | 1.12.x | `.tsv` | long | AlphaDIA run log (text) |
 | [AlphaDIA 2](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/alphadia/v2/rules.json) | 2.x | `.parquet` | long | AlphaDIA run log (text) |
 | [AlphaPept](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/alphapept/rules.json) | 0.5.x | `.csv` | long | YAML parameter file |
-| [DIA-NN 1](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/diann/v1/rules.json) | 1.x | `.tsv` | long | DIA-NN log or captured command/cfg text |
+| [DIA-NN 1.8/1.9](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/diann/v1_8/rules.json) | 1.8.x–1.9.x | `.tsv`, `.txt`, `.parquet` | long | DIA-NN log or captured command/cfg text |
 | [DIA-NN 1.7](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/diann/v1_7/rules.json) | 1.0.x–1.7.x | `.tsv` | long | DIA-NN log or captured command/cfg text |
 | [DIA-NN 2](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/diann/v2/rules.json) | 2.x | `.parquet` | long | DIA-NN log or captured command/cfg text |
 | [FragPipe](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/fragpipe/rules.json) | 22.x or 23.x | `.tsv` | wide | `fragpipe.workflow` |
-| [MaxQuant](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant/rules.json) | 1.5.x, 1.6.x, or 2.x | `evidence.txt` | long | `mqpar.xml` |
-| [MaxQuant peptides](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant_peptides/rules.json) | 1.5.x, 1.6.x, or 2.x | `peptides.txt` | wide | `mqpar.xml` |
-| [MaxQuant protein groups](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant_proteingroups/rules.json) | 1.5.x, 1.6.x, or 2.x | `proteinGroups.txt` | wide | `mqpar.xml` |
-| [MaxQuant modification-specific peptides](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant_modificationspecificpeptides/rules.json) | 1.5.x, 1.6.x, or 2.x | `modificationSpecificPeptides.txt` | wide | `mqpar.xml` |
+| [i2MassChroQ](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/i2masschroq/rules.json) | 1.x | `.tsv`, `.txt` | long | i2MassChroQ parameter TSV |
+| [MaxQuant](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant/rules.json) | 1.5.x, 1.6.x, or 2.x | `evidence.txt`, `modificationSpecificPeptides.txt`, `peptides.txt`, `proteinGroups.txt` | long / wide | `mqpar.xml` |
+| [MSAngel](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/msangel/rules.json) | 2.x | `Quantified peptide ions` sheet in an XLSX workbook (`.txt` or `.xlsx`) | wide | MSAngel workflow JSON |
 | [PEAKS](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/peaks/rules.json) | 13.x | `.csv` | wide | PEAKS settings text report |
+| [ProlineStudio](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/prolinestudio/rules.json) | 2.x | `Quantified peptide ions` sheet in an XLSX workbook (`.txt` or `.xlsx`) | wide | parameter sheets in the result workbook |
+| [quantms](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/quantms/rules.json) | 1.x | `.csv` | long | quantms versions YAML |
 | [Sage](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/sage/rules.json) | 0.x | `.tsv` | wide | Sage JSON parameter file |
 | [Spectronaut](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/spectronaut/rules.json) | 19.x or 20.x | `.tsv` | long | Spectronaut settings text report |
 | [Spectronaut 15](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/spectronaut/v15/rules.json) | 15.x | `.tsv` | long | Spectronaut settings text report |
+| [Spectronaut 21](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/spectronaut/v21/rules.json) | 21.x | `.tsv` | long | Spectronaut settings text report |
 | [WOMBAT](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/wombat/rules.json) | 0.9.11 | `.csv` | wide | WOMBAT YAML parameter file |
 
 `--software` and the Python parameter-parser registry use lower-case software names; DIA-NN accepts
 both `diann` and `dia-nn`.
+
+MaxQuant uses two table groups: direct evidence → ion (`Raw_File`), and joined modification-specific peptide, peptide and protein exports → higher levels (`Experiment`). All nonempty subsets work with a directory or explicit companions. A complete one-to-one run/experiment mapping aligns observations; fractionated or unmapped inputs produce separate results. See [conversion and output naming](conversion.md#output-naming).
 
 ## Quantification levels by rule
 
@@ -42,18 +46,20 @@ A check mark means that the linked rule document can convert that level. APB2 re
 | [AlphaDIA 1.12](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/alphadia/v1_12/rules.json) | ✓ | — | — | — | — |
 | [AlphaDIA 2](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/alphadia/v2/rules.json) | ✓ | — | — | — | — |
 | [AlphaPept](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/alphapept/rules.json) | ✓ | — | — | — | — |
-| [DIA-NN 1](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/diann/v1/rules.json) | ✓ | — | — | ✓ | ✓ |
+| [DIA-NN 1.8/1.9](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/diann/v1_8/rules.json) | ✓ | — | — | ✓ | ✓ |
 | [DIA-NN 1.7](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/diann/v1_7/rules.json) | ✓ | — | — | ✓ | ✓ |
 | [DIA-NN 2](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/diann/v2/rules.json) | ✓ | — | — | ✓ | — |
 | [FragPipe](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/fragpipe/rules.json) | ✓ | — | — | — | — |
-| [MaxQuant](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant/rules.json) | ✓ | — | — | — | — |
-| [MaxQuant peptides](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant_peptides/rules.json) | — | — | ✓ | — | — |
-| [MaxQuant protein groups](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant_proteingroups/rules.json) | — | — | — | ✓ | — |
-| [MaxQuant modification-specific peptides](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant_modificationspecificpeptides/rules.json) | — | ✓ | — | — | — |
+| [i2MassChroQ](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/i2masschroq/rules.json) | ✓ | — | — | — | — |
+| [MaxQuant](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant/rules.json) | ✓ | ✓ | ✓ | ✓ | — |
+| [MSAngel](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/msangel/rules.json) | ✓ | — | — | — | — |
 | [PEAKS](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/peaks/rules.json) | ✓ | — | — | — | — |
+| [ProlineStudio](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/prolinestudio/rules.json) | ✓ | — | — | — | — |
+| [quantms](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/quantms/rules.json) | ✓ | — | — | — | — |
 | [Sage](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/sage/rules.json) | ✓ | ✓ | — | — | — |
 | [Spectronaut](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/spectronaut/rules.json) | ✓ | — | — | ✓ | ✓ |
 | [Spectronaut 15](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/spectronaut/v15/rules.json) | ✓ | — | — | ✓ | ✓ |
+| [Spectronaut 21](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/spectronaut/v21/rules.json) | ✓ | — | — | ✓ | ✓ |
 | [WOMBAT](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/wombat/rules.json) | ✓ | ✓ | — | — | — |
 
 ## Parameter parsers without packaged conversion rules

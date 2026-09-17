@@ -54,8 +54,10 @@ and `record_annotation_provenance` through `apb2.annotation_extension`. APB2 doe
 branch on convention names. `apb-proteobench` is the first external interpreter.
 
 The optional rule declaration `sample_annotation.matching` is a Pydantic storage schema. Parser V2
-projects it into JSON-compatible level provenance. Annotation matching constructs its runtime
-matcher from that persisted value and never imports the vendor-rule package.
+projects its exact/fuzzy mode and optional key normalization into JSON-compatible level provenance.
+Annotation matching constructs its runtime matcher from that persisted value and never imports the
+vendor-rule package. Normalization changes comparison keys only; collision checks and diagnostic
+evidence remain owned by matching.
 
 ## Storage behavior
 

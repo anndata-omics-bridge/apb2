@@ -15,11 +15,9 @@ from typing import cast
 import pytest
 
 from apb2.parserV2.conversion_facade import convert_all_from_rule_config
-from apb2.parserV2.vendor_parse_rules.loader import PACKAGED
-from parserV2.fixtures import DATA_DIR, committed_dir, committed_sample
-from parserV2.rule_inventory import document_key
+from parserV2.fixtures import DATA_DIR, committed_dir, committed_sample, level_pairs
 
-_KEYS = tuple(sorted(document_key(path) for path in PACKAGED))
+_KEYS = tuple(sorted({pair.sample_key for pair, _level in level_pairs()}))
 
 
 def test_every_packaged_document_has_committed_artifacts() -> None:
@@ -39,7 +37,7 @@ def test_committed_sample_converts_to_the_recorded_expectations(key: str, tmp_pa
 
     summary = convert_all_from_rule_config(
         data=sample,
-        output=tmp_path / "converted",
+        output=tmp_path / "converted.h5mu",
         rule_config=_rule_config(key),
         parameters_path=folder / str(params) if params is not None else None,
         parameters_software=None,
@@ -66,4 +64,4 @@ def test_committed_folders_all_belong_to_packaged_documents() -> None:
 
 
 def _rule_config(key: str) -> Path:
-    return next(path for path in PACKAGED if document_key(path) == key)
+    return next(pair.parser_v2_path for pair, _level in level_pairs() if pair.sample_key == key)

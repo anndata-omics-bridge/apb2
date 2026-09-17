@@ -177,6 +177,19 @@ def _group_field(document: FlatDocument, *path: str) -> str:
     )
 
 
+def _optional_group_entry(document: FlatDocument, group: str, entry: str) -> str | None:
+    """Read one nested group entry, treating an explicitly empty group as missing."""
+    values = _values_under(document, "parameterGroups", "parameterGroup", group, entry)
+    if values:
+        return _single_text(values, group)
+    group_values = _values_under(document, "parameterGroups", "parameterGroup", group)
+    if group_values == [None]:
+        return None
+    if not group_values:
+        raise KeyError(f"MaxQuant parameters contain no {group} field")
+    raise TypeError(f"MaxQuant {group} must contain one {entry} value")
+
+
 def _msms_field(document: FlatDocument, name: str) -> str:
     """Read one value from the MS2 fragmentation entry selected by ``ms2frac`` as text."""
     return _single_text(_values_under(document, "msmsParamsArray", "msmsParams", name), name)
@@ -269,7 +282,7 @@ def extract_params(
         enable_match_between_runs=_field(document, "matchBetweenRuns").lower() == "true",
         precursor_mass_tolerance=precursor_tolerance,
         fragment_mass_tolerance=fragment_tolerance,
-        enzyme=_group_field(document, "enzymes", "string"),
+        enzyme=_optional_group_entry(document, "enzymes", "string"),
         semi_enzymatic=enzyme_mode != 0,
         allowed_miscleavages=int(_group_field(document, "maxMissedCleavages")),
         min_peptide_length=_min_peptide_length(document),

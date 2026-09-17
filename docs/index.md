@@ -35,7 +35,7 @@ Both interfaces expose three separate workflows:
 ```text
 vendor table + parameter evidence
     -> convert
-    -> .h5ad or .h5mu
+    -> h5ad/h5mu, Parquet, or DuckDB
 
 APB2 result
     -> reformat
@@ -56,10 +56,10 @@ Convert one quantification level to AnnData:
 apb2 convert report.tsv ion --params search-parameters.txt --output results/ion
 ```
 
-Omit the level to write every compatible level into MuData:
+Omit the level to write every compatible level, and select the storage writer directly:
 
 ```bash
-apb2 convert report.tsv --params search-parameters.txt --output results/all-levels
+apb2 convert report.tsv --params search-parameters.txt --format parquet --output results/all-levels
 ```
 
 The [vendor-conversion guide](conversion.md) covers rule selection, explicit rule documents,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Literal
 
 import anndata
 import mudata
@@ -12,54 +13,63 @@ import pytest
 from apb2.cli import ConvertCliOptions, convert
 from apb2.parserV2.conversion_facade import ConversionError
 from apb2.parserV2.parse_quant.io.anndata_writer import NAMESPACE, PARSE_NAMESPACE
+from apb2.parserV2.parse_quant.io.formats import read_parsed_levels
 from apb2.parserV2.parse_quant.io.json_representation import sidecar_path
 
 _DOCUMENT = {
-    "schema_version": "0.4",
+    "schema_version": "0.7",
     "file_version": "1",
     "software_name": "CliTest",
     "software_version_pattern": "^1$",
-    "input": {"shape": "long", "extensions": [".tsv"]},
-    "base": {
-        "axis": {"obs_keys": ["sample"], "var_keys": ["feature"]},
-        "columns": {
-            "obs": [{"name": "sample", "source": "Run"}],
-            "var": [{"name": "feature", "source": "Precursor"}],
-        },
-        "measurements": {
-            "primary_layer": "Abundance",
-            "layers": [{"name": "Abundance", "source": "Intensity"}],
-        },
-    },
-    "levels": {"ion": {}},
+    "tables": [
+        {
+            "input": {"shape": "long", "extensions": [".tsv"]},
+            "base": {
+                "axis": {"obs_keys": ["sample"], "var_keys": ["feature"]},
+                "columns": {
+                    "obs": [{"name": "sample", "source": "Run"}],
+                    "var": [{"name": "feature", "source": "Precursor"}],
+                },
+                "measurements": {
+                    "primary_layer": "Abundance",
+                    "layers": [{"name": "Abundance", "source": "Intensity"}],
+                },
+            },
+            "levels": {"ion": {}},
+        }
+    ],
 }
 
 _TSV = "Run\tPrecursor\tIntensity\ns1\tp1\t1.5\ns1\tp2\t2.5\ns2\tp1\t3.5\n"
 
 _MULTILEVEL_DOCUMENT = {
-    "schema_version": "0.4",
+    "schema_version": "0.7",
     "file_version": "1",
     "software_name": "CliTest",
     "software_version_pattern": "^1$",
-    "input": {"shape": "long", "extensions": [".tsv"]},
-    "base": {
-        "axis": {"obs_keys": ["sample"], "var_keys": ["feature"]},
-        "columns": {
-            "obs": [{"name": "sample", "source": "Run"}],
-            "var": [
-                {"name": "feature", "source": "Precursor"},
-                {"name": "protein", "source": "Protein"},
-            ],
-        },
-        "measurements": {
-            "primary_layer": "Abundance",
-            "layers": [{"name": "Abundance", "source": "Intensity"}],
-        },
-    },
-    "levels": {
-        "ion": {},
-        "protein": {"axis": {"var_keys": ["protein"]}},
-    },
+    "tables": [
+        {
+            "input": {"shape": "long", "extensions": [".tsv"]},
+            "base": {
+                "axis": {"obs_keys": ["sample"], "var_keys": ["feature"]},
+                "columns": {
+                    "obs": [{"name": "sample", "source": "Run"}],
+                    "var": [
+                        {"name": "feature", "source": "Precursor"},
+                        {"name": "protein", "source": "Protein"},
+                    ],
+                },
+                "measurements": {
+                    "primary_layer": "Abundance",
+                    "layers": [{"name": "Abundance", "source": "Intensity"}],
+                },
+            },
+            "levels": {
+                "ion": {},
+                "protein": {"axis": {"var_keys": ["protein"]}},
+            },
+        }
+    ],
 }
 
 _MULTILEVEL_TSV = (
@@ -112,6 +122,31 @@ def test_convert_without_a_level_writes_every_rule_level_as_mudata(tmp_path: Pat
     ]
     representation = json.loads(sidecar_path(tmp_path / "out.h5mu").read_text())
     assert [level["name"] for level in representation["levels"]] == ["ion", "protein"]
+
+
+@pytest.mark.parametrize("storage_format", ["parquet", "duckdb"])
+def test_convert_without_a_level_uses_selected_storage_writer(
+    storage_format: Literal["parquet", "duckdb"],
+    tmp_path: Path,
+) -> None:
+    report = tmp_path / "report.tsv"
+    report.write_text(_MULTILEVEL_TSV, encoding="utf-8")
+    rule_config = tmp_path / "rules.json"
+    rule_config.write_text(json.dumps(_MULTILEVEL_DOCUMENT), encoding="utf-8")
+
+    exit_code = convert(
+        report,
+        options=ConvertCliOptions(
+            rule_config=rule_config,
+            output=tmp_path / "out",
+            storage_format=storage_format,
+        ),
+    )
+
+    target = tmp_path / f"out.{storage_format}"
+    assert exit_code == 0
+    assert list(read_parsed_levels(target).levels) == ["ion", "protein"]
+    assert sidecar_path(target).is_file()
 
 
 def test_convert_without_a_level_keeps_one_compatible_level_in_mudata(tmp_path: Path) -> None:

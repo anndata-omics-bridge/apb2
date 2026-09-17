@@ -1,0 +1,433 @@
+{
+  "$defs": {
+    "DecimalMark": {
+      "enum": [
+        ".",
+        ","
+      ],
+      "type": "string"
+    },
+    "DetectedDelimiter": {
+      "additionalProperties": false,
+      "description": "The bounded delimiters an exceptional vendor export may use.",
+      "properties": {
+        "mode": {
+          "const": "detect",
+          "title": "Mode",
+          "type": "string"
+        },
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/SingleCharacter"
+          },
+          "minItems": 1,
+          "title": "Candidates",
+          "type": "array"
+        }
+      },
+      "required": [
+        "mode",
+        "candidates"
+      ],
+      "title": "DetectedDelimiter",
+      "type": "object"
+    },
+    "DetectedEncoding": {
+      "additionalProperties": false,
+      "description": "The bounded text encodings an exceptional vendor export may use, in preference order.\n\nThe first candidate whose decoding survives a bounded probe of the file wins, so ``utf8``\nshould come first: any file it accepts is read exactly, and a fallback such as\n``windows-1252`` is consulted only for bytes UTF-8 rejects.",
+      "properties": {
+        "mode": {
+          "const": "detect",
+          "title": "Mode",
+          "type": "string"
+        },
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/TextEncoding"
+          },
+          "minItems": 1,
+          "title": "Candidates",
+          "type": "array"
+        }
+      },
+      "required": [
+        "mode",
+        "candidates"
+      ],
+      "title": "DetectedEncoding",
+      "type": "object"
+    },
+    "DetectedNumberFormat": {
+      "additionalProperties": false,
+      "description": "The bounded decimal and grouping marks an exceptional export may use.",
+      "properties": {
+        "mode": {
+          "const": "detect",
+          "title": "Mode",
+          "type": "string"
+        },
+        "decimal_candidates": {
+          "items": {
+            "$ref": "#/$defs/DecimalMark"
+          },
+          "minItems": 1,
+          "title": "Decimal Candidates",
+          "type": "array"
+        },
+        "thousands_candidates": {
+          "items": {
+            "$ref": "#/$defs/SingleCharacter"
+          },
+          "title": "Thousands Candidates",
+          "type": "array"
+        }
+      },
+      "required": [
+        "mode",
+        "decimal_candidates"
+      ],
+      "title": "DetectedNumberFormat",
+      "type": "object"
+    },
+    "ExactSampleMatching": {
+      "additionalProperties": false,
+      "description": "Exact matching after an explicitly declared key normalization.",
+      "properties": {
+        "mode": {
+          "const": "exact",
+          "title": "Mode",
+          "type": "string"
+        },
+        "normalize": {
+          "$ref": "#/$defs/SampleKeyNormalization"
+        }
+      },
+      "required": [
+        "mode",
+        "normalize"
+      ],
+      "title": "ExactSampleMatching",
+      "type": "object"
+    },
+    "FuzzySampleMatching": {
+      "additionalProperties": false,
+      "description": "Unambiguous mutual-best token matching after exact identifiers are reserved.",
+      "properties": {
+        "mode": {
+          "const": "fuzzy",
+          "title": "Mode",
+          "type": "string"
+        },
+        "cutoff": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Cutoff",
+          "type": "number"
+        },
+        "margin": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Margin",
+          "type": "number"
+        },
+        "near_miss_limit": {
+          "maximum": 50,
+          "minimum": 1,
+          "title": "Near Miss Limit",
+          "type": "integer"
+        },
+        "normalize": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SampleKeyNormalization"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "mode",
+        "cutoff",
+        "margin",
+        "near_miss_limit"
+      ],
+      "title": "FuzzySampleMatching",
+      "type": "object"
+    },
+    "Input": {
+      "additionalProperties": false,
+      "description": "One table's shape, actual extensions, folder name, and exceptional detection.",
+      "properties": {
+        "shape": {
+          "$ref": "#/$defs/TableShape"
+        },
+        "extensions": {
+          "items": {
+            "$ref": "#/$defs/SupportedExtension"
+          },
+          "minItems": 1,
+          "title": "Extensions",
+          "type": "array"
+        },
+        "file_name": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "File Name"
+        },
+        "sheet_name": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sheet Name"
+        },
+        "delimiter": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DetectedDelimiter"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "numbers": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DetectedNumberFormat"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "encoding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DetectedEncoding"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "shape",
+        "extensions"
+      ],
+      "title": "Input",
+      "type": "object"
+    },
+    "JsonDict": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "QuantificationLevel": {
+      "enum": [
+        "ion",
+        "peptidoform",
+        "peptide",
+        "protein",
+        "fragment"
+      ],
+      "type": "string"
+    },
+    "SampleAnnotation": {
+      "additionalProperties": false,
+      "description": "Document-level policy used when later matching sample annotations.",
+      "properties": {
+        "matching": {
+          "$ref": "#/$defs/SampleMatching"
+        }
+      },
+      "required": [
+        "matching"
+      ],
+      "title": "SampleAnnotation",
+      "type": "object"
+    },
+    "SampleKeyNormalization": {
+      "const": "mass_spec_basename",
+      "type": "string"
+    },
+    "SampleMatching": {
+      "discriminator": {
+        "mapping": {
+          "exact": "#/$defs/ExactSampleMatching",
+          "fuzzy": "#/$defs/FuzzySampleMatching"
+        },
+        "propertyName": "mode"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ExactSampleMatching"
+        },
+        {
+          "$ref": "#/$defs/FuzzySampleMatching"
+        }
+      ]
+    },
+    "SchemaVersion": {
+      "const": "0.7",
+      "type": "string"
+    },
+    "SingleCharacter": {
+      "maxLength": 1,
+      "minLength": 1,
+      "type": "string"
+    },
+    "SupportedExtension": {
+      "enum": [
+        ".tsv",
+        ".txt",
+        ".csv",
+        ".parquet",
+        ".xlsx"
+      ],
+      "type": "string"
+    },
+    "TableShape": {
+      "enum": [
+        "long",
+        "wide"
+      ],
+      "type": "string"
+    },
+    "TextEncoding": {
+      "enum": [
+        "utf8",
+        "utf8-lossy",
+        "windows-1252"
+      ],
+      "type": "string"
+    },
+    "_PreparationSchema": {
+      "additionalProperties": false,
+      "description": "Select a registered function; the level rules describe its output.",
+      "properties": {
+        "how": {
+          "enum": [
+            "alphadia",
+            "maxquant"
+          ],
+          "title": "How",
+          "type": "string"
+        }
+      },
+      "required": [
+        "how"
+      ],
+      "title": "_PreparationSchema",
+      "type": "object"
+    },
+    "_RuleTableSchema": {
+      "additionalProperties": false,
+      "description": "One physical input and the level declarations composed only within that table.",
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/Input"
+        },
+        "base": {
+          "$ref": "#/$defs/JsonDict"
+        },
+        "levels": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonDict"
+          },
+          "minProperties": 1,
+          "propertyNames": {
+            "$ref": "#/$defs/QuantificationLevel"
+          },
+          "title": "Levels",
+          "type": "object"
+        },
+        "prepare": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/_PreparationSchema"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "input",
+        "base",
+        "levels"
+      ],
+      "title": "_RuleTableSchema",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "One parsed rules.json, as a shell around raw dict fragments \u2014 private on purpose.\n\nThe fragments stay raw dicts through the base-times-level merge \u2014 merging dicts needs no\nmodels, presence is key membership \u2014 and cross the single typed boundary,\n``validate_rule``, only once composed. Cross-block semantics are validated there:\nunknown keys and wrong types ride through the merge and are reported there with paths.",
+  "properties": {
+    "schema_version": {
+      "$ref": "#/$defs/SchemaVersion"
+    },
+    "file_version": {
+      "title": "File Version",
+      "type": "string"
+    },
+    "software_name": {
+      "title": "Software Name",
+      "type": "string"
+    },
+    "software_version_pattern": {
+      "title": "Software Version Pattern",
+      "type": "string"
+    },
+    "sample_annotation": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SampleAnnotation"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "tables": {
+      "items": {
+        "$ref": "#/$defs/_RuleTableSchema"
+      },
+      "minItems": 1,
+      "title": "Tables",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "file_version",
+    "software_name",
+    "software_version_pattern",
+    "tables"
+  ],
+  "title": "RuleDocument",
+  "type": "object"
+}

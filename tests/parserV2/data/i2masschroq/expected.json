@@ -1,0 +1,11 @@
+{
+  "sample": "sample.txt.gz",
+  "params": "param_0..txt",
+  "levels": {
+    "ion": {
+      "observations": 1,
+      "variables": 500,
+      "layers": ["Intensity"]
+    }
+  }
+}

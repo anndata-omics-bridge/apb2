@@ -31,6 +31,8 @@ from apb2.parserV2.parse_quant.contracts import (
 )
 from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation
 from apb2.parserV2.parse_quant.modifications import (
+    EmbeddedSiteListNormalizer,
+    EmbeddedSiteListRules,
     ModificationOccurrence,
     PackedSiteMismatchError,
     SiteListNormalizer,
@@ -38,11 +40,13 @@ from apb2.parserV2.parse_quant.modifications import (
     TokenRegexNormalizer,
     TokenRegexRules,
     UnknownModificationError,
+    normalize_embedded_site_list,
     normalize_site_list,
     normalize_token_regex,
     render_proforma,
 )
 from apb2.parserV2.parse_quant.parameters.axis import (
+    EmbeddedSiteListModificationConfig,
     ModificationMapEntry,
     ModificationTokenPosition,
     SiteListModificationConfig,
@@ -156,6 +160,39 @@ def site_list(
                 target=("M",),
                 position="Anywhere",
                 mass_delta=15.994915,
+            ),
+        ),
+    )
+
+
+def embedded_site_list() -> EmbeddedSiteListModificationConfig:
+    return EmbeddedSiteListModificationConfig(
+        kind="embedded_site_list",
+        sequence_column="sequence",
+        modification_column="mods",
+        delimiter=";",
+        entry_pattern=r"^(?P<token>.+?)\s+\((?P<site>[^)]+)\)$",
+        site_base=1,
+        case_sensitive=False,
+        unknown_policy="preserve",
+        proforma_output="proforma_sequence",
+        stripped_output="stripped_sequence",
+        entries=(
+            ModificationMapEntry(
+                token="Oxidation",
+                name="Oxidation",
+                accession="UNIMOD:35",
+                target=("M",),
+                position="Anywhere",
+                mass_delta=15.994915,
+            ),
+            ModificationMapEntry(
+                token="Acetyl",
+                name="Acetyl",
+                accession="UNIMOD:1",
+                target=("N-term",),
+                position="N-term",
+                mass_delta=42.010565,
             ),
         ),
     )
@@ -475,6 +512,39 @@ def test_an_empty_modification_list_leaves_the_bare_sequence() -> None:
     assert result.proforma_sequence == "PEPMIDE"
 
 
+def test_embedded_sites_localize_residue_and_terminal_modifications() -> None:
+    config = embedded_site_list()
+    rules = EmbeddedSiteListRules(
+        delimiter=config.delimiter,
+        entry_pattern=config.entry_pattern,
+        site_base=config.site_base,
+        case_sensitive=config.case_sensitive,
+        unknown_policy=config.unknown_policy,
+        entries=config.entries,
+    )
+
+    result = normalize_embedded_site_list(
+        "PEPMIDE", "Acetyl (Protein N-term); Oxidation (M4)", rules
+    )
+
+    assert result.proforma_sequence == "[UNIMOD:1]-PEPM[UNIMOD:35]IDE"
+
+
+def test_an_embedded_site_must_point_to_the_declared_residue() -> None:
+    config = embedded_site_list()
+    rules = EmbeddedSiteListRules(
+        delimiter=config.delimiter,
+        entry_pattern=config.entry_pattern,
+        site_base=config.site_base,
+        case_sensitive=config.case_sensitive,
+        unknown_policy=config.unknown_policy,
+        entries=config.entries,
+    )
+
+    with pytest.raises(PackedSiteMismatchError, match="points to"):
+        normalize_embedded_site_list("PEPMIDE", "Oxidation (M3)", rules)
+
+
 def test_two_modifications_on_one_residue_concatenate() -> None:
     rendered = render_proforma(
         "PEPMIDE",
@@ -541,10 +611,18 @@ def test_a_site_list_normalizer_declares_its_three_sources_in_order() -> None:
     assert derived["proforma_sequence"].to_list() == ["PEPM[UNIMOD:35]IDE"]
 
 
-def test_both_normalizers_satisfy_the_parser_owned_contract() -> None:
+def test_an_embedded_site_normalizer_declares_its_two_sources_in_order() -> None:
+    normalizer = make_modification_normalizer(embedded_site_list())
+
+    assert isinstance(normalizer, EmbeddedSiteListNormalizer)
+    assert normalizer.sources == ("sequence", "mods")
+
+
+def test_all_normalizers_satisfy_the_parser_owned_contract() -> None:
     normalizers: tuple[ModificationNormalizer, ...] = (
         make_modification_normalizer(token_regex()),
         make_modification_normalizer(site_list()),
+        make_modification_normalizer(embedded_site_list()),
     )
 
     assert isinstance(normalizers[0], TokenRegexNormalizer)

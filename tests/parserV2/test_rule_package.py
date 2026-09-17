@@ -1,8 +1,9 @@
-"""Schema 0.4 packaged-document, composition, and validation contracts."""
+"""Schema 0.7 packaged-document, composition, and validation contracts."""
 
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -57,15 +58,21 @@ _NON_PRIMARY_ABUNDANCE: dict[tuple[str, QuantificationLevel], tuple[str, ...]] =
         "MS1_Int_Max_Apex",
         "MS1_Int_Max_Area",
     ),
-    ("diann/v1", "ion"): ("Precursor_Quantity", "Ms1_Area"),
-    ("diann/v1", "protein"): ("PG_Normalised", "PG_Quantity", "Genes_MaxLFQ"),
+    ("diann/v1_8", "ion"): ("Ms1_Normalised", "Precursor_Quantity", "Ms1_Area"),
+    ("diann/v1_8", "protein"): ("PG_Normalised", "PG_Quantity", "Genes_MaxLFQ"),
     ("diann/v1_7", "ion"): ("Precursor_Quantity", "Ms1_Area"),
     ("diann/v1_7", "protein"): ("PG_Quantity", "Genes_MaxLFQ"),
     ("diann/v2", "ion"): ("Ms1_Normalised", "Precursor_Quantity", "Ms1_Area"),
     ("diann/v2", "protein"): ("Genes_MaxLFQ",),
-    ("maxquant_peptides", "peptide"): ("LFQ_Intensity",),
-    ("maxquant_proteingroups", "protein"): ("LFQ_Intensity", "iBAQ"),
+    ("maxquant", "peptide"): ("LFQ_Intensity",),
+    ("maxquant", "protein"): ("LFQ_Intensity", "iBAQ"),
+    ("msangel", "ion"): ("Raw_Abundance",),
     ("spectronaut", "ion"): (
+        "EG_ReferenceQuantity_Settings",
+        "EG_TargetQuantity_Settings",
+        "EG_TotalQuantity_Settings",
+    ),
+    ("spectronaut/v21", "ion"): (
         "EG_ReferenceQuantity_Settings",
         "EG_TargetQuantity_Settings",
         "EG_TotalQuantity_Settings",
@@ -97,8 +104,8 @@ def _without_primary_layer(rule: V2Rule) -> dict[str, Any]:
 
 def test_entry_shaped_columns_project_roles_and_runtime_selections(tmp_path: Path) -> None:
     payload = _document_payload()
-    payload["base"]["measurements"]["layers"][0]["roles"] = ["abundance"]
-    payload["levels"]["ion"]["columns"]["var"] = [
+    payload["tables"][0]["base"]["measurements"]["layers"][0]["roles"] = ["abundance"]
+    payload["tables"][0]["levels"]["ion"]["columns"]["var"] = [
         {
             "name": "feature",
             "source": "Feature",
@@ -128,7 +135,7 @@ def test_role_configuration_owns_the_role_vocabulary() -> None:
 
 def test_entry_role_is_rejected_on_an_unconfigured_owner(tmp_path: Path) -> None:
     payload = _document_payload()
-    payload["base"]["columns"]["obs"][0]["roles"] = ["protein_assignment"]
+    payload["tables"][0]["base"]["columns"]["obs"][0]["roles"] = ["protein_assignment"]
 
     with pytest.raises(ValidationError, match=r"not allowed on obs"):
         _declared(payload, tmp_path)
@@ -136,7 +143,7 @@ def test_entry_role_is_rejected_on_an_unconfigured_owner(tmp_path: Path) -> None
 
 def test_role_is_rejected_on_an_unconfigured_layer(tmp_path: Path) -> None:
     payload = _document_payload()
-    payload["base"]["measurements"]["layers"][0]["roles"] = ["protein_assignment"]
+    payload["tables"][0]["base"]["measurements"]["layers"][0]["roles"] = ["protein_assignment"]
 
     with pytest.raises(ValidationError, match=r"not allowed on layer"):
         _declared(payload, tmp_path)
@@ -144,7 +151,7 @@ def test_role_is_rejected_on_an_unconfigured_layer(tmp_path: Path) -> None:
 
 def test_one_role_cannot_name_two_columns(tmp_path: Path) -> None:
     payload = _document_payload()
-    columns = payload["levels"]["ion"]["columns"]["var"]
+    columns = payload["tables"][0]["levels"]["ion"]["columns"]["var"]
     columns[0]["roles"] = ["protein_assignment"]
     columns.append({"name": "protein", "source": "Protein", "roles": ["protein_assignment"]})
 
@@ -203,6 +210,27 @@ def test_every_declared_abundance_layer_is_tagged(
     assert actual == expected
 
 
+def test_packaged_integer_measurements_are_exactly_the_declared_counts() -> None:
+    actual = {
+        (pair.key, level, layer.name)
+        for pair, level in level_pairs()
+        for layer in load_rule_document(pair.parser_v2_path)
+        .declared(level)
+        .declaration.measurements.layers
+        if isinstance(layer, NumericLayer) and layer.type == "integer"
+    }
+
+    assert actual == {
+        ("fragpipe", "ion", "Spectral_Count"),
+        ("maxquant", "ion", "MS_MS_Count"),
+        ("msangel", "ion", "PSM_Count"),
+        ("prolinestudio", "ion", "PSM_Count"),
+        ("spectronaut", "protein", "PG_RunEvidenceCount"),
+        ("spectronaut/v21", "protein", "PG_RunEvidenceCount"),
+        ("wombat", "peptidoform", "Number_Of_Psms"),
+    }
+
+
 @pytest.mark.parametrize(("pair", "level"), _LEVEL_CASES)
 def test_recognition_rejects_a_header_missing_one_required_source(
     pair: PackagedDocument, level: QuantificationLevel
@@ -244,13 +272,18 @@ def test_every_document_declares_the_new_generation_and_physical_extensions(
     assert effective.input.shape == effective.declaration.shape
 
 
-def test_the_maxquant_source_names_the_one_table_it_reads() -> None:
+def test_maxquant_keeps_evidence_outside_the_higher_level_prepared_table() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "maxquant")
     document = load_rule_document(pair.parser_v2_path)
 
     source = document.declared("ion").input
     assert source.extensions == [".txt"]
     assert source.file_name == "evidence.txt"
+    assert document.table_levels == (("ion",), ("peptidoform", "peptide", "protein"))
+    assert document.declared("ion").preparation is None
+    for level in ("peptidoform", "peptide", "protein"):
+        assert document.declared(level).preparation == "maxquant"
+        assert document.declared(level).declaration.axis.obs_keys == ["Experiment"]
 
 
 def test_peaks_declares_the_persisted_sample_annotation_matching_policy() -> None:
@@ -267,16 +300,58 @@ def test_peaks_declares_the_persisted_sample_annotation_matching_policy() -> Non
     assert provenance["sample_annotation_matching"] == {
         "mode": "fuzzy",
         "cutoff": 0.6,
-        "margin": 0.1,
+        "margin": 0.01,
         "near_miss_limit": 3,
+        "normalize": "mass_spec_basename",
     }
+
+
+@pytest.mark.parametrize(
+    "key",
+    (
+        "quantms",
+        "i2masschroq",
+        "prolinestudio",
+        "diann/v1_7",
+        "diann/v1_8",
+        "diann/v2",
+    ),
+)
+def test_file_backed_run_names_declare_exact_basename_matching(key: str) -> None:
+    pair = next(candidate for candidate in document_pairs() if candidate.key == key)
+    document = load_rule_document(pair.parser_v2_path)
+    effective = document.declared(document.levels[0]).declaration
+    provenance = pair.first_admitted_facade().working_parameters.provenance
+
+    assert effective.sample_annotation is not None
+    assert effective.sample_annotation.matching.mode == "exact"
+    assert provenance["sample_annotation_matching"] == {
+        "mode": "exact",
+        "normalize": "mass_spec_basename",
+    }
+
+
+def test_msangel_measurements_canonicalize_the_dda_run_prefix() -> None:
+    pair = next(candidate for candidate in document_pairs() if candidate.key == "msangel")
+    rule = load_rule_document(pair.parser_v2_path).declared("ion").declaration
+    assert isinstance(rule, WideRule)
+
+    for layer in rule.measurements.layers:
+        column = layer.source.replace("^", "").replace("$", "")
+        prefix = column.split("(?P<sample>", maxsplit=1)[0]
+        name = prefix.replace("(?:DDA_)?", "DDA_") + "Condition_A_Sample_Alpha_01"
+        match = re.fullmatch(layer.source, name)
+        assert match is not None
+        assert match.group("sample") == "Condition_A_Sample_Alpha_01"
 
 
 @pytest.mark.parametrize(
     ("document_key", "level", "protein_assignment", "fasta_accessions"),
     [
-        pytest.param("diann/v1", "ion", "Protein_Group", "Protein_Ids", id="diann-v1-ion"),
-        pytest.param("diann/v1", "protein", "Protein_Group", "Protein_Ids", id="diann-v1-protein"),
+        pytest.param("diann/v1_8", "ion", "Protein_Group", "Protein_Ids", id="diann-v1_8-ion"),
+        pytest.param(
+            "diann/v1_8", "protein", "Protein_Group", "Protein_Ids", id="diann-v1_8-protein"
+        ),
         pytest.param("diann/v2", "ion", "Protein_Group", "Protein_Ids", id="diann-v2-ion"),
         pytest.param("diann/v2", "protein", "Protein_Group", "Protein_Ids", id="diann-v2-protein"),
         pytest.param(
@@ -368,7 +443,7 @@ def test_diann_v2_swaps_only_the_primary_layer_for_dda_evidence() -> None:
 
 
 def test_a_level_without_a_gate_is_applicable_without_any_evidence() -> None:
-    pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1")
+    pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1_8")
     document = load_rule_document(pair.parser_v2_path)
 
     assert document.rule("protein", NO_EVIDENCE).declaration.quantification_level == "protein"
@@ -376,7 +451,7 @@ def test_a_level_without_a_gate_is_applicable_without_any_evidence() -> None:
         document.rule("peptide", NO_EVIDENCE)
 
 
-# ------------------------------------------------------------------ what schema 0.4 refuses
+# ------------------------------------------------------------------ what schema 0.7 refuses
 
 
 def _document_payload() -> dict[str, Any]:
@@ -385,19 +460,23 @@ def _document_payload() -> dict[str, Any]:
         "file_version": "1",
         "software_name": "Test",
         "software_version_pattern": "^1$",
-        "input": {
-            "shape": "long",
-            "extensions": [".tsv"],
-        },
-        "base": {
-            "axis": {"obs_keys": ["sample"], "var_keys": ["feature"]},
-            "columns": {"obs": [{"name": "sample", "source": "Sample"}]},
-            "measurements": {
-                "primary_layer": "quantity",
-                "layers": [{"name": "quantity", "source": "Quantity"}],
-            },
-        },
-        "levels": {"ion": {"columns": {"var": [{"name": "feature", "source": "Feature"}]}}},
+        "tables": [
+            {
+                "input": {
+                    "shape": "long",
+                    "extensions": [".tsv"],
+                },
+                "base": {
+                    "axis": {"obs_keys": ["sample"], "var_keys": ["feature"]},
+                    "columns": {"obs": [{"name": "sample", "source": "Sample"}]},
+                    "measurements": {
+                        "primary_layer": "quantity",
+                        "layers": [{"name": "quantity", "source": "Quantity"}],
+                    },
+                },
+                "levels": {"ion": {"columns": {"var": [{"name": "feature", "source": "Feature"}]}}},
+            }
+        ],
     }
 
 
@@ -412,35 +491,58 @@ def test_the_reference_payload_is_valid_so_every_rejection_below_is_the_change(
     _declared(_document_payload(), tmp_path)
 
 
+def test_numeric_layer_type_defaults_to_number_and_rejects_unknown_values() -> None:
+    assert NumericLayer(name="quantity", source="Quantity").type == "number"
+    assert NumericLayer(name="count", source="Count", type="integer").type == "integer"
+
+    with pytest.raises(ValidationError, match="type"):
+        NumericLayer.model_validate({"name": "quantity", "source": "Quantity", "type": "float"})
+
+
+def test_factor_layers_do_not_acquire_a_numeric_type() -> None:
+    payload = {
+        "encoding_mode": "factor",
+        "name": "status",
+        "source": "Status",
+        "categories": {"identified": 1},
+        "type": "integer",
+    }
+
+    with pytest.raises(ValidationError, match="type"):
+        FactorLayer.model_validate(payload)
+
+
 @pytest.mark.parametrize(
     ("mutate", "match"),
     [
         pytest.param(
-            lambda payload: payload["base"]["axis"].update({"x_layer": "quantity"}),
+            lambda payload: payload["tables"][0]["base"]["axis"].update({"x_layer": "quantity"}),
             "x_layer",
             id="axis.x_layer",
         ),
         pytest.param(
-            lambda payload: payload["base"]["axis"].update({"duplicates": {"mode": "error"}}),
+            lambda payload: payload["tables"][0]["base"]["axis"].update(
+                {"duplicates": {"mode": "error"}}
+            ),
             "duplicates",
             id="axis.duplicates",
         ),
         pytest.param(
-            lambda payload: payload["base"].update(
+            lambda payload: payload["tables"][0]["base"].update(
                 {"layers": [{"name": "quantity", "source": "Quantity"}]}
             ),
             "layers",
             id="root-layers",
         ),
         pytest.param(
-            lambda payload: payload["base"]["measurements"].update(
+            lambda payload: payload["tables"][0]["base"]["measurements"].update(
                 {"duplicates": {"mode": "keep_all_as_raw_table"}}
             ),
             "keep_all_as_raw_table",
             id="keep_all_as_raw_table",
         ),
         pytest.param(
-            lambda payload: payload["levels"]["ion"].update(
+            lambda payload: payload["tables"][0]["levels"]["ion"].update(
                 {
                     "search_parameter_overrides": [
                         {
@@ -454,33 +556,35 @@ def test_the_reference_payload_is_valid_so_every_rejection_below_is_the_change(
             id="override-x_layer",
         ),
         pytest.param(
-            lambda payload: payload["levels"]["ion"].update(
+            lambda payload: payload["tables"][0]["levels"]["ion"].update(
                 {"requires_search_parameters": {"software_version": "1.0"}}
             ),
             "software_version",
             id="unknown-condition-field",
         ),
         pytest.param(
-            lambda payload: payload["base"]["measurements"].update({"primary_layer": "absent"}),
+            lambda payload: payload["tables"][0]["base"]["measurements"].update(
+                {"primary_layer": "absent"}
+            ),
             "primary_layer",
             id="primary-names-no-layer",
         ),
         pytest.param(
-            lambda payload: payload["base"]["measurements"]["layers"].append(
+            lambda payload: payload["tables"][0]["base"]["measurements"]["layers"].append(
                 {"name": "quantity", "source": "Other"}
             ),
             "layer names",
             id="repeated-layer-name",
         ),
         pytest.param(
-            lambda payload: payload["base"]["columns"]["obs"].append(
+            lambda payload: payload["tables"][0]["base"]["columns"]["obs"].append(
                 {"name": "sample", "source": "Other"}
             ),
             "column entry names",
             id="repeated-column-name",
         ),
         pytest.param(
-            lambda payload: payload["base"]["columns"].update(
+            lambda payload: payload["tables"][0]["base"]["columns"].update(
                 {"obs": {"select": {"sample": "Sample"}}}
             ),
             "list_type",
@@ -498,9 +602,12 @@ def test_schema_0_4_refuses_a_legacy_or_illegal_declaration(
         _declared(payload, tmp_path)
 
 
-def test_a_document_of_the_previous_generation_is_refused_at_the_shell(tmp_path: Path) -> None:
+@pytest.mark.parametrize("version", ["0.3", "0.5", "0.6"])
+def test_a_document_of_a_previous_generation_is_refused_at_the_shell(
+    version: str, tmp_path: Path
+) -> None:
     payload = _document_payload()
-    payload["schema_version"] = "0.3"
+    payload["schema_version"] = version
 
     with pytest.raises(ValidationError, match="schema_version"):
         make_rule_document(tmp_path / "rules.json", payload)
@@ -526,7 +633,7 @@ def test_rule_validates_the_declaration_before_using_gates_or_overrides(
     tmp_path: Path,
 ) -> None:
     payload = _document_payload()
-    payload["levels"]["ion"].update(invalid_level_declaration)
+    payload["tables"][0]["levels"]["ion"].update(invalid_level_declaration)
     document = make_rule_document(tmp_path / "rules.json", payload)
 
     with pytest.raises(ValidationError):
@@ -535,8 +642,8 @@ def test_rule_validates_the_declaration_before_using_gates_or_overrides(
 
 def test_aggregate_requires_layers_no_encoder_would_later_change(tmp_path: Path) -> None:
     payload = _document_payload()
-    payload["base"]["measurements"]["duplicates"] = {"mode": "aggregate"}
-    payload["base"]["measurements"]["layers"] = [
+    payload["tables"][0]["base"]["measurements"]["duplicates"] = {"mode": "aggregate"}
+    payload["tables"][0]["base"]["measurements"]["layers"] = [
         {"name": "quantity", "source": "Quantity", "missing_values": [0]}
     ]
 
@@ -547,7 +654,7 @@ def test_aggregate_requires_layers_no_encoder_would_later_change(tmp_path: Path)
 
 def test_an_unknown_extension_is_rejected(tmp_path: Path) -> None:
     payload = _document_payload()
-    payload["input"]["extensions"] = [".xlsx"]
+    payload["tables"][0]["input"]["extensions"] = [".xls"]
 
     with pytest.raises(ValidationError, match="literal_error"):
         make_rule_document(tmp_path / "rules.json", payload)
@@ -557,7 +664,7 @@ def test_detection_candidates_are_declared_only_when_detection_is_enabled(
     tmp_path: Path,
 ) -> None:
     payload = _document_payload()
-    payload["input"]["delimiter"] = {"mode": "detect", "candidates": ["\t", ";", ","]}
+    payload["tables"][0]["input"]["delimiter"] = {"mode": "detect", "candidates": ["\t", ";", ","]}
 
     document = make_rule_document(tmp_path / "rules.json", payload)
 
@@ -568,7 +675,7 @@ def test_detection_candidates_are_declared_only_when_detection_is_enabled(
 
 
 def test_the_packaged_fragment_level_separates_before_it_decomposes() -> None:
-    pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1")
+    pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1_8")
     rule = load_rule_document(pair.parser_v2_path).declared("fragment").declaration
     fragments = rule.fragments
 
@@ -582,7 +689,7 @@ def test_the_packaged_fragment_level_separates_before_it_decomposes() -> None:
 
 def test_a_fragment_label_output_colliding_with_a_source_is_refused(tmp_path: Path) -> None:
     payload = _document_payload()
-    payload["levels"] = {
+    payload["tables"][0]["levels"] = {
         "fragment": {
             "columns": {"var": [{"name": "feature", "source": "Feature"}]},
             "fragments": {
@@ -600,7 +707,7 @@ def test_a_fragment_label_output_colliding_with_a_source_is_refused(tmp_path: Pa
 
 def test_a_column_labeled_fragment_label_may_not_be_selected(tmp_path: Path) -> None:
     payload = _document_payload()
-    payload["levels"] = {
+    payload["tables"][0]["levels"] = {
         "fragment": {
             "columns": {
                 "var": [
@@ -623,7 +730,7 @@ def test_a_column_labeled_fragment_label_may_not_be_selected(tmp_path: Path) -> 
 
 def test_column_labeled_recognition_requires_its_packed_label_column() -> None:
     payload = _document_payload()
-    payload["levels"] = {
+    payload["tables"][0]["levels"] = {
         "fragment": {
             "columns": {"var": [{"name": "feature", "source": "Feature"}]},
             "fragments": {
@@ -696,11 +803,11 @@ def test_both_rule_shapes_are_represented_by_the_packaged_generation() -> None:
         for pair, level in level_pairs()
     ]
 
-    assert sum(isinstance(rule, LongRule) for rule in shapes) == 18
-    assert sum(isinstance(rule, WideRule) for rule in shapes) == 10
+    assert sum(isinstance(rule, LongRule) for rule in shapes) == 26
+    assert sum(isinstance(rule, WideRule) for rule in shapes) == 9
     modes = [rule.measurements.duplicates.mode for rule in shapes]
-    assert modes.count("error") == 19
-    assert modes.count("keep_first") == 8
+    assert modes.count("error") == 20
+    assert modes.count("keep_first") == 14
     assert modes.count("aggregate") == 1
     assert sum(isinstance(rule.fragments, ColumnLabeledFragments) for rule in shapes) == 0
 
