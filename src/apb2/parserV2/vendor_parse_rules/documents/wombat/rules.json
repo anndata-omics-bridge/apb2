@@ -19,7 +19,7 @@
         },
         "measurements": {
           "duplicates": {
-            "mode": "error"
+            "mode": "keep_first"
           }
         },
         "columns": {

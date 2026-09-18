@@ -467,37 +467,15 @@ def test_cli_reports_both_resolution_outputs(tmp_path: Path) -> None:
     assert not (tmp_path / "output.parquet").exists()
 
 
-def test_missing_explicit_companion_does_not_write(tmp_path: Path) -> None:
-    primary = tmp_path / "matrix.tsv"
-    _alphadia()["matrix"].write_csv(primary, separator="\t")
-    target = tmp_path / "result.parquet"
-    with pytest.raises(ConversionError, match="existing files"):
-        convert_all_from_rule_config(
-            data=primary,
-            companions=(tmp_path / "missing.tsv",),
-            output=target,
-            rule_config=RULES / "alphadia/v1_12/rules.json",
-            parameters_path=None,
-            parameters_software=None,
-            checks="standard",
-        )
-    assert not target.exists()
-
-
-def test_cli_companion_joins_before_ion_conversion(tmp_path: Path) -> None:
-    paths = []
+def test_cli_directory_joins_before_ion_conversion(tmp_path: Path) -> None:
     for index, frame in enumerate(_alphadia().values()):
-        path = tmp_path / f"input_{index}.tsv"
-        frame.write_csv(path, separator="\t")
-        paths.append(path)
+        frame.write_csv(tmp_path / f"input_{index}.tsv", separator="\t")
     with pytest.raises(SystemExit) as result:
         app(
             [
                 "convert",
-                str(paths[0]),
+                str(tmp_path),
                 "ion",
-                "--companion",
-                str(paths[1]),
                 "--rule-config",
                 str(RULES / "alphadia/v1_12/rules.json"),
                 "--format",

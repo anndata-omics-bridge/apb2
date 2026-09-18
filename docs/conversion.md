@@ -56,14 +56,14 @@ apb2 convert maxquant-results peptide --params mqpar.xml --output results/peptid
 
 MaxQuant accepts any nonempty subset of its four exports. Evidence is parsed directly into ions keyed by `Raw_File`, retaining `Experiment` and `Fraction` as metadata. The other exports are unpivoted and joined through shared evidence-ID references plus experiment; their table group declares `Experiment` once in `base`. No evidence rows enter that join. Omitting `LEVEL` produces only supplied levels; explicitly requesting an unavailable level fails before writing.
 
-For renamed or separately located inputs, pass explicit companions:
+AlphaDIA matrix and precursor metadata are one directory input:
 
 ```bash
-apb2 convert input_file.tsv ion --companion input_file_secondary.tsv \
+apb2 convert alphadia-results ion \
     --params parameters.txt --software alphadia --output results/ion
 ```
 
-Repeat `--companion` for further files. AlphaDIA 1.12 joins matrix values with precursor metadata; it never substitutes secondary intensities. Unknown explicit companions, ambiguous roles, missing required inputs and conflicting identities fail before writing. Preparation runs once per selected table group and records sources, duration, row count and estimated frame size in that group's `input_preparation` provenance. Direct evidence has no preparation provenance. DIA-NN is unchanged.
+AlphaDIA 1.12 joins matrix values with precursor metadata; it never substitutes secondary intensities. Ambiguous roles, missing required inputs and conflicting identities fail before writing. Preparation runs once per selected table group and records sources, duration, row count and estimated frame size in that group's `input_preparation` provenance. Direct evidence has no preparation provenance. DIA-NN is unchanged.
 
 ## Explicit rule document
 
@@ -87,7 +87,7 @@ apb2 convert report.tsv ion \
 
 `--params-software` selects the parameter-file grammar independently of the rule document.
 
-Explicit rules support the same directories and companions as packaged detection. Each table group independently selects direct input or preparation before source-column validation. See [rule authoring](rule-based.md#one-software-multiple-input-tables) for the `tables` structure.
+Explicit rules support the same directory bundles as packaged detection. Each table group independently selects direct input or preparation before source-column validation. See [rule authoring](rule-based.md#one-software-multiple-input-tables) for the `tables` structure.
 
 ## Layer checks
 

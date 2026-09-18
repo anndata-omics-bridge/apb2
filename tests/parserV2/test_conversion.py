@@ -26,8 +26,8 @@ from apb2.parserV2.detect_document import (
 from apb2.parserV2.detect_document import guess_software as guess_packaged_software
 from apb2.parserV2.parse_quant import delimited_input
 from apb2.parserV2.parse_quant.io import formats
-from apb2.parserV2.parse_quant.io.anndata_writer import NAMESPACE, PARSE_NAMESPACE
 from apb2.parserV2.parse_quant.io.json_representation import sidecar_path
+from apb2.parserV2.parse_quant.io.metadata import NAMESPACE, PARSE_NAMESPACE
 from apb2.parserV2.parse_quant.parameters.source import Folder, SingleFile
 from apb2.parserV2.vendor_params.parsers.shared.model import Parameters
 from apb2.parserV2.vendor_params.registry import parse_params
@@ -109,7 +109,11 @@ def test_packaged_conversion_detects_parses_and_writes_with_provenance(tmp_path:
     assert namespace["rule_selection_method"] in {"software_version", "columns"}
     representation = json.loads(sidecar_path(target).read_text(encoding="utf-8"))
     assert representation["levels"][0]["name"] == "protein"
-    assert representation["levels"][0]["uns"]["search_parameters_path"] == parameters_path.name
+    assert representation["root"] is None
+    assert (
+        representation["levels"][0]["apb"]["parse"]["search_parameters_path"]
+        == parameters_path.name
+    )
 
 
 def test_packaged_conversion_without_a_level_writes_every_compatible_modality(
@@ -133,10 +137,9 @@ def test_packaged_conversion_without_a_level_writes_every_compatible_modality(
     assert list(stored.mod) == [summary.level for summary in result.levels]
     assert set(stored.mod) >= {"ion", "protein"}
     namespace = stored.uns[NAMESPACE][PARSE_NAMESPACE]
-    assert list(namespace["quantification_levels"]) == list(stored.mod)
     assert namespace["rule_selection_method"] in {"software_version", "columns"}
     assert all(
-        modality.uns[NAMESPACE][PARSE_NAMESPACE]["search_parameters_path"] == str(parameters_path)
+        "search_parameters" not in modality.uns[NAMESPACE][PARSE_NAMESPACE]
         for modality in stored.mod.values()
     )
     representation = json.loads(sidecar_path(target).read_text(encoding="utf-8"))

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable, Mapping
+from copy import deepcopy
 from typing import Literal, cast
 
 import polars as pl
@@ -13,18 +14,20 @@ from apb2.parserV2.parse_quant.data.parsed import (
     FinalLayerRole,
     JsonValue,
     MeasurementLayerRole,
+    ParsedLevel,
+    ParsedLevels,
 )
 from apb2.parserV2.parse_quant.io.errors import InvalidResultError
 
 NAMESPACE = "apb"
 PARSE_NAMESPACE = "parse"
-RESULT_NAMESPACE = "result"
+ROLES_NAMESPACE = "roles"
+STORAGE_NAMESPACE = "storage"
 RESULT_FORMAT = "apb2-parsed-levels"
-RESULT_FORMAT_VERSION = "1"
-MATRIX_PROJECTED_KEY = "matrix_values_projected"
+RESULT_FORMAT_VERSION = "3"
 
 PARQUET_FORMAT = "apb2-parsed-levels-parquet"
-PARQUET_FORMAT_VERSION = "2"
+PARQUET_FORMAT_VERSION = "4"
 PARQUET_MANIFEST_NAME = "manifest.json"
 PARQUET_LEVELS_DIRECTORY = "levels"
 
@@ -55,6 +58,215 @@ _LAYER_ROLES_BY_NAME: Mapping[str, FinalLayerRole] = {
     "measurement": MeasurementLayerRole(),
     "auxiliary": AuxiliaryLayerRole(),
 }
+
+
+def shared_scope(
+    parse: Mapping[str, JsonValue], metadata: Mapping[str, JsonValue], /
+) -> dict[str, JsonValue]:
+    """Compose one shared APB scope without merging it into a level."""
+    if {PARSE_NAMESPACE, ROLES_NAMESPACE, STORAGE_NAMESPACE}.intersection(metadata):
+        raise InvalidResultError("root extension metadata uses a reserved APB section")
+    return {PARSE_NAMESPACE: dict(parse), **dict(metadata)}
+
+
+def level_scope(parsed: ParsedLevel, /) -> dict[str, JsonValue]:
+    """Compose one level scope, nesting semantic roles beside parse evidence."""
+    parse = dict(parsed.uns)
+    if isinstance(parse.get("rule_json"), str):
+        for repeated in ("schema_version", "software_name", "shape", "quantification_level"):
+            parse.pop(repeated, None)
+    roles: dict[str, JsonValue] = {}
+    columns = parse.pop("column_roles", None)
+    layers = parse.pop("layer_roles", None)
+    if columns is not None:
+        roles["columns"] = columns
+    if layers is not None:
+        roles["layers"] = layers
+    collisions = {PARSE_NAMESPACE, ROLES_NAMESPACE, STORAGE_NAMESPACE}.intersection(parsed.metadata)
+    if collisions:
+        raise InvalidResultError(f"level extension metadata uses reserved section(s) {collisions}")
+    result: dict[str, JsonValue] = {PARSE_NAMESPACE: parse}
+    if roles:
+        result[ROLES_NAMESPACE] = roles
+    result.update(parsed.metadata)
+    return result
+
+
+def collection_shared_scope(parsed: ParsedLevels, /) -> dict[str, JsonValue]:
+    """Compose root scientific metadata, including non-level objects exactly once."""
+    result = shared_scope(parsed.uns, parsed.metadata)
+    reserved = {"annotation_tables", "feature_relations"}.intersection(result)
+    if reserved:
+        raise InvalidResultError(f"shared metadata uses reserved section(s) {reserved}")
+    if parsed.annotation_tables:
+        result["annotation_tables"] = cast(
+            JsonValue,
+            {
+                name: {
+                    "key_columns": list(table.key_columns),
+                    "metadata": dict(table.metadata),
+                }
+                for name, table in parsed.annotation_tables.items()
+            },
+        )
+    if parsed.feature_relations:
+        result["feature_relations"] = cast(
+            JsonValue,
+            {
+                name: {
+                    "annotation_table": relation.annotation_table,
+                    "target_level": relation.target_level,
+                    "metadata": dict(relation.metadata),
+                }
+                for name, relation in parsed.feature_relations.items()
+            },
+        )
+    return result
+
+
+def compose_metadata(
+    root: Mapping[str, JsonValue], level: Mapping[str, JsonValue], /
+) -> tuple[dict[str, JsonValue], dict[str, JsonValue]]:
+    """Combine disjoint metadata and retain only ownership paths for reconstruction."""
+    return _merge_metadata(root, level, ()), {
+        "root": _metadata_paths(root),
+        "level": _metadata_paths(level),
+    }
+
+
+def _merge_metadata(
+    root: Mapping[str, JsonValue], level: Mapping[str, JsonValue], path: tuple[str, ...]
+) -> dict[str, JsonValue]:
+    result = deepcopy(dict(root))
+    for key, value in level.items():
+        if key not in result:
+            result[key] = deepcopy(value)
+            continue
+        previous = result[key]
+        if isinstance(previous, dict) and isinstance(value, dict):
+            result[key] = _merge_metadata(previous, value, (*path, key))
+            continue
+        raise InvalidResultError(f"conflicting APB metadata at {(*path, key)!r}")
+    return result
+
+
+def _metadata_paths(value: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
+    values: list[JsonValue] = []
+    empty_objects: list[JsonValue] = []
+
+    def visit(mapping: Mapping[str, JsonValue], path: tuple[str, ...]) -> None:
+        if not mapping:
+            empty_objects.append(list(path))
+        for key, item in mapping.items():
+            if isinstance(item, dict):
+                visit(item, (*path, key))
+            else:
+                values.append([*path, key])
+
+    visit(value, ())
+    values.sort(key=lambda path: tuple(cast(list[str], path)))
+    empty_objects.sort(key=lambda path: tuple(cast(list[str], path)))
+    return {"values": values, "empty_objects": empty_objects}
+
+
+def split_metadata(
+    namespace: Mapping[str, JsonValue], ownership: object, /
+) -> tuple[dict[str, JsonValue], dict[str, JsonValue]]:
+    """Restore root and level contributions, rejecting incomplete ownership records."""
+    owners = object_mapping(ownership, "APB metadata ownership")
+    if set(owners) != {"root", "level"}:
+        raise InvalidResultError("APB metadata ownership must declare root and level")
+    root = _owned_metadata(namespace, owners["root"])
+    level = _owned_metadata(namespace, owners["level"])
+    merged, paths = compose_metadata(root, level)
+    if merged != namespace or paths != owners:
+        raise InvalidResultError("APB metadata ownership does not describe the namespace exactly")
+    return root, level
+
+
+def _owned_metadata(namespace: Mapping[str, JsonValue], descriptor: object) -> dict[str, JsonValue]:
+    record = object_mapping(descriptor, "metadata paths")
+    if set(record) != {"values", "empty_objects"}:
+        raise InvalidResultError("metadata paths must declare values and empty_objects")
+    result: dict[str, JsonValue] = {}
+    for kind in ("values", "empty_objects"):
+        entries = record[kind]
+        if not isinstance(entries, list):
+            raise InvalidResultError("metadata ownership paths must be lists")
+        for entry in cast(list[object], entries):
+            path = string_list(entry, "metadata ownership path")
+            value = _value_at_path(namespace, path)
+            if kind == "empty_objects":
+                if not isinstance(value, dict):
+                    raise InvalidResultError(f"metadata object path is not an object: {path!r}")
+                value = {}
+            elif isinstance(value, dict) or not path:
+                raise InvalidResultError(f"metadata value path is not a leaf: {path!r}")
+            _insert_owned_value(result, path, value)
+    return result
+
+
+def _value_at_path(namespace: Mapping[str, JsonValue], path: list[str]) -> JsonValue:
+    value: JsonValue = dict(namespace)
+    for key in path:
+        if not isinstance(value, dict) or key not in value:
+            raise InvalidResultError(f"metadata ownership names absent path {path!r}")
+        value = value[key]
+    return value
+
+
+def _insert_owned_value(target: dict[str, JsonValue], path: list[str], value: JsonValue) -> None:
+    if not path:
+        return
+    for key in path[:-1]:
+        child = target.setdefault(key, {})
+        if not isinstance(child, dict):
+            raise InvalidResultError(f"overlapping metadata ownership paths: {path!r}")
+        target = child
+    if path[-1] in target:
+        raise InvalidResultError(f"duplicate metadata ownership path: {path!r}")
+    target[path[-1]] = deepcopy(value)
+
+
+def unpack_shared_scope(
+    value: object, role: str, /
+) -> tuple[dict[str, JsonValue], dict[str, JsonValue]]:
+    """Split one persisted shared scope into the storage-neutral result fields."""
+    scope = object_mapping(value, role)
+    parse = cast(
+        dict[str, JsonValue],
+        dict(object_mapping(scope.get(PARSE_NAMESPACE, {}), f"{role} parse section")),
+    )
+    metadata = cast(
+        dict[str, JsonValue],
+        {name: item for name, item in scope.items() if name != PARSE_NAMESPACE},
+    )
+    return parse, metadata
+
+
+def unpack_level_scope(
+    value: object, role: str, /
+) -> tuple[dict[str, JsonValue], dict[str, JsonValue]]:
+    """Split one persisted level scope and restore its semantic role maps."""
+    scope = object_mapping(value, role)
+    parse = cast(
+        dict[str, JsonValue],
+        dict(object_mapping(scope.get(PARSE_NAMESPACE, {}), f"{role} parse section")),
+    )
+    roles = object_mapping(scope.get(ROLES_NAMESPACE, {}), f"{role} roles section")
+    if "columns" in roles:
+        parse["column_roles"] = cast(JsonValue, roles["columns"])
+    if "layers" in roles:
+        parse["layer_roles"] = cast(JsonValue, roles["layers"])
+    metadata = cast(
+        dict[str, JsonValue],
+        {
+            name: item
+            for name, item in scope.items()
+            if name not in {PARSE_NAMESPACE, ROLES_NAMESPACE}
+        },
+    )
+    return parse, metadata
 
 
 def layer_role_from_metadata(
@@ -92,8 +304,12 @@ def safe_names(names: Iterable[str], /, *, prefix: str, suffix: str) -> dict[str
 
 def table_metadata(frame: pl.DataFrame, file_name: str, /) -> dict[str, JsonValue]:
     """Record one table's physical name, logical columns, and Polars dtypes."""
+    return {"file": file_name, **logical_table_metadata(frame)}
+
+
+def logical_table_metadata(frame: pl.DataFrame, /) -> dict[str, JsonValue]:
+    """Record the logical columns and dtypes needed for an exact table round-trip."""
     return {
-        "file": file_name,
         "columns": list(frame.columns),
         "schema": [_dtype_metadata(frame.schema[name]) for name in frame.columns],
     }

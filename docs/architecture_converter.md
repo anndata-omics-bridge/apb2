@@ -21,6 +21,8 @@ vendor column name, it illustrates a generic contract; it never creates a vendor
 The words **must**, **must not**, and **only** are normative. Examples are explanatory unless an
 invariant or test explicitly adopts them.
 
+The [APB metadata specification](metadata_specification.md) is authoritative for persisted namespace ownership, tool integration, composition and result-format versions. Converter examples below do not define a separate metadata contract.
+
 The current rule storage version is schema `0.7`; [How rules-driven conversion works](rule-based.md) is the concise authoring guide. Supplement C.1–C.6 preserves the earlier migrations; schema `0.7` retains entry-shaped columns, semantic roles, grouped input tables and logical numeric measurement types while adding rule-selected input preparation.
 
 ## 1. Executive decision
@@ -811,7 +813,7 @@ target.parquet/
             ...
 ```
 
-`manifest.json` version 2 records level and table order, axis keys, each layer's var keys and role,
+`manifest.json` version 4 records level and table order, axis keys, each layer's var keys and role,
 primary layers, both provenance scopes, every table's ordered logical Polars schema, and explicit
 logical-to-physical names. A user-authored name is never interpolated into a path without that
 mapping. `ParquetReader` accepts this APB2 dataset only; a vendor `.parquet` file is not a result.
@@ -915,10 +917,7 @@ axis=0)` under MuData's non-pulling update semantics, writes shared provenance t
 `mdata.uns["apb"]["parse"]`, and
 atomically writes `.h5mu`. The authored unprefixed key remains an ordinary modality `.var` column.
 
-One modality is valid; zero modalities is an error. The parsed-level names and configured writer
-names must match exactly. Level-specific rule JSON and resolved-plan provenance remain inside each
-modality; the MuData root contains only shared producer, selection, parameter, and ordered-level
-facts.
+One modality is valid; zero modalities is an error. The parsed-level names and configured writer names must match exactly. Level-specific rule JSON and resolved-plan provenance remain inside each modality; root parse metadata contains common producer, selection and parameter provenance. Extension tools may add their own root provenance according to the [metadata specification](metadata_specification.md#ownership); modality names and ordering belong to the collection structure, not repeated parse metadata.
 
 ### 6.4 Shared result-I/O capability
 
@@ -959,15 +958,7 @@ target; the reader opens it read-only and closes it before returning the Polars 
 Polars for Arrow record batches when registering a frame, so PyArrow is an explicit runtime
 dependency even though APB2 does not import it directly.
 
-h5ad/h5mu store a versioned JSON result envelope at `uns["apb"]["result"]`, beside the existing
-parse provenance at `uns["apb"]["parse"]`. The envelope distinguishes shared and per-level
-provenance, records ordered logical names and axis keys, and maps names that HDF5 cannot represent
-directly to safe physical keys. It also records each layer's stable `"measurement"` or `"auxiliary"`
-role. Parquet and DuckDB record the same role in each layer's manifest entry. A reader treats an
-absent role as measurement, so results written before role metadata remain readable. This addition
-does not increment the existing formats: h5 envelope version 1, Parquet manifest version 2, and
-DuckDB manifest version 1. An h5 reader requires the envelope; it is deliberately not a general
-third-party AnnData importer.
+h5ad/h5mu store tool namespaces directly below `uns["apb"]`. MuData owns common provenance and each embedded AnnData owns its rules, roles and results. H5AD composes disjoint root and level mappings recursively; a conflicting leaf fails before publication. Generic ownership paths in `storage` reconstruct both contributions, including empty mappings, without copying values or recognizing tool names. The descriptor also records logical names, schemas, axis keys, safe physical keys and matrix locations. The primary matrix is only in `X`; additional matrices are in `layers`. Parquet and DuckDB manifests use root `apb` and per-level `apb`. The [metadata specification](metadata_specification.md) owns current versions and compatibility rules. The representation reuses the persistence projection and shows combined metadata once for H5AD, separate root/modality metadata otherwise. An h5 reader is deliberately not a general third-party AnnData importer.
 
 The h5 collection writers reconstruct the standard matrix encoders and occupancy contract from
 the stored `plan_json`. They do not reload `rules.json`, import its Pydantic models, or resolve a
@@ -2397,7 +2388,7 @@ nonempty candidate lists, and essential complete-rule references. We author and 
 these documents; the schema does not accumulate validators for harmless duplicate spellings or
 every theoretical combination.
 
-A vendor-result folder or explicit companion list supplies table-local physical inputs. MaxQuant's direct evidence group produces ions at raw-file resolution; its preparation function unpivots only higher-level exports and joins evidence-ID references plus experiment. AlphaDIA 1.12 joins authoritative matrix quantities with precursor metadata. `prepare_source` composes reads with independent tool functions; `PreparedTable` shares the frame within its group. Direct evidence never acquires preparation provenance or join fan-out. The parsing-owned `observation_groups` module aligns explicit, complete bijections without changing measurement cells and otherwise separates observation identities. The parent conversion facade writes each group and returns actual output paths; backend writers make no scientific alignment decisions. Relationship records are JSON in existing parse provenance, not a new storage schema.
+A vendor-result folder supplies table-local physical inputs. MaxQuant's direct evidence group produces ions at raw-file resolution; its preparation function unpivots only higher-level exports and joins evidence-ID references plus experiment. AlphaDIA 1.12 joins authoritative matrix quantities with precursor metadata. `prepare_source` composes reads with independent tool functions; `PreparedTable` shares the frame within its group. Direct evidence never acquires preparation provenance or join fan-out. The parsing-owned `observation_groups` module aligns explicit, complete bijections without changing measurement cells and otherwise separates observation identities. The parent conversion facade writes each group and returns actual output paths; backend writers make no scientific alignment decisions. Relationship records are JSON in existing parse provenance, not a new storage schema.
 
 #### C.5 Schema 0.3 rule-package migration (historical)
 
@@ -3255,7 +3246,7 @@ Tests must prove:
 - every input declaration has at least one supported extension hint;
 - shared `.tsv`, `.txt`, `.csv`, and `.parquet` base formats are tested once;
 - only Spectronaut enables delimiter and numeric-format detection;
-- one MaxQuant document separates direct `evidence.txt` from a prepared higher-level group, recognizing all nonempty subsets and renamed companions;
+- one MaxQuant document separates direct `evidence.txt` from a prepared higher-level group, recognizing all nonempty directory subsets and renamed internal bindings;
 - every resolved delimited plan partitions all projected columns into disjoint text and
   native-numeric sets;
 - every fragment declaration retains at least one packed value source and has a collision-free

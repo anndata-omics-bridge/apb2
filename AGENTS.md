@@ -14,13 +14,9 @@ The closest `AGENTS.md` wins. Explicit user instructions override this file.
 | Tests | `.venv/bin/pytest -q` |
 | Build | `uv build && .venv/bin/twine check dist/*` |
 | Full gate | `make check` |
-| Integration test | `make -C ../apb_studio corpus-routine` — 10 named fixtures through the real CLIs; see the workspace `AGENTS.md` |
+| Integration test | `uv run --project ../apb_studio corpus run --workflow convert` — 10 named fixtures through the real CLI; see the workspace `AGENTS.md` |
 
-Keep integration scope equal to the tool being changed. For `apb2 convert`, run only
-`make -C ../apb_studio corpus-routine CORPUS_PIPELINE=apb2-convert`; do not run annotation,
-FASTA, ProteoBench, the other converter, or a full corpus pipeline unless the user explicitly
-requests broader coverage. Apply the same rule to FASTA work: run only a FASTA-focused workflow or
-test target. If no such target exists, report that fact instead of substituting a broader pipeline.
+Keep integration scope equal to the tool being changed. For `apb2 convert`, run only `uv run --project ../apb_studio corpus run --workflow convert`; do not run annotation, FASTA, ProteoBench, the other converter, or a full corpus unless the user explicitly requests broader coverage. Apply the same rule to FASTA work: run only a FASTA-focused workflow. If no such workflow exists, report that fact instead of substituting a broader pipeline.
 
 ## Code conventions
 
@@ -61,6 +57,17 @@ the parent. Inside `parse_quant`, the one declared sibling edge is `io -> data`;
 do not import those I/O modules.
 Encode each concrete boundary in `.importlinter`; `make lint` and `make check`
 must execute `lint-imports`, so the prose rule is also a merge-blocking check.
+
+## Physical input preparation
+
+- Join and preparation hooks are allowed only when one conversion consumes
+  multiple physical input files.
+- A single-file input must use the rule document and standard input reader;
+  never add vendor-specific preprocessing for a single table.
+- Do not use preparation hooks to repair duplicate rows, normalize columns, or
+  otherwise transform one physical input file.
+- Multi-file vendor inputs use their canonical directory as the source. Do not
+  add per-file companion options to the CLI or conversion facade.
 
 ## Dependency rules
 

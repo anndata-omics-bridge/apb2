@@ -150,14 +150,6 @@ from apb2.parserV2.vendor_parse_rules.schema.measurements import (
 )
 from apb2.parserV2.vendor_parse_rules.schema.rule import LongRule, WideRule
 
-PRODUCER = "apb2"
-"""What this package writes as ``uns['apb']['parse']['produced_by']``.
-
-Which tool converted the object, stated by the tool. A reader that wants a rule document
-renders it only for a producer whose schema it can validate; sniffing the payload's shape
-would be a worse answer than asking who wrote it.
-"""
-
 _EMPTY_RATIO = 0.001
 _POPULATED_RATIO = 0.5
 _STRIPPED_OUTPUT = "stripped_sequence"
@@ -613,7 +605,6 @@ class ParseRuleFacade:
         to validate a schema-0.7 document to learn which columns and layers carry a meaning.
         """
         provenance: dict[str, JsonValue] = {
-            "produced_by": PRODUCER,
             "rule_json": json.dumps(rule.model_dump(mode="json")),
             "column_roles": {
                 role: entry.name for entry in rule.columns.var for role in entry.roles

@@ -33,8 +33,6 @@ from apb2.parserV2.parse_quant.data.parsed import (
     VarFinal,
 )
 from apb2.parserV2.parse_quant.io.anndata_writer import (
-    NAMESPACE,
-    PARSE_NAMESPACE,
     AnnDataWriter,
     FactorAnnDataEncoder,
     MuDataLevelError,
@@ -49,6 +47,11 @@ from apb2.parserV2.parse_quant.io.errors import (
     AnnDataLayerContractError,
     InvalidResultError,
     ResultIOError,
+)
+from apb2.parserV2.parse_quant.io.metadata import (
+    NAMESPACE,
+    PARSE_NAMESPACE,
+    STORAGE_NAMESPACE,
 )
 from apb2.parserV2.parse_quant.io.parquet_reader import ParquetReader
 from apb2.parserV2.parse_quant.io.parquet_writer import (
@@ -159,7 +162,7 @@ def test_the_manifest_states_what_every_file_is(tmp_path: Path) -> None:
     ParquetWriter().write(parsed, target)
     manifest = manifest_of(target)
 
-    assert manifest["format_version"] == "2"
+    assert manifest["format_version"] == "4"
     assert manifest["level_order"] == ["ion"]
     levels = manifest["levels"]
     assert isinstance(levels, dict)
@@ -167,7 +170,9 @@ def test_the_manifest_states_what_every_file_is(tmp_path: Path) -> None:
     assert isinstance(ion, dict)
     assert ion["primary_layer"] == "Intensity"
     assert ion["layer_order"] == ["Intensity", "Q Value"]
-    assert ion["uns"] == {
+    apb = ion["apb"]
+    assert isinstance(apb, dict)
+    assert apb["parse"] == {
         "software_name": "Synthetic",
         "quantification_level": "ion",
         "unknown_mod_tokens": ["Mystery@M"],
@@ -645,16 +650,10 @@ def test_the_written_object_is_observations_by_variables_with_the_primary_layer_
     assert np.array_equal(
         np.asarray(stored.X), np.array([[1.0, 2.0], [3.0, np.nan]]), equal_nan=True
     )
-    # AnnData 0.13 lists X itself as the unnamed layer; the named layers are what we wrote.
-    assert {name for name in stored.layers.keys() if name is not None} == {  # noqa: SIM118
-        "Intensity"
-    }
-    assert np.array_equal(
-        np.asarray(stored.layers["Intensity"]), np.asarray(stored.X), equal_nan=True
-    )
+    assert {name for name in stored.layers.keys() if name is not None} == set()  # noqa: SIM118
 
 
-def test_the_primary_layer_is_selected_for_x_and_kept_under_its_own_name(
+def test_the_primary_layer_is_stored_only_in_x(
     tmp_path: Path,
 ) -> None:
     parsed = level(
@@ -670,8 +669,38 @@ def test_the_primary_layer_is_selected_for_x_and_kept_under_its_own_name(
     stored = anndata.read_h5ad(target)
 
     named = {name for name in stored.layers.keys() if name is not None}  # noqa: SIM118
-    assert sorted(named) == ["Intensity", "QValue"]
+    assert sorted(named) == ["QValue"]
     assert np.array_equal(np.asarray(stored.X), np.array([[1.0], [2.0]]))
+
+
+def test_h5ad_namespaces_have_one_scientific_owner_and_one_storage_descriptor(
+    tmp_path: Path,
+) -> None:
+    parsed = level(
+        uns={
+            "quantification_level": "ion",
+            "column_roles": {"protein_assignment": "Feature"},
+            "layer_roles": {"abundance": ["Intensity"]},
+        }
+    )
+    target = tmp_path / "ion.h5ad"
+
+    writer_for(parsed).write(parsed, target)
+    stored = anndata.read_h5ad(target)
+
+    apb = stored.uns[NAMESPACE]
+    assert set(apb) == {PARSE_NAMESPACE, "roles", STORAGE_NAMESPACE}
+    storage = json.loads(apb[STORAGE_NAMESPACE])
+    assert storage["layers"] == [
+        {
+            "location": "X",
+            "name": "Intensity",
+            "role": "measurement",
+            "value_columns": ["obs_0", "obs_1"],
+        }
+    ]
+    assert "column_roles" not in storage
+    assert "layer_roles" not in storage
 
 
 def test_every_authored_key_stays_an_ordinary_column_beside_the_storage_index(
@@ -896,7 +925,6 @@ def test_mudata_writer_materializes_each_level_with_its_configured_anndata_write
             uns={
                 "produced_by": "apb2",
                 "rule_selection_method": "rule_config",
-                "quantification_levels": ["ion", "protein"],
             },
         ),
         target,

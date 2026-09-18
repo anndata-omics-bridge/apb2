@@ -31,7 +31,6 @@ from apb2.parserV2.parse_quant.io.json_representation import (
     write_result_representation,
 )
 from apb2.parserV2.parse_quant.io.layer_representation import quantitative_representation
-from apb2.parserV2.parse_quant.io.metadata import MATRIX_PROJECTED_KEY
 
 
 def _parsed() -> ParsedLevels:
@@ -86,12 +85,12 @@ def _parsed() -> ParsedLevels:
         varp={},
         uns={
             "quantification_level": "ion",
-            MATRIX_PROJECTED_KEY: True,
             "source_path": "/private/input/vendor.tsv",
         },
         metadata={
             "layer_descriptors": {"Intensity": {"unit": "arbitrary units", "scale": "linear"}}
         },
+        matrix_values_projected=True,
     )
     return ParsedLevels(
         levels={"ion": level},
@@ -136,14 +135,15 @@ def _empty_level() -> ParsedLevel:
         varm={},
         obsp={},
         varp={},
-        uns={MATRIX_PROJECTED_KEY: True},
+        uns={},
+        matrix_values_projected=True,
     )
 
 
 def _factor_result() -> ParsedLevels:
     parsed = _parsed()
     level = parsed.levels["ion"]
-    level.uns.pop(MATRIX_PROJECTED_KEY)
+    level.matrix_values_projected = False
     level.uns["plan_json"] = _factor_plan()
     level.layers["Status"] = FinalLayerTable(
         layer_name="Status",
@@ -160,10 +160,10 @@ def _factor_result() -> ParsedLevels:
     return ParsedLevels(levels={"ion": level}, uns={})
 
 
-def test_version_two_representation_is_structured_bounded_and_deterministic(
+def test_version_four_representation_is_structured_bounded_and_deterministic(
     tmp_path: Path,
 ) -> None:
-    artifact = tmp_path / "result.h5ad"
+    artifact = tmp_path / "result.h5mu"
     artifact.write_bytes(b"scientific result")
 
     document: dict[str, Any] = project_result(_parsed(), artifact)
@@ -171,8 +171,8 @@ def test_version_two_representation_is_structured_bounded_and_deterministic(
     assert document["format"] == FORMAT
     assert document["format_version"] == FORMAT_VERSION
     assert document["artifact"] == {
-        "name": "result.h5ad",
-        "physical_format": "h5ad",
+        "name": "result.h5mu",
+        "physical_format": "h5mu",
         "size_bytes": 17,
     }
     level = document["levels"][0]
@@ -266,7 +266,7 @@ def test_multiple_levels_and_empty_axes_have_a_complete_json_shape(tmp_path: Pat
     assert empty["layers"][0]["observation_summaries"]["items"] == []
     assert empty["layers"][0]["statistics"]["finite_count"] == 0
     assert empty["layers"][0]["statistics"]["median"] is None
-    assert document["shared"]["uns"]["nonfinite_extension"] is None
+    assert document["root"]["apb"]["parse"]["nonfinite_extension"] is None
     json.dumps(document, allow_nan=False)
 
 
@@ -291,7 +291,7 @@ def test_enum_axis_categories_and_nonfinite_descriptors_do_not_leak_into_json(
     level.metadata["layer_descriptors"] = {
         "Intensity": {"unit": "arbitrary units", "scale": float("nan")}
     }
-    artifact = tmp_path / "result.h5ad"
+    artifact = tmp_path / "result.h5mu"
     artifact.write_bytes(b"result")
 
     document: dict[str, Any] = project_result(parsed, artifact)
@@ -363,14 +363,14 @@ def test_known_embedded_json_containers_are_projected_recursively_without_mutati
     document: dict[str, Any] = project_result(parsed)
 
     projected_level = document["levels"][0]
-    assert projected_level["uns"]["rule_json"] == {
+    assert projected_level["apb"]["parse"]["rule_json"] == {
         "schema_version": "0.3",
         "software_name": "Sage",
         "separator": "/",
         "value_pattern": "/foo/bar",
         "resource_paths": ["a.json", "b.json"],
     }
-    assert projected_level["uns"]["plan_json"] == {
+    assert projected_level["apb"]["parse"]["plan_json"] == {
         "level": "ion",
         "ann_data": {
             "layer_encodings": [
@@ -399,11 +399,11 @@ def test_known_embedded_json_containers_are_projected_recursively_without_mutati
             }
         },
     }
-    assert document["shared"]["uns"]["search_parameters"] == {
+    assert document["root"]["apb"]["parse"]["search_parameters"] == {
         "software_name": "Sage",
         "source_path": "parameters.json",
     }
-    assert projected_level["metadata"]["aggregate"] == [
+    assert projected_level["apb"]["aggregate"] == [
         {"source_level": "ion", "target_level": "protein", "method": "mean"}
     ]
     projected_annotation = document["annotation_tables"][0]["metadata"]
@@ -417,7 +417,7 @@ def test_known_embedded_json_containers_are_projected_recursively_without_mutati
 
 
 def test_sidecar_publication_replaces_atomically_and_preserves_artifact(tmp_path: Path) -> None:
-    artifact = tmp_path / "result.h5ad"
+    artifact = tmp_path / "result.h5mu"
     artifact.write_bytes(b"valid artifact")
     destination = sidecar_path(artifact)
     destination.write_text("previous\n", encoding="utf-8")
@@ -470,7 +470,7 @@ def test_sidecar_publish_failure_removes_stale_file_and_temporary(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    artifact = tmp_path / "result.h5ad"
+    artifact = tmp_path / "result.h5mu"
     artifact.write_bytes(b"new artifact")
     destination = sidecar_path(artifact)
     destination.write_text("stale representation\n", encoding="utf-8")
@@ -510,6 +510,7 @@ def test_factor_layer_has_bounded_categorical_counts_and_no_numeric_summary(
         "name": "Status",
         "role": "auxiliary",
         "primary": False,
+        "storage_slot": "layers",
         "shape": {"observations": 2, "variables": 4},
         "unit": None,
         "scale": None,
@@ -638,7 +639,8 @@ def test_observation_identifiers_and_layer_summaries_share_one_fixed_cap(
         varm={},
         obsp={},
         varp={},
-        uns={MATRIX_PROJECTED_KEY: True},
+        uns={},
+        matrix_values_projected=True,
     )
     artifact = tmp_path / "wide.parquet"
     artifact.mkdir()

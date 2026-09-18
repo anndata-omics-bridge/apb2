@@ -36,8 +36,10 @@ def test_peaks_fdr_metadata_roundtrips_without_filtering(tmp_path: Path, suffix:
         assert [level.level for level in result.levels] == ["ion"]
         targets.append(target)
 
-    first = read_parsed_levels(targets[0]).levels["ion"]
-    second = read_parsed_levels(targets[1]).levels["ion"]
+    first_result = read_parsed_levels(targets[0])
+    second_result = read_parsed_levels(targets[1])
+    first = first_result.levels["ion"]
+    second = second_result.levels["ion"]
     assert first.obs.frame.height == 6
     assert first.var.frame.height > 0
     assert_frame_equal(first.obs.frame, second.obs.frame)
@@ -45,7 +47,7 @@ def test_peaks_fdr_metadata_roundtrips_without_filtering(tmp_path: Path, suffix:
     assert first.layers.keys() == second.layers.keys()
     for name in first.layers:
         assert_frame_equal(first.layers[name].values, second.layers[name].values)
-    for parsed, expected_fdr in ((first, 0.01), (second, 0.0)):
+    for parsed, expected_fdr in ((first_result, 0.01), (second_result, 0.0)):
         metadata = parsed.uns["search_parameters"]
         assert isinstance(metadata, str)
         parameters = json.loads(metadata)

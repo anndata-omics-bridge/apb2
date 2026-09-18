@@ -24,6 +24,7 @@ nav:
   - Reference:
       - CLI: cli.md
       - Python API: api.md
+      - APB metadata specification: metadata_specification.md
   - Architecture:
       - Converter: architecture_converter.md
       - Sample annotation: architecture_annotation.md

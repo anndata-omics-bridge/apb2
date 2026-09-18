@@ -33,6 +33,8 @@ from apb2.parserV2.parse_quant.io.metadata import (
     restore_table_schema,
     string_list,
     string_value,
+    unpack_level_scope,
+    unpack_shared_scope,
 )
 from apb2.parserV2.parse_quant.io.validation import validate_parsed_levels
 
@@ -70,11 +72,7 @@ class ParquetReader:
             levels[name] = level
         if set(order) != set(level_entries):
             raise InvalidResultError("level order and level metadata name different levels")
-        uns = cast(dict[str, JsonValue], dict(object_mapping(manifest.get("uns"), "shared uns")))
-        metadata = cast(
-            dict[str, JsonValue],
-            dict(object_mapping(manifest.get("metadata", {}), "shared metadata")),
-        )
+        uns, metadata = unpack_shared_scope(manifest.get("apb"), "root APB metadata")
         annotation_tables = _read_annotation_tables(source, manifest)
         feature_relations = _read_feature_relations(source, manifest)
         parsed = ParsedLevels(
@@ -103,6 +101,7 @@ def _read_level(source: Path, metadata: dict[str, object] | object) -> ParsedLev
         key_columns=tuple(string_list(var_metadata.get("key_columns"), "var key columns")),
     )
     layers = _read_layers(directory, level)
+    uns, extension_metadata = unpack_level_scope(level.get("apb"), "level APB metadata")
     return ParsedLevel(
         obs=obs,
         var=var,
@@ -112,11 +111,9 @@ def _read_level(source: Path, metadata: dict[str, object] | object) -> ParsedLev
         varm=_read_named_frames(directory / "varm", level, "varm"),
         obsp=_read_named_frames(directory / "obsp", level, "obsp"),
         varp=_read_named_frames(directory / "varp", level, "varp"),
-        uns=cast(dict[str, JsonValue], dict(object_mapping(level.get("uns"), "level uns"))),
-        metadata=cast(
-            dict[str, JsonValue],
-            dict(object_mapping(level.get("metadata", {}), "level metadata sections")),
-        ),
+        uns=uns,
+        metadata=extension_metadata,
+        matrix_values_projected=level.get("matrix_values_projected") is True,
     )
 
 

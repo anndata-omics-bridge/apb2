@@ -160,6 +160,9 @@ class ParsedLevel:
     metadata: dict[str, JsonValue] = field(default_factory=dict)
     # {"annotation": {"prolfquapp": {"schema_version": "1"}}}
 
+    matrix_values_projected: bool = False
+    # True after a matrix backend has decoded vendor values into their numeric representation.
+
 
 @dataclass(slots=True)
 class AnnotationTable:

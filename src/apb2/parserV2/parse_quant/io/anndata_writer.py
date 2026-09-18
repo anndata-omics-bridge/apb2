@@ -51,17 +51,19 @@ from apb2.parserV2.parse_quant.io.layer_representation import (
     quantitative_representation,
 )
 from apb2.parserV2.parse_quant.io.metadata import (
-    MATRIX_PROJECTED_KEY,
     NAMESPACE,
-    PARSE_NAMESPACE,
     RESULT_FORMAT,
     RESULT_FORMAT_VERSION,
-    RESULT_NAMESPACE,
+    STORAGE_NAMESPACE,
+    collection_shared_scope,
+    compose_metadata,
+    level_scope,
+    logical_table_metadata,
     object_mapping,
     safe_names,
+    shared_scope,
     string_list,
     string_value,
-    table_metadata,
 )
 from apb2.parserV2.parse_quant.io.validation import validate_parsed_level, validate_parsed_levels
 
@@ -554,6 +556,8 @@ class AnnDataWriter:
         level_name: ParsedLevelName,
         shared_uns: Mapping[str, JsonValue],
         shared_metadata: Mapping[str, JsonValue],
+        *,
+        include_shared: bool = False,
     ) -> AnnData:
         validate_parsed_level(level_name, parsed)
         encoded = {
@@ -579,22 +583,24 @@ class AnnDataWriter:
             X=arrays[parsed.primary_layer_name],
             obs=self._make_axis_frame(parsed.obs.frame, parsed.obs.key_columns),
             var=self._make_axis_frame(parsed.var.frame, parsed.var.key_columns),
-            layers={layer_names[name]: values for name, values in arrays.items()},
+            layers={
+                layer_names[name]: values
+                for name, values in arrays.items()
+                if name != parsed.primary_layer_name
+            },
         )
         self._write_aligned(parsed, adata, slot_names)
         self._write_pairwise(parsed, adata, slot_names)
-        _write_namespaces(
+        _write_level_namespaces(
             adata,
-            parse=dict(parsed.uns),
-            result=_level_result_metadata(
+            level=level_scope(parsed),
+            storage=_level_storage_metadata(
                 parsed,
                 level_name,
-                shared_uns,
-                shared_metadata,
                 layer_names,
                 slot_names,
             ),
-            metadata={**shared_metadata, **parsed.metadata},
+            shared=(shared_scope(shared_uns, shared_metadata) if include_shared else None),
         )
         return adata
 
@@ -791,9 +797,8 @@ class MuDataWriter:
         )
         _write_namespaces(
             result,
-            parse=parsed.uns,
-            result=_collection_result_metadata(parsed, annotation_names, relation_names),
-            metadata=parsed.metadata,
+            shared=collection_shared_scope(parsed),
+            storage=_collection_storage_metadata(parsed, annotation_names, relation_names),
         )
         _write_atomically(target, result.write_h5mu)
 
@@ -819,6 +824,7 @@ class H5adWriter:
                 level_name,
                 parsed.uns,
                 parsed.metadata,
+                include_shared=True,
             ).write_h5ad,
         )
 
@@ -903,9 +909,7 @@ def numeric_result_level(parsed: ParsedLevel, /) -> ParsedLevel:
     """
     for layer in parsed.layers.values():
         _plain_numeric_encoder_for(layer)
-    provenance = dict(parsed.uns)
-    provenance[MATRIX_PROJECTED_KEY] = True
-    return replace(parsed, uns=provenance)
+    return replace(parsed, matrix_values_projected=True)
 
 
 def _level_name(parsed: ParsedLevel) -> ParsedLevelName:
@@ -917,47 +921,75 @@ def _level_name(parsed: ParsedLevel) -> ParsedLevelName:
     return value
 
 
-def _level_result_metadata(
+def _level_storage_metadata(
     parsed: ParsedLevel,
     level_name: ParsedLevelName,
-    shared_uns: Mapping[str, JsonValue],
-    shared_metadata: Mapping[str, JsonValue],
     layer_names: Mapping[str, str],
     slot_names: Mapping[str, Mapping[str, str]],
 ) -> dict[str, JsonValue]:
     layers = cast(
-        dict[str, JsonValue],
-        {
-            name: {
-                "physical_name": layer_names[name],
-                "var_key_columns": list(layer.var_key_columns),
+        list[JsonValue],
+        [
+            {
+                "name": name,
+                "location": "X" if name == parsed.primary_layer_name else "layers",
+                **(
+                    {}
+                    if name == parsed.primary_layer_name
+                    else {"physical_name": layer_names[name]}
+                ),
                 "value_columns": list(layer.values.columns[len(layer.var_key_columns) :]),
                 "role": layer.role.persisted_name(),
             }
             for name, layer in parsed.layers.items()
-        },
+        ],
     )
     return {
         "format": RESULT_FORMAT,
         "format_version": RESULT_FORMAT_VERSION,
         "level": level_name,
-        "shared_uns": dict(shared_uns),
-        "shared_metadata": dict(shared_metadata),
-        "level_metadata": dict(parsed.metadata),
-        "primary_layer": parsed.primary_layer_name,
         "obs_key_columns": list(parsed.obs.key_columns),
         "var_key_columns": list(parsed.var.key_columns),
-        "layer_order": list(parsed.layers),
+        "obs": logical_table_metadata(parsed.obs.frame),
+        "var": logical_table_metadata(parsed.var.frame),
         "layers": layers,
-        "obsm_order": list(parsed.obsm),
-        "obsm_physical_names": dict(slot_names["obsm"]),
-        "varm_order": list(parsed.varm),
-        "varm_physical_names": dict(slot_names["varm"]),
-        "obsp_order": list(parsed.obsp),
-        "obsp_physical_names": dict(slot_names["obsp"]),
-        "varp_order": list(parsed.varp),
-        "varp_physical_names": dict(slot_names["varp"]),
+        "obsm": _aligned_storage_entries(parsed.obsm, slot_names["obsm"]),
+        "varm": _aligned_storage_entries(parsed.varm, slot_names["varm"]),
+        "obsp": _pairwise_storage_entries(parsed.obsp, slot_names["obsp"]),
+        "varp": _pairwise_storage_entries(parsed.varp, slot_names["varp"]),
     }
+
+
+def _aligned_storage_entries(
+    frames: Mapping[str, pl.DataFrame], physical_names: Mapping[str, str]
+) -> list[JsonValue]:
+    return cast(
+        list[JsonValue],
+        [
+            {
+                "name": name,
+                "physical_name": physical_names[name],
+                **logical_table_metadata(frame),
+            }
+            for name, frame in frames.items()
+        ],
+    )
+
+
+def _pairwise_storage_entries(
+    frames: Mapping[str, pl.DataFrame], physical_names: Mapping[str, str]
+) -> list[JsonValue]:
+    return cast(
+        list[JsonValue],
+        [
+            {
+                "name": name,
+                "physical_name": physical_names[name],
+                **logical_table_metadata(frame),
+            }
+            for name, frame in frames.items()
+        ],
+    )
 
 
 def _annotation_anndata(
@@ -1011,7 +1043,7 @@ def _write_root_feature_relations(
         result.varp[relation_names[name]] = sparse.csr_matrix(matrix)
 
 
-def _collection_result_metadata(
+def _collection_storage_metadata(
     parsed: ParsedLevels,
     annotation_names: Mapping[str, str],
     relation_names: Mapping[str, str],
@@ -1019,40 +1051,38 @@ def _collection_result_metadata(
     return {
         "format": RESULT_FORMAT,
         "format_version": RESULT_FORMAT_VERSION,
-        "level_order": list(parsed.levels),
-        "shared_uns": dict(parsed.uns),
-        "annotation_table_order": list(parsed.annotation_tables),
+        "levels": cast(
+            list[JsonValue],
+            [{"name": name, "physical_name": name} for name in parsed.levels],
+        ),
         "annotation_tables": cast(
-            dict[str, JsonValue],
-            {
-                name: {
-                    **table_metadata(table.frame, annotation_names[name]),
+            list[JsonValue],
+            [
+                {
+                    "name": name,
                     "physical_name": annotation_names[name],
-                    "key_columns": list(table.key_columns),
-                    "metadata": dict(table.metadata),
+                    **logical_table_metadata(table.frame),
                 }
                 for name, table in parsed.annotation_tables.items()
-            },
+            ],
         ),
-        "feature_relation_order": list(parsed.feature_relations),
-        "feature_relation_physical_names": dict(relation_names),
         "feature_relations": cast(
-            dict[str, JsonValue],
-            {
-                name: {
-                    "annotation_table": relation.annotation_table,
-                    "target_level": relation.target_level,
-                    "metadata": dict(relation.metadata),
+            list[JsonValue],
+            [
+                {
+                    "name": name,
+                    "physical_name": relation_names[name],
+                    **logical_table_metadata(relation.coordinates),
                 }
                 for name, relation in parsed.feature_relations.items()
-            },
+            ],
         ),
     }
 
 
 def _ann_data_writer_from_stored_plan(parsed: ParsedLevel) -> AnnDataWriter:
     raw_plan = parsed.uns.get("plan_json")
-    projected = parsed.uns.get(MATRIX_PROJECTED_KEY) is True
+    projected = parsed.matrix_values_projected
     if not isinstance(raw_plan, str) and not projected:
         raise AnnDataPlanError("AnnData output requires parse provenance key 'plan_json'")
     if not isinstance(raw_plan, str):
@@ -1200,21 +1230,30 @@ def _float_value(value: object, role: str) -> float:
     return float(value)
 
 
-def _write_namespaces(
-    target: AnnData | MuData,
+def _write_level_namespaces(
+    target: AnnData,
     *,
-    parse: Mapping[str, JsonValue],
-    result: Mapping[str, JsonValue],
-    metadata: Mapping[str, JsonValue],
+    level: Mapping[str, JsonValue],
+    storage: Mapping[str, JsonValue],
+    shared: Mapping[str, JsonValue] | None,
 ) -> None:
-    """Store independent parse, result, and extension sections under APB's namespace."""
-    collisions = {PARSE_NAMESPACE, RESULT_NAMESPACE}.intersection(metadata)
-    if collisions:
-        raise AnnDataPlanError(f"APB extension metadata uses reserved section(s) {collisions}")
+    namespace, ownership = compose_metadata(shared or {}, level)
+    namespace[STORAGE_NAMESPACE] = json.dumps(
+        {**storage, "metadata_ownership": ownership}, ensure_ascii=False, allow_nan=False
+    )
+    target.uns[NAMESPACE] = namespace
+
+
+def _write_namespaces(
+    target: MuData,
+    *,
+    shared: Mapping[str, JsonValue],
+    storage: Mapping[str, JsonValue],
+) -> None:
+    """Store canonical shared metadata and a nonduplicating physical descriptor."""
     target.uns[NAMESPACE] = {
-        PARSE_NAMESPACE: dict(parse),
-        RESULT_NAMESPACE: json.dumps(result, ensure_ascii=False, allow_nan=False),
-        **dict(metadata),
+        **shared,
+        STORAGE_NAMESPACE: json.dumps(storage, ensure_ascii=False, allow_nan=False),
     }
 
 

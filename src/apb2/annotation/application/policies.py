@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Protocol
 
 import polars as pl
@@ -166,40 +166,29 @@ def record_annotation_provenance(
     *,
     metadata: Mapping[str, JsonValue] | None = None,
 ) -> AnnotationResult:
-    """Record one convention's JSON-compatible annotation evidence."""
-    source = str(origin.path) if isinstance(origin, AnnotationFileOrigin) else None
-    summary: dict[str, JsonValue] = {
-        name: _report_json(report) for name, report in result.reports.items()
-    }
-    record: dict[str, JsonValue] = {
-        "schema_version": "1",
-        "convention": convention,
-        "source": source,
-        "levels": summary,
-    }
-    if metadata:
-        record["metadata"] = dict(metadata)
-    shared_annotation = _annotation_section(result.parsed.metadata)
-    shared_annotation[convention] = record
+    """Record tool-owned source provenance and each level's annotation report."""
+    if convention in {"parse", "roles", "storage"}:
+        raise AnnotationError(f"annotation convention uses reserved APB section {convention!r}")
+    record: dict[str, JsonValue] = dict(metadata or {})
+    record["schema_version"] = "2"
+    if "source" not in record:
+        record["source"] = (
+            {"path": str(origin.path)} if isinstance(origin, AnnotationFileOrigin) else None
+        )
+    root_tool = _metadata_section(result.parsed.metadata, convention)
+    provenance = _metadata_section(root_tool, "provenance")
+    provenance["annotation"] = record
     for name, level in result.parsed.levels.items():
         report = _report_json(result.reports[name])
-        level_record: dict[str, JsonValue] = {
-            "schema_version": "1",
-            "convention": convention,
-            "source": source,
-            **report,
-        }
-        if metadata:
-            level_record["metadata"] = dict(metadata)
-        level_annotation = _annotation_section(level.metadata)
-        level_annotation[convention] = level_record
+        tool = _metadata_section(level.metadata, convention)
+        tool["annotation"] = report
     return result
 
 
-def _annotation_section(metadata: dict[str, JsonValue]) -> dict[str, JsonValue]:
-    value = metadata.setdefault("annotation", {})
+def _metadata_section(metadata: dict[str, JsonValue], name: str) -> dict[str, JsonValue]:
+    value = metadata.setdefault(name, {})
     if not isinstance(value, dict):
-        raise AnnotationError("APB annotation metadata section must be an object")
+        raise AnnotationError(f"APB metadata section {name!r} must be an object")
     return value
 
 
@@ -228,6 +217,8 @@ def _apply(
             levels=levels,
             uns=dict(parsed.uns),
             metadata=dict(parsed.metadata),
+            annotation_tables=dict(parsed.annotation_tables),
+            feature_relations=dict(parsed.feature_relations),
         ),
         reports=reports,
     )
@@ -253,10 +244,9 @@ def _annotated_level(
 ) -> ParsedLevel:
     annotated_obs = level.obs.frame.hstack(match.aligned.get_columns()).filter(selected)
     kept = [index for index, value in enumerate(selected) if value]
-    return ParsedLevel(
+    return replace(
+        level,
         obs=ObsFinal(frame=annotated_obs, key_columns=level.obs.key_columns),
-        var=level.var,
-        primary_layer_name=level.primary_layer_name,
         uns=dict(level.uns),
         layers={name: _subset_layer(layer, kept) for name, layer in level.layers.items()},
         obsm={name: frame.filter(selected) for name, frame in level.obsm.items()},

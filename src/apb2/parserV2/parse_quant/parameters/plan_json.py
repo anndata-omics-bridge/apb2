@@ -7,15 +7,9 @@ modification tokens resolved to which accessions, and what the AnnData encoders 
 None of that is recoverable from the rule afterwards, which is why the plan travels with the
 output instead of staying in the process that produced it.
 
-Text rather than a nested mapping, for three reasons: the ``rule_json`` sitting beside it in
-the same provenance is already a string; one string needs no storage schema for the empty
-tuples and sets a plan legitimately contains; and two runs of the same pipeline are then
-comparable with a diff.
-
-The record is complete — every field of the plan, including its own ``provenance``, which
-therefore repeats the ``rule_json`` stored next to it. That duplication is deliberate: a
-serialization that dropped a field would be a different value, and no reader could tell it
-from a plan whose field was genuinely empty.
+Text rather than a nested mapping keeps the source-specific record stable and diffable. The
+plan's provenance is deliberately excluded: the owning parse scope stores it once, beside
+this record, and no writer consumes it as part of the resolved plan.
 
 Nothing here knows a storage backend or a vendor. It converts the four shapes a plan is built
 from — frozen dataclass, mapping, sequence, set — and refuses anything else rather than
@@ -36,8 +30,12 @@ PLAN_JSON_KEY = "plan_json"
 
 
 def resolved_plan_json(plan: ResolvedLevelPlan) -> str:
-    """One resolved plan as a JSON object, field for field, with every set given an order."""
-    return json.dumps(as_json_value(plan), ensure_ascii=False, allow_nan=False)
+    """Serialize source-specific decisions without copying their parse provenance."""
+    document = as_json_value(plan)
+    if not isinstance(document, dict):
+        raise TypeError("a resolved plan must serialize as an object")
+    document.pop("provenance")
+    return json.dumps(document, ensure_ascii=False, allow_nan=False)
 
 
 def as_json_value(value: object) -> JsonValue:

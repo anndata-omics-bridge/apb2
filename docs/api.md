@@ -63,7 +63,7 @@ parsed = parser.parse()
 parser.convert(parsed, Path("results/ion.h5ad"))
 ```
 
-The conversion functions also accept `companions=(Path("secondary.tsv"),)` beside `data=Path("matrix.tsv")`. Their `ConversionSummary.outputs` tuple contains every written path, including separate observation-resolution outputs. For lower-level mixed-table binding, pass `InputFiles` to `select_document_levels`, then compile each returned selection's concrete `source`. Preparation runs once per selected table group, not per document. Tool functions live in [joins](../src/apb2/parserV2/joins/); input binding and dispatch live in [prepare_source.py](../src/apb2/parserV2/prepare_source.py).
+The conversion functions accept a vendor-result directory for multi-file inputs. Their `ConversionSummary.outputs` tuple contains every written path, including separate observation-resolution outputs. For lower-level mixed-table binding, pass `InputFiles` to `select_document_levels`, then compile each returned selection's concrete `source`. Preparation runs once per selected table group, not per document. Tool functions live in [joins](../src/apb2/parserV2/joins/); input binding and dispatch live in [prepare_source.py](../src/apb2/parserV2/prepare_source.py).
 
 See [Convert vendor results](conversion.md) for rule selection, supported levels, validation, and
 output naming.

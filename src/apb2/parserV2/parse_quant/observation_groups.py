@@ -65,7 +65,6 @@ def group_observations(parsed: ParsedLevels) -> tuple[ParsedLevels, ...]:
             levels={name: levels[name] for name in LEVEL_ORDER if name in levels},
             uns={
                 **parsed.uns,
-                "quantification_levels": [name for name in LEVEL_ORDER if name in levels],
                 "observation_keys": list(keys),
                 "observation_relationships": json.dumps(relationships),
             },

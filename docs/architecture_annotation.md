@@ -61,7 +61,6 @@ evidence remain owned by matching.
 
 ## Storage behavior
 
-Annotation adds metadata columns to each level's `obs` and records source, convention, coverage,
-corrections, and bounded mismatch evidence in `ParsedLevels.metadata["annotation"]`. Parse
-provenance remains separately represented by `ParsedLevels.uns`. Result writers persist both as
-independent `uns["apb"]` sections; no backend-specific annotation implementation exists.
+Annotation follows the [APB metadata specification](metadata_specification.md#tool-operations). It adds columns to each level's `obs`, records one source descriptor and configuration in `ParsedLevels.metadata[tool]["provenance"]["annotation"]`, and records coverage, corrections and bounded mismatch evidence in `ParsedLevel.metadata[tool]["annotation"]`. The tool key identifies the convention; there is no parallel `metadata["annotation"]` namespace or repeated convention alias.
+
+Parse provenance remains in each owner's `uns`. Result writers project the tool namespaces directly into the owning object's `uns["apb"]`, composing root and local contributions only for standalone H5AD. Recording annotation preserves unrelated operations in the same tool namespace; no backend-specific or tool-name-specific annotation implementation exists.

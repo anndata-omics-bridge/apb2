@@ -12,9 +12,12 @@ import pytest
 
 from apb2.cli import ConvertCliOptions, convert
 from apb2.parserV2.conversion_facade import ConversionError
-from apb2.parserV2.parse_quant.io.anndata_writer import NAMESPACE, PARSE_NAMESPACE
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels
 from apb2.parserV2.parse_quant.io.json_representation import sidecar_path
+from apb2.parserV2.parse_quant.io.metadata import (
+    NAMESPACE,
+    PARSE_NAMESPACE,
+)
 
 _DOCUMENT = {
     "schema_version": "0.7",
@@ -92,9 +95,10 @@ def test_convert_with_rule_config_writes_h5ad(tmp_path: Path) -> None:
     assert exit_code == 0
     written = anndata.read_h5ad(tmp_path / "out.h5ad")
     assert written.shape == (2, 2)
-    namespace = written.uns[NAMESPACE][PARSE_NAMESPACE]
-    assert namespace["rule_selection_method"] == "rule_config"
-    assert namespace["software_name"] == "CliTest"
+    shared = written.uns[NAMESPACE][PARSE_NAMESPACE]
+    level = written.uns[NAMESPACE][PARSE_NAMESPACE]
+    assert shared["rule_selection_method"] == "rule_config"
+    assert json.loads(str(level["rule_json"]))["software_name"] == "CliTest"
     representation = json.loads(sidecar_path(tmp_path / "out.h5ad").read_text())
     assert representation["levels"][0]["dimensions"] == {
         "observations": 2,
@@ -116,10 +120,7 @@ def test_convert_without_a_level_writes_every_rule_level_as_mudata(tmp_path: Pat
     assert exit_code == 0
     written = mudata.read_h5mu(tmp_path / "out.h5mu")
     assert list(written.mod) == ["ion", "protein"]
-    assert list(written.uns[NAMESPACE][PARSE_NAMESPACE]["quantification_levels"]) == [
-        "ion",
-        "protein",
-    ]
+    assert list(written.mod) == ["ion", "protein"]
     representation = json.loads(sidecar_path(tmp_path / "out.h5mu").read_text())
     assert [level["name"] for level in representation["levels"]] == ["ion", "protein"]
 

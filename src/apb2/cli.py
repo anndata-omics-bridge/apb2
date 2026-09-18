@@ -30,10 +30,6 @@ class ConvertCliOptions:
         Parameter(name="--format"),
     ] = "hdf5"
     strict: bool = False
-    companion: Annotated[
-        tuple[Path, ...],
-        Parameter(help="Additional input for the rule's join function; repeat for multiple files"),
-    ] = ()
 
 
 DEFAULT_CONVERT_CLI_OPTIONS = ConvertCliOptions()
@@ -51,9 +47,9 @@ def convert(
     """Convert one vendor table or result directory.
 
     An explicit LEVEL selects one level; omitting it converts every compatible level.
-    --companion adds a physical input to the rule-selected preparation function. A directory
-    supplies its vendor tables together. Levels with incompatible observation identities
-    are written separately with observation-key suffixes; one-to-one aliases are aligned.
+    A directory supplies a multi-file vendor result together. Levels with incompatible
+    observation identities are written separately with observation-key suffixes; one-to-one
+    aliases are aligned.
     --params is the vendor parameter file and is required unless --rule-config is given.
     --software disambiguates packaged rule detection. --params-software selects the
     parameter parser independently for compound workflows. --rule-config selects an
@@ -89,7 +85,6 @@ def convert(
                     parameters_path=options.params,
                     parameters_software=options.params_software,
                     checks=checks,
-                    companions=options.companion,
                 )
             else:
                 result = conversion_facade.convert_from_rule_config(
@@ -100,7 +95,6 @@ def convert(
                     parameters_path=options.params,
                     parameters_software=options.params_software,
                     checks=checks,
-                    companions=options.companion,
                 )
         else:
             if options.params is None:
@@ -114,7 +108,6 @@ def convert(
                     software=options.software,
                     parameters_software=options.params_software,
                     checks=checks,
-                    companions=options.companion,
                 )
             else:
                 result = conversion_facade.convert_from_packaged_rules(
@@ -125,7 +118,6 @@ def convert(
                     software=options.software,
                     parameters_software=options.params_software,
                     checks=checks,
-                    companions=options.companion,
                 )
             logger.info(
                 "vendor={} software_version={}",

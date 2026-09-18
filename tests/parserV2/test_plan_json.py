@@ -1,11 +1,9 @@
-"""The resolved plan a written result carries: complete, ordered, and refusing what it cannot say.
+"""The resolved plan carries source decisions once, ordered, and without copied provenance.
 
 The plan is the only record of what one source actually resolved to. The rule describes every
 export its vendor may produce; after the parse, nothing but the plan can say which columns this
 export provided, which dialect and notation won, which optional layers it could not supply, or
-what the encoders were told. So these tests check three things: that the serialization covers
-every field the plan holds, that it is stable enough to diff two runs, and that it reaches the
-provenance of both outputs.
+what the encoders were told. Parse provenance has its own owner and is excluded from the plan.
 """
 
 from __future__ import annotations
@@ -19,7 +17,7 @@ import pytest
 
 from apb2.parserV2.compile import AnnDataOutput, ParquetOutput, ParseRuleCompiler
 from apb2.parserV2.parse_quant.errors import IncompatibleSourceError
-from apb2.parserV2.parse_quant.io.anndata_writer import NAMESPACE, PARSE_NAMESPACE
+from apb2.parserV2.parse_quant.io.metadata import NAMESPACE, PARSE_NAMESPACE
 from apb2.parserV2.parse_quant.io.parquet_writer import MANIFEST_NAME
 from apb2.parserV2.parse_quant.parameters.plan_json import (
     PLAN_JSON_KEY,
@@ -72,12 +70,14 @@ def written(tmp_path: Path) -> Path:
 # ------------------------------------------------------------------------------ completeness
 
 
-def test_the_serialization_covers_every_field_the_plan_holds() -> None:
+def test_the_serialization_covers_every_source_decision_without_provenance() -> None:
     plan = resolved()
 
     decoded = json.loads(resolved_plan_json(plan))
 
-    assert set(decoded) == {field.name for field in dataclasses.fields(plan)}
+    assert set(decoded) == {
+        field.name for field in dataclasses.fields(plan) if field.name != "provenance"
+    }
     assert set(decoded["read"]) == {field.name for field in dataclasses.fields(plan.read)}
     assert decoded["level"] == "ion"
     assert decoded["duplicate_mode"] == "error"
@@ -206,7 +206,7 @@ def test_the_plan_reaches_the_manifest_of_a_written_parquet_dataset(tmp_path: Pa
     parser.convert(parser.parse(), target)
 
     manifest = json.loads((target / MANIFEST_NAME).read_text(encoding="utf-8"))
-    assert json.loads(manifest["levels"]["ion"]["uns"][PLAN_JSON_KEY])["level"] == "ion"
+    assert json.loads(manifest["levels"]["ion"]["apb"]["parse"][PLAN_JSON_KEY])["level"] == "ion"
 
 
 # ------------------------------------------------------------------------- packaged coverage
@@ -230,5 +230,5 @@ def test_every_packaged_level_this_data_satisfies_serializes_its_plan(
     decoded = json.loads(resolved_plan_json(plan))
 
     assert decoded["level"] == level
-    assert decoded["provenance"]["quantification_level"] == level
+    assert "provenance" not in decoded
     assert decoded["read"]["projected_columns"] == list(plan.read.projected_columns)

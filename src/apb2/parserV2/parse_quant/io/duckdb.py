@@ -27,16 +27,20 @@ from apb2.parserV2.parse_quant.data.parsed import (
 from apb2.parserV2.parse_quant.io.errors import InvalidResultError
 from apb2.parserV2.parse_quant.io.metadata import (
     layer_role_from_metadata,
+    level_scope,
     object_mapping,
     restore_table_schema,
+    shared_scope,
     string_list,
     string_value,
     table_metadata,
+    unpack_level_scope,
+    unpack_shared_scope,
 )
 from apb2.parserV2.parse_quant.io.validation import validate_parsed_levels
 
 FORMAT = "apb2-parsed-levels-duckdb"
-FORMAT_VERSION = "1"
+FORMAT_VERSION = "3"
 METADATA_TABLE = "apb2_result_metadata"
 _REGISTERED_FRAME = "apb2_incoming_frame"
 _PHYSICAL_TABLE = re.compile(r"data_[0-9]{6}")
@@ -81,8 +85,7 @@ class DuckDBWriter:
                     "format_version": FORMAT_VERSION,
                     "level_order": list(parsed.levels),
                     "levels": levels,
-                    "uns": dict(parsed.uns),
-                    "metadata": dict(parsed.metadata),
+                    "apb": shared_scope(parsed.uns, parsed.metadata),
                     "annotation_table_order": list(parsed.annotation_tables),
                     "annotation_tables": cast(
                         dict[str, JsonValue],
@@ -145,8 +148,8 @@ class DuckDBWriter:
             "obsp": {name: tables.write(frame) for name, frame in parsed.obsp.items()},
             "varp_order": list(parsed.varp),
             "varp": {name: tables.write(frame) for name, frame in parsed.varp.items()},
-            "uns": dict(parsed.uns),
-            "metadata": dict(parsed.metadata),
+            "apb": level_scope(parsed),
+            "matrix_values_projected": parsed.matrix_values_projected,
         }
 
 
@@ -189,13 +192,11 @@ class DuckDBReader:
             )
         if set(order) != set(entries):
             raise InvalidResultError("level order and level metadata name different levels")
+        uns, metadata = unpack_shared_scope(root.get("apb"), "root APB metadata")
         return ParsedLevels(
             levels=levels,
-            uns=cast(dict[str, JsonValue], dict(object_mapping(root.get("uns"), "shared uns"))),
-            metadata=cast(
-                dict[str, JsonValue],
-                dict(object_mapping(root.get("metadata", {}), "shared metadata")),
-            ),
+            uns=uns,
+            metadata=metadata,
             annotation_tables=self._read_annotation_tables(connection, root),
             feature_relations=self._read_feature_relations(connection, root),
         )
@@ -267,6 +268,7 @@ class DuckDBReader:
         level = object_mapping(metadata, "level metadata")
         obs_metadata = object_mapping(level.get("obs"), "obs metadata")
         var_metadata = object_mapping(level.get("var"), "var metadata")
+        uns, extension_metadata = unpack_level_scope(level.get("apb"), "level APB metadata")
         return ParsedLevel(
             obs=ObsFinal(
                 frame=self._read_table(connection, obs_metadata),
@@ -282,11 +284,9 @@ class DuckDBReader:
             varm=self._read_named(connection, level, "varm"),
             obsp=self._read_named(connection, level, "obsp"),
             varp=self._read_named(connection, level, "varp"),
-            uns=cast(dict[str, JsonValue], dict(object_mapping(level.get("uns"), "level uns"))),
-            metadata=cast(
-                dict[str, JsonValue],
-                dict(object_mapping(level.get("metadata", {}), "level metadata sections")),
-            ),
+            uns=uns,
+            metadata=extension_metadata,
+            matrix_values_projected=level.get("matrix_values_projected") is True,
         )
 
     def _read_layers(

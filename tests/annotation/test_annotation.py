@@ -515,8 +515,11 @@ def test_cli_annotation_round_trips_through_every_result_format(
     assert exit_code == 0
     restored = read_parsed_levels(target)
     assert restored.levels["ion"].obs.frame.get_column("condition").to_list() == ["A", "B"]
-    assert restored.metadata["annotation"]
-    assert restored.levels["ion"].metadata["annotation"]
+    root = restored.metadata["prolfquapp"]
+    local = restored.levels["ion"].metadata["prolfquapp"]
+    assert isinstance(root, dict) and "provenance" in root
+    assert isinstance(local, dict) and "annotation" in local
+    assert "annotation" not in restored.metadata
 
 
 def test_annotation_does_not_recompute_matching_during_application() -> None:

@@ -43,9 +43,9 @@ from apb2.parserV2.parse_quant.modifications import (
     UnknownModificationError,
 )
 from apb2.parserV2.parse_quant.observation_groups import group_observations
-from apb2.parserV2.parse_quant.parameters.source import Folder, InputFiles, InputSource, SingleFile
+from apb2.parserV2.parse_quant.parameters.source import Folder, InputSource, SingleFile
 from apb2.parserV2.parse_quant.parser import AxisShapeError, CanonicalKeyCollisionError
-from apb2.parserV2.parse_rule_facade import PRODUCER, ParseRuleFacade
+from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.prepare_source import InputPreparationError
 from apb2.parserV2.vendor_params.parsers.shared.model import Parameters, ParamsError
 from apb2.parserV2.vendor_params.registry import parse_params
@@ -58,6 +58,7 @@ from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import LEVELS, QuantificationLevel
 
 type AnnDataChecks = Literal["standard", "strict"]
+PRODUCER = "apb2"
 type RuleSelectionMethod = Literal["software_version", "columns", "rule_config"]
 ReformatError = ResultIOError
 
@@ -124,7 +125,6 @@ def convert_from_rule_config(
     parameters_path: Path | None,
     parameters_software: str | None,
     checks: AnnDataChecks,
-    companions: tuple[Path, ...] = (),
 ) -> ConversionSummary:
     """Convert one level using an explicitly supplied schema-0.7 rule document."""
     try:
@@ -134,7 +134,7 @@ def convert_from_rule_config(
             parameters_software=parameters_software,
         )
         parsed, outputs = _parse_document_and_write(
-            source=_input_source(data, companions),
+            source=_input_source(data),
             levels=(level,),
             output=output,
             document=document,
@@ -162,7 +162,6 @@ def convert_all_from_rule_config(
     parameters_path: Path | None,
     parameters_software: str | None,
     checks: AnnDataChecks,
-    companions: tuple[Path, ...] = (),
 ) -> ConversionSummary:
     """Convert every compatible level of an explicit schema-0.7 document."""
     try:
@@ -172,7 +171,7 @@ def convert_all_from_rule_config(
             parameters_software=parameters_software,
         )
         parsed, outputs = _parse_document_and_write(
-            source=_input_source(data, companions),
+            source=_input_source(data),
             levels=document.levels,
             output=output,
             document=document,
@@ -201,7 +200,6 @@ def convert_from_packaged_rules(
     software: str | None,
     parameters_software: str | None,
     checks: AnnDataChecks,
-    companions: tuple[Path, ...] = (),
 ) -> ConversionSummary:
     """Detect a packaged document from the source and parameter file, then convert it."""
     try:
@@ -211,7 +209,6 @@ def convert_from_packaged_rules(
             software=software,
             parameters_software=parameters_software,
             levels=(level,),
-            companions=companions,
         )
         parsed, outputs = _parse_detected_and_write(
             source=source,
@@ -241,7 +238,6 @@ def convert_all_from_packaged_rules(
     software: str | None,
     parameters_software: str | None,
     checks: AnnDataChecks,
-    companions: tuple[Path, ...] = (),
 ) -> ConversionSummary:
     """Detect and convert every compatible packaged level from one file or folder."""
     try:
@@ -251,7 +247,6 @@ def convert_all_from_packaged_rules(
             software=software,
             parameters_software=parameters_software,
             levels=LEVELS,
-            companions=companions,
         )
         parsed, outputs = _parse_detected_and_write(
             source=source,
@@ -297,10 +292,9 @@ def _packaged_conversion_inputs(
     software: str | None,
     parameters_software: str | None,
     levels: Iterable[QuantificationLevel],
-    companions: tuple[Path, ...] = (),
 ) -> tuple[InputSource, DetectedRuleSet, Parameters, RuleSelectionMethod]:
     """Parse parameters and detect one packaged rule for each requested level."""
-    source = _input_source(data, companions)
+    source = _input_source(data)
     parser_slug = parameters_software or software or guess_software(source)
     if parser_slug is None:
         raise ConversionError(
@@ -317,15 +311,8 @@ def _packaged_conversion_inputs(
     return source, detected, parameters, method
 
 
-def _input_source(data: Path, companions: tuple[Path, ...] = ()) -> InputSource:
-    """Bind an explicit file set, a folder, or a single input before preparation."""
-    if companions:
-        paths = (data, *companions)
-        if any(not path.is_file() for path in paths):
-            raise ConversionError("primary and companion inputs must be existing files")
-        if len({path.name for path in paths}) != len(paths):
-            raise ConversionError("explicit companion inputs must have distinct filenames")
-        return InputFiles(path=data, files={path.name: path for path in paths})
+def _input_source(data: Path) -> InputSource:
+    """Bind a canonical vendor-result folder or one direct input file."""
     return Folder(path=data) if data.is_dir() else SingleFile(path=data)
 
 
@@ -396,15 +383,10 @@ def _parse_detected_and_write(
     for selection, parser in compiled:
         logger.info("level={} source={}", selection.level, selection.source_path)
         parsed = parser.parse()
-        parsed.uns.update(shared)
         levels[selection.level] = parsed
     combined = ParsedLevels(
         levels=levels,
-        uns={
-            "produced_by": PRODUCER,
-            **shared,
-            "quantification_levels": [str(level) for level in levels],
-        },
+        uns={"produced_by": PRODUCER, **shared},
     )
     groups = group_observations(combined)
     outputs = _group_output_paths(groups, output)

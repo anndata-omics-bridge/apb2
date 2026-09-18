@@ -806,8 +806,8 @@ def test_both_rule_shapes_are_represented_by_the_packaged_generation() -> None:
     assert sum(isinstance(rule, LongRule) for rule in shapes) == 26
     assert sum(isinstance(rule, WideRule) for rule in shapes) == 9
     modes = [rule.measurements.duplicates.mode for rule in shapes]
-    assert modes.count("error") == 20
-    assert modes.count("keep_first") == 14
+    assert modes.count("error") == 18
+    assert modes.count("keep_first") == 16
     assert modes.count("aggregate") == 1
     assert sum(isinstance(rule.fragments, ColumnLabeledFragments) for rule in shapes) == 0
 

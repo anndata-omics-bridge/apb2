@@ -6,6 +6,7 @@ import json
 from collections.abc import Mapping
 from pathlib import Path
 
+import anndata
 import duckdb
 import numpy as np
 import polars as pl
@@ -18,6 +19,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
     AuxiliaryLayerRole,
     FeatureRelation,
     FinalLayerTable,
+    JsonValue,
     MeasurementLayerRole,
     ObsFinal,
     ParsedLevel,
@@ -42,7 +44,6 @@ from apb2.parserV2.parse_quant.io.formats import (
     write_parsed_levels,
     writer_for,
 )
-from apb2.parserV2.parse_quant.io.metadata import MATRIX_PROJECTED_KEY
 from apb2.parserV2.parse_quant.io.parquet_writer import MANIFEST_NAME
 
 
@@ -656,11 +657,11 @@ def test_numeric_result_level_accepts_numeric_and_null_values_without_mutating_i
     projected = numeric_result_level(ion)
 
     assert ion.uns == original_provenance
-    assert MATRIX_PROJECTED_KEY not in ion.uns
+    assert ion.matrix_values_projected is False
     assert projected is not ion
     assert projected.layers is ion.layers
-    assert projected.uns is not ion.uns
-    assert projected.uns[MATRIX_PROJECTED_KEY] is True
+    assert projected.uns is ion.uns
+    assert projected.matrix_values_projected is True
 
 
 @pytest.mark.parametrize(
@@ -728,8 +729,8 @@ def test_h5_writer_accepts_a_planless_matrix_projected_derived_level(tmp_path: P
     protein.uns = {
         "produced_by": "apb-aggregate",
         "quantification_level": "protein",
-        MATRIX_PROJECTED_KEY: True,
     }
+    protein.matrix_values_projected = True
     protein.primary_layer_name = "medpolish_from_ion"
     protein.layers = {
         "medpolish_from_ion": FinalLayerTable(
@@ -791,3 +792,80 @@ def test_reformat_cli_command_delegates_to_the_result_boundary(tmp_path: Path) -
     assert reformat_command(source, target) == 0
     _assert_result_equal(read_parsed_levels(target), rich_result())
     assert reformat_command(source, tmp_path / "bad.tsv") == 1
+
+
+@pytest.mark.parametrize("suffix", [".h5ad", ".h5mu", ".parquet", ".duckdb"])
+def test_tool_namespaces_preserve_overlapping_ownership_and_empty_objects(
+    tmp_path: Path, suffix: str
+) -> None:
+    # Start from the canonical numeric projection, so all four formats share values/dtypes.
+    initial = tmp_path / "initial.h5ad"
+    write_parsed_levels(ParsedLevels(levels={"ion": _level("ion", "Ion")}, uns={}), initial)
+    level = read_parsed_levels(initial).levels["ion"]
+    level.uns["layer_roles"] = {"abundance": ["Intensity"]}
+    level.metadata = {
+        "tool": {"annotation": {"count": 2}, "scoring": {"Intensity": {"score": 0.5}}},
+        "extension": {"empty": {}, "level": None, "items": [], "nested": {"level": {}}},
+    }
+    root: dict[str, JsonValue] = {
+        "tool": {"provenance": {"annotation": {"source": "input.tsv"}}},
+        "extension": {"empty": {"root": 1}, "z": {}, "a": 2, "nested": {}},
+    }
+    parsed = ParsedLevels(levels={"ion": level}, uns={"produced_by": "test"}, metadata=root)
+    target = tmp_path / f"result{suffix}"
+    write_parsed_levels(parsed, target)
+    restored = read_parsed_levels(target)
+    _assert_result_equal(restored, parsed)
+    representation = json.loads(Path(f"{target}.apb.json").read_text())
+    assert representation["format_version"] == "4"
+    assert "shared" not in representation
+    assert "storage" not in representation["levels"][0]["apb"]
+    if suffix == ".h5ad":
+        stored = anndata.read_h5ad(target)
+        apb = stored.uns["apb"]
+        assert not {"shared", "level"}.intersection(apb)
+        assert set(apb["tool"]) == {"provenance", "annotation", "scoring"}
+        assert stored.X is not None and "Intensity" not in stored.layers
+        assert representation["root"] is None
+        assert set(representation["levels"][0]["apb"]["tool"]) == set(apb["tool"])
+        ownership = json.loads(apb["storage"])["metadata_ownership"]
+        assert "input.tsv" not in json.dumps(ownership), "ownership stores paths, not values"
+    else:
+        assert representation["root"]["apb"]["tool"] == root["tool"]
+        assert "provenance" not in representation["levels"][0]["apb"]["tool"]
+
+
+def test_single_level_export_from_h5mu_retains_root_provenance(tmp_path: Path) -> None:
+    source = tmp_path / "collection.h5mu"
+    target = tmp_path / "ion.h5ad"
+    parsed = rich_result()
+    parsed.metadata["tool"] = {"provenance": {"source": "input.tsv"}}
+    parsed.levels["ion"].metadata["tool"] = {"annotation": {"count": 2}}
+    write_parsed_levels(parsed, source)
+    selected = read_parsed_levels(source)
+    selected.levels = {"ion": selected.levels["ion"]}
+    write_parsed_levels(selected, target)
+    _assert_result_equal(read_parsed_levels(target), selected)
+
+
+def test_conflicting_h5ad_metadata_is_rejected_before_publication(tmp_path: Path) -> None:
+    parsed = ParsedLevels(levels={"ion": _level("ion", "Ion")}, uns={})
+    parsed.metadata["tool"] = {"value": 1}
+    parsed.levels["ion"].metadata["tool"] = {"value": 1}
+    target = tmp_path / "conflict.h5ad"
+    with pytest.raises(InvalidResultError, match="conflicting APB metadata"):
+        write_parsed_levels(parsed, target)
+    assert not target.exists()
+    assert not Path(f"{target}.apb.json").exists()
+
+
+def test_previous_hdf_metadata_layout_is_rejected(tmp_path: Path) -> None:
+    target = tmp_path / "old.h5ad"
+    write_parsed_levels(ParsedLevels(levels={"ion": _level("ion", "Ion")}, uns={}), target)
+    stored = anndata.read_h5ad(target)
+    descriptor = json.loads(stored.uns["apb"]["storage"])
+    descriptor["format_version"] = "2"
+    stored.uns["apb"]["storage"] = json.dumps(descriptor)
+    stored.write_h5ad(target)
+    with pytest.raises(InvalidResultError, match="version"):
+        read_parsed_levels(target)

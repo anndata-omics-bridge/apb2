@@ -3,6 +3,8 @@
 APB2 result I/O operates on one storage-neutral `ParsedLevels` value. Every format crossing reads
 that value and passes it to another writer; there is no DuckDB-to-Parquet or other backend shortcut.
 
+The [APB metadata specification](metadata_specification.md) is the normative contract for namespace ownership, H5AD composition, tool operations and persisted versions. This page describes result-I/O usage and physical fidelity.
+
 ## Reformat from the CLI
 
 ```bash
@@ -67,9 +69,9 @@ Both `write_parsed_levels()` and `reformat()` automatically publish an adjacent 
 
 ## Compact JSON representation
 
-The sidecar is a versioned scientific view with `format: "apb2-result-representation"` and `format_version: "2"`. It is derived from `ParsedLevels`, so h5ad, h5mu, Parquet, and DuckDB results expose the same semantic sections. `project_result(parsed)` also produces the document before a physical artifact exists; its `artifact` member is then `null`.
+The sidecar is a versioned scientific view with `format: "apb2-result-representation"` and `format_version: "4"`. It is derived from `ParsedLevels`, so h5ad, h5mu, Parquet, and DuckDB results expose the same semantic sections. `project_result(parsed)` also produces the document before a physical artifact exists; its `artifact` member is then `null`.
 
-It records the artifact basename, physical format and byte size; shared and per-level provenance; axis schemas, key columns and null counts; structural layer roles, semantic `column_roles` and `layer_roles`, primary status and shapes; aligned-slot schemas; annotation-table schemas; and feature-relation structure. Optional layer `unit` and `scale` values come from `ParsedLevel.metadata["layer_descriptors"][<layer>]` when a producer records them.
+It records the artifact basename, physical format and byte size; root and per-level tool metadata; axis schemas, key columns and null counts; structural layer roles, semantic column and layer roles, primary status and shapes; aligned-slot schemas; annotation-table schemas; and feature-relation structure. Collection formats expose `root.apb` and each level's `apb`. H5AD exposes `root: null` and its combined metadata once on the single level. Persistence and representation reuse the same projection helpers; there is no `shared` field. Optional layer `unit` and `scale` values come from `ParsedLevel.metadata["layer_descriptors"][<layer>]` when a producer records them.
 
 Quantitative layers expose both logical `type` (`number` or `integer`) and physical matrix `dtype`, plus exact columnwise counts, moments, extrema and at most 100 per-observation box summaries. An integer layer may have `dtype: "Float64"` because missing matrix cells use NaN. Whole-layer quartiles use linear interpolation over either all finite values or a deterministic grid sample capped at 100,000 finite cells; nulls and nonfinite cells consume none of that budget. The method, emitted sample count and limit are explicit. NaN, positive infinity and negative infinity are counted separately and excluded. Categorical layers contain only their declared category count and fixed-size known versus missing-or-unknown counts; category codes never receive numerical statistics or box summaries.
 
@@ -94,14 +96,11 @@ and structural layer roles are metadata and are never interpolated into SQL iden
 
 ### h5ad and h5mu
 
-The h5 readers accept APB2-authored objects carrying the versioned result envelope under
-`uns["apb"]["result"]`. They are not general importers for arbitrary third-party AnnData or MuData.
-The result envelope records each logical layer's structural role.
+The h5 readers accept APB2-authored objects with tool namespaces directly under `uns["apb"]`: `parse`, `roles`, and extension-owned names such as `fasta` or `proteobench`. The containing object establishes ownership. MuData holds common provenance once; each embedded AnnData holds its rules, roles and results. There are no `shared` or `level` wrappers. Readers are not general importers for arbitrary third-party AnnData or MuData; older layouts are rejected rather than adapted.
 
-`ParsedLevels.uns` and `ParsedLevel.uns` remain parse provenance. Independent post-parse sections
-live in each value's `metadata` mapping and are projected beside `parse` and `result` under
-`uns["apb"]`. The h5 result envelope retains their shared/per-level scopes even when a one-level
-h5ad exposes both scopes on the same physical object.
+`ParsedLevels.uns` and `ParsedLevel.uns` remain parse provenance. Independent post-parse sections live in each value's `metadata` mapping. Semantic roles are projected to `roles.columns` and `roles.layers` on AnnData only. Standalone H5AD recursively combines root and level mappings; conflicting leaves, even equal ones, fail before publication. The `storage` descriptor records ownership paths, including empty mappings, without copying values, so reads reconstruct the two in-memory owners exactly. It also records physical names, ordering, schemas, keys and matrix locations. Primary data remains exclusively in `X`.
+
+Columnar manifests use root `apb` plus per-level `apb` records. Generic annotation stores its source descriptor once at `<tool>.provenance.annotation` on the root and its matching report at `<tool>.annotation` on each affected level; APB2 has no tool-name branches. See the specification's [version table](metadata_specification.md#versions) for current versions.
 
 An h5ad writer requires exactly one level. An h5mu writer accepts one or more levels.
 
@@ -111,17 +110,13 @@ Schema `0.4` rules may assign semantic `roles` directly to var-column and measur
 
 Conversion projects these declarations into per-level parse provenance. `column_roles` maps each semantic role to one logical var-column name. `layer_roles` maps each semantic role to the ordered names of all retained layers carrying it; several raw, normalized, MS1, MS2, LFQ, iBAQ, or peak-based layers may therefore share `abundance`. Source resolution removes absent optional layers before publishing this map.
 
-The compact sidecar exposes the maps under each level's `uns`, and all result backends preserve them as ordinary parse provenance. Reformatting does not recalculate or reinterpret the semantic assignments.
+The compact sidecar exposes the maps under each level's `apb.roles`, and all result backends preserve them without duplicating them in parse provenance. Reformatting does not recalculate or reinterpret the semantic assignments.
 
 Semantic roles do not select AnnData `X`, alter encoding, or participate in occupancy validation. `measurements.primary_layer` chooses `X`; the structural roles below control occupancy.
 
 ### Structural layer roles and compatibility
 
-Every backend persists `"measurement"` or `"auxiliary"` with each layer and restores the matching
-`MeasurementLayerRole` or `AuxiliaryLayerRole`. A missing role field is read as measurement, which
-keeps results written before role metadata compatible. The role addition does not change the
-existing format versions: h5 result envelope version 1, Parquet manifest version 2, and DuckDB
-manifest version 1.
+Every backend persists `"measurement"` or `"auxiliary"` with each layer and restores the matching `MeasurementLayerRole` or `AuxiliaryLayerRole`. Structural roles are part of the [current versioned result contract](metadata_specification.md#versions); unsupported previous versions are rejected.
 
 Every layer retained in `ParsedLevel.layers` remains part of the persisted result and is validated,
 encoded, written, and read. Required-layer name checks still inspect the complete encoded mapping.
@@ -139,13 +134,15 @@ Parquet and DuckDB preserve the represented `ParsedLevels` value exactly, includ
 - null versus NaN;
 - string and numeric-looking-string values;
 - `obsm`, `varm`, `obsp`, and `varp`;
-- shared and per-level parse provenance;
-- independent shared and per-level extension metadata.
+- root and per-level parse provenance;
+- independent root and per-level extension metadata.
 
 h5ad and h5mu intentionally apply the matrix encoding stored with the parsed result. Numeric text
 becomes numeric values, configured factor strings become codes, and configured missing sentinels
 become missing matrix entries. Reading, representing, rewriting, or reformatting that projected
 representation preserves its quantitative-versus-factor semantics and passes stored factor codes
 through without encoding them again, but it cannot recover the original layer tokens.
+
+The logical primary layer is physically stored only in `X`; it is not duplicated in `adata.layers`. APB2 restores its logical name when reading the storage descriptor. Direct AnnData consumers therefore use `adata.X` for the primary values and `adata.layers` only for additional layers.
 
 See the [Python API](api.md) for signatures and result types.

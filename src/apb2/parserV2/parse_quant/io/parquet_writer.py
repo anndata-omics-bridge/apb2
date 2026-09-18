@@ -27,7 +27,9 @@ from apb2.parserV2.parse_quant.io.metadata import (
     PARQUET_FORMAT_VERSION,
     PARQUET_LEVELS_DIRECTORY,
     PARQUET_MANIFEST_NAME,
+    level_scope,
     safe_names,
+    shared_scope,
     table_metadata,
 )
 from apb2.parserV2.parse_quant.io.validation import validate_parsed_levels
@@ -72,8 +74,7 @@ class ParquetLevelsWriter:
                 "format_version": FORMAT_VERSION,
                 "level_order": list(parsed.levels),
                 "levels": level_metadata,
-                "uns": dict(parsed.uns),
-                "metadata": dict(parsed.metadata),
+                "apb": shared_scope(parsed.uns, parsed.metadata),
                 "annotation_table_order": list(parsed.annotation_tables),
                 "annotation_tables": _write_annotation_tables(
                     parsed.annotation_tables,
@@ -113,8 +114,8 @@ def _write_level(parsed: ParsedLevel, directory: Path, physical_name: str) -> di
         "obsp": _write_named_frames(parsed.obsp, directory / "obsp"),
         "varp_order": list(parsed.varp),
         "varp": _write_named_frames(parsed.varp, directory / "varp"),
-        "uns": dict(parsed.uns),
-        "metadata": dict(parsed.metadata),
+        "apb": level_scope(parsed),
+        "matrix_values_projected": parsed.matrix_values_projected,
     }
 
 

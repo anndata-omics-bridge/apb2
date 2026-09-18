@@ -681,6 +681,7 @@ def test_a_parsed_level_is_a_direct_composition_and_keeps_no_key_map() -> None:
         "obsp",
         "varp",
         "metadata",
+        "matrix_values_projected",
     }
     assert parsed.uns == {"software_name": "Synthetic", "quantification_level": "ion"}
     assert isinstance(parsed.obs.frame, pl.DataFrame)

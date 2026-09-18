@@ -23,7 +23,6 @@ apb2 convert DATA [LEVEL] [OPTIONS]
 | `DATA` | Vendor result table or directory containing named result tables |
 | `LEVEL` | Optional quantification level; omit it to write every compatible level |
 | `--params PATH` | Vendor search-parameter file |
-| `--companion PATH` | Additional input to preparation; repeat for multiple files |
 | `--rule-config PATH` | Explicit schema-0.7 rule document |
 | `--software NAME` | Disambiguate packaged rule selection |
 | `--params-software NAME` | Select the parameter-file parser independently |
@@ -31,7 +30,7 @@ apb2 convert DATA [LEVEL] [OPTIONS]
 | `--output BASENAME` | Output basename without the selected suffix |
 | `--strict` | Promote layer-contract warnings to errors |
 
-One of `--params` or `--rule-config` is required. A directory or explicit companions supply the table groups. An explicit `LEVEL` selects one decomposition; omission converts all supported levels. HDF5 uses `.h5ad` for an explicit level and `.h5mu` otherwise. Parquet and DuckDB retain their suffixes. Compatible one-to-one observation aliases are aligned; incompatible resolutions get separate key-qualified outputs, such as `result.raw_file.h5mu` and `result.experiment.h5mu`. The CLI reports every actual path; see [output naming](conversion.md#output-naming).
+One of `--params` or `--rule-config` is required. A directory supplies multi-file table groups. An explicit `LEVEL` selects one decomposition; omission converts all supported levels. HDF5 uses `.h5ad` for an explicit level and `.h5mu` otherwise. Parquet and DuckDB retain their suffixes. Compatible one-to-one observation aliases are aligned; incompatible resolutions get separate key-qualified outputs, such as `result.raw_file.h5mu` and `result.experiment.h5mu`. The CLI reports every actual path; see [output naming](conversion.md#output-naming).
 
 See [Convert vendor results](conversion.md) for worked examples.
 

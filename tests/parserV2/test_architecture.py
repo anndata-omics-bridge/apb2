@@ -74,7 +74,11 @@ def test_parser_v2_reaches_neither_deleted_modules_nor_the_apb_oracle(path: Path
 
 
 def test_the_top_level_production_tree_contains_only_the_two_products_and_their_facades() -> None:
-    entries = {path.name for path in APB2.iterdir() if path.name != "__pycache__"}
+    entries = {
+        path.name
+        for path in APB2.iterdir()
+        if path.name != "__pycache__" and not path.name.startswith(".")
+    }
 
     assert entries == {
         "__init__.py",

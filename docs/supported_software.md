@@ -34,7 +34,7 @@ This table has one row per packaged rule document.
 `--software` and the Python parameter-parser registry use lower-case software names; DIA-NN accepts
 both `diann` and `dia-nn`.
 
-MaxQuant uses two table groups: direct evidence → ion (`Raw_File`), and joined modification-specific peptide, peptide and protein exports → higher levels (`Experiment`). All nonempty subsets work with a directory or explicit companions. A complete one-to-one run/experiment mapping aligns observations; fractionated or unmapped inputs produce separate results. See [conversion and output naming](conversion.md#output-naming).
+MaxQuant uses two table groups: direct evidence → ion (`Raw_File`), and joined modification-specific peptide, peptide and protein exports → higher levels (`Experiment`). All nonempty subsets work from a vendor-result directory. A complete one-to-one run/experiment mapping aligns observations; fractionated or unmapped inputs produce separate results. See [conversion and output naming](conversion.md#output-naming).
 
 ## Quantification levels by rule
 
@@ -90,7 +90,7 @@ adds FragPipe single-site, multi-site, and combined-site STY inputs plus Spectro
 
 These existing pipeline inputs define the next migration targets:
 
-| Source | Software or pipeline | Output to ingest and companion files | Existing reader mode | Upstream preprocessor | Current APB2 coverage |
+| Source | Software or pipeline | Output and related files | Existing reader mode | Upstream preprocessor | Current APB2 coverage |
 | --- | --- | --- | --- | --- | --- |
 | prolfquapp | DIA-NN | `report.tsv`, `diann-output.tsv`, or `report.parquet`; FASTA | protein or peptide | [`preprocess_DIANN()`](https://github.com/prolfqua/prolfquapp/blob/master/R/preprocess_DIANN.R#L210) | DIA-NN 1.x and 2.x tables are packaged; peptide-mode parity remains |
 | prolfquapp | FragPipe TMT | `psm.tsv`; FASTA | protein or peptide | [`preprocess_FP_PSM()`](https://github.com/prolfqua/prolfquapp/blob/master/R/preprocess_FP_PSM.R#L511) | a different FragPipe TSV rule exists; PSM/TMT parity is not yet claimed |
