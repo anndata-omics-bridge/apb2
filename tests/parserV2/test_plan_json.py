@@ -90,7 +90,7 @@ def test_the_plan_states_what_this_source_resolved_to_not_what_the_rule_permits(
     decoded = json.loads(resolved_plan_json(plan))
 
     assert decoded["read"]["projected_columns"] == list(plan.read.projected_columns)
-    assert [config["layer_name"] for config in decoded["raw_value_presence"]] == ["Quantity"]
+    assert "raw_value_presence" not in decoded
     assert [config["layer_name"] for config in decoded["layer_values"]] == ["Quantity"]
     assert decoded["var"]["skipped"] == ["Extra"]
     assert decoded["layer_contract"]["primary_layer_name"] == "Quantity"
@@ -111,9 +111,15 @@ def test_the_notation_the_source_was_read_under_survives_into_the_record() -> No
         )
     )
 
-    encoding = json.loads(resolved_plan_json(plan))["layer_values"][0]
+    decoded = json.loads(resolved_plan_json(plan))
 
-    assert encoding["number_format"] == {"decimal_mark": ",", "thousands_marks": ["."]}
+    assert decoded["number_format"] == {"decimal_mark": ",", "thousands_marks": ["."]}
+    assert decoded["layer_values"] == [
+        {
+            "layer_name": "Quantity",
+            "value": {"kind": "plain_numeric", "missing_values": [], "type": "number"},
+        }
+    ]
 
 
 def test_the_declared_numeric_type_survives_into_the_record() -> None:
@@ -126,7 +132,7 @@ def test_the_declared_numeric_type_survives_into_the_record() -> None:
 
     encoding = json.loads(resolved_plan_json(plan))["layer_values"][0]
 
-    assert encoding["type"] == "integer"
+    assert encoding["value"]["type"] == "integer"
 
 
 # --------------------------------------------------------------------------------- stability
@@ -208,7 +214,7 @@ def test_the_plan_reaches_the_manifest_of_a_written_parquet_dataset(tmp_path: Pa
     assert json.loads(manifest["levels"]["ion"]["apb"]["parse"][PLAN_JSON_KEY])["level"] == "ion"
 
 
-def test_reading_results_does_not_reinterpret_old_rule_provenance(tmp_path: Path) -> None:
+def test_reading_results_does_not_reinterpret_old_rule_or_plan_provenance(tmp_path: Path) -> None:
     document = synthetic.long_document(
         obs_select={"sample": "Sample"}, var_select={"Feature": "Feature"}
     )
@@ -219,10 +225,27 @@ def test_reading_results_does_not_reinterpret_old_rule_provenance(tmp_path: Path
     old_rule = '{"schema_version":"0.7","modifications":{"output_column":"proforma_sequence"}}'
     parsed.uns["schema_version"] = "0.7"
     parsed.uns["rule_json"] = old_rule
+    old_plan = json.dumps(
+        {
+            "level": "ion",
+            "raw_value_presence": [{"kind": "null_only", "layer_name": "Quantity"}],
+            "layer_values": [
+                {
+                    "kind": "plain_numeric",
+                    "layer_name": "Quantity",
+                    "missing_values": [],
+                    "number_format": {"decimal_mark": ".", "thousands_marks": []},
+                    "type": "number",
+                }
+            ],
+        }
+    )
+    parsed.uns[PLAN_JSON_KEY] = old_plan
     target = tmp_path / "old-provenance.h5ad"
     parser.convert(parsed, target)
     restored = H5adReader().read(target).levels["ion"]
     assert restored.uns["rule_json"] == old_rule
+    assert restored.uns[PLAN_JSON_KEY] == old_plan
     assert json.loads(str(restored.uns["rule_json"]))["schema_version"] == "0.7"
     assert restored.var.frame.equals(parsed.var.frame)
 

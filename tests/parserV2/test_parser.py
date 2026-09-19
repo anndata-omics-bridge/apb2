@@ -48,9 +48,8 @@ from apb2.parserV2.parse_quant.parameters.axis import AxisKeyPlan, AxisSourcePla
 from apb2.parserV2.parse_quant.parameters.measurements import (
     DuplicateMode,
     LayerContractConfig,
-    NullOnlyRawValuePresenceConfig,
-    PlainNumericLayerConfig,
-    PlainNumericRawValuePresenceConfig,
+    LayerValueConfig,
+    PlainNumericLayerDeclaration,
 )
 from apb2.parserV2.parse_quant.parameters.source import (
     LongDecompositionConfig,
@@ -64,28 +63,23 @@ from apb2.parserV2.parse_quant.parser import (
 )
 from apb2.parserV2.parser_factory import (
     duplicate_policy_for,
+    make_layer_operations,
     make_layer_validator,
-    make_layer_value_parser,
-    make_raw_value_presence,
     make_source_decomposer,
 )
 
 DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
 DOT_NUMBERS = NumberNotation(decimal_mark=".", thousands_marks=())
-NULL_ONLY = make_raw_value_presence(
-    NullOnlyRawValuePresenceConfig(kind="null_only", layer_name="Intensity")
+NULL_ONLY, _ = make_layer_operations(
+    LayerValueConfig("Intensity", PlainNumericLayerDeclaration(missing_values=())), DOT
 )
 
 
 def numeric_layer_parser(name: str) -> LayerValueParser:
-    return make_layer_value_parser(
-        PlainNumericLayerConfig(
-            kind="plain_numeric",
-            layer_name=name,
-            missing_values=(),
-            number_format=DOT,
-        )
+    _, parser = make_layer_operations(
+        LayerValueConfig(name, PlainNumericLayerDeclaration(missing_values=())), DOT
     )
+    return parser
 
 
 def layer_validator(primary: str) -> LayerSetValidator:
@@ -641,11 +635,7 @@ def test_a_final_variable_a_layer_never_measured_becomes_a_row_of_nulls() -> Non
     )
     presence = {
         "Intensity": NULL_ONLY,
-        "Score": make_raw_value_presence(
-            PlainNumericRawValuePresenceConfig(
-                kind="plain_numeric", layer_name="Score", missing_values=(), number_format=DOT
-            )
-        ),
+        "Score": NULL_ONLY,
     }
 
     parsed = parser_for(

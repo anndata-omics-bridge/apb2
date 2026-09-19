@@ -1794,10 +1794,9 @@ class Parser:
 | axis coercer | `axis_coercer_for(logical_type)` |
 | column computer | `make_column_computer(config)` |
 | duplicate policy | `duplicate_policy_for(resolved.duplicate_mode)` |
-| raw-value presence | `make_raw_value_presence(config)` per resolved layer |
+| raw presence and canonical value parser | `make_layer_operations(config, resolved.number_format)` per retained layer |
 | parsed-level writer | output-bound constructor |
-| AnnData layer encoder | `make_anndata_layer_encoder(config)` |
-| AnnData layer checker | `make_anndata_layer_contract_checker(contract, checks)` |
+| canonical layer checker | `make_layer_validator(resolved.layer_contract, checks)` |
 
 Registry dispatch appears only at the composition root:
 
@@ -2342,8 +2341,8 @@ class WorkingAxisConfiguration:
 class WorkingMeasurementLayer:
     name: str
     source: str
-    raw_presence: RawValuePresenceDeclaration
-    ann_data_encoding: AnnDataLayerEncodingDeclaration
+    value: LayerValueDeclaration
+    roles: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -2470,7 +2469,7 @@ Every type in this section is a parsing parameter. They live under
 | `working.py` | working axes, measurements, source-layout declarations, and `WorkingParseConfiguration` |
 | `source.py` | source bindings, numeric format, `InputContract`, source evidence, `LevelReadPlan`, and decomposition configurations |
 | `axis.py` | `AxisKeyPlan`, `AxisSourcePlan`, modification and materialization configurations, and `ResolvedAxisColumnPlan` |
-| `measurements.py` | duplicate mode, raw-presence configurations, AnnData encoding and contract configurations, and `AnnDataSerializationConfig` |
+| `measurements.py` | duplicate mode, shared value declarations, retained `LayerValueConfig`, and `LayerContractConfig` |
 | `resolved.py` | `ResolvedLevelPlan`, composing the exact values from the other parameter modules |
 
 These classes import no Pydantic rule model, reader, writer, AnnData object, or Parser. The facade
@@ -2569,70 +2568,39 @@ class ResolvedAxisColumnPlan:
 
 
 @dataclass(frozen=True, slots=True)
-class PlainNumericAnnDataEncodingConfig:
-    kind: Literal["plain_numeric"]
-    layer_name: str
+class PlainNumericLayerDeclaration:
     missing_values: tuple[float, ...]
-    number_format: NumericTextFormat
     type: Literal["number", "integer"] = "number"
+    kind: Literal["plain_numeric"] = field(default="plain_numeric", init=False)
 
 
 @dataclass(frozen=True, slots=True)
-class RegexNumericAnnDataEncodingConfig:
-    kind: Literal["regex_numeric"]
-    layer_name: str
+class RegexNumericLayerDeclaration:
     missing_values: tuple[float, ...]
     pattern: str
-    number_format: NumericTextFormat
     type: Literal["number", "integer"] = "number"
+    kind: Literal["regex_numeric"] = field(default="regex_numeric", init=False)
 
 
 @dataclass(frozen=True, slots=True)
-class FactorAnnDataEncodingConfig:
-    kind: Literal["factor"]
-    layer_name: str
+class FactorLayerDeclaration:
     categories: tuple[tuple[str, int], ...]
+    kind: Literal["factor"] = field(default="factor", init=False)
 
 
-type AnnDataLayerEncodingConfig = (
-    PlainNumericAnnDataEncodingConfig
-    | RegexNumericAnnDataEncodingConfig
-    | FactorAnnDataEncodingConfig
+type LayerValueDeclaration = (
+    PlainNumericLayerDeclaration | RegexNumericLayerDeclaration | FactorLayerDeclaration
 )
 
 
 @dataclass(frozen=True, slots=True)
-class NullOnlyRawValuePresenceConfig:
-    kind: Literal["null_only"]
+class LayerValueConfig:
     layer_name: str
+    value: LayerValueDeclaration
 
 
 @dataclass(frozen=True, slots=True)
-class PlainNumericRawValuePresenceConfig:
-    kind: Literal["plain_numeric"]
-    layer_name: str
-    missing_values: tuple[float, ...]
-    number_format: NumericTextFormat
-
-
-@dataclass(frozen=True, slots=True)
-class RegexNumericRawValuePresenceConfig:
-    kind: Literal["regex_numeric"]
-    layer_name: str
-    missing_values: tuple[float, ...]
-    pattern: str
-    number_format: NumericTextFormat
-
-
-type RawValuePresenceConfig = (
-    NullOnlyRawValuePresenceConfig
-    | PlainNumericRawValuePresenceConfig
-    | RegexNumericRawValuePresenceConfig
-)
-
-
-@dataclass(frozen=True, slots=True)
-class AnnDataLayerContractConfig:
+class LayerContractConfig:
     primary_layer_name: str
     required_names: tuple[str, ...]
     empty_ratio: float
@@ -2640,21 +2608,16 @@ class AnnDataLayerContractConfig:
 
 
 @dataclass(frozen=True, slots=True)
-class AnnDataSerializationConfig:
-    layer_encodings: tuple[AnnDataLayerEncodingConfig, ...]
-    layer_contract: AnnDataLayerContractConfig
-
-
-@dataclass(frozen=True, slots=True)
 class ResolvedLevelPlan:
     level: QuantificationLevel
+    number_format: NumericTextFormat
     read: LevelReadPlan
     decomposition: DecompositionConfig
     obs: ResolvedAxisColumnPlan
     var: ResolvedAxisColumnPlan
     duplicate_mode: DuplicateMode
-    raw_value_presence: tuple[RawValuePresenceConfig, ...]
-    ann_data: AnnDataSerializationConfig
+    layer_values: tuple[LayerValueConfig, ...]
+    layer_contract: LayerContractConfig
     provenance: Mapping[str, JsonValue]
 ```
 
@@ -2674,9 +2637,9 @@ behavior types that carry no discriminator.
 - required layers are resolved against the same primary sample set;
 - only modification configs retained by the resolved axis dependency closure reach the compiler;
 - level, duplicate mode, and provenance cannot drift from the source plans resolved with them;
-- raw duplicate presence and AnnData encoding remain separate projections of the same retained
-  storage-layer declarations;
-- `ann_data` is routed only to `AnnDataWriter` construction.
+- each retained layer reuses its original immutable value declaration;
+- `make_layer_operations` selects two distinct runtime behaviors from that declaration: raw duplicate presence, then canonical value parsing;
+- numeric notation is recorded once per level, not copied into every layer; output writers receive canonical values, not parsing configurations.
 
 #### D.4 Complete read dtypes in `LevelReadPlan`
 
@@ -2804,46 +2767,26 @@ assert resolved.decomposition == WideDecompositionConfig(
 )
 ```
 
-AlphaDIA's authored zero sentinel produces a presence strategy that can skip zero during
-`keep_first` without replacing the retained raw values:
+AlphaDIA's authored zero sentinel remains one declaration. The composition factory uses it for both raw presence (skip zero during `keep_first`) and canonical parsing (store zero as missing). Their algorithms remain separate, and source resolution does not reconstruct their configuration twice.
 
 ```python
-assert resolved.raw_value_presence == (
-    PlainNumericRawValuePresenceConfig(
-        kind="plain_numeric",
+assert resolved.layer_values == (
+    LayerValueConfig(
         layer_name="Intensity",
-        missing_values=(0.0,),
-        number_format=NumericTextFormat(
-            decimal_mark=".",
-            thousands_marks=(),
-        ),
+        value=PlainNumericLayerDeclaration(missing_values=(0.0,)),
     ),
 )
-```
-
-The resolved AnnData values are equally concrete:
-
-```python
-assert resolved.ann_data == AnnDataSerializationConfig(
-    layer_encodings=(
-        PlainNumericAnnDataEncodingConfig(
-            kind="plain_numeric",
-            layer_name="Intensity",
-            missing_values=(0.0,),
-            number_format=NumericTextFormat(
-                decimal_mark=".",
-                thousands_marks=(),
-            ),
-        ),
-    ),
-    layer_contract=AnnDataLayerContractConfig(
-        primary_layer_name="Intensity",
-        required_names=("Intensity",),
-        empty_ratio=0.001,
-        populated_ratio=0.5,
-    ),
+assert resolved.number_format == NumericTextFormat(decimal_mark=".", thousands_marks=())
+assert resolved.layer_contract == LayerContractConfig(
+    primary_layer_name="Intensity",
+    required_names=("Intensity",),
+    empty_ratio=0.001,
+    populated_ratio=0.5,
 )
+presence, parser = make_layer_operations(resolved.layer_values[0], resolved.number_format)
 ```
+
+`plan_json` now records each layer as `{layer_name, value}` and omits the redundant `raw_value_presence` collection. This is a documentation-only provenance shape change, not an authored rule-schema change: schema 0.8 stays unchanged, and stored-result readers preserve old plan JSON without interpreting it.
 
 Canonical layer values are identical regardless of the storage format chosen later.
 

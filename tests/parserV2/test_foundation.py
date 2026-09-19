@@ -57,9 +57,8 @@ from apb2.parserV2.parse_quant.parameters.level import (
 )
 from apb2.parserV2.parse_quant.parameters.measurements import (
     LayerContractConfig,
-    PlainNumericLayerConfig,
+    LayerValueConfig,
     PlainNumericLayerDeclaration,
-    PlainNumericRawValuePresenceConfig,
     WorkingMeasurementLayer,
     WorkingMeasurements,
 )
@@ -290,8 +289,8 @@ def test_a_working_configuration_derives_presence_and_canonical_values() -> None
         provenance={"software_name": "AlphaDIA"},
     )
 
-    presence = working.measurements.required_layers[0].raw_presence_config(DOT)
-    assert isinstance(presence, PlainNumericRawValuePresenceConfig)
+    assert working.measurements.required_layers[0] is layer
+    assert layer.value == PlainNumericLayerDeclaration(missing_values=(0.0,))
     assert working.measurements.optional_layers == ()
     # Optionality is a separate collection, never a flag on the record.
     assert not hasattr(working.obs.columns.required_selections[0], "required")
@@ -502,20 +501,10 @@ def test_a_resolved_plan_is_one_atomic_value_for_one_physical_source() -> None:
             skipped=frozenset(),
         ),
         duplicate_mode="keep_first",
-        raw_value_presence=(
-            PlainNumericRawValuePresenceConfig(
-                kind="plain_numeric",
-                layer_name="Intensity",
-                missing_values=(0.0,),
-                number_format=DOT,
-            ),
-        ),
         layer_values=(
-            PlainNumericLayerConfig(
-                kind="plain_numeric",
+            LayerValueConfig(
                 layer_name="Intensity",
-                missing_values=(0.0,),
-                number_format=DOT,
+                value=PlainNumericLayerDeclaration(missing_values=(0.0,)),
             ),
         ),
         layer_contract=LayerContractConfig(

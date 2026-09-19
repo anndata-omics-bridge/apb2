@@ -24,32 +24,29 @@ from apb2.parserV2.parse_quant.duplicates import (
 )
 from apb2.parserV2.parse_quant.parameters.measurements import (
     DuplicateMode,
-    NullOnlyRawValuePresenceConfig,
-    PlainNumericRawValuePresenceConfig,
-    RegexNumericRawValuePresenceConfig,
+    FactorLayerDeclaration,
+    LayerValueConfig,
+    LayerValueDeclaration,
+    PlainNumericLayerDeclaration,
+    RegexNumericLayerDeclaration,
 )
 from apb2.parserV2.parse_quant.parameters.source import NumericTextFormat
-from apb2.parserV2.parser_factory import duplicate_policy_for, make_raw_value_presence
+from apb2.parserV2.parser_factory import duplicate_policy_for, make_layer_operations
 
 DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
 GROUPED = NumericTextFormat(decimal_mark=",", thousands_marks=(".",))
 
-NULL_ONLY = make_raw_value_presence(
-    NullOnlyRawValuePresenceConfig(kind="null_only", layer_name="L")
+NULL_ONLY, _ = make_layer_operations(
+    LayerValueConfig("L", PlainNumericLayerDeclaration(missing_values=())), DOT
 )
-ZERO_SENTINEL = make_raw_value_presence(
-    PlainNumericRawValuePresenceConfig(
-        kind="plain_numeric", layer_name="L", missing_values=(0.0,), number_format=DOT
-    )
+ZERO_SENTINEL, _ = make_layer_operations(
+    LayerValueConfig("L", PlainNumericLayerDeclaration(missing_values=(0.0,))), DOT
 )
-ASCORE = make_raw_value_presence(
-    RegexNumericRawValuePresenceConfig(
-        kind="regex_numeric",
-        layer_name="L",
-        missing_values=(0.0,),
-        pattern=r":(-?\d+(?:\.\d+)?)",
-        number_format=DOT,
-    )
+ASCORE, _ = make_layer_operations(
+    LayerValueConfig(
+        "L", RegexNumericLayerDeclaration(missing_values=(0.0,), pattern=r":(-?\d+(?:\.\d+)?)")
+    ),
+    DOT,
 )
 
 
@@ -79,6 +76,25 @@ def test_null_only_presence_asks_nothing_of_the_value_itself() -> None:
     assert mask.null_count() == 0
 
 
+@pytest.mark.parametrize(
+    "value",
+    [
+        PlainNumericLayerDeclaration(missing_values=()),
+        FactorLayerDeclaration(categories=(("", 0),)),
+    ],
+)
+def test_no_sentinel_and_factor_declarations_keep_blank_text_present(
+    value: LayerValueDeclaration,
+) -> None:
+    presence, _ = make_layer_operations(LayerValueConfig("L", value), DOT)
+
+    assert presence_mask(presence, pl.Series("obs_0", ["", "  ", None])).to_list() == [
+        True,
+        True,
+        False,
+    ]
+
+
 def test_a_declared_sentinel_claims_nothing_without_replacing_the_value() -> None:
     values = pl.Series("obs_0", [12.0, 0.0, None])
 
@@ -101,13 +117,9 @@ def test_a_nonblank_token_that_cannot_be_read_stays_present() -> None:
 
 
 def test_a_localized_sentinel_is_recognized_under_its_own_notation() -> None:
-    presence = make_raw_value_presence(
-        PlainNumericRawValuePresenceConfig(
-            kind="plain_numeric",
-            layer_name="L",
-            missing_values=(0.0, 1000.0),
-            number_format=GROUPED,
-        )
+    presence, _ = make_layer_operations(
+        LayerValueConfig("L", PlainNumericLayerDeclaration(missing_values=(0.0, 1000.0))),
+        GROUPED,
     )
     values = pl.Series("obs_0", ["1.000", "1.000,5", "0", None])
 

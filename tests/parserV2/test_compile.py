@@ -65,13 +65,12 @@ from apb2.parserV2.parse_quant.parameters.axis import (
 )
 from apb2.parserV2.parse_quant.parameters.measurements import (
     DuplicateMode,
-    FactorLayerConfig,
+    FactorLayerDeclaration,
     LayerContractConfig,
-    NullOnlyRawValuePresenceConfig,
-    PlainNumericLayerConfig,
-    PlainNumericRawValuePresenceConfig,
-    RegexNumericLayerConfig,
-    RegexNumericRawValuePresenceConfig,
+    LayerValueConfig,
+    LayerValueDeclaration,
+    PlainNumericLayerDeclaration,
+    RegexNumericLayerDeclaration,
 )
 from apb2.parserV2.parse_quant.parameters.source import (
     ColumnLabeledFragmentSeparationConfig,
@@ -99,9 +98,8 @@ from apb2.parserV2.parser_factory import (
     make_axis_coercer,
     make_column_computer,
     make_fragment_table_separator,
+    make_layer_operations,
     make_layer_validator,
-    make_layer_value_parser,
-    make_raw_value_presence,
     make_sequence_normalizer,
     make_source_decomposer,
 )
@@ -213,70 +211,77 @@ def test_every_computed_column_declaration_names_one_computer(
 
 
 @pytest.mark.parametrize(
-    ("config", "expected"),
+    ("value", "expected_presence", "expected_parser"),
     [
         (
-            NullOnlyRawValuePresenceConfig(kind="null_only", layer_name="L"),
+            PlainNumericLayerDeclaration(missing_values=()),
             NullOnlyRawValuePresence,
-        ),
-        (
-            PlainNumericRawValuePresenceConfig(
-                kind="plain_numeric", layer_name="L", missing_values=(0.0,), number_format=DOT
-            ),
-            PlainNumericRawValuePresence,
-        ),
-        (
-            RegexNumericRawValuePresenceConfig(
-                kind="regex_numeric",
-                layer_name="L",
-                missing_values=(),
-                pattern=r"(\d+)",
-                number_format=DOT,
-            ),
-            RegexNumericRawValuePresence,
-        ),
-    ],
-    ids=lambda value: getattr(value, "kind", getattr(value, "__name__", "")),
-)
-def test_every_presence_declaration_names_one_strategy(config: object, expected: type) -> None:
-    presence = make_raw_value_presence(config)  # pyright: ignore[reportArgumentType]
-
-    assert isinstance(presence, expected)
-    assert not hasattr(presence, "kind")
-    assert not hasattr(presence, "layer_name")
-
-
-@pytest.mark.parametrize(
-    ("config", "expected"),
-    [
-        (
-            PlainNumericLayerConfig(
-                kind="plain_numeric", layer_name="L", missing_values=(), number_format=DOT
-            ),
             PlainNumericLayerParser,
         ),
         (
-            RegexNumericLayerConfig(
-                kind="regex_numeric",
-                layer_name="L",
-                missing_values=(),
-                pattern=r"(\d+)",
-                number_format=DOT,
-            ),
+            PlainNumericLayerDeclaration(missing_values=(0.0,)),
+            PlainNumericRawValuePresence,
+            PlainNumericLayerParser,
+        ),
+        (
+            RegexNumericLayerDeclaration(missing_values=(0.0,), pattern=r"(\d+)"),
+            RegexNumericRawValuePresence,
             RegexNumericLayerParser,
         ),
         (
-            FactorLayerConfig(kind="factor", layer_name="L", categories=(("a", 0),)),
+            RegexNumericLayerDeclaration(missing_values=(), pattern=r"(\d+)"),
+            RegexNumericRawValuePresence,
+            RegexNumericLayerParser,
+        ),
+        (
+            FactorLayerDeclaration(categories=(("a", 0),)),
+            NullOnlyRawValuePresence,
             FactorLayerParser,
         ),
     ],
     ids=lambda value: getattr(value, "kind", getattr(value, "__name__", "")),
 )
-def test_every_value_declaration_names_one_layer_parser(config: object, expected: type) -> None:
-    parser = make_layer_value_parser(config)  # pyright: ignore[reportArgumentType]
+def test_one_declaration_selects_both_tagless_layer_operations(
+    value: LayerValueDeclaration, expected_presence: type, expected_parser: type
+) -> None:
+    config = LayerValueConfig(layer_name="L", value=value)
+    presence, parser = make_layer_operations(config, DOT)
 
-    assert isinstance(parser, expected)
+    assert config.value is value
+    assert isinstance(presence, expected_presence)
+    assert isinstance(parser, expected_parser)
+    assert not hasattr(presence, "kind")
+    assert not hasattr(presence, "layer_name")
     assert not hasattr(parser, "kind")
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        PlainNumericLayerDeclaration(missing_values=(1000.0,), type="integer"),
+        RegexNumericLayerDeclaration(
+            missing_values=(1000.0,), pattern=r"value=(\S+)", type="integer"
+        ),
+    ],
+)
+def test_both_numeric_operations_share_the_resolved_notation(
+    value: PlainNumericLayerDeclaration | RegexNumericLayerDeclaration,
+) -> None:
+    numbers = NumericTextFormat(decimal_mark=",", thousands_marks=(".",))
+
+    presence, parser = make_layer_operations(LayerValueConfig("Count", value), numbers)
+
+    assert isinstance(presence, PlainNumericRawValuePresence | RegexNumericRawValuePresence)
+    assert isinstance(parser, PlainNumericLayerParser | RegexNumericLayerParser)
+    assert presence.number_format is parser.number_format
+    assert parser.number_format == NumberNotation(decimal_mark=",", thousands_marks=(".",))
+    assert presence.missing_values == parser.missing_values == (1000.0,)
+    assert parser.numeric_type == "integer"
+    assert parser.layer_name == "Count"
+    if isinstance(value, RegexNumericLayerDeclaration):
+        assert isinstance(presence, RegexNumericRawValuePresence)
+        assert isinstance(parser, RegexNumericLayerParser)
+        assert presence.pattern == parser.pattern == value.pattern
 
 
 def test_every_modification_declaration_names_one_normalizer() -> None:

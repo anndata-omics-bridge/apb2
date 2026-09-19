@@ -95,11 +95,8 @@ from apb2.parserV2.parse_quant.parameters.measurements import (
     DuplicateMode,
     LayerContractConfig,
     LayerValueConfig,
-    PlainNumericLayerConfig,
-    PlainNumericRawValuePresenceConfig,
-    RawValuePresenceConfig,
-    RegexNumericLayerConfig,
-    RegexNumericRawValuePresenceConfig,
+    PlainNumericLayerDeclaration,
+    RegexNumericLayerDeclaration,
 )
 from apb2.parserV2.parse_quant.parameters.source import (
     DecompositionConfig,
@@ -224,40 +221,36 @@ def make_sequence_normalizer(config: ModificationConfig) -> SequenceOperation:
     )
 
 
-def make_raw_value_presence(config: RawValuePresenceConfig) -> RawValuePresence:
-    """Construct the presence strategy one resolved layer declaration describes."""
-    if isinstance(config, PlainNumericRawValuePresenceConfig):
-        return PlainNumericRawValuePresence(
-            missing_values=config.missing_values,
-            number_format=_notation(config.number_format),
+def make_layer_operations(
+    config: LayerValueConfig, numbers: NumericTextFormat
+) -> tuple[RawValuePresence, LayerValueParser]:
+    """Select raw presence and canonical parsing once from the same layer declaration."""
+    value = config.value
+    notation = _notation(numbers)
+    if isinstance(value, PlainNumericLayerDeclaration):
+        presence = (
+            PlainNumericRawValuePresence(value.missing_values, notation)
+            if value.missing_values
+            else NullOnlyRawValuePresence()
         )
-    if isinstance(config, RegexNumericRawValuePresenceConfig):
-        return RegexNumericRawValuePresence(
-            missing_values=config.missing_values,
-            pattern=config.pattern,
-            number_format=_notation(config.number_format),
-        )
-    return NullOnlyRawValuePresence()
-
-
-def make_layer_value_parser(config: LayerValueConfig) -> LayerValueParser:
-    """Construct the parser for one resolved layer value declaration."""
-    if isinstance(config, PlainNumericLayerConfig):
-        return PlainNumericLayerParser(
+        return presence, PlainNumericLayerParser(
             layer_name=config.layer_name,
-            missing_values=config.missing_values,
-            number_format=_notation(config.number_format),
-            numeric_type=config.type,
+            missing_values=value.missing_values,
+            number_format=notation,
+            numeric_type=value.type,
         )
-    if isinstance(config, RegexNumericLayerConfig):
-        return RegexNumericLayerParser(
-            layer_name=config.layer_name,
-            missing_values=config.missing_values,
-            pattern=config.pattern,
-            number_format=_notation(config.number_format),
-            numeric_type=config.type,
+    if isinstance(value, RegexNumericLayerDeclaration):
+        return (
+            RegexNumericRawValuePresence(value.missing_values, value.pattern, notation),
+            RegexNumericLayerParser(
+                layer_name=config.layer_name,
+                missing_values=value.missing_values,
+                pattern=value.pattern,
+                number_format=notation,
+                numeric_type=value.type,
+            ),
         )
-    return FactorLayerParser(categories=config.categories)
+    return NullOnlyRawValuePresence(), FactorLayerParser(categories=value.categories)
 
 
 def make_layer_validator(
@@ -386,7 +379,12 @@ def compile_level(
         evidence = bound.evidence(working.accepts_header)
         resolved = facade.resolve_source(evidence)
         input_reader = bound.reader(evidence, resolved.read)
-    layer_values = {config.layer_name: config for config in resolved.layer_values}
+    raw_value_presence: dict[str, RawValuePresence] = {}
+    layer_parsers: dict[str, LayerValueParser] = {}
+    for config in resolved.layer_values:
+        raw_value_presence[config.layer_name], layer_parsers[config.layer_name] = (
+            make_layer_operations(config, resolved.number_format)
+        )
     return Parser(
         level=resolved.level,
         input_reader=input_reader,
@@ -396,14 +394,8 @@ def compile_level(
         obs_plan=make_axis_runtime_plan(resolved.obs, resolved.number_format),
         var_plan=make_axis_runtime_plan(resolved.var, resolved.number_format),
         duplicates=duplicate_policy_for(resolved.duplicate_mode),
-        raw_value_presence={
-            config.layer_name: make_raw_value_presence(config)
-            for config in resolved.raw_value_presence
-        },
-        layer_parsers={
-            name: make_layer_value_parser(layer_values[name])
-            for name in (config.layer_name for config in resolved.raw_value_presence)
-        },
+        raw_value_presence=raw_value_presence,
+        layer_parsers=layer_parsers,
         layer_validator=make_layer_validator(resolved.layer_contract, checks),
         writer=ParsedLevelFormatWriter(),
         provenance={

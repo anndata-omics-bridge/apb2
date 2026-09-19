@@ -8,93 +8,14 @@ canonical scalar stored in ``ParsedLevels`` after duplicate resolution.
 from __future__ import annotations
 
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
-
-from apb2.parserV2.parse_quant.parameters.source import NumericTextFormat
 
 type DuplicateMode = Literal["error", "keep_first", "aggregate"]
 """How several raw scalars claiming one measurement cell become one scalar."""
 
 type NumericType = Literal["number", "integer"]
 """Logical numeric type declared for a measurement layer."""
-
-
-# ---------------------------------------------------------------------------- raw presence
-
-
-@dataclass(frozen=True, slots=True)
-class NullOnlyRawValuePresenceConfig:
-    """Only null claims nothing: factors and native numeric layers without sentinels."""
-
-    kind: Literal["null_only"]
-    layer_name: str
-
-
-@dataclass(frozen=True, slots=True)
-class PlainNumericRawValuePresenceConfig:
-    """Null, blank text, and the declared missing values claim nothing."""
-
-    kind: Literal["plain_numeric"]
-    layer_name: str
-    missing_values: tuple[float, ...]
-    number_format: NumericTextFormat
-
-
-@dataclass(frozen=True, slots=True)
-class RegexNumericRawValuePresenceConfig:
-    """As plain numeric, but the comparable number is one capture of a structured token."""
-
-    kind: Literal["regex_numeric"]
-    layer_name: str
-    missing_values: tuple[float, ...]
-    pattern: str
-    number_format: NumericTextFormat
-
-
-type RawValuePresenceConfig = (
-    NullOnlyRawValuePresenceConfig
-    | PlainNumericRawValuePresenceConfig
-    | RegexNumericRawValuePresenceConfig
-)
-
-
-# --------------------------------------------------------------------- canonical layer values
-
-
-@dataclass(frozen=True, slots=True)
-class PlainNumericLayerConfig:
-    """Directly parseable scalars; declared missing values become missing."""
-
-    kind: Literal["plain_numeric"]
-    layer_name: str
-    missing_values: tuple[float, ...]
-    number_format: NumericTextFormat
-    type: NumericType = "number"
-
-
-@dataclass(frozen=True, slots=True)
-class RegexNumericLayerConfig:
-    """One numeric capture per structured token, then plain numeric conversion."""
-
-    kind: Literal["regex_numeric"]
-    layer_name: str
-    missing_values: tuple[float, ...]
-    pattern: str
-    number_format: NumericTextFormat
-    type: NumericType = "number"
-
-
-@dataclass(frozen=True, slots=True)
-class FactorLayerConfig:
-    """Declared category labels become their codes; null and unknown labels become -1."""
-
-    kind: Literal["factor"]
-    layer_name: str
-    categories: tuple[tuple[str, int], ...]
-
-
-type LayerValueConfig = PlainNumericLayerConfig | RegexNumericLayerConfig | FactorLayerConfig
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,31 +42,7 @@ class PlainNumericLayerDeclaration:
 
     missing_values: tuple[float, ...]
     type: NumericType = "number"
-
-    def raw_presence_config(
-        self, layer_name: str, numbers: NumericTextFormat
-    ) -> RawValuePresenceConfig:
-        """Build the duplicate-presence rule for this layer."""
-        if not self.missing_values:
-            return NullOnlyRawValuePresenceConfig(kind="null_only", layer_name=layer_name)
-        return PlainNumericRawValuePresenceConfig(
-            kind="plain_numeric",
-            layer_name=layer_name,
-            missing_values=self.missing_values,
-            number_format=numbers,
-        )
-
-    def canonical_value_config(
-        self, layer_name: str, numbers: NumericTextFormat
-    ) -> LayerValueConfig:
-        """Build the canonical scalar conversion for this layer."""
-        return PlainNumericLayerConfig(
-            kind="plain_numeric",
-            layer_name=layer_name,
-            missing_values=self.missing_values,
-            number_format=numbers,
-            type=self.type,
-        )
+    kind: Literal["plain_numeric"] = field(default="plain_numeric", init=False)
 
     def supports_native_numeric_read(self) -> bool:
         """Whether an aggregating parser may read this source as numeric."""
@@ -159,31 +56,7 @@ class RegexNumericLayerDeclaration:
     missing_values: tuple[float, ...]
     pattern: str
     type: NumericType = "number"
-
-    def raw_presence_config(
-        self, layer_name: str, numbers: NumericTextFormat
-    ) -> RawValuePresenceConfig:
-        """Build the duplicate-presence rule for this layer."""
-        return RegexNumericRawValuePresenceConfig(
-            kind="regex_numeric",
-            layer_name=layer_name,
-            missing_values=self.missing_values,
-            pattern=self.pattern,
-            number_format=numbers,
-        )
-
-    def canonical_value_config(
-        self, layer_name: str, numbers: NumericTextFormat
-    ) -> LayerValueConfig:
-        """Build the canonical scalar conversion for this layer."""
-        return RegexNumericLayerConfig(
-            kind="regex_numeric",
-            layer_name=layer_name,
-            missing_values=self.missing_values,
-            pattern=self.pattern,
-            number_format=numbers,
-            type=self.type,
-        )
+    kind: Literal["regex_numeric"] = field(default="regex_numeric", init=False)
 
     def supports_native_numeric_read(self) -> bool:
         """Whether an aggregating parser may read this source as numeric."""
@@ -195,20 +68,7 @@ class FactorLayerDeclaration:
     """A layer whose category labels have declared integer codes."""
 
     categories: tuple[tuple[str, int], ...]
-
-    def raw_presence_config(
-        self, layer_name: str, numbers: NumericTextFormat
-    ) -> RawValuePresenceConfig:
-        """Build the duplicate-presence rule for this layer."""
-        del numbers
-        return NullOnlyRawValuePresenceConfig(kind="null_only", layer_name=layer_name)
-
-    def canonical_value_config(
-        self, layer_name: str, numbers: NumericTextFormat
-    ) -> LayerValueConfig:
-        """Build the canonical category conversion for this layer."""
-        del numbers
-        return FactorLayerConfig(kind="factor", layer_name=layer_name, categories=self.categories)
+    kind: Literal["factor"] = field(default="factor", init=False)
 
     def supports_native_numeric_read(self) -> bool:
         """Whether an aggregating parser may read this source as numeric."""
@@ -221,6 +81,14 @@ type LayerValueDeclaration = (
 
 
 @dataclass(frozen=True, slots=True)
+class LayerValueConfig:
+    """One retained layer; both runtime operations consume its unchanged declaration."""
+
+    layer_name: str
+    value: LayerValueDeclaration
+
+
+@dataclass(frozen=True, slots=True)
 class WorkingMeasurementLayer:
     """One named measurement and its canonical value declaration."""
 
@@ -228,14 +96,6 @@ class WorkingMeasurementLayer:
     source: str
     value: LayerValueDeclaration
     roles: tuple[str, ...] = ()
-
-    def raw_presence_config(self, numbers: NumericTextFormat) -> RawValuePresenceConfig:
-        """Build this layer's duplicate-presence configuration."""
-        return self.value.raw_presence_config(self.name, numbers)
-
-    def canonical_value_config(self, numbers: NumericTextFormat) -> LayerValueConfig:
-        """Build this layer's canonical scalar configuration."""
-        return self.value.canonical_value_config(self.name, numbers)
 
     def supports_native_numeric_read(self) -> bool:
         """Whether an aggregating parser may read this layer as numeric."""

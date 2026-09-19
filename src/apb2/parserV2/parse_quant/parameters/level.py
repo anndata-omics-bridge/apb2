@@ -14,7 +14,6 @@ from apb2.parserV2.parse_quant.parameters.measurements import (
     DuplicateMode,
     LayerContractConfig,
     LayerValueConfig,
-    RawValuePresenceConfig,
     WorkingMeasurements,
 )
 from apb2.parserV2.parse_quant.parameters.source import (
@@ -84,7 +83,6 @@ class ResolvedLevelPlan:
     obs: ResolvedAxisColumnPlan
     var: ResolvedAxisColumnPlan
     duplicate_mode: DuplicateMode
-    raw_value_presence: tuple[RawValuePresenceConfig, ...]
     layer_values: tuple[LayerValueConfig, ...]
     layer_contract: LayerContractConfig
     provenance: Mapping[str, JsonValue]

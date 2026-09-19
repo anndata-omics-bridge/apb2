@@ -26,6 +26,7 @@ from apb2.parserV2.parse_quant.parameters.level import (
 )
 from apb2.parserV2.parse_quant.parameters.measurements import (
     LayerContractConfig,
+    LayerValueConfig,
     WorkingMeasurementLayer,
 )
 from apb2.parserV2.parse_quant.parameters.source import (
@@ -106,10 +107,10 @@ class SourcePlanResolver:
             obs=obs,
             var=var,
             duplicate_mode=working.measurements.duplicate_mode,
-            raw_value_presence=tuple(
-                layer.raw_presence_config(numbers) for layer in layers.retained
+            layer_values=tuple(
+                LayerValueConfig(layer_name=layer.name, value=layer.value)
+                for layer in layers.retained
             ),
-            layer_values=tuple(layer.canonical_value_config(numbers) for layer in layers.retained),
             layer_contract=LayerContractConfig(
                 primary_layer_name=working.measurements.primary_layer_name,
                 required_names=layers.required_names,

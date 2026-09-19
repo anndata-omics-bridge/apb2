@@ -26,12 +26,11 @@ from apb2.parserV2.parse_quant.parameters.axis import (
 )
 from apb2.parserV2.parse_quant.parameters.level import ResolvedLevelPlan
 from apb2.parserV2.parse_quant.parameters.measurements import (
-    FactorLayerConfig,
+    FactorLayerDeclaration,
     LayerContractConfig,
-    NullOnlyRawValuePresenceConfig,
-    PlainNumericLayerConfig,
-    PlainNumericRawValuePresenceConfig,
-    RegexNumericRawValuePresenceConfig,
+    LayerValueConfig,
+    PlainNumericLayerDeclaration,
+    RegexNumericLayerDeclaration,
 )
 from apb2.parserV2.parse_quant.parameters.source import (
     DelimitedFragmentDecompositionConfig,
@@ -240,20 +239,10 @@ def test_the_alphadia_wide_ion_level_resolves_exactly_as_specified() -> None:
             ),
         ),
     )
-    assert resolved.raw_value_presence == (
-        PlainNumericRawValuePresenceConfig(
-            kind="plain_numeric",
-            layer_name="Intensity",
-            missing_values=(0.0,),
-            number_format=NUMBERS,
-        ),
-    )
     assert resolved.layer_values == (
-        PlainNumericLayerConfig(
-            kind="plain_numeric",
+        LayerValueConfig(
             layer_name="Intensity",
-            missing_values=(0.0,),
-            number_format=NUMBERS,
+            value=PlainNumericLayerDeclaration(missing_values=(0.0,)),
         ),
     )
     assert resolved.layer_contract == LayerContractConfig(
@@ -651,7 +640,7 @@ def test_an_optional_wide_layer_without_aligned_samples_is_omitted() -> None:
     assert isinstance(decomposition, WideDecompositionConfig)
 
     assert [plan.name for plan in decomposition.layer_plans] == ["Intensity"]
-    assert [config.layer_name for config in resolved.raw_value_presence] == ["Intensity"]
+    assert [config.layer_name for config in resolved.layer_values] == ["Intensity"]
 
 
 def test_a_required_wide_layer_matching_only_other_samples_stays_as_an_empty_layer() -> None:
@@ -753,11 +742,6 @@ def test_layers_keep_their_authored_order_across_the_required_split() -> None:
 
     resolved = facade.resolve_source(delimited(("Sample", "Feature", "First", "Quantity", "Last")))
 
-    assert [config.layer_name for config in resolved.raw_value_presence] == [
-        "First",
-        "Quantity",
-        "Last",
-    ]
     assert [config.layer_name for config in resolved.layer_values] == [
         "First",
         "Quantity",
@@ -765,10 +749,10 @@ def test_layers_keep_their_authored_order_across_the_required_split() -> None:
     ]
 
 
-# ------------------------------------------------------------ presence and encoding split
+# ------------------------------------------------------------ retained layer declarations
 
 
-def test_each_layer_declaration_projects_into_a_presence_and_an_encoding() -> None:
+def test_resolution_reuses_each_retained_layer_declaration_without_copying_it() -> None:
     document = synthetic.long_document(
         obs_select={"sample": "Sample"},
         var_select={"Feature": "Feature"},
@@ -793,15 +777,15 @@ def test_each_layer_declaration_projects_into_a_presence_and_an_encoding() -> No
     resolved = facade.resolve_source(
         delimited(("Sample", "Feature", "Quantity", "Plain", "Structured", "Kind"))
     )
-    presence = {config.layer_name: config for config in resolved.raw_value_presence}
-    encodings = {config.layer_name: config for config in resolved.layer_values}
-
-    assert isinstance(presence["Quantity"], PlainNumericRawValuePresenceConfig)
-    assert isinstance(presence["Plain"], NullOnlyRawValuePresenceConfig)
-    assert isinstance(presence["Structured"], RegexNumericRawValuePresenceConfig)
-    assert isinstance(presence["Kind"], NullOnlyRawValuePresenceConfig)
-    assert isinstance(encodings["Kind"], FactorLayerConfig)
-    assert encodings["Kind"].categories == (("a", 0), ("b", 1))
+    values = {config.layer_name: config.value for config in resolved.layer_values}
+    for layer in facade.working_parameters.measurements.authored_layers():
+        assert values[layer.name] is layer.value
+    assert values["Quantity"] == PlainNumericLayerDeclaration(missing_values=(0.0,))
+    assert values["Plain"] == PlainNumericLayerDeclaration(missing_values=())
+    assert values["Structured"] == RegexNumericLayerDeclaration(
+        missing_values=(), pattern=r":(-?\d+(?:\.\d+)?)"
+    )
+    assert values["Kind"] == FactorLayerDeclaration(categories=(("a", 0), ("b", 1)))
     # Every measurement keeps its tokens; only an aggregating rule reads them as numbers.
     assert {"Kind", "Structured", "Plain", "Quantity"} <= resolved.read.text_sources
     assert resolved.read.native_numeric_sources == frozenset()
@@ -926,7 +910,6 @@ def test_a_resolved_plan_carries_every_field_the_compiler_destructures() -> None
         "obs",
         "var",
         "duplicate_mode",
-        "raw_value_presence",
         "layer_values",
         "layer_contract",
         "provenance",
