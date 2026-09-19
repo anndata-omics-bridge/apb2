@@ -227,25 +227,18 @@
       "title": "Duplicates",
       "type": "object"
     },
-    "EmbeddedSiteListModifications": {
+    "EmbeddedSiteListSyntax": {
       "additionalProperties": false,
-      "description": "Modification names whose list entries also contain their localization.",
+      "description": "Modification-name list entries that also contain their localization.",
       "properties": {
         "parser": {
           "const": "embedded_site_list",
           "title": "Parser",
           "type": "string"
         },
-        "sequence_column": {
-          "title": "Sequence Column",
-          "type": "string"
-        },
-        "modification_column": {
-          "title": "Modification Column",
-          "type": "string"
-        },
         "delimiter": {
           "default": ";",
+          "minLength": 1,
           "title": "Delimiter",
           "type": "string"
         },
@@ -259,38 +252,13 @@
           "minimum": 0,
           "title": "Site Base",
           "type": "integer"
-        },
-        "case_sensitive": {
-          "default": false,
-          "title": "Case Sensitive",
-          "type": "boolean"
-        },
-        "unknown_policy": {
-          "$ref": "#/$defs/UnknownPolicy",
-          "default": "preserve"
-        },
-        "output_column": {
-          "default": "proforma_sequence",
-          "title": "Output Column",
-          "type": "string"
-        },
-        "map": {
-          "items": {
-            "$ref": "#/$defs/ModificationMapEntry"
-          },
-          "minItems": 1,
-          "title": "Map",
-          "type": "array"
         }
       },
       "required": [
         "parser",
-        "sequence_column",
-        "modification_column",
-        "entry_pattern",
-        "map"
+        "entry_pattern"
       ],
-      "title": "EmbeddedSiteListModifications",
+      "title": "EmbeddedSiteListSyntax",
       "type": "object"
     },
     "ExactSampleMatching": {
@@ -545,16 +513,19 @@
         "measurements": {
           "$ref": "#/$defs/Measurements"
         },
-        "modifications": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Modifications"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
+        "sequence_syntax": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SequenceSyntax"
+          },
+          "title": "Sequence Syntax",
+          "type": "object"
+        },
+        "modification_maps": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ModificationMap"
+          },
+          "title": "Modification Maps",
+          "type": "object"
         },
         "requires_search_parameters": {
           "additionalProperties": {
@@ -645,6 +616,13 @@
       "title": "Measurements",
       "type": "object"
     },
+    "ModificationMap": {
+      "items": {
+        "$ref": "#/$defs/ModificationMapEntry"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
     "ModificationMapEntry": {
       "additionalProperties": false,
       "description": "One vendor token and the Unimod accession it denotes.",
@@ -664,27 +642,6 @@
       ],
       "title": "ModificationMapEntry",
       "type": "object"
-    },
-    "Modifications": {
-      "discriminator": {
-        "mapping": {
-          "embedded_site_list": "#/$defs/EmbeddedSiteListModifications",
-          "site_list": "#/$defs/SiteListModifications",
-          "token_regex": "#/$defs/TokenRegexModifications"
-        },
-        "propertyName": "parser"
-      },
-      "oneOf": [
-        {
-          "$ref": "#/$defs/TokenRegexModifications"
-        },
-        {
-          "$ref": "#/$defs/SiteListModifications"
-        },
-        {
-          "$ref": "#/$defs/EmbeddedSiteListModifications"
-        }
-      ]
     },
     "NoValuePattern": {
       "additionalProperties": false,
@@ -755,6 +712,22 @@
         "source"
       ],
       "title": "NumericLayer",
+      "type": "object"
+    },
+    "PlainSequenceSyntax": {
+      "additionalProperties": false,
+      "description": "An unmodified sequence whose alphabetic characters are residues.",
+      "properties": {
+        "parser": {
+          "const": "plain_sequence",
+          "title": "Parser",
+          "type": "string"
+        }
+      },
+      "required": [
+        "parser"
+      ],
+      "title": "PlainSequenceSyntax",
       "type": "object"
     },
     "PositionalFragments": {
@@ -913,7 +886,7 @@
     },
     "ProformaSequence": {
       "additionalProperties": false,
-      "description": "Expose the normalized ProForma peptidoform from one sequence input.",
+      "description": "Normalize all declared logical inputs using named syntax and a token map.",
       "properties": {
         "source": {
           "anyOf": [
@@ -958,15 +931,34 @@
           "items": {
             "type": "string"
           },
-          "maxItems": 1,
+          "maxItems": 3,
           "minItems": 1,
           "title": "Inputs",
           "type": "array"
+        },
+        "syntax": {
+          "title": "Syntax",
+          "type": "string"
+        },
+        "modification_map": {
+          "title": "Modification Map",
+          "type": "string"
+        },
+        "case_sensitive": {
+          "default": false,
+          "title": "Case Sensitive",
+          "type": "boolean"
+        },
+        "unknown_policy": {
+          "$ref": "#/$defs/UnknownPolicy",
+          "default": "preserve"
         }
       },
       "required": [
         "how",
-        "inputs"
+        "inputs",
+        "syntax",
+        "modification_map"
       ],
       "title": "ProformaSequence",
       "type": "object"
@@ -1039,7 +1031,7 @@
       ]
     },
     "SchemaVersion": {
-      "const": "0.7",
+      "const": "0.8",
       "type": "string"
     },
     "SearchParameterField": {
@@ -1084,29 +1076,43 @@
       ],
       "type": "string"
     },
-    "SiteListModifications": {
+    "SequenceSyntax": {
+      "discriminator": {
+        "mapping": {
+          "embedded_site_list": "#/$defs/EmbeddedSiteListSyntax",
+          "plain_sequence": "#/$defs/PlainSequenceSyntax",
+          "site_list": "#/$defs/SiteListSyntax",
+          "token_regex": "#/$defs/TokenRegexSyntax"
+        },
+        "propertyName": "parser"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/PlainSequenceSyntax"
+        },
+        {
+          "$ref": "#/$defs/TokenRegexSyntax"
+        },
+        {
+          "$ref": "#/$defs/SiteListSyntax"
+        },
+        {
+          "$ref": "#/$defs/EmbeddedSiteListSyntax"
+        }
+      ]
+    },
+    "SiteListSyntax": {
       "additionalProperties": false,
-      "description": "Parallel modification-name and modification-site columns beside a sequence.",
+      "description": "Parallel modification-name and modification-site lists.",
       "properties": {
         "parser": {
           "const": "site_list",
           "title": "Parser",
           "type": "string"
         },
-        "sequence_column": {
-          "title": "Sequence Column",
-          "type": "string"
-        },
-        "modification_column": {
-          "title": "Modification Column",
-          "type": "string"
-        },
-        "site_column": {
-          "title": "Site Column",
-          "type": "string"
-        },
         "delimiter": {
           "default": ";",
+          "minLength": 1,
           "title": "Delimiter",
           "type": "string"
         },
@@ -1116,38 +1122,12 @@
           "minimum": 0,
           "title": "Site Base",
           "type": "integer"
-        },
-        "case_sensitive": {
-          "default": false,
-          "title": "Case Sensitive",
-          "type": "boolean"
-        },
-        "unknown_policy": {
-          "$ref": "#/$defs/UnknownPolicy",
-          "default": "preserve"
-        },
-        "output_column": {
-          "default": "proforma_sequence",
-          "title": "Output Column",
-          "type": "string"
-        },
-        "map": {
-          "items": {
-            "$ref": "#/$defs/ModificationMapEntry"
-          },
-          "minItems": 1,
-          "title": "Map",
-          "type": "array"
         }
       },
       "required": [
-        "parser",
-        "sequence_column",
-        "modification_column",
-        "site_column",
-        "map"
+        "parser"
       ],
-      "title": "SiteListModifications",
+      "title": "SiteListSyntax",
       "type": "object"
     },
     "SourcedColumn": {
@@ -1188,7 +1168,7 @@
     },
     "StrippedSequence": {
       "additionalProperties": false,
-      "description": "Expose the modification-stripped peptide from one sequence input.",
+      "description": "Strip one logical sequence input using a named grammar, without a token map.",
       "properties": {
         "source": {
           "anyOf": [
@@ -1237,11 +1217,16 @@
           "minItems": 1,
           "title": "Inputs",
           "type": "array"
+        },
+        "syntax": {
+          "title": "Syntax",
+          "type": "string"
         }
       },
       "required": [
         "how",
-        "inputs"
+        "inputs",
+        "syntax"
       ],
       "title": "StrippedSequence",
       "type": "object"
@@ -1257,17 +1242,13 @@
       ],
       "type": "string"
     },
-    "TokenRegexModifications": {
+    "TokenRegexSyntax": {
       "additionalProperties": false,
-      "description": "Inline modification tokens extracted from a sequence column.",
+      "description": "Inline modification tokens extracted by the declared pattern.",
       "properties": {
         "parser": {
           "const": "token_regex",
           "title": "Parser",
-          "type": "string"
-        },
-        "source_column": {
-          "title": "Source Column",
           "type": "string"
         },
         "token_pattern": {
@@ -1277,37 +1258,13 @@
         "token_position": {
           "$ref": "#/$defs/TokenPosition",
           "default": "after_residue"
-        },
-        "case_sensitive": {
-          "default": false,
-          "title": "Case Sensitive",
-          "type": "boolean"
-        },
-        "unknown_policy": {
-          "$ref": "#/$defs/UnknownPolicy",
-          "default": "preserve"
-        },
-        "output_column": {
-          "default": "proforma_sequence",
-          "title": "Output Column",
-          "type": "string"
-        },
-        "map": {
-          "items": {
-            "$ref": "#/$defs/ModificationMapEntry"
-          },
-          "minItems": 1,
-          "title": "Map",
-          "type": "array"
         }
       },
       "required": [
         "parser",
-        "source_column",
-        "token_pattern",
-        "map"
+        "token_pattern"
       ],
-      "title": "TokenRegexModifications",
+      "title": "TokenRegexSyntax",
       "type": "object"
     },
     "UnknownPolicy": {
@@ -1377,16 +1334,19 @@
         "measurements": {
           "$ref": "#/$defs/Measurements"
         },
-        "modifications": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Modifications"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
+        "sequence_syntax": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SequenceSyntax"
+          },
+          "title": "Sequence Syntax",
+          "type": "object"
+        },
+        "modification_maps": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ModificationMap"
+          },
+          "title": "Modification Maps",
+          "type": "object"
         },
         "requires_search_parameters": {
           "additionalProperties": {

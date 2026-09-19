@@ -7,10 +7,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from apb2.parserV2.parse_quant.parameters.axis import (
-    EmbeddedSiteListModificationConfig,
-    ModificationConfig,
     ResolvedAxisColumnPlan,
-    SiteListModificationConfig,
     WorkingAxisConfiguration,
 )
 from apb2.parserV2.parse_quant.parameters.measurements import (
@@ -55,7 +52,6 @@ class WorkingParseConfiguration:
     obs: WorkingAxisConfiguration
     var: WorkingAxisConfiguration
     measurements: WorkingMeasurements
-    modifications: tuple[ModificationConfig, ...]
     provenance: Mapping[str, JsonValue]
     preparation: str | None = None
 
@@ -66,7 +62,6 @@ class WorkingParseConfiguration:
             {
                 *self.obs.required_sources(),
                 *self.var.required_sources(),
-                *self._modification_sources(),
                 *self.source_layout.packed_sources(),
             }
         )
@@ -75,21 +70,6 @@ class WorkingParseConfiguration:
         return all(
             self.source_layout.has_layer_source(source, header)
             for source in self.measurements.required_sources()
-        )
-
-    def _modification_sources(self) -> tuple[str, ...]:
-        return tuple(
-            column
-            for config in self.modifications
-            for column in (
-                (config.sequence_column, config.modification_column, config.site_column)
-                if isinstance(config, SiteListModificationConfig)
-                else (
-                    (config.sequence_column, config.modification_column)
-                    if isinstance(config, EmbeddedSiteListModificationConfig)
-                    else (config.source_column,)
-                )
-            )
         )
 
 
@@ -103,7 +83,6 @@ class ResolvedLevelPlan:
     decomposition: DecompositionConfig
     obs: ResolvedAxisColumnPlan
     var: ResolvedAxisColumnPlan
-    modifications: tuple[ModificationConfig, ...]
     duplicate_mode: DuplicateMode
     raw_value_presence: tuple[RawValuePresenceConfig, ...]
     layer_values: tuple[LayerValueConfig, ...]

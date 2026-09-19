@@ -30,7 +30,6 @@ from apb2.parserV2.parse_quant.contracts import (
     DuplicatePolicy,
     LayerSetValidator,
     LayerValueParser,
-    ModificationNormalizer,
     ParsedLevelWriter,
     RawValuePresence,
     SourceDecomposer,
@@ -104,7 +103,6 @@ class Parser:
         "_input",
         "_layer_parsers",
         "_layer_validator",
-        "_modification_normalizers",
         "_obs_plan",
         "_provenance",
         "_raw_value_presence",
@@ -121,7 +119,6 @@ class Parser:
         decomposer: SourceDecomposer,
         obs_plan: AxisRuntimePlan,
         var_plan: AxisRuntimePlan,
-        modification_normalizers: tuple[ModificationNormalizer, ...],
         duplicates: DuplicatePolicy,
         raw_value_presence: Mapping[str, RawValuePresence],
         layer_parsers: Mapping[str, LayerValueParser],
@@ -134,7 +131,6 @@ class Parser:
         self._decomposer = decomposer
         self._obs_plan = obs_plan
         self._var_plan = var_plan
-        self._modification_normalizers = modification_normalizers
         self._duplicates = duplicates
         self._raw_value_presence = dict(raw_value_presence)
         self._layer_parsers = dict(layer_parsers)
@@ -174,25 +170,14 @@ class Parser:
     # ------------------------------------------------------------------------ the two axes
 
     def _prepare_obs(self, raw: ObsRaw) -> tuple[ObsFinal, RawToFinalKeyMap]:
-        frame, mapping = self._prepare_axis(
-            raw.frame,
-            raw.raw_key_columns,
-            {},
-            self._obs_plan,
+        frame, mapping, _diagnostics = self._prepare_axis(
+            raw.frame, raw.raw_key_columns, self._obs_plan
         )
         return ObsFinal(frame=frame, key_columns=self._obs_plan.keys.final_key_columns), mapping
 
     def _prepare_var(self, raw: VarRaw) -> tuple[VarFinal, RawToFinalKeyMap, tuple[str, ...]]:
-        derived = self._normalize_modification_columns(
-            raw.frame,
-            self._modification_normalizers,
-        )
-        unknown_mod_tokens = self._distinct_unknown_modification_tokens(derived)
-        frame, mapping = self._prepare_axis(
-            raw.frame,
-            raw.raw_key_columns,
-            derived,
-            self._var_plan,
+        frame, mapping, unknown_mod_tokens = self._prepare_axis(
+            raw.frame, raw.raw_key_columns, self._var_plan
         )
         return (
             VarFinal(frame=frame, key_columns=self._var_plan.keys.final_key_columns),
@@ -204,17 +189,15 @@ class Parser:
     def _prepare_axis(
         raw: pl.DataFrame,
         raw_key_columns: tuple[str, ...],
-        derived: Mapping[str, pl.Series],
         plan: AxisRuntimePlan,
-    ) -> tuple[pl.DataFrame, RawToFinalKeyMap]:
+    ) -> tuple[pl.DataFrame, RawToFinalKeyMap, tuple[str, ...]]:
         """One staged algorithm for both axes: identity first, then public metadata.
 
         The raw axis already holds one stable-first row per raw key, so nothing here calls
         ``unique`` on the final keys: a repeated valid final key means two raw identities
         collapsed, which is an error rather than a deduplication.
         """
-        working = Parser._add_derived_columns(raw, derived)
-        working = Parser._materialize_axis_columns(working, plan.key_phase)
+        working, early_tokens = Parser._materialize_axis_columns(raw, raw, plan.key_phase)
 
         mapping = RawToFinalKeyMap(
             # Read from the frame as it arrived: a declared column may carry the name of the
@@ -226,59 +209,26 @@ class Parser:
         Parser._require_injective_key_mapping(mapping)
 
         valid = Parser._valid_final_key_rows(mapping.final_keys)
-        final_rows = working.filter(valid)
-        final_rows = Parser._materialize_axis_columns(final_rows, plan.output_phase)
+        final_rows, output_tokens = Parser._materialize_axis_columns(
+            working.filter(valid), raw.filter(valid), plan.output_phase
+        )
         return (
             Parser._finalize_axis_frame(final_rows, outputs=plan.outputs),
             mapping,
+            tuple(dict.fromkeys((*early_tokens, *output_tokens))),
         )
-
-    @staticmethod
-    def _add_derived_columns(frame: pl.DataFrame, derived: Mapping[str, pl.Series]) -> pl.DataFrame:
-        """Put the modification-derived columns on the axis frame, under their own names."""
-        if not derived:
-            return frame
-        for name, values in derived.items():
-            if values.len() != frame.height:
-                raise AxisShapeError(
-                    f"derived column {name!r} returned {values.len()} row(s) for "
-                    f"{frame.height} axis row(s)"
-                )
-        return frame.with_columns([values.alias(name) for name, values in derived.items()])
-
-    @staticmethod
-    def _normalize_modification_columns(
-        frame: pl.DataFrame,
-        normalizers: tuple[ModificationNormalizer, ...],
-    ) -> dict[str, pl.Series]:
-        """Hand each normalizer exactly the series it declared, and merge what comes back."""
-        derived: dict[str, pl.Series] = {}
-        for normalizer in normalizers:
-            columns = tuple(frame.get_column(name) for name in normalizer.sources)
-            derived.update(normalizer.normalize(columns))
-        return derived
-
-    @staticmethod
-    def _distinct_unknown_modification_tokens(
-        derived: Mapping[str, pl.Series],
-    ) -> tuple[str, ...]:
-        """Collect unresolved vendor tokens once, in first-observed order."""
-        values = derived.get(_UNKNOWN_MOD_TOKENS)
-        if values is None:
-            return ()
-        rows = cast(list[list[str] | None], values.to_list())
-        return tuple(dict.fromkeys(token for row in rows if row for token in row))
 
     @staticmethod
     def _materialize_axis_columns(
         frame: pl.DataFrame,
+        physical: pl.DataFrame,
         phase: AxisPhaseRuntimePlan,
         /,
-    ) -> pl.DataFrame:
-        """Run one phase's configured operations in order: selections, then computations."""
+    ) -> tuple[pl.DataFrame, tuple[str, ...]]:
+        """Select from immutable physical values, then compute through logical inputs."""
         result = frame
         for selected in phase.selections:
-            values = result.get_column(selected.source)
+            values = physical.get_column(selected.source)
             coerced = selected.coercer.coerce(
                 values,
                 name=selected.name,
@@ -287,13 +237,17 @@ class Parser:
             result = result.with_columns(
                 Parser._same_shape(coerced, result.height, selected.name).alias(selected.name)
             )
+        unknown: dict[str, None] = {}
         for computer in phase.computers:
             inputs = tuple(result.get_column(name) for name in computer.inputs)
             computed = computer.compute(inputs)
+            unknown.update(dict.fromkeys(computed.unknown_mod_tokens))
             result = result.with_columns(
-                Parser._same_shape(computed, result.height, computer.name).alias(computer.name)
+                Parser._same_shape(computed.values, result.height, computer.name).alias(
+                    computer.name
+                )
             )
-        return result
+        return result, tuple(unknown)
 
     @staticmethod
     def _same_shape(values: pl.Series, height: int, name: str) -> pl.Series:

@@ -15,7 +15,6 @@ from apb2.parserV2.parse_quant.axis_columns import (
     BooleanAxisCoercer,
     CoalesceColumn,
     ColumnComputationError,
-    DerivedSequenceColumn,
     IntegerAxisCoercer,
     JoinNonemptyColumn,
     NumberAxisCoercer,
@@ -26,7 +25,6 @@ from apb2.parserV2.parse_quant.axis_columns import (
 from apb2.parserV2.parse_quant.contracts import (
     AxisValueCoercer,
     ColumnComputer,
-    ModificationNormalizer,
 )
 from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation
 from apb2.parserV2.parse_quant.modifications import (
@@ -34,10 +32,14 @@ from apb2.parserV2.parse_quant.modifications import (
     EmbeddedSiteListRules,
     ModificationOccurrence,
     PackedSiteMismatchError,
+    PlainSequenceStripper,
+    SequenceColumn,
+    SequenceOperation,
     SiteListNormalizer,
     SiteListRules,
     TokenRegexNormalizer,
     TokenRegexRules,
+    TokenRegexStripper,
     UnknownModificationError,
     normalize_embedded_site_list,
     normalize_site_list,
@@ -52,7 +54,7 @@ from apb2.parserV2.parse_quant.parameters.axis import (
     TokenRegexModificationConfig,
     UnknownModificationPolicy,
 )
-from apb2.parserV2.parser_factory import make_modification_normalizer
+from apb2.parserV2.parser_factory import make_sequence_normalizer
 
 OXIDATION = ModificationMapEntry(
     token="ox",
@@ -125,13 +127,10 @@ def token_regex(
     """The declaration the compiler reads, from which those rules are built."""
     return TokenRegexModificationConfig(
         kind="token_regex",
-        source_column="Modified.Sequence",
         token_pattern=pattern,
         token_position=position,
         case_sensitive=False,
         unknown_policy=policy,
-        proforma_output="proforma_sequence",
-        stripped_output="stripped_sequence",
         entries=entries,
     )
 
@@ -143,15 +142,10 @@ def site_list(
 ) -> SiteListModificationConfig:
     return SiteListModificationConfig(
         kind="site_list",
-        sequence_column="sequence",
-        modification_column="mods",
-        site_column="mod_sites",
         delimiter=";",
         site_base=site_base,
         case_sensitive=False,
         unknown_policy=policy,
-        proforma_output="proforma_sequence",
-        stripped_output="stripped_sequence",
         entries=(
             ModificationMapEntry(
                 token="Oxidation@M",
@@ -168,15 +162,11 @@ def site_list(
 def embedded_site_list() -> EmbeddedSiteListModificationConfig:
     return EmbeddedSiteListModificationConfig(
         kind="embedded_site_list",
-        sequence_column="sequence",
-        modification_column="mods",
         delimiter=";",
         entry_pattern=r"^(?P<token>.+?)\s+\((?P<site>[^)]+)\)$",
         site_base=1,
         case_sensitive=False,
         unknown_policy="preserve",
-        proforma_output="proforma_sequence",
-        stripped_output="stripped_sequence",
         entries=(
             ModificationMapEntry(
                 token="Oxidation",
@@ -310,7 +300,7 @@ def test_coalesce_takes_the_first_non_null_in_declaration_order() -> None:
 
     computed = CoalesceColumn(name="Merged", inputs=("a", "b")).compute((first, second))
 
-    assert computed.to_list() == ["p", "q", None]
+    assert computed.values.to_list() == ["p", "q", None]
 
 
 def test_join_nonempty_skips_nulls_and_empty_strings_alike() -> None:
@@ -321,17 +311,19 @@ def test_join_nonempty_skips_nulls_and_empty_strings_alike() -> None:
         (first, second)
     )
 
-    assert computed.to_list() == ["p,q", "q", "q", None]
+    assert computed.values.to_list() == ["p,q", "q", "q", None]
 
 
-def test_a_derived_sequence_column_exposes_what_normalization_produced() -> None:
-    derived = pl.Series("proforma_sequence", ["PEPM[UNIMOD:35]IDE"])
-
-    computed = DerivedSequenceColumn(
-        name="ProForma_peptidoform", inputs=("proforma_sequence",)
-    ).compute((derived,))
-
-    assert computed.to_list() == ["PEPM[UNIMOD:35]IDE"]
+def test_a_stripping_column_consumes_the_sequence_directly() -> None:
+    sequence = pl.Series("Modified_Sequence", ["PEPM(ox)IDE"])
+    computer = SequenceColumn(
+        name="ProForma_peptide",
+        inputs=("Modified_Sequence",),
+        operation=TokenRegexStripper(r"\(([^()]*)\)", "after_residue"),
+    )
+    result = computer.compute((sequence,))
+    assert result.values.to_list() == ["PEPMIDE"]
+    assert result.unknown_mod_tokens == ()
 
 
 def test_a_proforma_ion_needs_a_present_positive_charge() -> None:
@@ -342,7 +334,7 @@ def test_a_proforma_ion_needs_a_present_positive_charge() -> None:
         (sequences, charges)
     )
 
-    assert computed.to_list() == ["PEPTIDE/2", "OTHER/3"]
+    assert computed.values.to_list() == ["PEPTIDE/2", "OTHER/3"]
     with pytest.raises(ColumnComputationError, match="missing charge"):
         ProformaIonColumn(name="ProForma_ion", inputs=("s", "c")).compute(
             (sequences, pl.Series("c", [2, None], dtype=pl.Int64))
@@ -363,7 +355,7 @@ def test_a_proforma_fragment_joins_an_ion_and_a_label() -> None:
 
     # A missing ion leaves a missing fragment key, which axis preparation then drops; the
     # legacy implementation rendered the string "nan/frag_1" instead.
-    assert computed.to_list() == ["PEPTIDE/2/frag_0", None]
+    assert computed.values.to_list() == ["PEPTIDE/2/frag_0", None]
 
 
 @pytest.mark.parametrize(
@@ -371,7 +363,7 @@ def test_a_proforma_fragment_joins_an_ion_and_a_label() -> None:
     [
         CoalesceColumn(name="C", inputs=("a", "b")),
         JoinNonemptyColumn(name="J", inputs=("a", "b"), separator=","),
-        DerivedSequenceColumn(name="D", inputs=("a",)),
+        SequenceColumn(name="D", inputs=("a",), operation=PlainSequenceStripper()),
         ProformaIonColumn(name="I", inputs=("a", "b")),
         ProformaFragmentColumn(name="F", inputs=("a", "b")),
     ],
@@ -389,7 +381,7 @@ def test_a_computer_refuses_a_series_tuple_that_is_not_its_inputs(
     [
         CoalesceColumn(name="C", inputs=("a", "b")),
         JoinNonemptyColumn(name="J", inputs=("a", "b"), separator=","),
-        DerivedSequenceColumn(name="D", inputs=("a",)),
+        SequenceColumn(name="D", inputs=("a",), operation=PlainSequenceStripper()),
     ],
     ids=lambda computer: type(computer).__name__,
 )
@@ -398,13 +390,13 @@ def test_a_computer_preserves_its_input_length_and_row_order(
 ) -> None:
     height = 6
     columns = tuple(
-        pl.Series(name, [f"{name}{index}" for index in range(height)]) for name in computer.inputs
+        pl.Series(name, [name + "A" * index for index in range(height)]) for name in computer.inputs
     )
 
     result = computer.compute(columns)
 
-    assert result.len() == height
-    assert result.to_list()[0] != result.to_list()[1]
+    assert result.values.len() == height
+    assert result.values.to_list()[0] != result.values.to_list()[1]
 
 
 # ------------------------------------------------------------------------ modifications
@@ -572,59 +564,53 @@ def test_two_modifications_on_one_residue_concatenate() -> None:
     assert rendered == "PEPM[UNIMOD:35][UNIMOD:1]IDE"
 
 
-def test_a_normalizer_returns_its_declared_derived_columns_and_keeps_row_order() -> None:
-    normalizer = make_modification_normalizer(token_regex())
-    sequences = pl.Series(
-        "Modified.Sequence",
-        ["PEPM(ox)IDE", "PEPM(weird)IDE", "PEPM(ox)IDE", None],
+def test_normalization_returns_one_column_and_explicit_diagnostics_in_row_order() -> None:
+    computer = SequenceColumn(
+        name="ProForma_peptidoform",
+        inputs=("Modified_Sequence",),
+        operation=make_sequence_normalizer(token_regex()),
     )
-
-    derived = normalizer.normalize((sequences,))
-
-    assert set(derived) == {
-        "proforma_sequence",
-        "stripped_sequence",
-        "unknown_mod_tokens",
-    }
-    assert derived["proforma_sequence"].to_list() == [
+    sequences = pl.Series("vendor sequence", ["PEPM(ox)IDE", "PEPM(weird)IDE", "PEPM(ox)IDE", None])
+    result = computer.compute((sequences,))
+    assert result.values.to_list() == [
         "PEPM[UNIMOD:35]IDE",
         "PEPM[weird]IDE",
         "PEPM[UNIMOD:35]IDE",
         "",
     ]
-    assert derived["unknown_mod_tokens"].to_list() == [[], ["weird"], [], []]
-    assert all(series.len() == sequences.len() for series in derived.values())
+    assert result.unknown_mod_tokens == ("weird",)
+    assert result.values.len() == sequences.len()
 
 
-def test_a_site_list_normalizer_declares_its_three_sources_in_order() -> None:
-    normalizer = make_modification_normalizer(site_list())
-
+def test_a_site_list_normalizer_consumes_its_three_inputs_in_order() -> None:
+    normalizer = make_sequence_normalizer(site_list())
     assert isinstance(normalizer, SiteListNormalizer)
-    assert normalizer.sources == ("sequence", "mods", "mod_sites")
-    derived = normalizer.normalize(
+    computer = SequenceColumn("ProForma_peptidoform", ("Sequence", "Mods", "Sites"), normalizer)
+    result = computer.compute(
         (
             pl.Series("sequence", ["PEPMIDE"]),
             pl.Series("mods", ["Oxidation@M"]),
-            pl.Series("mod_sites", ["4"]),
+            pl.Series("sites", ["4"]),
         )
     )
-    assert derived["proforma_sequence"].to_list() == ["PEPM[UNIMOD:35]IDE"]
+    assert result.values.to_list() == ["PEPM[UNIMOD:35]IDE"]
 
 
-def test_an_embedded_site_normalizer_declares_its_two_sources_in_order() -> None:
-    normalizer = make_modification_normalizer(embedded_site_list())
-
+def test_an_embedded_site_normalizer_consumes_its_two_inputs_in_order() -> None:
+    normalizer = make_sequence_normalizer(embedded_site_list())
     assert isinstance(normalizer, EmbeddedSiteListNormalizer)
-    assert normalizer.sources == ("sequence", "mods")
+    result = normalizer.transform(("PEPMIDE", "Oxidation (M4)"))
+    assert result.value == "PEPM[UNIMOD:35]IDE"
 
 
-def test_all_normalizers_satisfy_the_parser_owned_contract() -> None:
-    normalizers: tuple[ModificationNormalizer, ...] = (
-        make_modification_normalizer(token_regex()),
-        make_modification_normalizer(site_list()),
-        make_modification_normalizer(embedded_site_list()),
+def test_all_normalizers_satisfy_the_sequence_column_owned_contract() -> None:
+    normalizers: tuple[SequenceOperation, ...] = (
+        make_sequence_normalizer(token_regex()),
+        make_sequence_normalizer(site_list()),
+        make_sequence_normalizer(embedded_site_list()),
     )
-
     assert isinstance(normalizers[0], TokenRegexNormalizer)
-    for normalizer in normalizers:
-        assert normalizer.sources
+    for normalizer, row in zip(
+        normalizers, [("PEPMIDE",), ("PEPMIDE", "", ""), ("PEPMIDE", "")], strict=True
+    ):
+        assert normalizer.transform(row).value == "PEPMIDE"

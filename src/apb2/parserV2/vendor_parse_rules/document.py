@@ -11,7 +11,7 @@ a file is) and ``search_parameter_overrides`` patches ``measurements.primary_lay
 acquisition mode decides which column carries the quantity). The patch goes into the payload
 *before* validation, so a rule is validated once and is applicable by construction.
 
-``SearchParameterEvidence`` is deliberately smaller than any parameter-file model: schema 0.7
+``SearchParameterEvidence`` is deliberately smaller than any parameter-file model: schema 0.8
 permits exactly two condition fields, this package owns that vocabulary, and the outer
 application translates its own parameter model into this value before entering Parser V2.
 """
@@ -34,7 +34,6 @@ from apb2.parserV2.vendor_parse_rules.schema.base import (
     QuantificationLevel,
     SchemaVersion,
 )
-from apb2.parserV2.vendor_parse_rules.schema.base_modifications import modification_outputs
 from apb2.parserV2.vendor_parse_rules.schema.fragments import ColumnLabeledFragments
 from apb2.parserV2.vendor_parse_rules.schema.input import Input
 from apb2.parserV2.vendor_parse_rules.schema.measurements import layer_required
@@ -73,7 +72,7 @@ class RuleNotApplicable(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class SearchParameterEvidence:
-    """The complete parameter vocabulary permitted in schema-0.7 conditions."""
+    """The complete parameter vocabulary permitted in schema-0.8 conditions."""
 
     acquisition_method: Literal["DDA", "DIA", "unknown"]
     combine_charge_states: bool | None
@@ -89,9 +88,7 @@ class SearchParameterEvidence:
 
 def synthesized_columns(rule: LongRule | WideRule) -> frozenset[str]:
     """Columns Parser V2 creates itself, which must never be required of the input."""
-    if rule.modifications is None:
-        return _SYNTHESIZED
-    return _SYNTHESIZED | modification_outputs(rule.modifications)
+    return _SYNTHESIZED
 
 
 class LongRecognition:
@@ -445,7 +442,8 @@ def _merge_fragments(base: JsonDict, level: JsonDict) -> JsonDict:
         level,
         mappings=(
             "axis",
-            "modifications",
+            "sequence_syntax",
+            "modification_maps",
             "fragments",
             "requires_search_parameters",
         ),

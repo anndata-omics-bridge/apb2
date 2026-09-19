@@ -30,8 +30,11 @@ from apb2.parserV2.vendor_parse_rules.schema.base import (
     SchemaVersion,
 )
 from apb2.parserV2.vendor_parse_rules.schema.base_modifications import (
-    Modifications,
-    modification_outputs,
+    ModificationMap,
+    PlainSequenceSyntax,
+    SequenceSyntax,
+    SiteListSyntax,
+    TokenRegexSyntax,
 )
 from apb2.parserV2.vendor_parse_rules.schema.fragments import Fragments
 from apb2.parserV2.vendor_parse_rules.schema.measurements import Measurements
@@ -59,7 +62,8 @@ class _RuleCore(ModelBase):
     quantification_level: QuantificationLevel
     axis: Axis
     measurements: Measurements
-    modifications: Modifications | None = None
+    sequence_syntax: dict[str, SequenceSyntax] = Field(default_factory=dict)
+    modification_maps: dict[str, ModificationMap] = Field(default_factory=dict)
     requires_search_parameters: dict[SearchParameterField, ConditionValue] = Field(
         default_factory=dict
     )
@@ -97,7 +101,6 @@ class LongRule(_RuleCore):
         _check_column_group(self.axis.var_keys, self.columns.var, "var")
         _check_computed_columns(self, self.columns.var)
         self._check_obs_computed_columns(self.columns.obs)
-        _check_derived_not_selected(self.modifications, (self.columns.obs, self.columns.var))
         _check_one_type_per_source((self.columns.obs, self.columns.var))
         return self
 
@@ -143,7 +146,6 @@ class WideRule(_RuleCore):
                 )
         _check_column_group(self.axis.var_keys, self.columns.var, "var")
         _check_computed_columns(self, self.columns.var)
-        _check_derived_not_selected(self.modifications, (self.columns.var,))
         _check_one_type_per_source((self.columns.var,))
         return self
 
@@ -159,7 +161,7 @@ def validate_rule(payload: object) -> LongRule | WideRule:
 
 
 def rule_json_schema() -> dict[str, object]:
-    """Return the JSON Schema for complete schema-0.7 effective rules."""
+    """Return the JSON Schema for complete schema-0.8 effective rules."""
     return _RULE_ADAPTER.json_schema()
 
 
@@ -191,21 +193,6 @@ def _check_role_owners(owner: RoleOwner, roles: Iterable[SemanticRole]) -> None:
         raise ValueError(f"roles are not allowed on {owner}: {invalid}")
 
 
-def _check_derived_not_selected(
-    modifications: Modifications | None,
-    groups: tuple[ColumnGroup, ...],
-) -> None:
-    if modifications is None:
-        return
-    selected = {
-        column.source for group in groups for column in group if column.source is not None
-    } & modification_outputs(modifications)
-    if selected:
-        raise ValueError(
-            f"derived modification columns belong in computed, not select: {sorted(selected)}"
-        )
-
-
 def _check_one_type_per_source(groups: tuple[ColumnGroup, ...]) -> None:
     declared: dict[str, AxisColumnType] = {}
     for group in groups:
@@ -233,19 +220,33 @@ def _check_computed_columns(rule: LongRule | WideRule, var: ColumnGroup) -> None
         available.add(column.name)
 
 
-def _check_derived_sequence_column(
+def _check_sequence_column(
     rule: _RuleCore,
     column: StrippedSequence | ProformaSequence,
 ) -> None:
-    if rule.modifications is None:
-        raise ValueError(f"how={column.how!r} requires a modifications block")
-    if (
-        isinstance(column, ProformaSequence)
-        and rule.modifications.output_column != "proforma_sequence"
-    ):
+    syntax = rule.sequence_syntax.get(column.syntax)
+    if syntax is None:
+        raise ValueError(f"column {column.name!r} references missing syntax {column.syntax!r}")
+    if isinstance(column, StrippedSequence):
+        if not isinstance(syntax, PlainSequenceSyntax | TokenRegexSyntax):
+            raise ValueError("stripped_sequence requires token_regex or plain_sequence syntax")
+        return
+    if isinstance(syntax, PlainSequenceSyntax):
+        raise ValueError("proforma_sequence does not accept plain_sequence syntax")
+    arity = (
+        1
+        if isinstance(syntax, TokenRegexSyntax)
+        else 3
+        if isinstance(syntax, SiteListSyntax)
+        else 2
+    )
+    if len(column.inputs) != arity:
         raise ValueError(
-            "how='proforma_sequence' reads 'proforma_sequence', but modifications produces "
-            f"{rule.modifications.output_column!r}"
+            f"{syntax.parser} normalization requires {arity} inputs; got {column.inputs!r}"
+        )
+    if column.modification_map not in rule.modification_maps:
+        raise ValueError(
+            f"column {column.name!r} references missing map {column.modification_map!r}"
         )
 
 
@@ -255,7 +256,7 @@ def _check_computed_column(
     var: ColumnGroup,
 ) -> None:
     if isinstance(column, StrippedSequence | ProformaSequence):
-        _check_derived_sequence_column(rule, column)
+        _check_sequence_column(rule, column)
         return
     if isinstance(column, ProformaIon):
         if rule.quantification_level not in {"ion", "fragment"}:

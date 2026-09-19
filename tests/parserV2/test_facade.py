@@ -20,6 +20,7 @@ from apb2.parserV2.parse_quant.parameters.axis import (
     AxisKeyPlan,
     CoalesceColumnConfig,
     ProformaIonColumnConfig,
+    ProformaSequenceColumnConfig,
     SiteListModificationConfig,
     TokenRegexModificationConfig,
 )
@@ -301,7 +302,11 @@ def test_the_diann_fragment_level_separates_packed_values_before_decomposing() -
 def test_a_modification_derived_key_pulls_every_source_that_can_change_it() -> None:
     path = Path("src/apb2/parserV2/vendor_parse_rules/documents/alphadia/v2/rules.json")
     facade = ParseRuleFacade(load_rule_document(path), "ion", _EVIDENCES[0])
-    modifications = facade.working_parameters.modifications
+    modifications = tuple(
+        column.normalization
+        for column in facade.working_parameters.var.columns.computed
+        if isinstance(column, ProformaSequenceColumnConfig)
+    )
 
     assert len(modifications) == 1
     config = modifications[0]
@@ -318,10 +323,15 @@ def test_a_modification_derived_key_pulls_every_source_that_can_change_it() -> N
 def test_a_token_regex_rule_resolves_its_accessions_at_projection() -> None:
     path = Path("src/apb2/parserV2/vendor_parse_rules/documents/maxquant/rules.json")
     facade = ParseRuleFacade(load_rule_document(path), "ion", _EVIDENCES[0])
-    config = facade.working_parameters.modifications[0]
+    column = next(
+        column
+        for column in facade.working_parameters.var.columns.computed
+        if isinstance(column, ProformaSequenceColumnConfig)
+    )
+    config = column.normalization
 
     assert isinstance(config, TokenRegexModificationConfig)
-    assert config.source_column == "Modified sequence"
+    assert column.inputs == ("Modified_Sequence",)
     assert {entry.token for entry in config.entries} >= {"ac", "ox"}
     assert all(entry.name for entry in config.entries)
 
@@ -915,7 +925,6 @@ def test_a_resolved_plan_carries_every_field_the_compiler_destructures() -> None
         "decomposition",
         "obs",
         "var",
-        "modifications",
         "duplicate_mode",
         "raw_value_presence",
         "layer_values",
@@ -942,4 +951,4 @@ def test_a_proforma_ion_computer_reads_the_peptidoform_and_the_typed_charge() ->
         name="ProForma_ion",
         inputs=("ProForma_peptidoform", "Charge"),
     )
-    assert computers["ProForma_peptidoform"].inputs == ("proforma_sequence",)
+    assert computers["ProForma_peptidoform"].inputs == ("Peptide",)

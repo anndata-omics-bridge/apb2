@@ -15,7 +15,9 @@ from dataclasses import dataclass
 
 import polars as pl
 
+from apb2.parserV2.parse_quant.data.computed import ColumnComputation
 from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation, as_numbers
+from apb2.parserV2.parse_quant.errors import ColumnComputationError
 
 _EXAMPLE_LIMIT = 5
 _INT64_MIN = -(2**63)
@@ -113,10 +115,6 @@ class BooleanAxisCoercer:
         return parsed
 
 
-class ColumnComputationError(ValueError):
-    """One computed axis column cannot be materialized from the series it received."""
-
-
 def _require_arity(name: str, inputs: tuple[str, ...], columns: tuple[pl.Series, ...]) -> None:
     """A computer receives exactly its configured inputs, in order — or it refuses to run."""
     if len(columns) != len(inputs):
@@ -133,12 +131,12 @@ class CoalesceColumn:
     name: str
     inputs: tuple[str, ...]
 
-    def compute(self, columns: tuple[pl.Series, ...], /) -> pl.Series:
+    def compute(self, columns: tuple[pl.Series, ...], /) -> ColumnComputation:
         _require_arity(self.name, self.inputs, columns)
         result = columns[0].cast(pl.String)
         for values in columns[1:]:
             result = result.zip_with(result.is_not_null(), values.cast(pl.String))
-        return result
+        return ColumnComputation(result)
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,7 +147,7 @@ class JoinNonemptyColumn:
     inputs: tuple[str, ...]
     separator: str
 
-    def compute(self, columns: tuple[pl.Series, ...], /) -> pl.Series:
+    def compute(self, columns: tuple[pl.Series, ...], /) -> ColumnComputation:
         _require_arity(self.name, self.inputs, columns)
         frame = pl.DataFrame(
             [values.cast(pl.String).alias(f"_{index}") for index, values in enumerate(columns)]
@@ -167,25 +165,9 @@ class JoinNonemptyColumn:
                 for index in range(len(columns))
             ]
         )
-        return frame.select(
-            pl.when(empty).then(None).otherwise(joined).alias(self.name)
-        ).to_series()
-
-
-@dataclass(frozen=True, slots=True)
-class DerivedSequenceColumn:
-    """Expose, under its declared name, a column modification normalization already derived.
-
-    One class for the stripped peptide and for the ProForma peptidoform: the difference is
-    which derived column the configuration points at, and that is data, not behaviour.
-    """
-
-    name: str
-    inputs: tuple[str, ...]
-
-    def compute(self, columns: tuple[pl.Series, ...], /) -> pl.Series:
-        _require_arity(self.name, self.inputs, columns)
-        return columns[0].cast(pl.String)
+        return ColumnComputation(
+            frame.select(pl.when(empty).then(None).otherwise(joined).alias(self.name)).to_series()
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -195,7 +177,7 @@ class ProformaIonColumn:
     name: str
     inputs: tuple[str, ...]
 
-    def compute(self, columns: tuple[pl.Series, ...], /) -> pl.Series:
+    def compute(self, columns: tuple[pl.Series, ...], /) -> ColumnComputation:
         _require_arity(self.name, self.inputs, columns)
         sequences, charges = columns
         if charges.is_null().any():
@@ -207,7 +189,7 @@ class ProformaIonColumn:
                 f"cannot derive {self.name!r}: charge must be positive; "
                 f"examples={examples.to_list()}"
             )
-        return sequences.cast(pl.String) + "/" + charges.cast(pl.String)
+        return ColumnComputation(sequences.cast(pl.String) + "/" + charges.cast(pl.String))
 
 
 @dataclass(frozen=True, slots=True)
@@ -217,7 +199,7 @@ class ProformaFragmentColumn:
     name: str
     inputs: tuple[str, ...]
 
-    def compute(self, columns: tuple[pl.Series, ...], /) -> pl.Series:
+    def compute(self, columns: tuple[pl.Series, ...], /) -> ColumnComputation:
         _require_arity(self.name, self.inputs, columns)
         ion, label = columns
-        return ion.cast(pl.String) + "/" + label.cast(pl.String)
+        return ColumnComputation(ion.cast(pl.String) + "/" + label.cast(pl.String))

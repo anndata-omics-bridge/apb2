@@ -1,11 +1,11 @@
-"""Normalize one vendor's modified sequences into ProForma, on a small axis frame.
+"""Independent sequence stripping and ProForma normalization on a small axis frame.
 
 Two layers, and the boundary between them is the point of the module. Underneath is the pure
 sequence algorithm: take one vendor string — ``"PEPM[15.9949]TIDE"``, ``"_(ac)PEPTIDEM(ox)_"``,
 or a bare sequence beside parallel name and site columns — and produce the localized
-occurrences and their ProForma rendering. On top are the two normalizers the parser injects,
-which select a column, run that algorithm once per *distinct* value, and hand back the derived
-series.
+occurrences and their ProForma rendering. On top, SequenceColumn consumes logical input
+series and invokes one configured stripping or normalization operation per distinct input.
+It returns one column and explicit diagnostics, never another operation's intermediate.
 
 Memoization is not an optimization detail, it is why normalization belongs on the var axis:
 normalizing is a pure function of the source values, so a column with fifty thousand distinct
@@ -21,12 +21,14 @@ from __future__ import annotations
 
 import math
 import re
-from collections.abc import Callable, Hashable, Iterable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Protocol
 
 import polars as pl
 
+from apb2.parserV2.parse_quant.data.computed import ColumnComputation
+from apb2.parserV2.parse_quant.errors import ColumnComputationError
 from apb2.parserV2.parse_quant.parameters.axis import (
     ModificationMapEntry,
     ModificationTokenPosition,
@@ -654,101 +656,108 @@ def normalize_embedded_site_list(
     )
 
 
-# --------------------------------------------------------------- the normalizers Parser injects
+# ----------------------------------------------------- independently configured computations
 
 
-def _normalize_once_per_distinct[K: Hashable](
-    keys: Iterable[K], normalize: Callable[[K], ModifiedSequence]
-) -> list[ModifiedSequence]:
-    """Normalize each distinct key once and replay the result per row."""
-    memo: dict[K, ModifiedSequence] = {}
-    results: list[ModifiedSequence] = []
-    for key in keys:
-        cached = memo.get(key)
-        if cached is None:
-            cached = normalize(key)
-            memo[key] = cached
-        results.append(cached)
-    return results
+@dataclass(frozen=True, slots=True)
+class SequenceValue:
+    """One computed sequence and its non-column diagnostics."""
+
+    value: str
+    unknown_tokens: tuple[str, ...] = ()
 
 
-def _derived(
-    results: list[ModifiedSequence], proforma_output: str, stripped_output: str
-) -> dict[str, pl.Series]:
-    """The normalized sequence columns and unresolved vendor tokens."""
-    return {
-        proforma_output: pl.Series(
-            proforma_output, [result.proforma_sequence for result in results], dtype=pl.String
-        ),
-        stripped_output: pl.Series(
-            stripped_output, [result.stripped_sequence for result in results], dtype=pl.String
-        ),
-        "unknown_mod_tokens": pl.Series(
-            "unknown_mod_tokens",
-            [list(result.unknown_tokens) for result in results],
-            dtype=pl.List(pl.String),
-        ),
-    }
+class SequenceOperation(Protocol):
+    """The row transformation consumed by SequenceColumn, without source-frame access."""
+
+    def transform(self, row: tuple[str, ...], /) -> SequenceValue: ...
+
+
+class PlainSequenceStripper:
+    """Retain residues from a bare sequence without modification lookup."""
+
+    def transform(self, row: tuple[str, ...], /) -> SequenceValue:
+        (sequence,) = row
+        return SequenceValue("".join(character for character in sequence if character.isalpha()))
+
+
+@dataclass(frozen=True, slots=True)
+class TokenRegexStripper:
+    """Remove recognized inline tokens; neither resolve nor render modifications."""
+
+    token_pattern: str
+    token_position: ModificationTokenPosition
+
+    def transform(self, row: tuple[str, ...], /) -> SequenceValue:
+        (sequence,) = row
+        residues, _tokens = _tokenize(
+            _strip_terminal_markers(sequence), re.compile(self.token_pattern), self.token_position
+        )
+        return SequenceValue("".join(residues))
 
 
 @dataclass(frozen=True, slots=True)
 class TokenRegexNormalizer:
-    """Normalize inline modification tokens read from one sequence column."""
+    """Normalize the supplied inline-token sequence, not a physical source column."""
 
     rules: TokenRegexRules
-    sources: tuple[str, ...]
-    proforma_output: str
-    stripped_output: str
 
-    def normalize(self, columns: tuple[pl.Series, ...], /) -> dict[str, pl.Series]:
-        (sequences,) = columns
-        results = _normalize_once_per_distinct(
-            (value or "" for value in sequences.cast(pl.String).to_list()),
-            lambda sequence: normalize_token_regex(sequence, self.rules),
-        )
-        return _derived(results, self.proforma_output, self.stripped_output)
+    def transform(self, row: tuple[str, ...], /) -> SequenceValue:
+        (sequence,) = row
+        normalized = normalize_token_regex(sequence, self.rules)
+        return SequenceValue(normalized.proforma_sequence, normalized.unknown_tokens)
 
 
 @dataclass(frozen=True, slots=True)
 class SiteListNormalizer:
-    """Normalize a bare sequence beside its parallel modification and site columns."""
+    """Normalize all three declared sequence/name/site inputs."""
 
     rules: SiteListRules
-    sources: tuple[str, ...]
-    proforma_output: str
-    stripped_output: str
 
-    def normalize(self, columns: tuple[pl.Series, ...], /) -> dict[str, pl.Series]:
-        sequences, modifications, sites = columns
-        rows = zip(
-            (value or "" for value in sequences.cast(pl.String).to_list()),
-            (value or "" for value in modifications.cast(pl.String).to_list()),
-            (value or "" for value in sites.cast(pl.String).to_list()),
-            strict=True,
-        )
-        results = _normalize_once_per_distinct(
-            rows, lambda key: normalize_site_list(*key, self.rules)
-        )
-        return _derived(results, self.proforma_output, self.stripped_output)
+    def transform(self, row: tuple[str, ...], /) -> SequenceValue:
+        sequence, modifications, sites = row
+        normalized = normalize_site_list(sequence, modifications, sites, self.rules)
+        return SequenceValue(normalized.proforma_sequence, normalized.unknown_tokens)
 
 
 @dataclass(frozen=True, slots=True)
 class EmbeddedSiteListNormalizer:
-    """Normalize a bare sequence beside modification entries carrying their sites."""
+    """Normalize a supplied sequence and its embedded modification/site entries."""
 
     rules: EmbeddedSiteListRules
-    sources: tuple[str, ...]
-    proforma_output: str
-    stripped_output: str
 
-    def normalize(self, columns: tuple[pl.Series, ...], /) -> dict[str, pl.Series]:
-        sequences, modifications = columns
+    def transform(self, row: tuple[str, ...], /) -> SequenceValue:
+        sequence, modifications = row
+        normalized = normalize_embedded_site_list(sequence, modifications, self.rules)
+        return SequenceValue(normalized.proforma_sequence, normalized.unknown_tokens)
+
+
+@dataclass(frozen=True, slots=True)
+class SequenceColumn:
+    """Compute exactly one declared column, memoizing only within this operation."""
+
+    name: str
+    inputs: tuple[str, ...]
+    operation: SequenceOperation
+
+    def compute(self, columns: tuple[pl.Series, ...], /) -> ColumnComputation:
+        if len(columns) != len(self.inputs):
+            raise ColumnComputationError(
+                f"computed column {self.name!r} declares inputs {list(self.inputs)} but "
+                f"received {len(columns)} series"
+            )
         rows = zip(
-            (value or "" for value in sequences.cast(pl.String).to_list()),
-            (value or "" for value in modifications.cast(pl.String).to_list()),
+            *([value or "" for value in column.cast(pl.String).to_list()] for column in columns),
             strict=True,
         )
-        results = _normalize_once_per_distinct(
-            rows, lambda key: normalize_embedded_site_list(*key, self.rules)
-        )
-        return _derived(results, self.proforma_output, self.stripped_output)
+        memo: dict[tuple[str, ...], SequenceValue] = {}
+        values: list[str] = []
+        unknown: dict[str, None] = {}
+        for row in rows:
+            result = memo.get(row)
+            if result is None:
+                result = self.operation.transform(row)
+                memo[row] = result
+            values.append(result.value)
+            unknown.update(dict.fromkeys(result.unknown_tokens))
+        return ColumnComputation(pl.Series(self.name, values, dtype=pl.String), tuple(unknown))

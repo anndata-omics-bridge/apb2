@@ -91,7 +91,7 @@ UNKNOWN_SEARCH_PARAMETERS = SearchParameterEvidence(
 
 
 def search_parameter_evidence(parameters: Parameters) -> SearchParameterEvidence:
-    """Project the two search-parameter fields schema 0.7 is allowed to inspect."""
+    """Project the two search-parameter fields schema 0.8 is allowed to inspect."""
     return SearchParameterEvidence(
         acquisition_method=parameters.acquisition_method,
         combine_charge_states=parameters.combine_charge_states,

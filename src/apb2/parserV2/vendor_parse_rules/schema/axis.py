@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field, model_validator
 
-from apb2.parserV2.vendor_parse_rules.schema.base import AxisColumnType, ModelBase
+from apb2.parserV2.vendor_parse_rules.schema.base import AxisColumnType, ModelBase, UnknownPolicy
 from apb2.parserV2.vendor_parse_rules.schema.roles import SemanticRole
 
 
@@ -52,19 +52,24 @@ class JoinNonempty(ComputedColumnBase):
 
 
 class StrippedSequence(ComputedColumnBase):
-    """Expose the modification-stripped peptide from one sequence input."""
+    """Strip one logical sequence input using a named grammar, without a token map."""
 
     how: Literal["stripped_sequence"]
     name: Literal["ProForma_peptide"] = "ProForma_peptide"
     inputs: list[str] = Field(min_length=1, max_length=1)
+    syntax: str
 
 
 class ProformaSequence(ComputedColumnBase):
-    """Expose the normalized ProForma peptidoform from one sequence input."""
+    """Normalize all declared logical inputs using named syntax and a token map."""
 
     how: Literal["proforma_sequence"]
     name: Literal["ProForma_peptidoform"] = "ProForma_peptidoform"
-    inputs: list[str] = Field(min_length=1, max_length=1)
+    inputs: list[str] = Field(min_length=1, max_length=3)
+    syntax: str
+    modification_map: str
+    case_sensitive: bool = False
+    unknown_policy: UnknownPolicy = "preserve"
 
 
 class ProformaIon(ComputedColumnBase):

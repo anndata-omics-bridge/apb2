@@ -20,12 +20,12 @@ from apb2.parserV2.parse_quant.contracts import (
     ColumnComputer,
     DuplicatePolicy,
     FragmentTableSeparator,
-    ModificationNormalizer,
     ParsedLevelWriter,
     RawValuePresence,
     SelectedAxisColumn,
     SourceDecomposer,
 )
+from apb2.parserV2.parse_quant.data.computed import ColumnComputation
 from apb2.parserV2.parse_quant.data.parsed import (
     FinalLayerTable,
     ObsFinal,
@@ -287,7 +287,6 @@ def test_a_working_configuration_derives_presence_and_canonical_values() -> None
             layers=(layer,),
             required_names=("Intensity",),
         ),
-        modifications=(),
         provenance={"software_name": "AlphaDIA"},
     )
 
@@ -502,7 +501,6 @@ def test_a_resolved_plan_is_one_atomic_value_for_one_physical_source() -> None:
             outputs=("ProForma_ion",),
             skipped=frozenset(),
         ),
-        modifications=(),
         duplicate_mode="keep_first",
         raw_value_presence=(
             PlainNumericRawValuePresenceConfig(
@@ -587,13 +585,6 @@ class _Separator:
         return table
 
 
-class _Normalizer:
-    sources: tuple[str, ...] = ("sequence",)
-
-    def normalize(self, columns: tuple[pl.Series, ...], /) -> dict[str, pl.Series]:
-        return {"proforma_sequence": columns[0]}
-
-
 class _Coercer:
     def coerce(self, values: pl.Series, *, name: str, source: str) -> pl.Series:
         del name, source
@@ -604,8 +595,8 @@ class _Computer:
     name = "ProForma_ion"
     inputs: tuple[str, ...] = ("ProForma_peptidoform", "Charge")
 
-    def compute(self, columns: tuple[pl.Series, ...], /) -> pl.Series:
-        return columns[0]
+    def compute(self, columns: tuple[pl.Series, ...], /) -> ColumnComputation:
+        return ColumnComputation(columns[0])
 
 
 class _Presence:
@@ -629,7 +620,6 @@ def test_the_intended_collaborators_satisfy_their_client_owned_contracts() -> No
     reader: BoundInputReader = _Reader()
     decomposer: SourceDecomposer = _Decomposer()
     separator: FragmentTableSeparator = _Separator()
-    normalizer: ModificationNormalizer = _Normalizer()
     coercer: AxisValueCoercer = _Coercer()
     computer: ColumnComputer = _Computer()
     presence: RawValuePresence = _Presence()
@@ -638,7 +628,6 @@ def test_the_intended_collaborators_satisfy_their_client_owned_contracts() -> No
 
     assert reader.read().frame.height == 1
     assert separator.separate(LevelSourceTable(frame=pl.DataFrame({"a": [1]}))).frame.height == 1
-    assert normalizer.sources == ("sequence",)
     assert coercer.coerce(pl.Series("x", [1]), name="x", source="x").to_list() == [1]
     assert computer.inputs == ("ProForma_peptidoform", "Charge")
     presence_values = pl.Series("x", [1.0, None])

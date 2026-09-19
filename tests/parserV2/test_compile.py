@@ -18,7 +18,6 @@ from apb2.parserV2.compile import ExplicitRuleCompiler
 from apb2.parserV2.parse_quant.axis_columns import (
     BooleanAxisCoercer,
     CoalesceColumn,
-    DerivedSequenceColumn,
     IntegerAxisCoercer,
     JoinNonemptyColumn,
     NumberAxisCoercer,
@@ -45,13 +44,18 @@ from apb2.parserV2.parse_quant.fragments import (
     PositionalFragmentTableSeparator,
 )
 from apb2.parserV2.parse_quant.layer_validation import LayerContractValidator
-from apb2.parserV2.parse_quant.modifications import SiteListNormalizer, TokenRegexNormalizer
+from apb2.parserV2.parse_quant.modifications import (
+    SequenceColumn,
+    SiteListNormalizer,
+    TokenRegexNormalizer,
+)
 from apb2.parserV2.parse_quant.parameters.axis import (
     AxisKeyPlan,
     AxisLogicalType,
     AxisSourcePlan,
     CoalesceColumnConfig,
     JoinNonemptyColumnConfig,
+    PlainSequenceSyntaxConfig,
     ProformaFragmentColumnConfig,
     ProformaIonColumnConfig,
     ProformaSequenceColumnConfig,
@@ -97,8 +101,8 @@ from apb2.parserV2.parser_factory import (
     make_fragment_table_separator,
     make_layer_validator,
     make_layer_value_parser,
-    make_modification_normalizer,
     make_raw_value_presence,
+    make_sequence_normalizer,
     make_source_decomposer,
 )
 from apb2.parserV2.vendor_parse_rules.document import make_rule_document
@@ -165,15 +169,28 @@ def test_every_executable_duplicate_mode_names_one_policy(mode: DuplicateMode) -
         ),
         (
             StrippedSequenceColumnConfig(
-                kind="stripped_sequence", name="S", inputs=("stripped_sequence",)
+                kind="stripped_sequence",
+                name="S",
+                inputs=("Sequence",),
+                syntax=PlainSequenceSyntaxConfig(kind="plain_sequence"),
             ),
-            DerivedSequenceColumn,
+            SequenceColumn,
         ),
         (
             ProformaSequenceColumnConfig(
-                kind="proforma_sequence", name="P", inputs=("proforma_sequence",)
+                kind="proforma_sequence",
+                name="P",
+                inputs=("Modified_Sequence",),
+                normalization=TokenRegexModificationConfig(
+                    kind="token_regex",
+                    token_pattern=r"\(([^()]*)\)",
+                    token_position="after_residue",
+                    case_sensitive=False,
+                    unknown_policy="preserve",
+                    entries=(),
+                ),
             ),
-            DerivedSequenceColumn,
+            SequenceColumn,
         ),
         (
             ProformaIonColumnConfig(kind="proforma_ion", name="I", inputs=("P", "Z")),
@@ -265,36 +282,28 @@ def test_every_value_declaration_names_one_layer_parser(config: object, expected
 def test_every_modification_declaration_names_one_normalizer() -> None:
     site_list = SiteListModificationConfig(
         kind="site_list",
-        sequence_column="sequence",
-        modification_column="mods",
-        site_column="mod_sites",
         delimiter=";",
         site_base=1,
         case_sensitive=False,
         unknown_policy="preserve",
-        proforma_output="proforma_sequence",
-        stripped_output="stripped_sequence",
         entries=(),
     )
     token_regex = TokenRegexModificationConfig(
         kind="token_regex",
-        source_column="Modified.Sequence",
         token_pattern=r"\(([^()]*)\)",
         token_position="after_residue",
         case_sensitive=False,
         unknown_policy="preserve",
-        proforma_output="proforma_sequence",
-        stripped_output="stripped_sequence",
         entries=(),
     )
 
-    from_site_list = make_modification_normalizer(site_list)
-    from_token_regex = make_modification_normalizer(token_regex)
+    from_site_list = make_sequence_normalizer(site_list)
+    from_token_regex = make_sequence_normalizer(token_regex)
 
     assert isinstance(from_site_list, SiteListNormalizer)
     assert isinstance(from_token_regex, TokenRegexNormalizer)
-    assert from_site_list.sources == ("sequence", "mods", "mod_sites")
-    assert from_token_regex.sources == ("Modified.Sequence",)
+    assert not hasattr(from_site_list, "sources")
+    assert not hasattr(from_token_regex, "sources")
     assert not hasattr(from_site_list.rules, "kind")
     assert not hasattr(from_token_regex.rules, "kind")
 

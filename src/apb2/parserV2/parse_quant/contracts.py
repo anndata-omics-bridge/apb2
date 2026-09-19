@@ -10,8 +10,8 @@ typing proves it where ``compile.py`` performs the wiring.
 
 Shape laws, checked at each collaborator boundary rather than trusted:
 
-- every series a coercer, computer, or normalizer returns has its input's length and row
-  order; the orchestrator assigns the declared output name;
+- every series a coercer or computer returns has its input's length and row order;
+  the orchestrator assigns the declared output name and collects diagnostic metadata;
 - ``RawValuePresence.present`` returns a Boolean expression that evaluates to one non-null mask
   value per input row, in input order, and never a converted measurement value;
 - a duplicate policy preserves the raw var-key columns and the input group order.
@@ -26,6 +26,7 @@ from typing import Protocol
 
 import polars as pl
 
+from apb2.parserV2.parse_quant.data.computed import ColumnComputation
 from apb2.parserV2.parse_quant.data.parsed import FinalLayerTable, ParsedLevel
 from apb2.parserV2.parse_quant.data.raw import DecomposedDataRaw, RawLayerTable
 from apb2.parserV2.parse_quant.data.source import LevelSourceTable
@@ -50,22 +51,6 @@ class FragmentTableSeparator(Protocol):
     def separate(self, table: LevelSourceTable, /) -> LevelSourceTable: ...
 
 
-class ModificationNormalizer(Protocol):
-    """Normalize one declared vendor modification representation.
-
-    ``sources`` are the exact columns, in order, that the orchestrator selects from the raw
-    var frame and hands over as a series tuple; the result maps each declared derived name
-    to its series and includes the fixed ``unknown_mod_tokens`` list column. It is a read-only
-    property because that is all the client does with it, and because a configured strategy
-    has no reason to be mutable.
-    """
-
-    @property
-    def sources(self) -> tuple[str, ...]: ...
-
-    def normalize(self, columns: tuple[pl.Series, ...], /) -> dict[str, pl.Series]: ...
-
-
 class AxisValueCoercer(Protocol):
     """Coerce one selected axis series to one declared logical type."""
 
@@ -85,7 +70,7 @@ class ColumnComputer(Protocol):
     @property
     def inputs(self) -> tuple[str, ...]: ...
 
-    def compute(self, columns: tuple[pl.Series, ...], /) -> pl.Series: ...
+    def compute(self, columns: tuple[pl.Series, ...], /) -> ColumnComputation: ...
 
 
 class RawValuePresence(Protocol):

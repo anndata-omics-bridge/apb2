@@ -289,7 +289,7 @@
       ]
     },
     "SchemaVersion": {
-      "const": "0.7",
+      "const": "0.8",
       "type": "string"
     },
     "SingleCharacter": {

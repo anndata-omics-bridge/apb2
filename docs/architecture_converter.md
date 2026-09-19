@@ -23,7 +23,7 @@ invariant or test explicitly adopts them.
 
 The [APB metadata specification](metadata_specification.md) is authoritative for persisted namespace ownership, tool integration, composition and result-format versions. Converter examples below do not define a separate metadata contract.
 
-The current rule storage version is schema `0.7`; [How rules-driven conversion works](rule-based.md) is the concise authoring guide. Supplement C.1–C.6 preserves the earlier migrations; schema `0.7` retains entry-shaped columns, semantic roles, grouped input tables and logical numeric measurement types while adding rule-selected input preparation.
+The current rule storage version is schema `0.8`; [How rules-driven conversion works](rule-based.md) is the authoring guide. Earlier schema migrations remain historical context. Schema `0.8` adds explicit, independent sequence computations and named syntax/modification-map references; axis, measurement, physical-input, role, and preparation declarations retain their existing shapes.
 
 ## 1. Executive decision
 
@@ -32,7 +32,7 @@ holds no `rules.json` model and contains no vendor, level, layout, encoding, dup
 output-format dispatch. `ParseRuleCompiler` consumes those declarations once, constructs the
 required behavior objects, and injects them into one `Parser` per compatible quantification level.
 
-Rule storage schema `0.7` declares `tables: [{input, base, levels, prepare?}]` under shared software metadata. Each table group independently selects direct input or an ordinary preparation function from the independent `joins` package. Parent composition binds and reads each selected prepared group's inputs once. A direct group and a prepared group can coexist, as in MaxQuant. Obs/var columns remain ordered sourced-or-computed entries with inline type, optionality, and semantic roles. Numeric layers may declare logical type `integer`; omitted numeric types mean `number`. The facade projects declarations into storage-neutral runtime plans.
+Rule storage schema `0.8` declares `tables: [{input, base, levels, prepare?}]` under shared software metadata. Each table group independently selects direct input or an ordinary preparation function from the independent `joins` package. Parent composition binds and reads each selected prepared group's inputs once. A direct group and a prepared group can coexist, as in MaxQuant. Obs/var columns remain ordered sourced-or-computed entries with inline type, optionality, and semantic roles. Numeric layers may declare logical type `integer`; omitted numeric types mean `number`. The facade projects declarations into storage-neutral runtime configurations. Its `resolve_source()` delegates to parsing-owned `SourcePlanResolver`, which resolves headers, optional columns, dependency phases, wide sample expansion, notation, and physical dtypes without importing rule models.
 
 The computational result is:
 
@@ -128,7 +128,7 @@ The specification stays close to V5. These are the only intentional changes:
 | Numeric aggregate compatibility is checked during compilation | V5 allowed aggregate construction and specified a runtime rejection for string/factor values | Reject a rule/read-plan combination that cannot satisfy the strategy before parsing a large source; retain a runtime guard for malformed data |
 | Numeric aggregate leaves a cell null when it has no semantically present scalar | V5 retained pandas' `0.0` result for a physically present but all-missing group while also requiring a no-contribution cell to stay missing | A wide `RawLayerTable` deliberately carries values, not a physical-cell ledger; null versus absent contribution cannot be recovered after pivot. The null result is information-honest and avoids reintroducing provenance solely to manufacture zero |
 | Schema 0.3 removes `keep_all_as_raw_table` from `DuplicateMode` | V5 retained the legacy declaration but required compilation to fail because no final result contract existed | A clean schema must not validate an unexecutable mode; removing it deletes a dead registry path and keeps `ParsedLevel` singular |
-| Modification normalizers accept the exact source-series tuple and return a concrete derived-column dict | V5 wrapped those values in `ModificationSourceColumns` and `NormalizedSequenceColumns`, each adding only one redundant field layer | Preserve the narrow capability while deleting two forwarding DTOs and their construction code |
+| Sequence computations consume exact logical input-series tuples and return `ColumnComputation` | An implicit normalizer produced both stripped and normalized intermediate columns | Honor authored dependencies, allow independent execution, and carry diagnostics outside the column namespace |
 | `ColumnComputer` receives only its configured input-series tuple; source resolution prunes computations blocked by absent optional inputs | V5 passed the complete axis frame and a `skipped` set into every computed-column strategy | Name the smallest capability, consume optionality once, and remove runtime absence branches from every computer |
 | Duplicate resolution receives one configured `RawValuePresence` per layer | V5 deferred all missing-sentinel interpretation to the writer, so `keep_first` could retain a sentinel such as AlphaDIA's `0` and discard a later real value | Determine only whether a raw scalar claims a cell; do not convert or replace the scalar, preserving late encoding and Parquet values |
 | `ParseRuleFacade.resolve_source(SourceEvidence)` replaces `resolve_header(header)` | V5 expected a column-name sequence to produce numeric formats, read dtypes, and Parquet compatibility decisions | Pass the exact physical evidence required for one atomic resolved plan and remove hidden compiler side channels |
@@ -558,19 +558,6 @@ layer sub-algorithms without hiding them behind a broad transformation object.
 
 ```python
 class Parser:
-    __slots__ = (
-        "level",
-        "_input",
-        "_decomposer",
-        "_obs_plan",
-        "_var_plan",
-        "_modification_normalizers",
-        "_duplicates",
-        "_raw_value_presence",
-        "_writer",
-        "_provenance",
-    )
-
     def __init__(
         self,
         *,
@@ -579,9 +566,10 @@ class Parser:
         decomposer: SourceDecomposer,
         obs_plan: AxisRuntimePlan,
         var_plan: AxisRuntimePlan,
-        modification_normalizers: tuple[ModificationNormalizer, ...],
         duplicates: DuplicatePolicy,
         raw_value_presence: Mapping[str, RawValuePresence],
+        layer_parsers: Mapping[str, LayerValueParser],
+        layer_validator: LayerSetValidator,
         writer: ParsedLevelWriter,
         provenance: Mapping[str, JsonValue],
     ) -> None:
@@ -590,22 +578,25 @@ class Parser:
         self._decomposer = decomposer
         self._obs_plan = obs_plan
         self._var_plan = var_plan
-        self._modification_normalizers = modification_normalizers
         self._duplicates = duplicates
         self._raw_value_presence = dict(raw_value_presence)
+        self._layer_parsers = dict(layer_parsers)
+        self._layer_validator = layer_validator
         self._writer = writer
         self._provenance = dict(provenance)
 
     def parse(self) -> ParsedLevel:
+        """Read one bound source and return one parsed level."""
         source = self._input.read()
         raw = self._decomposer.decompose(source)
 
         obs, obs_map = self._prepare_obs(raw.obs)
         var, var_map, unknown_mod_tokens = self._prepare_var(raw.var)
         layers = self._prepare_layers(raw.layers, obs_map, var_map)
+        self._layer_validator.validate(layers)
         uns = dict(self._provenance)
         if unknown_mod_tokens:
-            uns["unknown_mod_tokens"] = list(unknown_mod_tokens)
+            uns[_UNKNOWN_MOD_TOKENS] = list(unknown_mod_tokens)
 
         return ParsedLevel(
             obs=obs,
@@ -613,58 +604,31 @@ class Parser:
             primary_layer_name=raw.layers.primary_layer_name,
             uns=uns,
             layers=layers,
+            obsm={},
+            varm={},
+            obsp={},
+            varp={},
         )
 
     def convert(self, parsed: ParsedLevel, target: Path, /) -> None:
+        """Write a result the caller already has. This never parses anything."""
         self._writer.write(parsed, target)
 
-    def _prepare_obs(
-        self,
-        raw: ObsRaw,
-    ) -> tuple[ObsFinal, RawToFinalKeyMap]:
-        frame, mapping = self._prepare_axis(
-            raw.frame,
-            raw.raw_key_columns,
-            {},
-            self._obs_plan,
+    def _prepare_obs(self, raw: ObsRaw) -> tuple[ObsFinal, RawToFinalKeyMap]:
+        frame, mapping, _diagnostics = self._prepare_axis(
+            raw.frame, raw.raw_key_columns, self._obs_plan
         )
         return ObsFinal(frame=frame, key_columns=self._obs_plan.keys.final_key_columns), mapping
 
-    def _prepare_var(
-        self,
-        raw: VarRaw,
-    ) -> tuple[VarFinal, RawToFinalKeyMap]:
-        derived = self._normalize_modification_columns(
-            raw.frame,
-            self._modification_normalizers,
+    def _prepare_var(self, raw: VarRaw) -> tuple[VarFinal, RawToFinalKeyMap, tuple[str, ...]]:
+        frame, mapping, unknown_mod_tokens = self._prepare_axis(
+            raw.frame, raw.raw_key_columns, self._var_plan
         )
-        frame, mapping = self._prepare_axis(
-            raw.frame,
-            raw.raw_key_columns,
-            derived,
-            self._var_plan,
+        return (
+            VarFinal(frame=frame, key_columns=self._var_plan.keys.final_key_columns),
+            mapping,
+            unknown_mod_tokens,
         )
-        return VarFinal(frame=frame, key_columns=self._var_plan.keys.final_key_columns), mapping
-
-    def _prepare_layers(
-        self,
-        raw: LayersRaw,
-        obs_map: RawToFinalKeyMap,
-        var_map: RawToFinalKeyMap,
-    ) -> dict[str, FinalLayerTable]:
-        layers: dict[str, FinalLayerTable] = {}
-        for layer in raw.values:
-            mappable = self._retain_mappable_layer(layer, obs_map, var_map)
-            resolved = self._duplicates.resolve(
-                mappable,
-                self._raw_value_presence[layer.layer_name],
-            )
-            layers[layer.layer_name] = self._align_layer_keys(
-                resolved,
-                obs_map,
-                var_map,
-            )
-        return layers
 ```
 
 `convert()` never calls `parse()`. This makes repeated reads impossible unless the caller explicitly
@@ -672,8 +636,7 @@ requests another parse.
 
 ### 5.1 Axis preparation
 
-Obs and var share one staged algorithm. Var supplies normalized modification-derived columns;
-obs normally supplies an empty mapping.
+Obs and var share one staged algorithm. Each selection reads the unmodified physical frame and binds a logical name; computers then consume exact logical inputs and return one column plus explicit diagnostics. No modification pre-pass supplies hidden columns.
 
 ```python
 class Parser:
@@ -681,34 +644,33 @@ class Parser:
     def _prepare_axis(
         raw: pl.DataFrame,
         raw_key_columns: tuple[str, ...],
-        derived: Mapping[str, pl.Series],
         plan: AxisRuntimePlan,
-    ) -> tuple[pl.DataFrame, RawToFinalKeyMap]:
-        working = Parser._add_derived_columns(raw, derived)
-        working = Parser._materialize_axis_columns(
-            working,
-            plan.key_phase,
-        )
+    ) -> tuple[pl.DataFrame, RawToFinalKeyMap, tuple[str, ...]]:
+        """One staged algorithm for both axes: identity first, then public metadata.
+
+        The raw axis already holds one stable-first row per raw key, so nothing here calls
+        ``unique`` on the final keys: a repeated valid final key means two raw identities
+        collapsed, which is an error rather than a deduplication.
+        """
+        working, early_tokens = Parser._materialize_axis_columns(raw, raw, plan.key_phase)
 
         mapping = RawToFinalKeyMap(
-            raw_keys=working.select(list(raw_key_columns)),
-            final_keys=working.select(list(plan.keys.final_key_columns)),
+            # Read from the frame as it arrived: a declared column may carry the name of the
+            # physical column it was selected from, and materializing it would then replace
+            # the raw values this map exists to hold.
+            raw_keys=raw.select(list(raw_key_columns)),
+            final_keys=Parser._normalized_keys(working.select(list(plan.keys.final_key_columns))),
         )
         Parser._require_injective_key_mapping(mapping)
 
         valid = Parser._valid_final_key_rows(mapping.final_keys)
-        final_rows = working.filter(valid)
-        final_rows = Parser._materialize_axis_columns(
-            final_rows,
-            plan.output_phase,
+        final_rows, output_tokens = Parser._materialize_axis_columns(
+            working.filter(valid), raw.filter(valid), plan.output_phase
         )
         return (
-            Parser._finalize_axis_frame(
-                final_rows,
-                keys=plan.keys.final_key_columns,
-                outputs=plan.outputs,
-            ),
+            Parser._finalize_axis_frame(final_rows, outputs=plan.outputs),
             mapping,
+            tuple(dict.fromkeys((*early_tokens, *output_tokens))),
         )
 ```
 
@@ -1027,7 +989,7 @@ classDiagram
         -_prepare_obs(raw) tuple
         -_prepare_var(raw) tuple
         -_prepare_layers(raw, obs_map, var_map) dict
-        -_prepare_axis(raw, keys, derived, plan)$ tuple
+        -_prepare_axis(raw, keys, plan)$ tuple
         -_retain_mappable_layer(layer, obs_map, var_map)$ RawLayerTable
         -_align_layer_keys(layer, obs_map, var_map)$ FinalLayerTable
     }
@@ -1660,16 +1622,6 @@ class FragmentTableSeparator(Protocol):
     def separate(self, table: LevelSourceTable, /) -> LevelSourceTable: ...
 
 
-class ModificationNormalizer(Protocol):
-    sources: tuple[str, ...]
-
-    def normalize(
-        self,
-        columns: tuple[pl.Series, ...],
-        /,
-    ) -> dict[str, pl.Series]: ...
-
-
 class AxisValueCoercer(Protocol):
     def coerce(
         self,
@@ -1688,7 +1640,7 @@ class ColumnComputer(Protocol):
         self,
         columns: tuple[pl.Series, ...],
         /,
-    ) -> pl.Series: ...
+    ) -> ColumnComputation: ...
 
 
 class RawValuePresence(Protocol):
@@ -1724,24 +1676,14 @@ class AnnDataLayerContractChecker(Protocol):
     def check(self, encoded: Mapping[str, pl.DataFrame], /) -> None: ...
 ```
 
-`Parser._normalize_modification_columns()` selects each normalizer's declared `sources` from
-`VarRaw.frame` in that order, passes the exact series tuple, and merges the returned derived-column
-dictionaries. The normalizer receives neither the broad var frame nor a one-field wrapper around
-those series.
+`SequenceColumn` implements the ordinary `ColumnComputer` contract. Its configured `SequenceOperation` transforms one tuple of supplied sequence values into one `SequenceValue`; token-regex/plain stripping and token-regex/site-list/embedded-site normalization are independent implementations. Per-operation memoization never shares an implicit result between computations.
 
-Every modification normalizer returns its ProForma and stripped-sequence columns plus the fixed
-`unknown_mod_tokens` list column. Under `unknown_policy="preserve"`, an unmatched raw token remains
-in the rendered ProForma identity and is also reported independently. `Parser` collects the distinct
-tokens in first-observed order into `ParsedLevel.uns["unknown_mod_tokens"]`; it omits that key when
-no unknown token occurred. Both writers persist the diagnostic through their existing
-`ParsedLevel.uns` path. `ParsedLevel.uns` is the content of the parser tool namespace: AnnData stores
-it below `adata.uns["apb"]["parse"]`, while Parquet stores it in the parser-owned
-dataset manifest.
+`ColumnComputation(values, unknown_mod_tokens)` separates the output series from diagnostic metadata. Under `unknown_policy="preserve"`, unresolved tokens remain in ProForma and are collected once in first-observed order into `ParsedLevel.uns["unknown_mod_tokens"]`; no diagnostic column is injected into the axis. Normalization and its dependencies run before invalid-key filtering even when the normalized column is metadata, preserving diagnostics and errors from discarded rows. Writers retain their existing parser-namespace persistence.
 
 `RawValuePresence.present()` returns a non-null Boolean series with the same length and row order as
 its input. It may inspect tokens but may not return converted measurement values.
 
-Every axis series returned by `ModificationNormalizer`, `AxisValueCoercer`, or `ColumnComputer`
+Every axis series returned by `AxisValueCoercer` or inside `ColumnComputer`'s result
 has the same length and row order as its input series; the orchestrator assigns declared output
 names. `AnnDataLayerEncoder.encode()` returns the same row count, column count, column order, and
 column names as its value-only input frame, changing only scalar representation and dtypes. These
@@ -1752,7 +1694,7 @@ shape contracts are checked at each collaborator boundary.
 | `BoundInputReader` | Read one already bound source using one resolved level projection | delimited table, Parquet table; later file-set reader only when a declared file set exists |
 | `SourceDecomposer` | Convert one physical table shape to common raw axes and wide raw layers | long, wide, delimiter-fragment composition |
 | `FragmentTableSeparator` | Turn one packed fragment table into scalar-long rows | positional labels, column-derived labels |
-| `ModificationNormalizer` | Normalize one declared vendor modification representation | token-regex, parallel site-list, embedded-site list |
+| `SequenceOperation` | Transform one explicitly supplied sequence tuple | plain/token-regex stripping; token-regex/site-list/embedded-site normalization |
 | `AxisValueCoercer` | Coerce one selected axis series to one declared logical type | string, integer, number, boolean |
 | `ColumnComputer` | Materialize one declared computed column | coalesce, join-nonempty, stripped sequence, ProForma sequence, ProForma ion, ProForma fragment |
 | `RawValuePresence` | Mark raw layer scalars that semantically claim a cell without converting them | null-only, plain numeric, regex numeric |
@@ -1803,9 +1745,7 @@ resolution also removes every computation blocked by that absence. The compiler 
 runtime phases and retained `outputs` only from executable operations. No runtime object carries
 `required: bool`, a skipped-name set, or chooses behavior from presence.
 
-The key phase materializes exactly the selected, normalized, and computed values needed for final
-identity. The output phase materializes remaining public metadata after collision validation. An
-output-phase operation may not overwrite a final-key column.
+The key phase materializes final-identity dependencies plus diagnostic-producing normalizations and their dependencies. Early diagnostic computation does not make a metadata column an identity key. The output phase materializes remaining metadata after collision validation; it may not overwrite a final-key column.
 
 Parser's private static executor makes the narrow calls explicit:
 
@@ -1814,25 +1754,33 @@ class Parser:
     @staticmethod
     def _materialize_axis_columns(
         frame: pl.DataFrame,
+        physical: pl.DataFrame,
         phase: AxisPhaseRuntimePlan,
         /,
-    ) -> pl.DataFrame:
+    ) -> tuple[pl.DataFrame, tuple[str, ...]]:
+        """Select from immutable physical values, then compute through logical inputs."""
         result = frame
         for selected in phase.selections:
-            values = result.get_column(selected.source)
+            values = physical.get_column(selected.source)
             coerced = selected.coercer.coerce(
                 values,
                 name=selected.name,
                 source=selected.source,
             )
-            result = result.with_columns(coerced.alias(selected.name))
-
+            result = result.with_columns(
+                Parser._same_shape(coerced, result.height, selected.name).alias(selected.name)
+            )
+        unknown: dict[str, None] = {}
         for computer in phase.computers:
             inputs = tuple(result.get_column(name) for name in computer.inputs)
+            computed = computer.compute(inputs)
+            unknown.update(dict.fromkeys(computed.unknown_mod_tokens))
             result = result.with_columns(
-                computer.compute(inputs).alias(computer.name)
+                Parser._same_shape(computed.values, result.height, computer.name).alias(
+                    computer.name
+                )
             )
-        return result
+        return result, tuple(unknown)
 ```
 
 #### B.2 Construction names and dispatch boundary
@@ -1842,7 +1790,7 @@ class Parser:
 | input reader | source binding plus format-specific `make_reader(read_plan)` |
 | source decomposer | `make_source_decomposer(resolved.decomposition, resolved.obs.source, resolved.var.source)` |
 | fragment separator | `make_fragment_table_separator(config)` |
-| modification normalizer | `make_modification_normalizer(config)` |
+| sequence operation | `make_sequence_stripper(config)` or `make_sequence_normalizer(config)`, injected into `SequenceColumn` |
 | axis coercer | `axis_coercer_for(logical_type)` |
 | column computer | `make_column_computer(config)` |
 | duplicate policy | `duplicate_policy_for(resolved.duplicate_mode)` |
@@ -1863,11 +1811,6 @@ _SOURCE_DECOMPOSERS = {
 _FRAGMENT_SEPARATORS = {
     "positional": make_positional_fragment_table_separator,
     "column": make_column_labeled_fragment_table_separator,
-}
-
-_MODIFICATION_NORMALIZERS = {
-    "token_regex": make_token_regex_normalizer,
-    "site_list": make_site_list_normalizer,
 }
 
 _DUPLICATE_POLICIES = {
@@ -2419,7 +2362,6 @@ class WorkingParseConfiguration:
     obs: WorkingAxisConfiguration
     var: WorkingAxisConfiguration
     measurements: WorkingMeasurements
-    modifications: tuple[ModificationConfig, ...]
     provenance: Mapping[str, JsonValue]
 ```
 
@@ -2710,7 +2652,6 @@ class ResolvedLevelPlan:
     decomposition: DecompositionConfig
     obs: ResolvedAxisColumnPlan
     var: ResolvedAxisColumnPlan
-    modifications: tuple[ModificationConfig, ...]
     duplicate_mode: DuplicateMode
     raw_value_presence: tuple[RawValuePresenceConfig, ...]
     ann_data: AnnDataSerializationConfig
@@ -2961,8 +2902,7 @@ The internal level parser factory performs one runtime-construction sequence:
 6. construct obs and var runtime plans from the two resolved axis plans;
 7. construct one source decomposer; the delimiter-fragment constructor injects one separator and
    an ordinary long decomposer;
-8. construct modification normalizers from `resolved.modifications`, one raw-value presence
-   strategy per retained layer, and one duplicate policy from `resolved.duplicate_mode`;
+8. construct one raw-value presence strategy per retained layer and one duplicate policy from `resolved.duplicate_mode`; sequence operations were already constructed within the axis plans;
 9. construct canonical layer-value parsers and parse-time validation;
 10. inject `resolved.level`, only runtime behavior, and a copy of `resolved.provenance` into
     `Parser`.
@@ -3378,6 +3318,7 @@ apb2/src/apb2/parserV2/
 │   │   ├── layer_columns.py    # positional layer-column naming invariant
 │   │   ├── numeric_text.py     # storage-neutral numeric-token interpretation
 │   │   ├── source.py           # LevelSourceTable
+│   │   ├── computed.py         # one computed column and diagnostic metadata
 │   │   ├── raw.py              # raw axes/layers, decomposition result, key map
 │   │   └── parsed.py           # final axes/layers, ParsedLevel, and ParsedLevels
 │   ├── io/
@@ -3401,11 +3342,12 @@ apb2/src/apb2/parserV2/
 │   │   └── plan_json.py        # lossless JSON form of a resolved plan
 │   ├── contracts.py            # every Protocol consumed by Parser + runtime plans
 │   ├── parser.py               # Parser and its one-client private static helpers
+│   ├── source_resolution.py    # SourcePlanResolver; header/dtype-dependent decisions
 │   ├── axis_columns.py         # concrete coercers and computed-column strategies
 │   ├── decomposition.py        # long, wide, and composed delimiter decomposers
 │   ├── fragments.py            # positional and column-labelled separators
 │   ├── duplicates.py           # duplicate policies and raw-presence strategies
-│   └── modifications.py        # token-regex and site-list normalizers
+│   └── modifications.py        # independent stripping and normalization computations
 └── vendor_parse_rules/
     ├── __init__.py             # package marker; no broad re-exports
     ├── document.py             # EffectiveRule, RuleDocument retaining _shell
@@ -3436,7 +3378,7 @@ The boundary ownership behind that tree is:
 | validated rule -> compilation | `ResolvedLevelPlan` in `parse_quant/parameters/resolved.py` | no Protocol: one concrete facade API | parent-level `parse_rule_facade.py` |
 
 `BoundInputReader`, `ParsedLevelWriter`, `SourceDecomposer`, `FragmentTableSeparator`,
-`ModificationNormalizer`, `AxisValueCoercer`, `ColumnComputer`, `RawValuePresence`, and
+`AxisValueCoercer`, `ColumnComputer`, `RawValuePresence`, and
 `DuplicatePolicy` all go in `parse_quant/contracts.py`: `Parser` is the client of every one of these
 capabilities. They therefore share one client-owned contract module.
 
@@ -3553,11 +3495,10 @@ Implementation follows these placement rules:
 
 Concrete consequences in this specification are:
 
-- `_prepare_axis`, `_materialize_axis_columns`, `_normalize_modification_columns`,
+- `_prepare_axis`, `_materialize_axis_columns`,
   `_retain_mappable_layer`, and `_align_layer_keys` are private Parser methods; the methods that do
   not read Parser state are static;
-- rule projection and physical-source resolution helpers used only by `ParseRuleFacade` are private
-  methods on that class, not functions in a separate `projection.py`;
+- rule-projection helpers remain private methods on `ParseRuleFacade`; physical-source resolution and its helpers belong to parsing-owned `SourcePlanResolver`;
 - `_make_axis_frame`, `_write_namespace`, and `_write_atomically` are private static methods on
   `AnnDataWriter` while no second writer uses them;
 - `make_source_decomposer()`, `make_column_computer()`, and `duplicate_policy_for()` remain free construction

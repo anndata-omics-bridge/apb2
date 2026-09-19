@@ -20,7 +20,7 @@ from apb2.parserV2.parse_quant.io.metadata import (
 )
 
 _DOCUMENT = {
-    "schema_version": "0.7",
+    "schema_version": "0.8",
     "file_version": "1",
     "software_name": "CliTest",
     "software_version_pattern": "^1$",
@@ -46,7 +46,7 @@ _DOCUMENT = {
 _TSV = "Run\tPrecursor\tIntensity\ns1\tp1\t1.5\ns1\tp2\t2.5\ns2\tp1\t3.5\n"
 
 _MULTILEVEL_DOCUMENT = {
-    "schema_version": "0.7",
+    "schema_version": "0.8",
     "file_version": "1",
     "software_name": "CliTest",
     "software_version_pattern": "^1$",

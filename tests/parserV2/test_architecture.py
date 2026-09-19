@@ -333,7 +333,7 @@ _TAG_VOCABULARY = frozenset(
         "proforma_fragment",
     }
 )
-"""Every declarative tag schema 0.7 can write. A table keyed by these selects behaviour."""
+"""Every declarative tag schema 0.8 can write. A table keyed by these selects behaviour."""
 
 
 def _tag_keyed_tables(path: Path) -> list[str]:

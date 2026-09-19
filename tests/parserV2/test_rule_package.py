@@ -1,4 +1,4 @@
-"""Schema 0.7 packaged-document, composition, and validation contracts."""
+"""Schema 0.8 packaged-document, composition, and validation contracts."""
 
 from __future__ import annotations
 
@@ -451,7 +451,7 @@ def test_a_level_without_a_gate_is_applicable_without_any_evidence() -> None:
         document.rule("peptide", NO_EVIDENCE)
 
 
-# ------------------------------------------------------------------ what schema 0.7 refuses
+# ------------------------------------------------------------------ what schema 0.8 refuses
 
 
 def _document_payload() -> dict[str, Any]:
@@ -602,7 +602,7 @@ def test_schema_0_4_refuses_a_legacy_or_illegal_declaration(
         _declared(payload, tmp_path)
 
 
-@pytest.mark.parametrize("version", ["0.3", "0.5", "0.6"])
+@pytest.mark.parametrize("version", ["0.3", "0.5", "0.6", "0.7"])
 def test_a_document_of_a_previous_generation_is_refused_at_the_shell(
     version: str, tmp_path: Path
 ) -> None:

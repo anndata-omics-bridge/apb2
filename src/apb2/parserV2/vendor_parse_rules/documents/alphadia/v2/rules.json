@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.7",
+  "schema_version": "0.8",
   "file_version": "2",
   "software_name": "AlphaDIA",
   "software_version_pattern": "^2\\.",
@@ -30,17 +30,18 @@
             }
           ]
         },
-        "modifications": {
-          "parser": "site_list",
-          "sequence_column": "precursor.sequence",
-          "modification_column": "precursor.mods",
-          "site_column": "precursor.mod_sites",
-          "delimiter": ";",
-          "site_base": 1,
-          "case_sensitive": false,
-          "unknown_policy": "preserve",
-          "output_column": "proforma_sequence",
-          "map": [
+        "sequence_syntax": {
+          "vendor_sequence": {
+            "parser": "site_list",
+            "delimiter": ";",
+            "site_base": 1
+          },
+          "plain_sequence": {
+            "parser": "plain_sequence"
+          }
+        },
+        "modification_maps": {
+          "basic_modification_map": [
             {
               "token": "Carbamidomethyl@C",
               "accession": "UNIMOD:4"
@@ -160,16 +161,23 @@
               {
                 "name": "ProForma_peptidoform",
                 "inputs": [
-                  "Sequence"
+                  "Sequence",
+                  "Mods",
+                  "Mod_Sites"
                 ],
-                "how": "proforma_sequence"
+                "how": "proforma_sequence",
+                "syntax": "vendor_sequence",
+                "modification_map": "basic_modification_map",
+                "case_sensitive": false,
+                "unknown_policy": "preserve"
               },
               {
                 "name": "ProForma_peptide",
                 "inputs": [
                   "Sequence"
                 ],
-                "how": "stripped_sequence"
+                "how": "stripped_sequence",
+                "syntax": "plain_sequence"
               },
               {
                 "name": "ProForma_ion",

@@ -10,6 +10,7 @@ mistaken for another.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import replace
 from pathlib import Path
 
 import polars as pl
@@ -31,6 +32,7 @@ from apb2.parserV2.parse_quant.contracts import (
     RawValuePresence,
     SelectedAxisColumn,
 )
+from apb2.parserV2.parse_quant.data.computed import ColumnComputation
 from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation
 from apb2.parserV2.parse_quant.data.parsed import ObsFinal, ParsedLevel, VarFinal
 from apb2.parserV2.parse_quant.data.raw import (
@@ -164,7 +166,6 @@ def parser_for(
         decomposer=make_source_decomposer(config, obs, var),
         obs_plan=obs_plan,
         var_plan=var_plan,
-        modification_normalizers=(),
         duplicates=duplicate_policy_for(duplicates),
         raw_value_presence=presence or {name: NULL_ONLY for name, _ in layers},
         layer_parsers={name: numeric_layer_parser(name) for name, _source in layers},
@@ -228,17 +229,12 @@ def test_parse_runs_its_collaborators_in_the_documented_order() -> None:
             return raw
 
     class Normalizer:
-        sources: tuple[str, ...] = ("feature",)
+        name = "Feature"
+        inputs: tuple[str, ...] = ("Feature",)
 
-        def normalize(self, columns: tuple[pl.Series, ...], /) -> dict[str, pl.Series]:
+        def compute(self, columns: tuple[pl.Series, ...], /) -> ColumnComputation:
             calls.append("normalize")
-            return {
-                "unknown_mod_tokens": pl.Series(
-                    "unknown_mod_tokens",
-                    [["Mystery@M", "Mystery@M", "Other@C"]],
-                    dtype=pl.List(pl.String),
-                )
-            }
+            return ColumnComputation(columns[0], ("Mystery@M", "Mystery@M", "Other@C"))
 
     class Presence:
         def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr:
@@ -257,8 +253,10 @@ def test_parse_runs_its_collaborators_in_the_documented_order() -> None:
         input_reader=Reader(),
         decomposer=Decomposer(),
         obs_plan=SIMPLE_OBS_PLAN,
-        var_plan=SIMPLE_VAR_PLAN,
-        modification_normalizers=(Normalizer(),),
+        var_plan=replace(
+            SIMPLE_VAR_PLAN,
+            key_phase=phase(SIMPLE_VAR_PLAN.key_phase.selections, (Normalizer(),)),
+        ),
         duplicates=Policy(),
         raw_value_presence={"Intensity": Presence()},
         layer_parsers={"Intensity": numeric_layer_parser("Intensity")},
@@ -300,7 +298,6 @@ def test_convert_writes_the_result_it_is_given_and_parses_nothing(tmp_path: Path
         decomposer=Decomposer(),
         obs_plan=SIMPLE_OBS_PLAN,
         var_plan=SIMPLE_VAR_PLAN,
-        modification_normalizers=(),
         duplicates=duplicate_policy_for("error"),
         raw_value_presence={},
         layer_parsers={},
@@ -763,7 +760,6 @@ def test_the_parser_holds_only_configured_behaviour() -> None:
         "_decomposer",
         "_obs_plan",
         "_var_plan",
-        "_modification_normalizers",
         "_duplicates",
         "_raw_value_presence",
         "_layer_parsers",
@@ -805,12 +801,13 @@ def test_a_coercion_that_changes_the_row_count_fails_at_the_boundary() -> None:
         ).parse()
 
 
-def test_a_derived_column_of_the_wrong_length_fails_at_the_boundary() -> None:
+def test_a_computed_column_of_the_wrong_length_fails_at_the_boundary() -> None:
     class Shrinking:
-        sources: tuple[str, ...] = ("feature",)
+        name = "Feature"
+        inputs: tuple[str, ...] = ("Feature",)
 
-        def normalize(self, columns: tuple[pl.Series, ...], /) -> dict[str, pl.Series]:
-            return {"proforma_sequence": columns[0].head(1)}
+        def compute(self, columns: tuple[pl.Series, ...], /) -> ColumnComputation:
+            return ColumnComputation(columns[0].head(1))
 
     parser = Parser(
         level="ion",
@@ -825,8 +822,10 @@ def test_a_derived_column_of_the_wrong_length_fails_at_the_boundary() -> None:
             SIMPLE_VAR,
         ),
         obs_plan=SIMPLE_OBS_PLAN,
-        var_plan=SIMPLE_VAR_PLAN,
-        modification_normalizers=(Shrinking(),),
+        var_plan=replace(
+            SIMPLE_VAR_PLAN,
+            key_phase=phase(SIMPLE_VAR_PLAN.key_phase.selections, (Shrinking(),)),
+        ),
         duplicates=duplicate_policy_for("error"),
         raw_value_presence={"Intensity": NULL_ONLY},
         layer_parsers={"Intensity": numeric_layer_parser("Intensity")},
@@ -835,7 +834,7 @@ def test_a_derived_column_of_the_wrong_length_fails_at_the_boundary() -> None:
         provenance={},
     )
 
-    with pytest.raises(AxisShapeError, match="derived column"):
+    with pytest.raises(AxisShapeError, match="axis operation"):
         parser.parse()
 
 

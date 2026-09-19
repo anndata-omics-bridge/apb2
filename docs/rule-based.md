@@ -2,7 +2,7 @@
 
 APB2 keeps vendor-table knowledge in one declarative `rules.json` document per software/version. Each document contains a nonempty `tables` list; every table declares its physical input, observation and variable identity, sourced or computed axis columns, measurement layers, semantic roles, and supported quantification levels. Supporting another layout normally means adding a table declaration rather than another Python reader.
 
-The current rule format is schema `0.7`. The generated [document schema](../src/apb2/parserV2/vendor_parse_rules/documents/_schema/document.schema.json) describes the authored shell and physical inputs. Table-local base/level composition is then validated against the [effective-rule schema](../src/apb2/parserV2/vendor_parse_rules/documents/_schema/rule.schema.json). Older documents must be migrated; there is no compatibility model.
+The current rule format is schema `0.8`. The generated [document schema](../src/apb2/parserV2/vendor_parse_rules/documents/_schema/document.schema.json) describes the authored shell and physical inputs. Table-local base/level composition is then validated against the [effective-rule schema](../src/apb2/parserV2/vendor_parse_rules/documents/_schema/rule.schema.json). Older documents must be migrated; there is no compatibility model.
 
 ## One software, multiple input tables
 
@@ -35,7 +35,7 @@ P2	b	21
 
 ```json title="rules.json"
 {
-  "schema_version": "0.7",
+  "schema_version": "0.8",
   "file_version": "1",
   "software_name": "MinimalLongExample",
   "software_version_pattern": "^1$",
@@ -113,7 +113,7 @@ P2	20	21
 
 ```json title="rules.json"
 {
-  "schema_version": "0.7",
+  "schema_version": "0.8",
   "file_version": "1",
   "software_name": "MinimalWideExample",
   "software_version_pattern": "^1$",
@@ -190,6 +190,59 @@ Computed entries replace `source` with `how` and `inputs`. They appear after the
 ```
 
 Supported computations are `coalesce`, `join_nonempty`, `stripped_sequence`, `proforma_sequence`, `proforma_ion`, and `proforma_fragment`. Entry names must be unique within each axis group, final axis keys must name required materialized entries, and computed dependencies must be available in declaration order.
+
+## Independent sequence computations
+
+Map vendor columns to logical names first. A sequence computation consumes exactly its ordered `inputs`; no normalizer substitutes a hidden input or generates another computation's column. For example, this fragment belongs inside a table's `base` or level, alongside its axis and measurement declarations:
+
+```json
+{
+  "sequence_syntax": {
+    "vendor_sequence": {
+      "parser": "token_regex",
+      "token_pattern": "\\[([^\\]]+)\\]",
+      "token_position": "after_residue"
+    }
+  },
+  "modification_maps": {
+    "basic_modification_map": [
+      {"token": "57.0215", "accession": "UNIMOD:4"}
+    ]
+  },
+  "columns": {
+    "var": [
+      {"name": "Modified_Sequence", "source": "Modified Sequence"},
+      {"name": "Charge", "source": "Charge", "type": "integer"},
+      {
+        "name": "ProForma_peptide", "how": "stripped_sequence",
+        "inputs": ["Modified_Sequence"], "syntax": "vendor_sequence"
+      },
+      {
+        "name": "ProForma_peptidoform", "how": "proforma_sequence",
+        "inputs": ["Modified_Sequence"], "syntax": "vendor_sequence",
+        "modification_map": "basic_modification_map",
+        "case_sensitive": false, "unknown_policy": "preserve"
+      },
+      {
+        "name": "ProForma_ion", "how": "proforma_ion",
+        "inputs": ["ProForma_peptidoform", "Charge"]
+      }
+    ]
+  }
+}
+```
+
+`vendor_sequence` is an arbitrary local grammar name, not an input column. Syntax definitions contain no source or output names. Both registries merge base-to-level by name, replacing each same-named definition wholesale; references are validated after composition. There is no implicit default map.
+
+| Syntax parser | Normalization inputs | Settings |
+| --- | --- | --- |
+| `token_regex` | sequence | `token_pattern`, `token_position` |
+| `site_list` | sequence, modifications, sites | `delimiter`, `site_base` |
+| `embedded_site_list` | sequence, modifications | `delimiter`, `entry_pattern`, `site_base` |
+
+Stripping takes one logical sequence input and either token-regex syntax or `{"parser": "plain_sequence"}` for a bare sequence. It needs no modification map, Unimod lookup, or normalization operation. Normalization alone takes `modification_map`, `case_sensitive` (default `false`), and `unknown_policy` (`preserve`, `drop`, or `error`; default `preserve`). Unknown tokens are diagnostic metadata, not intermediate columns. Each operation memoizes its own distinct inputs.
+
+When migrating from `0.7`, replace the global `modifications` block with named syntax/map definitions, add references to computations, and declare all site-list inputs through logical columns. Remove `source_column`, `sequence_column`, `modification_column`, `site_column`, and `output_column` from configuration definitions; column entries now own those dependencies and outputs. Schema `0.7` conversion rules are rejected, while previously written result artifacts remain readable without rewriting their provenance.
 
 ## Semantic roles
 

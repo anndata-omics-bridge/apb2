@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.7",
+  "schema_version": "0.8",
   "file_version": "2",
   "software_name": "Sage",
   "software_version_pattern": "^0\\.",
@@ -68,26 +68,31 @@
               "inputs": [
                 "Peptide"
               ],
-              "how": "proforma_sequence"
+              "how": "proforma_sequence",
+              "syntax": "vendor_sequence",
+              "modification_map": "basic_modification_map",
+              "case_sensitive": false,
+              "unknown_policy": "preserve"
             },
             {
               "name": "ProForma_peptide",
               "inputs": [
                 "Peptide"
               ],
-              "how": "stripped_sequence"
+              "how": "stripped_sequence",
+              "syntax": "vendor_sequence"
             }
           ]
         },
-        "modifications": {
-          "source_column": "peptide",
-          "parser": "token_regex",
-          "token_pattern": "\\[([^\\]]+)\\]",
-          "token_position": "after_residue",
-          "case_sensitive": false,
-          "unknown_policy": "preserve",
-          "output_column": "proforma_sequence",
-          "map": [
+        "sequence_syntax": {
+          "vendor_sequence": {
+            "parser": "token_regex",
+            "token_pattern": "\\[([^\\]]+)\\]",
+            "token_position": "after_residue"
+          }
+        },
+        "modification_maps": {
+          "basic_modification_map": [
             {
               "token": "+57.021465",
               "accession": "UNIMOD:4"

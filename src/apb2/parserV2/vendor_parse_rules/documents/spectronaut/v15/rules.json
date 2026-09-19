@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.7",
+  "schema_version": "0.8",
   "file_version": "1",
   "software_name": "Spectronaut",
   "software_version_pattern": "^15\\..*",
@@ -49,15 +49,15 @@
             "mode": "error"
           }
         },
-        "modifications": {
-          "source_column": "EG.ModifiedSequence",
-          "parser": "token_regex",
-          "token_pattern": "\\[([^\\[\\]]+)\\]",
-          "token_position": "after_residue",
-          "case_sensitive": false,
-          "unknown_policy": "preserve",
-          "output_column": "proforma_sequence",
-          "map": [
+        "sequence_syntax": {
+          "vendor_sequence": {
+            "parser": "token_regex",
+            "token_pattern": "\\[([^\\[\\]]+)\\]",
+            "token_position": "after_residue"
+          }
+        },
+        "modification_maps": {
+          "basic_modification_map": [
             {
               "token": "Acetyl (Protein N-term)",
               "accession": "UNIMOD:1"
@@ -274,14 +274,19 @@
                 "inputs": [
                   "EG_ModifiedSequence"
                 ],
-                "how": "proforma_sequence"
+                "how": "proforma_sequence",
+                "syntax": "vendor_sequence",
+                "modification_map": "basic_modification_map",
+                "case_sensitive": false,
+                "unknown_policy": "preserve"
               },
               {
                 "name": "ProForma_peptide",
                 "inputs": [
                   "EG_ModifiedSequence"
                 ],
-                "how": "stripped_sequence"
+                "how": "stripped_sequence",
+                "syntax": "vendor_sequence"
               },
               {
                 "name": "ProForma_ion",
@@ -407,14 +412,19 @@
                 "inputs": [
                   "EG_ModifiedSequence"
                 ],
-                "how": "proforma_sequence"
+                "how": "proforma_sequence",
+                "syntax": "vendor_sequence",
+                "modification_map": "basic_modification_map",
+                "case_sensitive": false,
+                "unknown_policy": "preserve"
               },
               {
                 "name": "ProForma_peptide",
                 "inputs": [
                   "EG_ModifiedSequence"
                 ],
-                "how": "stripped_sequence"
+                "how": "stripped_sequence",
+                "syntax": "vendor_sequence"
               },
               {
                 "name": "ProForma_ion",

@@ -57,20 +57,22 @@ class JoinNonemptyColumnConfig:
 
 @dataclass(frozen=True, slots=True)
 class StrippedSequenceColumnConfig:
-    """Expose the modification-stripped peptide a normalizer already derived."""
+    """Strip the declared logical input using syntax only, without a modification map."""
 
     kind: Literal["stripped_sequence"]
     name: str
     inputs: tuple[str, ...]
+    syntax: StrippingSyntaxConfig
 
 
 @dataclass(frozen=True, slots=True)
 class ProformaSequenceColumnConfig:
-    """Expose the ProForma peptidoform a normalizer already derived."""
+    """Normalize the declared logical inputs using resolved modification settings."""
 
     kind: Literal["proforma_sequence"]
     name: str
     inputs: tuple[str, ...]
+    normalization: ModificationConfig
 
 
 @dataclass(frozen=True, slots=True)
@@ -197,13 +199,10 @@ class TokenRegexModificationConfig:
     """Inline modification tokens extracted by one regex (``PEPM[15.9949]TIDE``)."""
 
     kind: Literal["token_regex"]
-    source_column: str
     token_pattern: str
     token_position: ModificationTokenPosition
     case_sensitive: bool
     unknown_policy: UnknownModificationPolicy
-    proforma_output: str
-    stripped_output: str
     entries: tuple[ModificationMapEntry, ...]
 
 
@@ -212,15 +211,10 @@ class SiteListModificationConfig:
     """Parallel modification-name and site columns beside a bare sequence."""
 
     kind: Literal["site_list"]
-    sequence_column: str
-    modification_column: str
-    site_column: str
     delimiter: str
     site_base: int
     case_sensitive: bool
     unknown_policy: UnknownModificationPolicy
-    proforma_output: str
-    stripped_output: str
     entries: tuple[ModificationMapEntry, ...]
 
 
@@ -229,18 +223,33 @@ class EmbeddedSiteListModificationConfig:
     """Delimited modification entries that each contain their own site."""
 
     kind: Literal["embedded_site_list"]
-    sequence_column: str
-    modification_column: str
     delimiter: str
     entry_pattern: str
     site_base: int
     case_sensitive: bool
     unknown_policy: UnknownModificationPolicy
-    proforma_output: str
-    stripped_output: str
     entries: tuple[ModificationMapEntry, ...]
 
 
 type ModificationConfig = (
     TokenRegexModificationConfig | SiteListModificationConfig | EmbeddedSiteListModificationConfig
 )
+
+
+@dataclass(frozen=True, slots=True)
+class PlainSequenceSyntaxConfig:
+    """Bare sequences: alphabetic characters carry residues."""
+
+    kind: Literal["plain_sequence"]
+
+
+@dataclass(frozen=True, slots=True)
+class TokenRegexSyntaxConfig:
+    """Inline token recognition without any modification lookup settings."""
+
+    kind: Literal["token_regex"]
+    token_pattern: str
+    token_position: ModificationTokenPosition
+
+
+type StrippingSyntaxConfig = PlainSequenceSyntaxConfig | TokenRegexSyntaxConfig

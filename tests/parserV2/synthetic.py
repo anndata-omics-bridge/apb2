@@ -1,4 +1,4 @@
-"""Minimal schema-0.7 documents for the rule shapes no packaged vendor exercises.
+"""Minimal schema-0.8 documents for the rule shapes no packaged vendor exercises.
 
 The packaged set covers most of the architecture, but not all of it: no document declares a
 column-labelled fragment table, an optional column whose absence blocks a chain, or a wide

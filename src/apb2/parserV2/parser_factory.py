@@ -21,7 +21,6 @@ from typing import Literal
 from apb2.parserV2.parse_quant.axis_columns import (
     BooleanAxisCoercer,
     CoalesceColumn,
-    DerivedSequenceColumn,
     IntegerAxisCoercer,
     JoinNonemptyColumn,
     NumberAxisCoercer,
@@ -38,7 +37,6 @@ from apb2.parserV2.parse_quant.contracts import (
     FragmentTableSeparator,
     LayerSetValidator,
     LayerValueParser,
-    ModificationNormalizer,
     RawValuePresence,
     SelectedAxisColumn,
     SourceDecomposer,
@@ -67,10 +65,14 @@ from apb2.parserV2.parse_quant.layer_validation import LayerContractValidator
 from apb2.parserV2.parse_quant.modifications import (
     EmbeddedSiteListNormalizer,
     EmbeddedSiteListRules,
+    PlainSequenceStripper,
+    SequenceColumn,
+    SequenceOperation,
     SiteListNormalizer,
     SiteListRules,
     TokenRegexNormalizer,
     TokenRegexRules,
+    TokenRegexStripper,
 )
 from apb2.parserV2.parse_quant.parameters.axis import (
     AxisLogicalType,
@@ -86,6 +88,8 @@ from apb2.parserV2.parse_quant.parameters.axis import (
     ResolvedAxisColumnPlan,
     SiteListModificationConfig,
     StrippedSequenceColumnConfig,
+    StrippingSyntaxConfig,
+    TokenRegexSyntaxConfig,
 )
 from apb2.parserV2.parse_quant.parameters.measurements import (
     DuplicateMode,
@@ -127,7 +131,7 @@ _DUPLICATE_POLICIES: Mapping[DuplicateMode, DuplicatePolicy] = {
     "keep_first": KeepFirstDuplicate(),
     "aggregate": AggregateNumericDuplicates(),
 }
-"""One policy per executable duplicate mode; schema 0.7 declares no others."""
+"""One policy per executable duplicate mode; schema 0.8 declares no others."""
 
 
 def _notation(config: NumericTextFormat, /) -> NumberNotation:
@@ -164,14 +168,29 @@ def make_column_computer(config: ComputedColumnConfig) -> ColumnComputer:
         return JoinNonemptyColumn(
             name=config.name, inputs=config.inputs, separator=config.separator
         )
-    if isinstance(config, StrippedSequenceColumnConfig | ProformaSequenceColumnConfig):
-        return DerivedSequenceColumn(name=config.name, inputs=config.inputs)
+    if isinstance(config, StrippedSequenceColumnConfig):
+        return SequenceColumn(
+            name=config.name, inputs=config.inputs, operation=make_sequence_stripper(config.syntax)
+        )
+    if isinstance(config, ProformaSequenceColumnConfig):
+        return SequenceColumn(
+            name=config.name,
+            inputs=config.inputs,
+            operation=make_sequence_normalizer(config.normalization),
+        )
     if isinstance(config, ProformaIonColumnConfig):
         return ProformaIonColumn(name=config.name, inputs=config.inputs)
     return ProformaFragmentColumn(name=config.name, inputs=config.inputs)
 
 
-def make_modification_normalizer(config: ModificationConfig) -> ModificationNormalizer:
+def make_sequence_stripper(config: StrippingSyntaxConfig) -> SequenceOperation:
+    """Construct residue extraction without looking up modification identities."""
+    if isinstance(config, TokenRegexSyntaxConfig):
+        return TokenRegexStripper(config.token_pattern, config.token_position)
+    return PlainSequenceStripper()
+
+
+def make_sequence_normalizer(config: ModificationConfig) -> SequenceOperation:
     """Construct the normalizer one modification declaration describes."""
     if isinstance(config, SiteListModificationConfig):
         return SiteListNormalizer(
@@ -182,9 +201,6 @@ def make_modification_normalizer(config: ModificationConfig) -> ModificationNorm
                 unknown_policy=config.unknown_policy,
                 entries=config.entries,
             ),
-            sources=(config.sequence_column, config.modification_column, config.site_column),
-            proforma_output=config.proforma_output,
-            stripped_output=config.stripped_output,
         )
     if isinstance(config, EmbeddedSiteListModificationConfig):
         return EmbeddedSiteListNormalizer(
@@ -196,9 +212,6 @@ def make_modification_normalizer(config: ModificationConfig) -> ModificationNorm
                 unknown_policy=config.unknown_policy,
                 entries=config.entries,
             ),
-            sources=(config.sequence_column, config.modification_column),
-            proforma_output=config.proforma_output,
-            stripped_output=config.stripped_output,
         )
     return TokenRegexNormalizer(
         rules=TokenRegexRules(
@@ -208,9 +221,6 @@ def make_modification_normalizer(config: ModificationConfig) -> ModificationNorm
             unknown_policy=config.unknown_policy,
             entries=config.entries,
         ),
-        sources=(config.source_column,),
-        proforma_output=config.proforma_output,
-        stripped_output=config.stripped_output,
     )
 
 
@@ -385,9 +395,6 @@ def compile_level(
         ),
         obs_plan=make_axis_runtime_plan(resolved.obs, resolved.number_format),
         var_plan=make_axis_runtime_plan(resolved.var, resolved.number_format),
-        modification_normalizers=tuple(
-            make_modification_normalizer(config) for config in resolved.modifications
-        ),
         duplicates=duplicate_policy_for(resolved.duplicate_mode),
         raw_value_presence={
             config.layer_name: make_raw_value_presence(config)

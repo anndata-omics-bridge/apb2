@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.7",
+  "schema_version": "0.8",
   "file_version": "1",
   "software_name": "MSAngel",
   "software_version_pattern": "^2\\..*",
@@ -98,16 +98,22 @@
             {
               "name": "ProForma_peptidoform",
               "inputs": [
-                "Sequence"
+                "Sequence",
+                "Modifications"
               ],
-              "how": "proforma_sequence"
+              "how": "proforma_sequence",
+              "syntax": "vendor_sequence",
+              "modification_map": "basic_modification_map",
+              "case_sensitive": false,
+              "unknown_policy": "preserve"
             },
             {
               "name": "ProForma_peptide",
               "inputs": [
                 "Sequence"
               ],
-              "how": "stripped_sequence"
+              "how": "stripped_sequence",
+              "syntax": "plain_sequence"
             },
             {
               "name": "ProForma_ion",
@@ -119,15 +125,19 @@
             }
           ]
         },
-        "modifications": {
-          "parser": "embedded_site_list",
-          "sequence_column": "sequence",
-          "modification_column": "modifications",
-          "delimiter": ";",
-          "entry_pattern": "^(?P<token>.+?)\\s+\\((?P<site>[^)]+)\\)$",
-          "site_base": 1,
-          "unknown_policy": "preserve",
-          "map": [
+        "sequence_syntax": {
+          "vendor_sequence": {
+            "parser": "embedded_site_list",
+            "delimiter": ";",
+            "entry_pattern": "^(?P<token>.+?)\\s+\\((?P<site>[^)]+)\\)$",
+            "site_base": 1
+          },
+          "plain_sequence": {
+            "parser": "plain_sequence"
+          }
+        },
+        "modification_maps": {
+          "basic_modification_map": [
             {
               "token": "Carbamidomethyl",
               "accession": "UNIMOD:4"

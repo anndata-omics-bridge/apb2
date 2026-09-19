@@ -29,3 +29,7 @@ class LayerValueError(ValueError):
 
 class LayerContractError(ValueError):
     """Canonical measurement layers violate their required occupancy contract."""
+
+
+class ColumnComputationError(ValueError):
+    """A declared computation cannot consume its supplied input series."""

@@ -16,6 +16,7 @@ import anndata
 import pytest
 
 from apb2.parserV2.parse_quant.errors import IncompatibleSourceError
+from apb2.parserV2.parse_quant.io.anndata_reader import H5adReader
 from apb2.parserV2.parse_quant.io.metadata import NAMESPACE, PARSE_NAMESPACE
 from apb2.parserV2.parse_quant.io.parquet_writer import MANIFEST_NAME
 from apb2.parserV2.parse_quant.parameters.level import ResolvedLevelPlan
@@ -205,6 +206,25 @@ def test_the_plan_reaches_the_manifest_of_a_written_parquet_dataset(tmp_path: Pa
 
     manifest = json.loads((target / MANIFEST_NAME).read_text(encoding="utf-8"))
     assert json.loads(manifest["levels"]["ion"]["apb"]["parse"][PLAN_JSON_KEY])["level"] == "ion"
+
+
+def test_reading_results_does_not_reinterpret_old_rule_provenance(tmp_path: Path) -> None:
+    document = synthetic.long_document(
+        obs_select={"sample": "Sample"}, var_select={"Feature": "Feature"}
+    )
+    parser = compile_level(
+        synthetic.facade(document), SingleFile(path=written(tmp_path)), "standard"
+    )
+    parsed = parser.parse()
+    old_rule = '{"schema_version":"0.7","modifications":{"output_column":"proforma_sequence"}}'
+    parsed.uns["schema_version"] = "0.7"
+    parsed.uns["rule_json"] = old_rule
+    target = tmp_path / "old-provenance.h5ad"
+    parser.convert(parsed, target)
+    restored = H5adReader().read(target).levels["ion"]
+    assert restored.uns["rule_json"] == old_rule
+    assert json.loads(str(restored.uns["rule_json"]))["schema_version"] == "0.7"
+    assert restored.var.frame.equals(parsed.var.frame)
 
 
 # ------------------------------------------------------------------------- packaged coverage

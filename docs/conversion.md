@@ -67,7 +67,7 @@ AlphaDIA 1.12 joins matrix values with precursor metadata; it never substitutes 
 
 ## Explicit rule document
 
-Use a schema-0.7 rule document directly when rule selection is owned by the caller:
+Use a schema-0.8 rule document directly when rule selection is owned by the caller:
 
 ```bash
 apb2 convert report.tsv ion \
