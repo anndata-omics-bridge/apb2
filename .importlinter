@@ -17,10 +17,9 @@ exhaustive = True
 containers =
     apb2.parserV2
 layers =
-    conversion_facade
-    detect_document
     compile
-    prepare_source
+    detect_document | parser_factory
+    source_binding | prepare_source
     parse_rule_facade
     parse_quant | vendor_params | vendor_parse_rules | joins
 
@@ -79,7 +78,8 @@ exhaustive = True
 containers =
     apb2.parserV2.parse_quant
 layers =
-    (parser) | (decomposition) | (duplicates)
+    (parser)
+    value_parsing | layer_validation | decomposition | duplicates
     contracts
     axis_columns | modifications | fragments | delimited_input | excel_input | parquet_input | prepared_input | observation_groups
     errors

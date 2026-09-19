@@ -55,7 +55,7 @@ LEVELS: tuple[QuantificationLevel, ...] = (
     "protein",
     "fragment",
 )
-"""Canonical level order, which ``compile_parsers`` preserves."""
+"""Canonical level order preserved by compiler selection."""
 
 
 # ---------------------------------------------------------------------------- source layout
@@ -169,9 +169,8 @@ type SourceLayoutDeclaration = (
 # Each measurement layer carries two declarations about the same source column, because two
 # different questions are asked of one raw cell. *Presence* — this group — asks whether the
 # cell claims to hold a measurement, and duplicate resolution asks it in every parse, whatever
-# the output backend. *Encoding* — the group after it — is the lossy conversion to a number,
-# and only the AnnData writer ever builds one. A Parquet-only parse holds presence strategies
-# and no encoders at all.
+# the output backend. *Value parsing* — the group after it — produces the final scalar stored
+# in ``ParsedLevels``. Both run before any storage writer sees the result.
 
 
 @dataclass(frozen=True, slots=True)
@@ -212,7 +211,7 @@ class PlainNumericRawValuePresenceDeclaration:
         and, in a comma-decimal file, ``0,0000`` are all the same sentinel and claim nothing.
         A null or blank cell claims nothing. ``7576388.5000`` claims its cell. A non-blank
         token this notation cannot read — ``-``, ``NA`` — still claims its cell, on purpose:
-        keep-first must not be able to hide a value that will fail to encode later.
+        keep-first must not be able to hide a value that will fail to parse later.
     """
 
     kind: Literal["plain_numeric"]
@@ -241,12 +240,12 @@ class RegexNumericRawValuePresenceDeclaration:
         ``M7:Oxidation (M):1000.00`` where a site was scored and is blank in 74 178 of its
         76 129 cells. Group 1 captures ``1000.00``, so the cell is present. ``missing_values``
         is empty here, so only a blank cell claims nothing — a token whose structure does not
-        match keeps claiming its cell, and it is the encoder, not presence, that later turns
+        match keeps claiming its cell, and it is value parsing, not presence, that later turns
         it into a missing value.
 
         Note what this type is *not*: it is the presence half, used by duplicate resolution in
-        every parse. Its AnnData counterpart, carrying the same two fields for the conversion,
-        is ``RegexNumericEncodingDeclaration`` below.
+        every parse. Its value-parsing counterpart, carrying the same two fields for final
+        conversion, is ``RegexNumericLayerDeclaration`` below.
     """
 
     kind: Literal["regex_numeric"]
@@ -262,17 +261,17 @@ type RawValuePresenceDeclaration = (
 
 
 @dataclass(frozen=True, slots=True)
-class PlainNumericEncodingDeclaration:
+class PlainNumericLayerDeclaration:
     """A layer whose cells are directly parseable numbers.
 
     Examples:
         MaxQuant ``Intensity``, whose rule declares no sentinel:
 
-            PlainNumericEncodingDeclaration(kind="plain_numeric", missing_values=())
+            PlainNumericLayerDeclaration(kind="plain_numeric", missing_values=())
 
         PEAKS ``Normalized_Area``, which declares ``0``:
 
-            PlainNumericEncodingDeclaration(kind="plain_numeric", missing_values=(0.0,))
+            PlainNumericLayerDeclaration(kind="plain_numeric", missing_values=(0.0,))
 
         The text ``7576388.5000`` encodes to ``7576388.5``; ``0`` encodes to missing under
         the second declaration and to ``0.0`` under the first. A non-blank token the notation
@@ -288,13 +287,13 @@ class PlainNumericEncodingDeclaration:
 
 
 @dataclass(frozen=True, slots=True)
-class RegexNumericEncodingDeclaration:
+class RegexNumericLayerDeclaration:
     r"""A layer whose numeric value is one capture group of a structured cell.
 
     Examples:
         PEAKS ``AScore`` — the same pattern its presence declaration carries:
 
-            RegexNumericEncodingDeclaration(
+            RegexNumericLayerDeclaration(
                 kind="regex_numeric",
                 missing_values=(),
                 pattern=r":(-?\d+(?:\.\d+)?)(?:;|$)",
@@ -313,13 +312,13 @@ class RegexNumericEncodingDeclaration:
 
 
 @dataclass(frozen=True, slots=True)
-class FactorEncodingDeclaration:
+class FactorLayerDeclaration:
     """A layer whose cells are category labels with declared codes.
 
     Examples:
         FragPipe ``Match_Type``, declared as ``{"unmatched": 0, "MS/MS": 1, "MBR": 2}``:
 
-            FactorEncodingDeclaration(
+            FactorLayerDeclaration(
                 kind="factor",
                 categories=(("unmatched", 0), ("MS/MS", 1), ("MBR", 2)),
             )
@@ -335,8 +334,8 @@ class FactorEncodingDeclaration:
     categories: tuple[tuple[str, int], ...]
 
 
-type AnnDataLayerEncodingDeclaration = (
-    PlainNumericEncodingDeclaration | RegexNumericEncodingDeclaration | FactorEncodingDeclaration
+type LayerValueDeclaration = (
+    PlainNumericLayerDeclaration | RegexNumericLayerDeclaration | FactorLayerDeclaration
 )
 
 
@@ -404,7 +403,7 @@ class WorkingMeasurementLayer:
     ``source`` is a physical column name under a long layout and a regex with a ``sample``
     capture group under a wide one — the layout already decided which, so nothing downstream
     asks. Both declarations describe the same column and are always both present, including
-    in a parse whose output is Parquet and which therefore never builds an encoder.
+    regardless of which storage output the caller selected.
 
     Examples:
         MaxQuant ``Intensity`` — a named column, no sentinel:
@@ -413,7 +412,7 @@ class WorkingMeasurementLayer:
                 name="Intensity",
                 source="Intensity",
                 raw_presence=NullOnlyRawValuePresenceDeclaration(kind="null_only"),
-                ann_data_encoding=PlainNumericEncodingDeclaration(
+                value=PlainNumericLayerDeclaration(
                     kind="plain_numeric", missing_values=()
                 ),
             )
@@ -427,19 +426,19 @@ class WorkingMeasurementLayer:
                 raw_presence=PlainNumericRawValuePresenceDeclaration(
                     kind="plain_numeric", missing_values=(0.0,)
                 ),
-                ann_data_encoding=PlainNumericEncodingDeclaration(
+                value=PlainNumericLayerDeclaration(
                     kind="plain_numeric", missing_values=(0.0,)
                 ),
             )
 
         FragPipe ``Match_Type`` — the one shape where the two declarations disagree, because
-        a label is present whatever it says and only the encoding knows its code:
+        a label is present whatever it says and only value parsing knows its code:
 
             WorkingMeasurementLayer(
                 name="Match_Type",
                 source=r"^(?P<sample>.+?)(?:_[12])? Match Type$",
                 raw_presence=NullOnlyRawValuePresenceDeclaration(kind="null_only"),
-                ann_data_encoding=FactorEncodingDeclaration(
+                value=FactorLayerDeclaration(
                     kind="factor",
                     categories=(("unmatched", 0), ("MS/MS", 1), ("MBR", 2)),
                 ),
@@ -449,7 +448,7 @@ class WorkingMeasurementLayer:
     name: str
     source: str
     raw_presence: RawValuePresenceDeclaration
-    ann_data_encoding: AnnDataLayerEncodingDeclaration
+    value: LayerValueDeclaration
     roles: tuple[str, ...] = ()
 
 

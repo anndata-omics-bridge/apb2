@@ -7,7 +7,6 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-from apb2.parserV2.compile import bind_source, header_predicate, source_recognition_evidence
 from apb2.parserV2.parse_quant.errors import IncompatibleSourceError
 from apb2.parserV2.parse_quant.parameters.source import (
     Folder,
@@ -23,6 +22,11 @@ from apb2.parserV2.prepare_source import (
     preparation_paths,
     prepare_source,
     recognizes_preparation,
+)
+from apb2.parserV2.source_binding import (
+    bind_source,
+    header_predicate,
+    source_recognition_evidence,
 )
 from apb2.parserV2.vendor_params.parsers.shared.model import Parameters
 from apb2.parserV2.vendor_parse_rules.document import (
@@ -56,8 +60,8 @@ class DetectedRuleDocument:
 
 
 @dataclass(frozen=True, slots=True)
-class DetectedLevelRule:
-    """The packaged rule and concrete table selected for one quantification level."""
+class LevelSelection:
+    """One resolved rule, level, and concrete source ready for compilation."""
 
     level: QuantificationLevel
     document: RuleDocument
@@ -71,14 +75,14 @@ class DetectedRuleSet:
 
     software: str
     version: str | None
-    levels: tuple[DetectedLevelRule, ...]
+    levels: tuple[LevelSelection, ...]
 
 
 @dataclass(frozen=True, slots=True)
 class _TableDetection:
     """Compatible levels and rejected evidence observed for one physical table."""
 
-    matches: tuple[DetectedLevelRule, ...]
+    matches: tuple[LevelSelection, ...]
     incompatibilities: tuple[str, ...]
     named_tables: tuple[Path, ...]
 
@@ -145,7 +149,7 @@ def detect_rule_documents(
     if not requested:
         raise RuleUnavailableError("no quantification levels were requested")
 
-    matches: dict[QuantificationLevel, list[DetectedLevelRule]] = {level: [] for level in requested}
+    matches: dict[QuantificationLevel, list[LevelSelection]] = {level: [] for level in requested}
     expected_names: dict[QuantificationLevel, set[str]] = {level: set() for level in requested}
     evidence = search_parameter_evidence(parameters)
     for document in _packaged_documents():
@@ -180,7 +184,7 @@ def select_document_levels(
     source: InputSource,
     levels: Iterable[QuantificationLevel],
     evidence: SearchParameterEvidence,
-) -> tuple[DetectedLevelRule, ...]:
+) -> tuple[LevelSelection, ...]:
     """Select table groups before compiling, for packaged and explicit documents alike.
 
     A recognized direct filename selects its table even when the requested level belongs
@@ -205,7 +209,7 @@ def select_document_levels(
         )
         candidates, paths = _table_sources(document, table, source, selected)
         consumed.update(paths)
-        table_matches: list[DetectedLevelRule] = []
+        table_matches: list[LevelSelection] = []
         for candidate in candidates:
             observed = _detect_table_levels(document, table, evidence, candidate)
             consumed.update(match.source_path for match in observed.matches)
@@ -297,7 +301,7 @@ def _detect_table_levels(
     source: InputSource,
 ) -> _TableDetection:
     """Inspect requested levels that share one physical input."""
-    matches: list[DetectedLevelRule] = []
+    matches: list[LevelSelection] = []
     incompatibilities: list[str] = []
     named_tables: set[Path] = set()
     for level in requested:
@@ -319,7 +323,7 @@ def _detect_table_levels(
             incompatibilities.append(f"{level}: {error}")
             continue
         matches.append(
-            DetectedLevelRule(
+            LevelSelection(
                 level=level,
                 document=document,
                 source_path=source_path,
@@ -343,11 +347,11 @@ def _present_table_is_incompatible(observed: _TableDetection) -> bool:
 
 
 def _unique_level_matches(
-    matches: dict[QuantificationLevel, list[DetectedLevelRule]],
+    matches: dict[QuantificationLevel, list[LevelSelection]],
     requested: tuple[QuantificationLevel, ...],
-) -> list[DetectedLevelRule]:
+) -> list[LevelSelection]:
     """Select at most one document per level and retain canonical requested order."""
-    selected: list[DetectedLevelRule] = []
+    selected: list[LevelSelection] = []
     for level in requested:
         candidates = matches[level]
         if len(candidates) > 1:

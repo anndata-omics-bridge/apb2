@@ -3,7 +3,7 @@
 The point of this class is that you can read it. Every collaborator is already configured, so
 ``parse`` is the sequence of operations and nothing else: read, decompose, prepare each axis
 on its own small frame, then reindex each layer onto the axes that survived. No step asks what
-vendor, level, layout, encoding, duplicate mode, or output format it is dealing with.
+vendor, level, layout, value form, duplicate mode, or output format it is dealing with.
 
 Two things are decided here and nowhere else. Identity: raw keys become authored final keys on
 the small axis frames, and two distinct raw identities that collapse into one valid final
@@ -28,6 +28,8 @@ from apb2.parserV2.parse_quant.contracts import (
     AxisRuntimePlan,
     BoundInputReader,
     DuplicatePolicy,
+    LayerSetValidator,
+    LayerValueParser,
     ModificationNormalizer,
     ParsedLevelWriter,
     RawValuePresence,
@@ -39,6 +41,8 @@ from apb2.parserV2.parse_quant.data.parsed import (
     JsonValue,
     ObsFinal,
     ParsedLevel,
+    ParsedLevelName,
+    ParsedLevels,
     VarFinal,
 )
 from apb2.parserV2.parse_quant.data.raw import (
@@ -67,6 +71,30 @@ class AxisShapeError(ValueError):
     """One axis collaborator returned a series that does not line up with its input."""
 
 
+class ParserCollection:
+    """Compiled level parsers that produce one canonical ``ParsedLevels`` value."""
+
+    __slots__ = ("_parsers",)
+
+    def __init__(self, parsers: tuple[Parser, ...], /) -> None:
+        if not parsers:
+            raise ValueError("a parser collection requires at least one level parser")
+        levels = tuple(parser.level for parser in parsers)
+        duplicates = sorted(level for level in set(levels) if levels.count(level) > 1)
+        if duplicates:
+            raise ValueError(f"duplicate parser levels: {duplicates}")
+        self._parsers = parsers
+
+    def parse(self) -> ParsedLevels:
+        """Parse every compiled level once and assemble the canonical collection."""
+        return ParsedLevels(
+            levels={
+                cast(ParsedLevelName, parser.level): parser.parse() for parser in self._parsers
+            },
+            uns={},
+        )
+
+
 class Parser:
     """One quantification level's completed strategy graph."""
 
@@ -74,6 +102,8 @@ class Parser:
         "_decomposer",
         "_duplicates",
         "_input",
+        "_layer_parsers",
+        "_layer_validator",
         "_modification_normalizers",
         "_obs_plan",
         "_provenance",
@@ -94,6 +124,8 @@ class Parser:
         modification_normalizers: tuple[ModificationNormalizer, ...],
         duplicates: DuplicatePolicy,
         raw_value_presence: Mapping[str, RawValuePresence],
+        layer_parsers: Mapping[str, LayerValueParser],
+        layer_validator: LayerSetValidator,
         writer: ParsedLevelWriter,
         provenance: Mapping[str, JsonValue],
     ) -> None:
@@ -105,6 +137,8 @@ class Parser:
         self._modification_normalizers = modification_normalizers
         self._duplicates = duplicates
         self._raw_value_presence = dict(raw_value_presence)
+        self._layer_parsers = dict(layer_parsers)
+        self._layer_validator = layer_validator
         self._writer = writer
         self._provenance = dict(provenance)
 
@@ -116,6 +150,7 @@ class Parser:
         obs, obs_map = self._prepare_obs(raw.obs)
         var, var_map, unknown_mod_tokens = self._prepare_var(raw.var)
         layers = self._prepare_layers(raw.layers, obs_map, var_map)
+        self._layer_validator.validate(layers)
         uns = dict(self._provenance)
         if unknown_mod_tokens:
             uns[_UNKNOWN_MOD_TOKENS] = list(unknown_mod_tokens)
@@ -366,11 +401,12 @@ class Parser:
                 mappable,
                 self._raw_value_presence[layer.layer_name],
             )
-            layers[layer.layer_name] = self._align_layer_keys(
+            aligned = self._align_layer_keys(
                 resolved,
                 obs_map,
                 var_map,
             )
+            layers[layer.layer_name] = self._layer_parsers[layer.layer_name].parse(aligned)
         return layers
 
     @staticmethod

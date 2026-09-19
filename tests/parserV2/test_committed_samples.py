@@ -14,7 +14,7 @@ from typing import cast
 
 import pytest
 
-from apb2.parserV2.conversion_facade import convert_all_from_rule_config
+from apb2.command.conversion import convert_all_from_rule_config
 from parserV2.fixtures import DATA_DIR, committed_dir, committed_sample, level_pairs
 
 _KEYS = tuple(sorted({pair.sample_key for pair, _level in level_pairs()}))

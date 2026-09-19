@@ -11,8 +11,8 @@ from __future__ import annotations
 class IncompatibleSourceError(ValueError):
     """This source cannot satisfy the rule's declared format, columns, layers, or keys.
 
-    The skip contract: ``compile_parsers`` catches this to move to the next quantification
-    level, so anything meaning "not this source for this level" must be this class.
+    Detection catches this while resolving level selections, so anything meaning "not this
+    source for this level" must be this class.
     """
 
 
@@ -21,3 +21,11 @@ class AmbiguousDialectError(ValueError):
 
     Never resolved by guessing. The caller binds an explicit dialect instead.
     """
+
+
+class LayerValueError(ValueError):
+    """A parsed layer cannot satisfy its declared canonical value semantics."""
+
+
+class LayerContractError(ValueError):
+    """Canonical measurement layers violate their required occupancy contract."""

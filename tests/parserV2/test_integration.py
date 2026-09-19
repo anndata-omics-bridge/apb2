@@ -17,12 +17,7 @@ import pandas as pd
 import polars as pl
 import pytest
 
-from apb2.parserV2.compile import (
-    AnnDataOutput,
-    ParquetOutput,
-    ParseRuleCompiler,
-    compile_parsers,
-)
+from apb2.parserV2.compile import ExplicitRuleCompiler
 from apb2.parserV2.detect_document import (
     UNKNOWN_SEARCH_PARAMETERS,
     search_parameter_evidence,
@@ -32,6 +27,7 @@ from apb2.parserV2.parse_quant.data.parsed import ParsedLevel
 from apb2.parserV2.parse_quant.io.parquet_writer import MANIFEST_NAME
 from apb2.parserV2.parse_quant.parameters.source import SingleFile
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
+from apb2.parserV2.parser_factory import compile_level
 from apb2.parserV2.vendor_params.parsers.shared.model import Parameters
 from apb2.parserV2.vendor_params.registry import parse_params
 from apb2.parserV2.vendor_parse_rules.document import (
@@ -90,7 +86,7 @@ def parser_v2_conversion(
     document = load_rule_document(pair.parser_v2_path)
     data = pair.required_data_path()
     facade = ParseRuleFacade(document, level, evidence_for(pair))
-    parser = ParseRuleCompiler(facade=facade, output=AnnDataOutput()).compile(SingleFile(path=data))
+    parser = compile_level(facade, SingleFile(path=data), "standard")
     parsed = parser.parse()
     with tempfile.TemporaryDirectory() as folder:
         target = Path(folder) / "level.h5ad"
@@ -105,11 +101,7 @@ def test_the_packaged_fragment_level_parses_its_own_export() -> None:
         load_rule_document(pair.parser_v2_path), "fragment", evidence_for(pair)
     )
 
-    parsed = (
-        ParseRuleCompiler(facade=facade, output=ParquetOutput())
-        .compile(SingleFile(path=data))
-        .parse()
-    )
+    parsed = compile_level(facade, SingleFile(path=data), "standard").parse()
 
     assert parsed.var.key_columns == ("ProForma_fragment",)
     assert parsed.var.frame.height > parsed.obs.frame.height
@@ -128,14 +120,21 @@ def test_each_level_reads_only_its_own_columns_from_one_shared_source() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1_8")
     data = pair.required_data_path()
 
-    parsers = compile_parsers(
-        document=load_rule_document(pair.parser_v2_path),
-        levels=("ion", "protein"),
-        parameter_evidence=evidence_for(pair),
-        source=SingleFile(path=data),
-        output=ParquetOutput(),
+    document = load_rule_document(pair.parser_v2_path)
+    source = SingleFile(path=data)
+    parsed = (
+        ExplicitRuleCompiler(
+            document,
+            source,
+            ("ion", "protein"),
+            evidence_for(pair),
+            checks="standard",
+        )
+        .compile()
+        .parse()
     )
-    ion, protein = (parser.parse() for parser in parsers)
+    ion = parsed.levels["ion"]
+    protein = parsed.levels["protein"]
 
     assert ion.var.key_columns == ("ProForma_ion",)
     assert protein.var.key_columns == ("Protein_Group",)
@@ -148,32 +147,27 @@ def test_parsing_once_and_writing_twice_never_reads_again(tmp_path: Path) -> Non
     data = pair.required_data_path()
     document = load_rule_document(pair.parser_v2_path)
     facade = ParseRuleFacade(document, "protein", evidence_for(pair))
-    to_parquet = ParseRuleCompiler(facade=facade, output=ParquetOutput()).compile(
-        SingleFile(path=data)
-    )
-    to_anndata = ParseRuleCompiler(
-        facade=ParseRuleFacade(document, "protein", evidence_for(pair)),
-        output=AnnDataOutput(),
-    ).compile(SingleFile(path=data))
+    parser = compile_level(facade, SingleFile(path=data), "standard")
 
-    parsed = to_parquet.parse()
+    parsed = parser.parse()
     reads: list[str] = []
-    _spy_on_reads(to_parquet, reads)
-    _spy_on_reads(to_anndata, reads)
-    to_parquet.convert(parsed, tmp_path / "protein")
-    to_anndata.convert(parsed, tmp_path / "protein.h5ad")
+    _spy_on_reads(parser, reads)
+    parser.convert(parsed, tmp_path / "protein.parquet")
+    parser.convert(parsed, tmp_path / "protein.h5ad")
 
     assert reads == []
-    assert (tmp_path / "protein" / MANIFEST_NAME).is_file()
+    assert (tmp_path / "protein.parquet" / MANIFEST_NAME).is_file()
     stored = anndata.read_h5ad(tmp_path / "protein.h5ad")
     assert stored.shape == (parsed.obs.frame.height, parsed.var.frame.height)
     # The same parsed value reached both backends, and Parquet stored it as parsing left
     # it: this source is Parquet, so its measurements were never text to begin with.
-    manifest = json.loads((tmp_path / "protein" / MANIFEST_NAME).read_text(encoding="utf-8"))
+    manifest = json.loads(
+        (tmp_path / "protein.parquet" / MANIFEST_NAME).read_text(encoding="utf-8")
+    )
     level = manifest["levels"]["protein"]
     layer = level["layers"]["PG_MaxLFQ"]
     written = pl.read_parquet(
-        tmp_path / "protein" / "levels" / level["directory"] / "layers" / layer["file"]
+        tmp_path / "protein.parquet" / "levels" / level["directory"] / "layers" / layer["file"]
     )
     assert written.schema == parsed.layers["PG_MaxLFQ"].values.schema
 
@@ -228,14 +222,16 @@ def test_a_gate_reached_through_the_outer_boundary_selects_the_level() -> None:
     )
 
     for evidence, expected in ((combined, "peptidoform"), (separate, "ion")):
-        parsers = compile_parsers(
-            document=document,
-            levels=document.levels,
-            parameter_evidence=evidence,
-            source=SingleFile(path=data),
-            output=ParquetOutput(),
+        source = SingleFile(path=data)
+        compiler = ExplicitRuleCompiler(
+            document,
+            source,
+            document.levels,
+            evidence,
+            checks="standard",
         )
-        assert [parser.level for parser in parsers] == [expected]
+        compiler.compile()
+        assert [selection.level for selection in compiler.selections] == [expected]
 
 
 def test_an_override_reached_through_the_outer_boundary_swaps_the_primary_layer() -> None:
@@ -259,11 +255,7 @@ def test_the_provenance_of_a_parsed_level_names_the_rule_it_came_from() -> None:
     data = pair.required_data_path()
     facade = ParseRuleFacade(load_rule_document(pair.parser_v2_path), "ion", evidence_for(pair))
 
-    parsed: ParsedLevel = (
-        ParseRuleCompiler(facade=facade, output=ParquetOutput())
-        .compile(SingleFile(path=data))
-        .parse()
-    )
+    parsed: ParsedLevel = compile_level(facade, SingleFile(path=data), "standard").parse()
 
     assert parsed.uns["software_name"] == "AlphaPept"
     assert parsed.uns["quantification_level"] == "ion"

@@ -50,9 +50,8 @@ from apb2.parserV2.parse_quant.parameters.axis import (
     ResolvedAxisColumnPlan,
 )
 from apb2.parserV2.parse_quant.parameters.measurements import (
-    AnnDataLayerContractConfig,
-    AnnDataSerializationConfig,
-    PlainNumericAnnDataEncodingConfig,
+    LayerContractConfig,
+    PlainNumericLayerConfig,
     PlainNumericRawValuePresenceConfig,
 )
 from apb2.parserV2.parse_quant.parameters.resolved import ResolvedLevelPlan
@@ -70,7 +69,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
 )
 from apb2.parserV2.parse_quant.parameters.working import (
     LongSourceLayout,
-    PlainNumericEncodingDeclaration,
+    PlainNumericLayerDeclaration,
     PlainNumericRawValuePresenceDeclaration,
     WorkingAxisConfiguration,
     WorkingMeasurementLayer,
@@ -210,7 +209,6 @@ def test_a_parsed_level_composes_final_values_and_nothing_new() -> None:
         "obsp",
         "varp",
         "metadata",
-        "matrix_values_projected",
     }
     assert isinstance(parsed.uns, dict)
     assert isinstance(parsed.layers, dict)
@@ -245,9 +243,7 @@ def test_a_working_configuration_separates_presence_from_annData_encoding() -> N
         raw_presence=PlainNumericRawValuePresenceDeclaration(
             kind="plain_numeric", missing_values=(0.0,)
         ),
-        ann_data_encoding=PlainNumericEncodingDeclaration(
-            kind="plain_numeric", missing_values=(0.0,)
-        ),
+        value=PlainNumericLayerDeclaration(kind="plain_numeric", missing_values=(0.0,)),
     )
     working = WorkingParseConfiguration(
         level="ion",
@@ -367,21 +363,19 @@ def test_a_resolved_plan_is_one_atomic_value_for_one_physical_source() -> None:
                 number_format=DOT,
             ),
         ),
-        ann_data=AnnDataSerializationConfig(
-            layer_encodings=(
-                PlainNumericAnnDataEncodingConfig(
-                    kind="plain_numeric",
-                    layer_name="Intensity",
-                    missing_values=(0.0,),
-                    number_format=DOT,
-                ),
+        layer_values=(
+            PlainNumericLayerConfig(
+                kind="plain_numeric",
+                layer_name="Intensity",
+                missing_values=(0.0,),
+                number_format=DOT,
             ),
-            layer_contract=AnnDataLayerContractConfig(
-                primary_layer_name="Intensity",
-                required_names=("Intensity",),
-                empty_ratio=0.001,
-                populated_ratio=0.5,
-            ),
+        ),
+        layer_contract=LayerContractConfig(
+            primary_layer_name="Intensity",
+            required_names=("Intensity",),
+            empty_ratio=0.001,
+            populated_ratio=0.5,
         ),
         provenance={"software_name": "AlphaDIA"},
     )

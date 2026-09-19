@@ -27,6 +27,8 @@ from apb2.parserV2.parse_quant.data.parsed import (
 from apb2.parserV2.parse_quant.io.errors import InvalidResultError
 from apb2.parserV2.parse_quant.io.metadata import (
     layer_role_from_metadata,
+    layer_semantics_from_metadata,
+    layer_semantics_metadata,
     level_scope,
     object_mapping,
     restore_table_schema,
@@ -40,7 +42,7 @@ from apb2.parserV2.parse_quant.io.metadata import (
 from apb2.parserV2.parse_quant.io.validation import validate_parsed_levels
 
 FORMAT = "apb2-parsed-levels-duckdb"
-FORMAT_VERSION = "3"
+FORMAT_VERSION = "4"
 METADATA_TABLE = "apb2_result_metadata"
 _REGISTERED_FRAME = "apb2_incoming_frame"
 _PHYSICAL_TABLE = re.compile(r"data_[0-9]{6}")
@@ -137,6 +139,7 @@ class DuckDBWriter:
                     **tables.write(layer.values),
                     "var_key_columns": list(layer.var_key_columns),
                     "role": layer.role.persisted_name(),
+                    "semantics": layer_semantics_metadata(layer.semantics),
                 }
                 for name, layer in parsed.layers.items()
             },
@@ -149,7 +152,6 @@ class DuckDBWriter:
             "varp_order": list(parsed.varp),
             "varp": {name: tables.write(frame) for name, frame in parsed.varp.items()},
             "apb": level_scope(parsed),
-            "matrix_values_projected": parsed.matrix_values_projected,
         }
 
 
@@ -286,7 +288,6 @@ class DuckDBReader:
             varp=self._read_named(connection, level, "varp"),
             uns=uns,
             metadata=extension_metadata,
-            matrix_values_projected=level.get("matrix_values_projected") is True,
         )
 
     def _read_layers(
@@ -307,6 +308,7 @@ class DuckDBReader:
                 ),
                 values=self._read_table(connection, entry),
                 role=layer_role_from_metadata(entry, f"layer {name!r}"),
+                semantics=layer_semantics_from_metadata(entry.get("semantics"), f"layer {name!r}"),
             )
         if set(order) != set(entries):
             raise InvalidResultError("layer order and layer metadata name different layers")

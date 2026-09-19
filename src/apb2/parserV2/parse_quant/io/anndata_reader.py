@@ -20,12 +20,14 @@ from apb2.parserV2.parse_quant.data.parsed import (
     LEVEL_ORDER,
     AnnotationTable,
     FeatureRelation,
+    FinalLayerSemantics,
     FinalLayerTable,
     JsonValue,
     ObsFinal,
     ParsedLevel,
     ParsedLevelName,
     ParsedLevels,
+    QuantitativeLayerSemantics,
     VarFinal,
 )
 from apb2.parserV2.parse_quant.io.errors import InvalidResultError
@@ -37,6 +39,7 @@ from apb2.parserV2.parse_quant.io.metadata import (
     ROLES_NAMESPACE,
     STORAGE_NAMESPACE,
     layer_role_from_metadata,
+    layer_semantics_from_metadata,
     object_mapping,
     restore_table_schema,
     split_metadata,
@@ -152,7 +155,6 @@ def _read_level(
         varp=_pairwise_frames(stored.varp, metadata, "varp"),
         uns=uns,
         metadata=level_metadata,
-        matrix_values_projected=True,
     )
 
 
@@ -183,14 +185,54 @@ def _layers(
             raise InvalidResultError(
                 f"layer {name!r} has shape {matrix.shape}; expected {(stored.n_obs, stored.n_vars)}"
             )
-        values = pl.DataFrame(matrix.T, schema=value_columns, orient="row")
+        semantics = layer_semantics_from_metadata(entry.get("semantics"), f"layer {name!r}")
+        values = _canonical_layer_values(
+            pl.DataFrame(matrix.T, schema=value_columns, orient="row"),
+            semantics,
+        )
         result[name] = FinalLayerTable(
             layer_name=name,
             var_key_columns=keys,
             values=pl.concat([var.select(keys), values], how="horizontal_extend"),
             role=layer_role_from_metadata(entry, f"layer {name!r}"),
+            semantics=semantics,
         )
     return result
+
+
+def _canonical_layer_values(
+    values: pl.DataFrame,
+    semantics: FinalLayerSemantics,
+    /,
+) -> pl.DataFrame:
+    """Restore the canonical scalar representation from an HDF5 matrix."""
+    if isinstance(semantics, QuantitativeLayerSemantics):
+        if semantics.logical_type == "number":
+            return values
+        return values.select(
+            [_integer_column(values, name, missing=None).alias(name) for name in values.columns]
+        )
+    return values.select(
+        [
+            _integer_column(values, name, missing=semantics.missing_code).alias(name)
+            for name in values.columns
+        ]
+    )
+
+
+def _integer_column(
+    values: pl.DataFrame,
+    name: str,
+    /,
+    *,
+    missing: int | None,
+) -> pl.Expr:
+    expression = pl.col(name)
+    if values.schema[name].is_float():
+        expression = pl.when(expression.is_nan()).then(missing).otherwise(expression)
+    if missing is not None:
+        expression = expression.fill_null(missing)
+    return expression.cast(pl.Int64, strict=True)
 
 
 def _primary_layer_name(metadata: Mapping[str, object]) -> str:

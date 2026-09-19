@@ -29,6 +29,7 @@ from apb2.parserV2.parse_quant.io.metadata import (
     PARQUET_LEVELS_DIRECTORY,
     PARQUET_MANIFEST_NAME,
     layer_role_from_metadata,
+    layer_semantics_from_metadata,
     object_mapping,
     restore_table_schema,
     string_list,
@@ -113,7 +114,6 @@ def _read_level(source: Path, metadata: dict[str, object] | object) -> ParsedLev
         varp=_read_named_frames(directory / "varp", level, "varp"),
         uns=uns,
         metadata=extension_metadata,
-        matrix_values_projected=level.get("matrix_values_projected") is True,
     )
 
 
@@ -131,6 +131,7 @@ def _read_layers(directory: Path, level: object) -> dict[str, FinalLayerTable]:
             ),
             values=_read_table(directory / "layers", entry),
             role=layer_role_from_metadata(entry, f"layer {name!r}"),
+            semantics=layer_semantics_from_metadata(entry.get("semantics"), f"layer {name!r}"),
         )
     if set(order) != set(entries):
         raise InvalidResultError("layer order and layer metadata name different layers")

@@ -22,11 +22,11 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-from apb2.parserV2.compile import header_predicate
 from apb2.parserV2.parse_quant.excel_input import sheet_header
 from apb2.parserV2.parse_quant.parameters.source import PreparedTable, SingleFile
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.prepare_source import prepare_source
+from apb2.parserV2.source_binding import header_predicate
 from apb2.parserV2.vendor_parse_rules.document import (
     RuleDocument,
     RuleNotApplicable,

@@ -14,7 +14,7 @@ downstream can reach a storage model through it.
 
 ``resolve_source`` binds those values to one observed header, once, and returns one complete
 ``ResolvedLevelPlan``. Atomic on purpose: the reader, both axes, the decomposer, the separator,
-the presence strategies, and the encoders are all derived from the same projected column set,
+the presence strategies and value parsers are all derived from the same projected column set,
 so optional-source presence, wide sample captures, and packed source order cannot disagree
 between plans resolved separately.
 
@@ -54,15 +54,14 @@ from apb2.parserV2.parse_quant.parameters.axis import (
     TokenRegexModificationConfig,
 )
 from apb2.parserV2.parse_quant.parameters.measurements import (
-    AnnDataLayerContractConfig,
-    AnnDataLayerEncodingConfig,
-    AnnDataSerializationConfig,
-    FactorAnnDataEncodingConfig,
+    FactorLayerConfig,
+    LayerContractConfig,
+    LayerValueConfig,
     NullOnlyRawValuePresenceConfig,
-    PlainNumericAnnDataEncodingConfig,
+    PlainNumericLayerConfig,
     PlainNumericRawValuePresenceConfig,
     RawValuePresenceConfig,
-    RegexNumericAnnDataEncodingConfig,
+    RegexNumericLayerConfig,
     RegexNumericRawValuePresenceConfig,
 )
 from apb2.parserV2.parse_quant.parameters.resolved import ResolvedLevelPlan
@@ -90,18 +89,18 @@ from apb2.parserV2.parse_quant.parameters.source import (
     WideRawLayerSource,
 )
 from apb2.parserV2.parse_quant.parameters.working import (
-    AnnDataLayerEncodingDeclaration,
     ColumnLabeledFragmentLayout,
-    FactorEncodingDeclaration,
+    FactorLayerDeclaration,
     JsonValue,
+    LayerValueDeclaration,
     LongSourceLayout,
     NullOnlyRawValuePresenceDeclaration,
-    PlainNumericEncodingDeclaration,
+    PlainNumericLayerDeclaration,
     PlainNumericRawValuePresenceDeclaration,
     PositionalFragmentLayout,
     QuantificationLevel,
     RawValuePresenceDeclaration,
-    RegexNumericEncodingDeclaration,
+    RegexNumericLayerDeclaration,
     RegexNumericRawValuePresenceDeclaration,
     SourceLayoutDeclaration,
     WideSourceLayout,
@@ -490,7 +489,7 @@ class ParseRuleFacade:
             name=layer.name,
             source=layer.source,
             raw_presence=ParseRuleFacade._project_presence(layer),
-            ann_data_encoding=ParseRuleFacade._project_encoding(layer),
+            value=ParseRuleFacade._project_layer_value(layer),
             roles=tuple(layer.roles),
         )
 
@@ -512,19 +511,17 @@ class ParseRuleFacade:
         return NullOnlyRawValuePresenceDeclaration(kind="null_only")
 
     @staticmethod
-    def _project_encoding(layer: Layer) -> AnnDataLayerEncodingDeclaration:
+    def _project_layer_value(layer: Layer) -> LayerValueDeclaration:
         if isinstance(layer, FactorLayer):
-            return FactorEncodingDeclaration(
-                kind="factor", categories=tuple(layer.categories.items())
-            )
+            return FactorLayerDeclaration(kind="factor", categories=tuple(layer.categories.items()))
         if isinstance(layer.value_pattern, RegexValuePattern):
-            return RegexNumericEncodingDeclaration(
+            return RegexNumericLayerDeclaration(
                 kind="regex_numeric",
                 missing_values=tuple(layer.missing_values),
                 pattern=layer.value_pattern.pattern,
                 type=layer.type,
             )
-        return PlainNumericEncodingDeclaration(
+        return PlainNumericLayerDeclaration(
             kind="plain_numeric", missing_values=tuple(layer.missing_values), type=layer.type
         )
 
@@ -650,16 +647,12 @@ class ParseRuleFacade:
             modifications=modifications,
             duplicate_mode=working.measurements.duplicate_mode,
             raw_value_presence=tuple(_presence_config(layer, numbers) for layer in layers.retained),
-            ann_data=AnnDataSerializationConfig(
-                layer_encodings=tuple(
-                    _encoding_config(layer, numbers) for layer in layers.retained
-                ),
-                layer_contract=AnnDataLayerContractConfig(
-                    primary_layer_name=working.measurements.primary_layer_name,
-                    required_names=layers.required_names,
-                    empty_ratio=_EMPTY_RATIO,
-                    populated_ratio=_POPULATED_RATIO,
-                ),
+            layer_values=tuple(_layer_value_config(layer, numbers) for layer in layers.retained),
+            layer_contract=LayerContractConfig(
+                primary_layer_name=working.measurements.primary_layer_name,
+                required_names=layers.required_names,
+                empty_ratio=_EMPTY_RATIO,
+                populated_ratio=_POPULATED_RATIO,
             ),
             provenance={**working.provenance, "layer_roles": _layer_roles(layers.retained)},
         )
@@ -892,7 +885,7 @@ class ParseRuleFacade:
             plain_numeric_columns=frozenset(
                 layer.source
                 for layer in retained
-                if isinstance(layer.ann_data_encoding, PlainNumericEncodingDeclaration)
+                if isinstance(layer.value, PlainNumericLayerDeclaration)
             ),
         )
 
@@ -946,7 +939,7 @@ class ParseRuleFacade:
             plain_numeric_columns=frozenset(
                 source.source_column
                 for layer, plan in zip(retained, plans, strict=True)
-                if isinstance(layer.ann_data_encoding, PlainNumericEncodingDeclaration)
+                if isinstance(layer.value, PlainNumericLayerDeclaration)
                 for source in plan.sources
             ),
         )
@@ -974,8 +967,8 @@ class ParseRuleFacade:
 
         A measurement column is read natively only when the rule sums its values, because
         summing needs numbers and the schema already checked that those layers are plain. Every
-        other measurement stays text: reading it as a float is an encoding, the storage boundary
-        owns encoding, and real exports write ``-``, ``NA``, or ``False`` in a column a rule
+        other measurement stays text: parsing it as a float is a semantic transformation owned
+        by the parser, and real exports write ``-``, ``NA``, or ``False`` in a column a rule
         calls numeric — which an eager numeric read cannot survive.
         """
         lexical = frozenset(
@@ -1214,17 +1207,17 @@ def _presence_config(
     return NullOnlyRawValuePresenceConfig(kind="null_only", layer_name=layer.name)
 
 
-def _encoding_config(
+def _layer_value_config(
     layer: WorkingMeasurementLayer, numbers: NumericTextFormat
-) -> AnnDataLayerEncodingConfig:
-    """How this layer's raw scalars become a dense float matrix, at the AnnData boundary."""
-    declaration = layer.ann_data_encoding
-    if isinstance(declaration, FactorEncodingDeclaration):
-        return FactorAnnDataEncodingConfig(
+) -> LayerValueConfig:
+    """How this layer's aligned raw scalars become final canonical values."""
+    declaration = layer.value
+    if isinstance(declaration, FactorLayerDeclaration):
+        return FactorLayerConfig(
             kind="factor", layer_name=layer.name, categories=declaration.categories
         )
-    if isinstance(declaration, RegexNumericEncodingDeclaration):
-        return RegexNumericAnnDataEncodingConfig(
+    if isinstance(declaration, RegexNumericLayerDeclaration):
+        return RegexNumericLayerConfig(
             kind="regex_numeric",
             layer_name=layer.name,
             missing_values=declaration.missing_values,
@@ -1232,7 +1225,7 @@ def _encoding_config(
             number_format=numbers,
             type=declaration.type,
         )
-    return PlainNumericAnnDataEncodingConfig(
+    return PlainNumericLayerConfig(
         kind="plain_numeric",
         layer_name=layer.name,
         missing_values=declaration.missing_values,

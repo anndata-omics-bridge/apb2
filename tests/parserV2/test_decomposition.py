@@ -10,10 +10,6 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
-from apb2.parserV2.compile import (
-    make_fragment_table_separator,
-    make_source_decomposer,
-)
 from apb2.parserV2.parse_quant.data.layer_columns import observation_labels
 from apb2.parserV2.parse_quant.data.raw import DecomposedDataRaw
 from apb2.parserV2.parse_quant.data.source import LevelSourceTable
@@ -29,6 +25,10 @@ from apb2.parserV2.parse_quant.parameters.source import (
     WideDecompositionConfig,
     WideRawLayerPlan,
     WideRawLayerSource,
+)
+from apb2.parserV2.parser_factory import (
+    make_fragment_table_separator,
+    make_source_decomposer,
 )
 
 

@@ -13,15 +13,16 @@ import pytest
 from apb2.parserV2.parse_quant.data.parsed import (
     AnnotationTable,
     AuxiliaryLayerRole,
+    CategoricalLayerSemantics,
     FeatureRelation,
     FinalLayerTable,
     ObsFinal,
     ParsedLevel,
     ParsedLevels,
+    QuantitativeLayerSemantics,
     VarFinal,
 )
 from apb2.parserV2.parse_quant.io import formats, json_representation
-from apb2.parserV2.parse_quant.io.anndata_writer import AnnDataPlanError
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels, write_parsed_levels
 from apb2.parserV2.parse_quant.io.json_representation import (
     FORMAT,
@@ -77,6 +78,7 @@ def _parsed() -> ParsedLevels:
                     }
                 ),
                 role=AuxiliaryLayerRole(),
+                semantics=QuantitativeLayerSemantics(logical_type="integer"),
             ),
         },
         obsm={"design": pl.DataFrame({"group": ["x", "y"]})},
@@ -90,7 +92,6 @@ def _parsed() -> ParsedLevels:
         metadata={
             "layer_descriptors": {"Intensity": {"unit": "arbitrary units", "scale": "linear"}}
         },
-        matrix_values_projected=True,
     )
     return ParsedLevels(
         levels={"ion": level},
@@ -136,14 +137,12 @@ def _empty_level() -> ParsedLevel:
         obsp={},
         varp={},
         uns={},
-        matrix_values_projected=True,
     )
 
 
 def _factor_result() -> ParsedLevels:
     parsed = _parsed()
     level = parsed.levels["ion"]
-    level.matrix_values_projected = False
     level.uns["plan_json"] = _factor_plan()
     level.layers["Status"] = FinalLayerTable(
         layer_name="Status",
@@ -151,11 +150,15 @@ def _factor_result() -> ParsedLevels:
         values=pl.DataFrame(
             {
                 "feature": ["F1", "F2", "F3", "F4"],
-                "obs_0": ["MS/MS", "MBR", None, "unknown"],
-                "obs_1": ["MBR", "MS/MS", "MS/MS", None],
+                "obs_0": [1, 2, -1, -1],
+                "obs_1": [2, 1, 1, -1],
             }
         ),
         role=AuxiliaryLayerRole(),
+        semantics=CategoricalLayerSemantics(
+            categories=(("MS/MS", 1), ("MBR", 2)),
+            missing_code=-1,
+        ),
     )
     return ParsedLevels(levels={"ion": level}, uns={})
 
@@ -319,8 +322,8 @@ def test_known_embedded_json_containers_are_projected_recursively_without_mutati
     plan_text = json.dumps(
         {
             "level": "ion",
-            "ann_data": {
-                "layer_encodings": [
+            "canonicalization": {
+                "layer_values": [
                     {
                         "kind": "plain_numeric",
                         "layer_name": name,
@@ -339,18 +342,11 @@ def test_known_embedded_json_containers_are_projected_recursively_without_mutati
             "provenance": {"rule_json": rule_text},
         }
     )
-    search_parameters_text = json.dumps(
-        {
-            "software_name": "Sage",
-            "source_path": "/private/input/parameters.json",
-        }
-    )
     aggregate_text = json.dumps(
         [{"source_level": "ion", "target_level": "protein", "method": "mean"}]
     )
     level = parsed.levels["ion"]
     level.uns.update({"rule_json": rule_text, "plan_json": plan_text})
-    parsed.uns["search_parameters"] = search_parameters_text
     level.metadata["aggregate"] = aggregate_text
     parsed.annotation_tables["proteins"].metadata.update(
         {
@@ -372,8 +368,8 @@ def test_known_embedded_json_containers_are_projected_recursively_without_mutati
     }
     assert projected_level["apb"]["parse"]["plan_json"] == {
         "level": "ion",
-        "ann_data": {
-            "layer_encodings": [
+        "canonicalization": {
+            "layer_values": [
                 {
                     "kind": "plain_numeric",
                     "layer_name": name,
@@ -399,10 +395,7 @@ def test_known_embedded_json_containers_are_projected_recursively_without_mutati
             }
         },
     }
-    assert document["root"]["apb"]["parse"]["search_parameters"] == {
-        "software_name": "Sage",
-        "source_path": "parameters.json",
-    }
+    assert document["root"]["apb"]["parse"] == {"produced_by": "apb2"}
     assert projected_level["apb"]["aggregate"] == [
         {"source_level": "ion", "target_level": "protein", "method": "mean"}
     ]
@@ -412,7 +405,6 @@ def test_known_embedded_json_containers_are_projected_recursively_without_mutati
     assert projected_annotation["note"] == '{"looks":"like JSON"}'
     assert level.uns["rule_json"] == rule_text
     assert level.uns["plan_json"] == plan_text
-    assert parsed.uns["search_parameters"] == search_parameters_text
     assert level.metadata["aggregate"] == aggregate_text
 
 
@@ -539,34 +531,25 @@ def test_quantitative_sidecar_preserves_declared_integer_semantics(tmp_path: Pat
     assert count["value_kind"] == "quantitative"
 
 
-def test_stored_plans_without_numeric_type_default_to_number(tmp_path: Path) -> None:
+def test_corrupt_stored_plan_changes_no_layer_semantics(tmp_path: Path) -> None:
     parsed = _factor_result()
-    plan = json.loads(str(parsed.levels["ion"].uns["plan_json"]))
-    for encoding in plan["ann_data"]["layer_encodings"][:2]:
-        del encoding["type"]
-    parsed.levels["ion"].uns["plan_json"] = json.dumps(plan)
-    artifact = tmp_path / "legacy-plan.parquet"
+    parsed.levels["ion"].uns["plan_json"] = "not json"
+    artifact = tmp_path / "corrupt-plan.parquet"
     artifact.mkdir()
 
     document: dict[str, Any] = project_result(parsed, artifact)
 
     assert [layer["type"] for layer in document["levels"][0]["layers"][:2]] == [
         "number",
-        "number",
+        "integer",
     ]
 
 
 def test_factor_missing_code_is_reserved(tmp_path: Path) -> None:
-    artifact = tmp_path / "factor.parquet"
-    artifact.mkdir()
-    parsed = _factor_result()
-    level = parsed.levels["ion"]
-    plan = json.loads(_factor_plan())
-    plan["ann_data"]["layer_encodings"][2]["categories"][0][1] = -1
-    level.uns["plan_json"] = json.dumps(plan)
+    del tmp_path
 
-    with pytest.raises(AnnDataPlanError, match="reserved missing code -1"):
-        project_result(parsed, artifact)
+    with pytest.raises(ValueError, match="missing code -1 is reserved"):
+        CategoricalLayerSemantics(categories=(("invalid", -1),), missing_code=-1)
 
 
 def test_factor_semantics_survive_h5_read_projection_and_rewrite(tmp_path: Path) -> None:
@@ -587,17 +570,17 @@ def test_factor_semantics_survive_h5_read_projection_and_rewrite(tmp_path: Path)
 
     status_values = restored.levels["ion"].layers["Status"].values
     restored.levels["ion"].layers["Status"].values = status_values.with_columns(
-        pl.Series("obs_0", [1.0, 99.0, -1.0, -1.0])
+        pl.Series("obs_0", [1, 2, 1, -1], dtype=pl.Int64)
     )
     second = tmp_path / "factor-again.h5ad"
     write_parsed_levels(restored, second)
 
     rewritten = read_parsed_levels(second)
     assert rewritten.levels["ion"].layers["Status"].values.get_column("obs_0").to_list() == [
-        1.0,
-        99.0,
-        -1.0,
-        -1.0,
+        1,
+        2,
+        1,
+        -1,
     ]
     rewritten_document = json.loads(sidecar_path(second).read_text(encoding="utf-8"))
     rewritten_status = next(
@@ -606,8 +589,8 @@ def test_factor_semantics_survive_h5_read_projection_and_rewrite(tmp_path: Path)
     assert rewritten_status["value_kind"] == "categorical"
     assert rewritten_status["counts"] == {
         "total_count": 8,
-        "known_count": 4,
-        "missing_or_unknown_count": 4,
+        "known_count": 6,
+        "missing_or_unknown_count": 2,
     }
 
 
@@ -640,7 +623,6 @@ def test_observation_identifiers_and_layer_summaries_share_one_fixed_cap(
         obsp={},
         varp={},
         uns={},
-        matrix_values_projected=True,
     )
     artifact = tmp_path / "wide.parquet"
     artifact.mkdir()
@@ -715,8 +697,8 @@ def test_derived_nonfinite_moments_remain_valid_json() -> None:
 def _factor_plan() -> str:
     return json.dumps(
         {
-            "ann_data": {
-                "layer_encodings": [
+            "canonicalization": {
+                "layer_values": [
                     {
                         "kind": "plain_numeric",
                         "layer_name": name,

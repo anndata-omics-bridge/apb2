@@ -12,7 +12,7 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-from apb2.parserV2 import compile as composition
+from apb2.parserV2 import source_binding as composition
 from apb2.parserV2.parse_quant import delimited_input, excel_input, parquet_input
 from apb2.parserV2.parse_quant.contracts import BoundInputReader
 from apb2.parserV2.parse_quant.errors import AmbiguousDialectError, IncompatibleSourceError
@@ -31,6 +31,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
     SingleFile,
 )
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
+from apb2.parserV2.prepare_source import prepare_source
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from parserV2 import synthetic
 from parserV2.fixtures import PackagedDocument, document_pairs
@@ -514,7 +515,7 @@ def test_every_cached_vendor_export_resolves_to_one_unambiguous_reading(
     facade = pair.first_admitted_facade()
     source = SingleFile(path=path)
     if facade.working_parameters.preparation is not None:
-        prepared = composition.prepare_source(source, facade.working_parameters.preparation)
+        prepared = prepare_source(source, facade.working_parameters.preparation)
         assert isinstance(prepared, PreparedTable)
         assert tuple(prepared.frame.columns) == pair.header()
         return

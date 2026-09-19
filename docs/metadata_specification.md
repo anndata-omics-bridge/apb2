@@ -8,12 +8,12 @@ The containing object establishes scope. Physical `uns["apb"]` must contain tool
 
 | Namespace | MuData root | Embedded AnnData |
 |---|---|---|
-| `parse` | Input and search-parameter provenance | Rule, resolved plan, parsing diagnostics |
+| `parse` | Optional collection parse provenance; never parameter JSON | Rule, resolved plan, parsing diagnostics |
 | `roles` | Absent | `columns` and `layers` |
 | `fasta` | `provenance[operation]` | Operation-specific validation summaries |
 | `proteobench` | `provenance.annotation`, `provenance.scoring` | `annotation`, `scoring[quantity_name]` |
 
-Common provenance must be stored once, not repeated in modalities. Source/configuration provenance and per-level outcomes are different information, not duplicate summaries. Collection annotation tables and feature relations retain their own metadata and ownership; they must not be copied into each level.
+Common provenance must be stored once, not repeated in modalities. Parsed vendor parameters remain typed application inputs and are not embedded as JSON result provenance. Collection annotation tables and feature relations retain their own metadata and ownership; they must not be copied into each level.
 
 In memory, `ParsedLevels.uns` and `ParsedLevel.uns` remain root and local parse provenance. Their respective `metadata` dictionaries carry extensions; semantic roles are projected from local parse provenance to `apb.roles`. These public types are unchanged. Physical layout does not require changing computational data structures.
 

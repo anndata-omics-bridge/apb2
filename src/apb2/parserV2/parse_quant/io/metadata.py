@@ -11,11 +11,14 @@ import polars as pl
 
 from apb2.parserV2.parse_quant.data.parsed import (
     AuxiliaryLayerRole,
+    CategoricalLayerSemantics,
     FinalLayerRole,
+    FinalLayerSemantics,
     JsonValue,
     MeasurementLayerRole,
     ParsedLevel,
     ParsedLevels,
+    QuantitativeLayerSemantics,
 )
 from apb2.parserV2.parse_quant.io.errors import InvalidResultError
 
@@ -24,10 +27,10 @@ PARSE_NAMESPACE = "parse"
 ROLES_NAMESPACE = "roles"
 STORAGE_NAMESPACE = "storage"
 RESULT_FORMAT = "apb2-parsed-levels"
-RESULT_FORMAT_VERSION = "3"
+RESULT_FORMAT_VERSION = "4"
 
 PARQUET_FORMAT = "apb2-parsed-levels-parquet"
-PARQUET_FORMAT_VERSION = "4"
+PARQUET_FORMAT_VERSION = "5"
 PARQUET_MANIFEST_NAME = "manifest.json"
 PARQUET_LEVELS_DIRECTORY = "levels"
 
@@ -274,9 +277,9 @@ def layer_role_from_metadata(
     context: str,
     /,
 ) -> FinalLayerRole:
-    """Restore one layer role, defaulting metadata written before roles to measurement."""
+    """Restore one layer role from a complete current-format descriptor."""
     if "role" not in metadata:
-        return MeasurementLayerRole()
+        raise InvalidResultError(f"{context} has no role")
     value = metadata["role"]
     if not isinstance(value, str):
         raise InvalidResultError(f"{context} role is not text")
@@ -284,6 +287,57 @@ def layer_role_from_metadata(
         return _LAYER_ROLES_BY_NAME[value]
     except KeyError as error:
         raise InvalidResultError(f"{context} has unknown role {value!r}") from error
+
+
+def layer_semantics_metadata(semantics: FinalLayerSemantics, /) -> dict[str, JsonValue]:
+    """Project canonical layer semantics into backend metadata."""
+    if isinstance(semantics, QuantitativeLayerSemantics):
+        return {"kind": "quantitative", "logical_type": semantics.logical_type}
+    return {
+        "kind": "categorical",
+        "categories": cast(list[JsonValue], [list(item) for item in semantics.categories]),
+        "missing_code": semantics.missing_code,
+    }
+
+
+def layer_semantics_from_metadata(
+    value: object,
+    context: str,
+    /,
+) -> FinalLayerSemantics:
+    """Restore canonical layer semantics from one backend descriptor."""
+    metadata = object_mapping(value, f"{context} semantics")
+    kind = string_value(metadata.get("kind"), f"{context} semantics kind")
+    if kind == "quantitative":
+        logical_type = string_value(metadata.get("logical_type"), f"{context} quantitative type")
+        if logical_type not in {"number", "integer"}:
+            raise InvalidResultError(f"{context} has unknown quantitative type {logical_type!r}")
+        return QuantitativeLayerSemantics(
+            logical_type=cast(Literal["number", "integer"], logical_type)
+        )
+    if kind != "categorical":
+        raise InvalidResultError(f"{context} has unknown semantics kind {kind!r}")
+    raw_categories = metadata.get("categories")
+    if not isinstance(raw_categories, list):
+        raise InvalidResultError(f"{context} categorical semantics has no categories list")
+    categories: list[tuple[str, int]] = []
+    for item in raw_categories:
+        if (
+            not isinstance(item, list)
+            or len(item) != 2
+            or not isinstance(item[0], str)
+            or not isinstance(item[1], int)
+            or isinstance(item[1], bool)
+        ):
+            raise InvalidResultError(f"{context} has an invalid categorical entry")
+        categories.append((item[0], item[1]))
+    missing_code = metadata.get("missing_code")
+    if not isinstance(missing_code, int) or isinstance(missing_code, bool):
+        raise InvalidResultError(f"{context} categorical missing code is not an integer")
+    return CategoricalLayerSemantics(
+        categories=tuple(categories),
+        missing_code=missing_code,
+    )
 
 
 def safe_names(names: Iterable[str], /, *, prefix: str, suffix: str) -> dict[str, str]:

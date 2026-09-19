@@ -11,7 +11,7 @@ import mudata
 import pytest
 
 from apb2.cli import ConvertCliOptions, convert
-from apb2.parserV2.conversion_facade import ConversionError
+from apb2.command.conversion import ConversionError
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels
 from apb2.parserV2.parse_quant.io.json_representation import sidecar_path
 from apb2.parserV2.parse_quant.io.metadata import (
@@ -95,9 +95,8 @@ def test_convert_with_rule_config_writes_h5ad(tmp_path: Path) -> None:
     assert exit_code == 0
     written = anndata.read_h5ad(tmp_path / "out.h5ad")
     assert written.shape == (2, 2)
-    shared = written.uns[NAMESPACE][PARSE_NAMESPACE]
     level = written.uns[NAMESPACE][PARSE_NAMESPACE]
-    assert shared["rule_selection_method"] == "rule_config"
+    assert "rule_selection_method" not in level
     assert json.loads(str(level["rule_json"]))["software_name"] == "CliTest"
     representation = json.loads(sidecar_path(tmp_path / "out.h5ad").read_text())
     assert representation["levels"][0]["dimensions"] == {
@@ -165,7 +164,7 @@ def test_convert_without_a_level_keeps_one_compatible_level_in_mudata(tmp_path: 
     assert list(mudata.read_h5mu(tmp_path / "out.h5mu").mod) == ["ion"]
 
 
-def test_convert_with_rule_config_preserves_the_complete_parameter_record(tmp_path: Path) -> None:
+def test_convert_with_rule_config_does_not_embed_the_parameter_record(tmp_path: Path) -> None:
     report = tmp_path / "report.tsv"
     report.write_text(_TSV, encoding="utf-8")
     rule_config = tmp_path / "rules.json"
@@ -185,10 +184,8 @@ def test_convert_with_rule_config_preserves_the_complete_parameter_record(tmp_pa
 
     assert exit_code == 0
     namespace = anndata.read_h5ad(tmp_path / "out.h5ad").uns[NAMESPACE][PARSE_NAMESPACE]
-    record = json.loads(str(namespace["search_parameters"]))
-    assert record["software_name"] == "Wombat"
-    assert record["software_version"] == "0.9.8"
-    assert namespace["search_parameters_path"] == str(parameters)
+    assert "search_parameters" not in namespace
+    assert "search_parameters_path" not in namespace
 
 
 def test_convert_accepts_a_dotted_basename_and_appends_its_own_suffix(tmp_path: Path) -> None:
@@ -298,7 +295,7 @@ def test_convert_reports_an_expected_writer_failure(
     def fail_write(**_arguments: object) -> None:
         raise ConversionError("empty primary layer")
 
-    monkeypatch.setattr("apb2.cli.conversion_facade.convert_from_rule_config", fail_write)
+    monkeypatch.setattr("apb2.cli.conversion.convert_from_rule_config", fail_write)
 
     assert (
         convert(
@@ -321,7 +318,7 @@ def test_convert_does_not_hide_an_unexpected_failure(
     def fail_unexpectedly(**_arguments: object) -> None:
         raise RuntimeError("implementation defect")
 
-    monkeypatch.setattr("apb2.cli.conversion_facade.convert_from_rule_config", fail_unexpectedly)
+    monkeypatch.setattr("apb2.cli.conversion.convert_from_rule_config", fail_unexpectedly)
 
     with pytest.raises(RuntimeError, match="implementation defect"):
         convert(

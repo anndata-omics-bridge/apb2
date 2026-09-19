@@ -73,7 +73,7 @@ def test_parser_v2_reaches_neither_deleted_modules_nor_the_apb_oracle(path: Path
     assert not any(name.startswith("anndata_proteomics") for name in imported)
 
 
-def test_the_top_level_production_tree_contains_only_the_two_products_and_their_facades() -> None:
+def test_the_top_level_production_tree_contains_only_products_facades_and_command() -> None:
     entries = {
         path.name
         for path in APB2.iterdir()
@@ -85,7 +85,9 @@ def test_the_top_level_production_tree_contains_only_the_two_products_and_their_
         "annotation",
         "annotation_extension.py",
         "annotation_facade.py",
+        "api.py",
         "cli.py",
+        "command",
         "modification_facade.py",
         "parserV2",
         "py.typed",
@@ -93,11 +95,11 @@ def test_the_top_level_production_tree_contains_only_the_two_products_and_their_
     }
 
 
-def test_the_cli_imports_only_the_two_product_facades_from_apb2() -> None:
+def test_the_cli_imports_only_annotation_and_its_command_workflow() -> None:
     imported = _imported_modules(APB2 / "cli.py")
     internal = {name for name in imported if name.startswith("apb2")}
 
-    assert internal == {"apb2", "apb2.parserV2"}
+    assert internal == {"apb2", "apb2.command"}
 
 
 @pytest.mark.parametrize(
@@ -221,7 +223,6 @@ def test_only_a_parent_module_knows_both_children() -> None:
 
     assert both <= {
         "compile.py",
-        "conversion_facade.py",
         "detect_document.py",
         "parse_rule_facade.py",
     }
@@ -356,8 +357,8 @@ def test_the_registries_live_only_in_the_composition_root() -> None:
     """A runtime module holding a tag table would be choosing behaviour per parse."""
     for path in _modules(PARSER_V2):
         tables = _tag_keyed_tables(path)
-        if path.name == "compile.py":
-            assert tables, "the composition root is where the tag tables belong"
+        if path.name == "parser_factory.py":
+            assert tables, "the runtime factory is where the tag tables belong"
             continue
         assert not tables, f"{path} holds a tag table: {tables}"
 

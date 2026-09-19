@@ -1,69 +1,29 @@
 # Python API
 
-APB2 exposes programmatic boundaries for vendor conversion, result I/O, and sample annotation.
-The file-to-file facades mirror complete CLI operations; the compiler/parser APIs expose
-storage-neutral Polars values for composition in larger applications.
+APB2 exposes programmatic boundaries for in-memory vendor parsing, result I/O, and sample annotation. The compiler/parser APIs expose storage-neutral Polars values for composition in larger applications; file-to-file vendor conversion belongs to the CLI command workflow.
 
 ## Convert vendor results
 
-### File-to-file facade
-
-Use the facade when the complete operation starts and ends with a file:
+Use the public compiler when another package needs canonical parsed values:
 
 ```python
 from pathlib import Path
 
-from apb2.parserV2.conversion_facade import (
-    convert_all_from_packaged_rules,
-    convert_from_packaged_rules,
-)
+from apb2.api import ParseRuleCompiler, write_parsed_levels
 
-convert_from_packaged_rules(
-    data=Path("report.tsv"),
-    level="ion",
-    output=Path("results/ion.h5ad"),
-    parameters_path=Path("search-parameters.txt"),
-    software=None,
-    parameters_software=None,
+compiler = ParseRuleCompiler(
+    Path("report.tsv"),
+    Path("search-parameters.txt"),
+    requested_levels=("ion",),
+    software="spectronaut",
     checks="standard",
 )
-
-convert_all_from_packaged_rules(
-    data=Path("report.tsv"),
-    output=Path("results/all-levels.h5mu"),
-    parameters_path=Path("search-parameters.txt"),
-    software=None,
-    parameters_software=None,
-    checks="standard",
-)
+parser = compiler.compile()
+parsed_levels = parser.parse()
+write_parsed_levels(parsed_levels, Path("results/ion.h5ad"))
 ```
 
-### Compiler and parser
-
-Use the compiler/parser boundary to keep the parsed result in memory before persistence:
-
-```python
-from pathlib import Path
-
-from apb2.parserV2.compile import AnnDataOutput, ParseRuleCompiler
-from apb2.parserV2.detect_document import detect_rule_document, search_parameter_evidence
-from apb2.parserV2.parse_quant.parameters.source import SingleFile
-from apb2.parserV2.parse_rule_facade import ParseRuleFacade
-from apb2.parserV2.vendor_params.registry import parse_params
-
-source = SingleFile(path=Path("report.tsv"))
-parameters = parse_params(Path("search-parameters.txt"), software="spectronaut")
-document = detect_rule_document(parameters, source).document
-parser = ParseRuleCompiler(
-    facade=ParseRuleFacade(document, "ion", search_parameter_evidence(parameters)),
-    output=AnnDataOutput(checks="standard"),
-).compile(source)
-
-parsed = parser.parse()
-parser.convert(parsed, Path("results/ion.h5ad"))
-```
-
-The conversion functions accept a vendor-result directory for multi-file inputs. Their `ConversionSummary.outputs` tuple contains every written path, including separate observation-resolution outputs. For lower-level mixed-table binding, pass `InputFiles` to `select_document_levels`, then compile each returned selection's concrete `source`. Preparation runs once per selected table group, not per document. Tool functions live in [joins](../src/apb2/parserV2/joins/); input binding and dispatch live in [prepare_source.py](../src/apb2/parserV2/prepare_source.py).
+Construction binds the physical source, chooses the parameter parser, parses typed parameters, detects compatible rules, and resolves the requested levels. `compile()` returns one `ParserCollection`; `parse()` returns canonical `ParsedLevels` and performs no write. `compiler.parameters` and `compiler.detection` retain the typed parameter and detection results. Storage is selected only by the target passed to `write_parsed_levels()`.
 
 See [Convert vendor results](conversion.md) for rule selection, supported levels, validation, and
 output naming.
@@ -229,6 +189,7 @@ class FinalLayerTable:
     var_key_columns: tuple[str, ...]
     values: polars.DataFrame
     role: FinalLayerRole = field(default_factory=MeasurementLayerRole)
+    semantics: FinalLayerSemantics = field(default_factory=QuantitativeLayerSemantics)
 ```
 
 Pairwise frames have exactly `row`, `column`, and `value` columns. Positions are zero-based local
@@ -236,18 +197,14 @@ coordinates into the corresponding final axis.
 
 ### Quantitative helpers
 
-Import each helper from the module that defines it:
+Import the public helpers from the result facade:
 
 ```python
 from collections.abc import Iterable
 
 import polars as pl
 
-from apb2.parserV2.parse_quant.data.layer_columns import observation_labels
-from apb2.parserV2.parse_quant.io.anndata_writer import (
-    numeric_result_level,
-    quantitative_layer_values,
-)
+from apb2.result_facade import observation_labels, quantitative_layer_values
 ```
 
 Their public signatures are:
@@ -255,14 +212,9 @@ Their public signatures are:
 ```python
 observation_labels(count: int, reserved: Iterable[str]) -> tuple[str, ...]
 quantitative_layer_values(parsed: ParsedLevel, layer_name: str, /) -> pl.DataFrame
-numeric_result_level(parsed: ParsedLevel, /) -> ParsedLevel
 ```
 
-`observation_labels()` creates collision-free positional value-column names for a wide layer.
-`quantitative_layer_values()` applies the layer's stored APB2 numeric encoding and returns only the
-variable-by-observation value block. `numeric_result_level()` validates that every layer value
-column is numeric or null, then returns a shallow copy marked for plain-numeric writing. It copies
-the provenance mapping and does not mutate the input level.
+`observation_labels()` creates collision-free positional value-column names for a wide layer. `quantitative_layer_values()` returns the already-canonical variable-by-observation value block for a quantitative layer; it performs no stored-plan interpretation or conversion.
 
 ## Errors
 

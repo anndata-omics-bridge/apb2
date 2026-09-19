@@ -27,6 +27,7 @@ from apb2.parserV2.parse_quant.io.metadata import (
     PARQUET_FORMAT_VERSION,
     PARQUET_LEVELS_DIRECTORY,
     PARQUET_MANIFEST_NAME,
+    layer_semantics_metadata,
     level_scope,
     safe_names,
     shared_scope,
@@ -115,7 +116,6 @@ def _write_level(parsed: ParsedLevel, directory: Path, physical_name: str) -> di
         "varp_order": list(parsed.varp),
         "varp": _write_named_frames(parsed.varp, directory / "varp"),
         "apb": level_scope(parsed),
-        "matrix_values_projected": parsed.matrix_values_projected,
     }
 
 
@@ -129,6 +129,7 @@ def _write_layers(layers: Mapping[str, FinalLayerTable], directory: Path) -> dic
             **table_metadata(layer.values, names[name]),
             "var_key_columns": list(layer.var_key_columns),
             "role": layer.role.persisted_name(),
+            "semantics": layer_semantics_metadata(layer.semantics),
         }
     return result
 

@@ -1,10 +1,4 @@
-"""The two output adapters: one preserves the parsed values, the other converts them.
-
-Between them they carry the whole point of the split. Parquet must be able to write anything
-parsing produced — a string layer, a localized token, a null — without knowing what it means.
-AnnData must be the only place that decides what those values become, and must fail loudly
-when a declared representation cannot hold them.
-"""
+"""Canonical layer parsing and structural result-writer laws."""
 
 from __future__ import annotations
 
@@ -12,6 +6,7 @@ import ast
 import json
 from collections.abc import Mapping
 from pathlib import Path
+from typing import Literal
 
 import anndata
 import mudata
@@ -21,9 +16,9 @@ import polars as pl
 import pytest
 
 from apb2.parserV2.parse_quant.contracts import ParsedLevelWriter
-from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation
 from apb2.parserV2.parse_quant.data.parsed import (
     AuxiliaryLayerRole,
+    CategoricalLayerSemantics,
     FinalLayerTable,
     JsonValue,
     MeasurementLayerRole,
@@ -32,21 +27,14 @@ from apb2.parserV2.parse_quant.data.parsed import (
     ParsedLevels,
     VarFinal,
 )
+from apb2.parserV2.parse_quant.errors import LayerContractError, LayerValueError
 from apb2.parserV2.parse_quant.io.anndata_writer import (
     AnnDataWriter,
-    FactorAnnDataEncoder,
     MuDataLevelError,
     MuDataWriter,
-    OccupancyPolicy,
-    PlainNumericAnnDataEncoder,
-    RegexNumericAnnDataEncoder,
-    StandardAnnDataLayerContract,
-    StrictAnnDataLayerContract,
 )
 from apb2.parserV2.parse_quant.io.errors import (
-    AnnDataLayerContractError,
     InvalidResultError,
-    ResultIOError,
 )
 from apb2.parserV2.parse_quant.io.metadata import (
     NAMESPACE,
@@ -58,9 +46,18 @@ from apb2.parserV2.parse_quant.io.parquet_writer import (
     MANIFEST_NAME,
     ParquetWriter,
 )
+from apb2.parserV2.parse_quant.layer_validation import LayerContractValidator
+from apb2.parserV2.parse_quant.parameters.measurements import (
+    FactorLayerConfig,
+    LayerContractConfig,
+    PlainNumericLayerConfig,
+    RegexNumericLayerConfig,
+)
+from apb2.parserV2.parse_quant.parameters.source import NumericTextFormat
+from apb2.parserV2.parser_factory import make_layer_value_parser
 
-DOT = NumberNotation(decimal_mark=".", thousands_marks=())
-GROUPED = NumberNotation(decimal_mark=",", thousands_marks=(".",))
+DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
+GROUPED = NumericTextFormat(decimal_mark=",", thousands_marks=(".",))
 
 
 def level(
@@ -125,9 +122,13 @@ def test_a_parquet_dataset_round_trips_every_value_and_dtype(tmp_path: Path) -> 
         obs=pl.DataFrame({"Run": ["A"]}),
         var=pl.DataFrame({"Feature": ["F1", "F2"], "Charge": [2, None], "Decoy": [True, None]}),
         layers={
-            "Intensity": pl.DataFrame({"Feature": ["F1", "F2"], "obs_0": ["100.000,5", None]}),
-            "Kind": pl.DataFrame({"Feature": ["F1", "F2"], "obs_0": ["MBR", "MS/MS"]}),
+            "Intensity": pl.DataFrame({"Feature": ["F1", "F2"], "obs_0": [100000.5, None]}),
+            "Kind": pl.DataFrame({"Feature": ["F1", "F2"], "obs_0": [2, 1]}),
         },
+    )
+    parsed.layers["Kind"].role = AuxiliaryLayerRole()
+    parsed.layers["Kind"].semantics = CategoricalLayerSemantics(
+        categories=(("MS/MS", 1), ("MBR", 2))
     )
     target = tmp_path / "ion"
 
@@ -137,13 +138,13 @@ def test_a_parquet_dataset_round_trips_every_value_and_dtype(tmp_path: Path) -> 
     assert restored.obs.frame.equals(parsed.obs.frame)
     assert restored.var.frame.schema == parsed.var.frame.schema
     intensity = restored.layers["Intensity"].values
-    # The localized token is still the token: no encoder ran.
-    assert intensity.get_column("obs_0").to_list() == ["100.000,5", None]
-    assert intensity.schema["obs_0"] == pl.String
+    assert intensity.get_column("obs_0").to_list() == [100000.5, None]
+    assert intensity.schema["obs_0"] == pl.Float64
     assert restored.layers["Kind"].values.get_column("obs_0").to_list() == [
-        "MBR",
-        "MS/MS",
+        2,
+        1,
     ]
+    assert restored.layers["Kind"].semantics == parsed.layers["Kind"].semantics
 
 
 def test_the_manifest_states_what_every_file_is(tmp_path: Path) -> None:
@@ -162,7 +163,7 @@ def test_the_manifest_states_what_every_file_is(tmp_path: Path) -> None:
     ParquetWriter().write(parsed, target)
     manifest = manifest_of(target)
 
-    assert manifest["format_version"] == "4"
+    assert manifest["format_version"] == "5"
     assert manifest["level_order"] == ["ion"]
     levels = manifest["levels"]
     assert isinstance(levels, dict)
@@ -185,6 +186,7 @@ def test_the_manifest_states_what_every_file_is(tmp_path: Path) -> None:
         "schema": [{"name": "String"}, {"name": "Int64"}, {"name": "Float64"}],
         "var_key_columns": ["Feature", "Charge"],
         "role": "measurement",
+        "semantics": {"kind": "quantitative", "logical_type": "number"},
     }
     assert (target / "levels" / "ion" / "layers" / "Q_Value.parquet").is_file()
 
@@ -298,12 +300,24 @@ def block(*columns: list[object]) -> pl.DataFrame:
     )
 
 
+def canonical_values(
+    config: PlainNumericLayerConfig | RegexNumericLayerConfig | FactorLayerConfig,
+    values: pl.DataFrame,
+) -> pl.DataFrame:
+    layer = FinalLayerTable(
+        layer_name=config.layer_name,
+        var_key_columns=(),
+        values=values,
+    )
+    return make_layer_value_parser(config).parse(layer).values
+
+
 def test_plain_numeric_encoding_reads_numbers_and_blanks_out_the_sentinel() -> None:
-    encoder = PlainNumericAnnDataEncoder(
-        layer_name="Intensity", missing_values=(0.0,), number_format=DOT
+    encoder = PlainNumericLayerConfig(
+        kind="plain_numeric", layer_name="Intensity", missing_values=(0.0,), number_format=DOT
     )
 
-    encoded = encoder.encode(block(["12.5", "0", "", None]))
+    encoded = canonical_values(encoder, block(["12.5", "0", "", None]))
 
     assert encoded.get_column("obs_0").to_list() == [12.5, None, None, None]
     assert encoded.schema["obs_0"] == pl.Float64
@@ -311,11 +325,11 @@ def test_plain_numeric_encoding_reads_numbers_and_blanks_out_the_sentinel() -> N
 
 
 def test_a_localized_number_is_read_under_the_notation_it_was_written_in() -> None:
-    encoder = PlainNumericAnnDataEncoder(
-        layer_name="Intensity", missing_values=(), number_format=GROUPED
+    encoder = PlainNumericLayerConfig(
+        kind="plain_numeric", layer_name="Intensity", missing_values=(), number_format=GROUPED
     )
 
-    encoded = encoder.encode(block(["100.000.000", "1.234,5", None]))
+    encoded = canonical_values(encoder, block(["100.000.000", "1.234,5", None]))
 
     assert encoded.get_column("obs_0").to_list() == [100000000.0, 1234.5, None]
 
@@ -328,60 +342,64 @@ def test_a_token_a_plain_numeric_layer_cannot_hold_becomes_missing_and_is_report
     Refusing the file would convert nothing; the encoded-layer contract is what decides
     whether enough values survived, and this reports the tokens that did not.
     """
-    encoder = PlainNumericAnnDataEncoder(
-        layer_name="Intensity", missing_values=(), number_format=DOT
+    encoder = PlainNumericLayerConfig(
+        kind="plain_numeric", layer_name="Intensity", missing_values=(), number_format=DOT
     )
 
-    encoded = encoder.encode(block(["12.5", "not a number", "-", "NA"]))
+    encoded = canonical_values(encoder, block(["12.5", "not a number", "-", "NA"]))
 
     assert encoded.get_column("obs_0").to_list() == [12.5, None, None, None]
 
 
 def test_an_already_numeric_column_is_not_sent_through_its_own_text_form() -> None:
     """A float32 round-tripped through text is not the value it was; numbers stay numbers."""
-    encoder = PlainNumericAnnDataEncoder(
-        layer_name="Intensity", missing_values=(), number_format=DOT
+    encoder = PlainNumericLayerConfig(
+        kind="plain_numeric", layer_name="Intensity", missing_values=(), number_format=DOT
     )
     values = pl.DataFrame({"obs_0": pl.Series([1268453.25], dtype=pl.Float32)})
 
-    encoded = encoder.encode(values)
+    encoded = canonical_values(encoder, values)
 
     assert encoded.get_column("obs_0").to_list() == [1268453.25]
 
 
 def test_regex_encoding_extracts_the_number_and_treats_no_match_as_missing() -> None:
-    encoder = RegexNumericAnnDataEncoder(
+    encoder = RegexNumericLayerConfig(
+        kind="regex_numeric",
         layer_name="AScore",
         missing_values=(0.0,),
         pattern=r":(-?\d+(?:\.\d+)?)(?:;|$)",
         number_format=DOT,
     )
 
-    encoded = encoder.encode(block(["S4:Phospho:12.5", "S4:Phospho:0", "unstructured", None]))
+    encoded = canonical_values(
+        encoder, block(["S4:Phospho:12.5", "S4:Phospho:0", "unstructured", None])
+    )
 
     assert encoded.get_column("obs_0").to_list() == [12.5, None, None, None]
 
 
 def test_integer_encoding_accepts_whole_values_null_nan_and_unreadable_tokens() -> None:
-    encoder = PlainNumericAnnDataEncoder(
+    encoder = PlainNumericLayerConfig(
+        kind="plain_numeric",
         layer_name="MS_MS_Count",
         missing_values=(),
         number_format=DOT,
         type="integer",
     )
 
-    encoded = encoder.encode(block([1, 2.0, None, float("nan"), "unreadable"]))
+    encoded = canonical_values(encoder, block([1, 2.0, None, float("nan"), "unreadable"]))
     values = encoded.get_column("obs_0").to_list()
 
-    assert values[:3] == [1.0, 2.0, None]
-    assert np.isnan(values[3])
+    assert values[:4] == [1, 2, None, None]
     assert values[4] is None
-    assert encoded.schema["obs_0"] == pl.Float64
+    assert encoded.schema["obs_0"] == pl.Int64
 
 
 @pytest.mark.parametrize("invalid", [1.5, float("inf"), float("-inf")])
 def test_integer_encoding_rejects_fractional_and_infinite_values(invalid: float) -> None:
-    encoder = PlainNumericAnnDataEncoder(
+    encoder = PlainNumericLayerConfig(
+        kind="plain_numeric",
         layer_name="MS_MS_Count",
         missing_values=(),
         number_format=DOT,
@@ -389,14 +407,15 @@ def test_integer_encoding_rejects_fractional_and_infinite_values(invalid: float)
     )
 
     with pytest.raises(
-        InvalidResultError,
+        LayerValueError,
         match=r"integer layer 'MS_MS_Count'.*examples=",
     ):
-        encoder.encode(block([1.0, invalid, None]))
+        canonical_values(encoder, block([1.0, invalid, None]))
 
 
 def test_integer_validation_bounds_reported_examples() -> None:
-    encoder = RegexNumericAnnDataEncoder(
+    encoder = RegexNumericLayerConfig(
+        kind="regex_numeric",
         layer_name="Spectral_Count",
         missing_values=(),
         pattern=r"value=(\S+)",
@@ -404,31 +423,32 @@ def test_integer_validation_bounds_reported_examples() -> None:
         type="integer",
     )
 
-    with pytest.raises(InvalidResultError) as error:
-        encoder.encode(block([f"value={value + 0.5}" for value in range(10)]))
+    with pytest.raises(LayerValueError) as error:
+        canonical_values(encoder, block([f"value={value + 0.5}" for value in range(10)]))
 
     assert str(error.value).count(".5") == 5
 
 
 def test_factor_encoding_maps_declared_labels_and_codes_the_rest_as_unknown() -> None:
-    encoder = FactorAnnDataEncoder(
+    encoder = FactorLayerConfig(
+        kind="factor",
         layer_name="Match_Type",
         categories=(("unmatched", 0), ("MS/MS", 1), ("MBR", 2)),
     )
 
-    encoded = encoder.encode(block(["MBR", "MS/MS", "surprise", None]))
+    encoded = canonical_values(encoder, block(["MBR", "MS/MS", "surprise", None]))
 
     assert encoded.get_column("obs_0").to_list() == [2, 1, -1, -1]
     assert encoded.schema["obs_0"] == pl.Int64
 
 
 def test_an_encoder_preserves_the_shape_and_the_column_order_it_was_given() -> None:
-    encoder = PlainNumericAnnDataEncoder(
-        layer_name="Intensity", missing_values=(), number_format=DOT
+    encoder = PlainNumericLayerConfig(
+        kind="plain_numeric", layer_name="Intensity", missing_values=(), number_format=DOT
     )
     values = block(["1"], ["2"], ["3"])
 
-    encoded = encoder.encode(values)
+    encoded = canonical_values(encoder, values)
 
     assert encoded.columns == values.columns
     assert encoded.shape == values.shape
@@ -437,8 +457,8 @@ def test_an_encoder_preserves_the_shape_and_the_column_order_it_was_given() -> N
 # ------------------------------------------------------------------------- contract checks
 
 
-def policy(*required: str, primary: str = "Intensity") -> OccupancyPolicy:
-    return OccupancyPolicy(
+def contract(*required: str, primary: str = "Intensity") -> LayerContractConfig:
+    return LayerContractConfig(
         primary_layer_name=primary,
         required_names=required or (primary,),
         empty_ratio=0.001,
@@ -446,27 +466,51 @@ def policy(*required: str, primary: str = "Intensity") -> OccupancyPolicy:
     )
 
 
-def test_anndata_layer_contract_errors_belong_to_the_result_io_error_hierarchy() -> None:
-    assert issubclass(AnnDataLayerContractError, ResultIOError)
+def validate_layers(
+    values: Mapping[str, pl.DataFrame],
+    *,
+    checks: Literal["standard", "strict"] = "standard",
+    auxiliary: tuple[str, ...] = (),
+    config: LayerContractConfig | None = None,
+) -> None:
+    layers = {
+        name: FinalLayerTable(
+            layer_name=name,
+            var_key_columns=(),
+            values=frame,
+            role=AuxiliaryLayerRole() if name in auxiliary else MeasurementLayerRole(),
+        )
+        for name, frame in values.items()
+    }
+    selected = config or contract()
+    LayerContractValidator(
+        primary_layer_name=selected.primary_layer_name,
+        required_names=selected.required_names,
+        empty_ratio=selected.empty_ratio,
+        populated_ratio=selected.populated_ratio,
+        strict=checks == "strict",
+    ).validate(layers)
+
+
+def test_layer_contract_errors_belong_to_the_parse_error_hierarchy() -> None:
+    assert issubclass(LayerContractError, ValueError)
 
 
 def test_a_missing_required_auxiliary_layer_is_still_a_contract_error() -> None:
-    checker = StandardAnnDataLayerContract(policy("Intensity", "ObservationCount"))
     encoded = {"Intensity": block([1.0])}
 
-    with pytest.raises(AnnDataLayerContractError, match="ObservationCount"):
-        checker.check(encoded, encoded)
+    with pytest.raises(LayerContractError, match="ObservationCount"):
+        validate_layers(encoded, config=contract("Intensity", "ObservationCount"))
 
 
 def test_an_empty_primary_layer_beside_a_populated_sibling_is_an_error() -> None:
-    checker = StandardAnnDataLayerContract(policy())
     encoded = {
         "Intensity": block([None, None, None, None]),
         "QValue": block([0.1, 0.2, 0.3, 0.4]),
     }
 
-    with pytest.raises(AnnDataLayerContractError, match="effectively empty"):
-        checker.check(encoded, encoded)
+    with pytest.raises(LayerContractError, match="effectively empty"):
+        validate_layers(encoded)
 
 
 def test_an_empty_nonprimary_measurement_only_warns_unless_the_check_is_strict() -> None:
@@ -475,51 +519,39 @@ def test_an_empty_nonprimary_measurement_only_warns_unless_the_check_is_strict()
         "QValue": block([None, None, None, None]),
     }
 
-    StandardAnnDataLayerContract(policy()).check(encoded, encoded)
-    with pytest.raises(AnnDataLayerContractError, match="QValue"):
-        StrictAnnDataLayerContract(policy()).check(encoded, encoded)
+    validate_layers(encoded)
+    with pytest.raises(LayerContractError, match="QValue"):
+        validate_layers(encoded, checks="strict")
 
 
-@pytest.mark.parametrize(
-    "checker",
-    [
-        StandardAnnDataLayerContract(policy()),
-        StrictAnnDataLayerContract(policy()),
-    ],
-)
+@pytest.mark.parametrize("checks", ["standard", "strict"])
 def test_a_populated_auxiliary_layer_does_not_make_an_empty_primary_suspicious(
-    checker: StandardAnnDataLayerContract | StrictAnnDataLayerContract,
+    checks: Literal["standard", "strict"],
 ) -> None:
     encoded = {
         "Intensity": block([None, None, None, None]),
         "ObservationCount": block([2.0, 3.0, 4.0, 5.0]),
     }
 
-    checker.check(encoded, {"Intensity": encoded["Intensity"]})
+    validate_layers(encoded, checks=checks, auxiliary=("ObservationCount",))
 
 
-@pytest.mark.parametrize(
-    "checker",
-    [
-        StandardAnnDataLayerContract(policy()),
-        StrictAnnDataLayerContract(policy()),
-    ],
-)
+@pytest.mark.parametrize("checks", ["standard", "strict"])
 def test_an_empty_auxiliary_layer_is_not_an_occupancy_failure(
-    checker: StandardAnnDataLayerContract | StrictAnnDataLayerContract,
+    checks: Literal["standard", "strict"],
 ) -> None:
     encoded = {
         "Intensity": block([0.1, 0.2, 0.3, 0.4]),
         "ObservationCount": block([None, None, None, None]),
     }
 
-    checker.check(encoded, {"Intensity": encoded["Intensity"]})
+    validate_layers(encoded, checks=checks, auxiliary=("ObservationCount",))
 
 
 def test_without_a_populated_sibling_occupancy_invents_no_conclusion() -> None:
     encoded = {"Intensity": block([None, None]), "QValue": block([None, None])}
 
-    StrictAnnDataLayerContract(policy()).check(encoded, encoded)
+    validate_layers(encoded, checks="strict")
 
 
 def test_a_factor_layer_of_unknown_codes_still_counts_as_populated() -> None:
@@ -528,29 +560,15 @@ def test_a_factor_layer_of_unknown_codes_still_counts_as_populated() -> None:
         "Match_Type": pl.DataFrame({"obs_0": [-1, -1, -1, -1]}),
     }
 
-    StrictAnnDataLayerContract(policy()).check(encoded, encoded)
+    validate_layers(encoded, checks="strict")
 
 
 # ------------------------------------------------------------------------------- the writer
 
 
-def writer_for(
-    parsed: ParsedLevel, *, checks: str = "standard", notation: NumberNotation = DOT
-) -> AnnDataWriter:
-    contract = policy(*tuple(parsed.layers), primary=parsed.primary_layer_name)
-    return AnnDataWriter(
-        encoders={
-            name: PlainNumericAnnDataEncoder(
-                layer_name=name, missing_values=(), number_format=notation
-            )
-            for name in parsed.layers
-        },
-        contract=(
-            StrictAnnDataLayerContract(contract)
-            if checks == "strict"
-            else StandardAnnDataLayerContract(contract)
-        ),
-    )
+def writer_for(parsed: ParsedLevel, *, checks: str = "standard") -> AnnDataWriter:
+    del parsed, checks
+    return AnnDataWriter()
 
 
 def test_an_auxiliary_layer_cannot_be_the_primary_matrix(tmp_path: Path) -> None:
@@ -596,7 +614,7 @@ def test_writer_excludes_an_auxiliary_layer_from_occupancy_comparisons(
 
 
 @pytest.mark.parametrize("checks", ["standard", "strict"])
-def test_writer_still_compares_the_primary_against_a_measurement_sibling(
+def test_writer_does_not_repeat_parse_time_occupancy_checks(
     checks: str,
     tmp_path: Path,
 ) -> None:
@@ -620,10 +638,9 @@ def test_writer_still_compares_the_primary_against_a_measurement_sibling(
     )
     target = tmp_path / f"{checks}.h5ad"
 
-    with pytest.raises(AnnDataLayerContractError, match="Intensity"):
-        writer_for(parsed, checks=checks).write(parsed, target)
+    writer_for(parsed, checks=checks).write(parsed, target)
 
-    assert not target.exists()
+    assert target.exists()
 
 
 def test_the_parser_owned_anndata_writer_validates_layer_key_alignment(tmp_path: Path) -> None:
@@ -696,6 +713,7 @@ def test_h5ad_namespaces_have_one_scientific_owner_and_one_storage_descriptor(
             "location": "X",
             "name": "Intensity",
             "role": "measurement",
+            "semantics": {"kind": "quantitative", "logical_type": "number"},
             "value_columns": ["obs_0", "obs_1"],
         }
     ]
@@ -887,7 +905,7 @@ def test_a_failed_write_leaves_the_previous_file_and_no_scratch_behind(
         }
     )
 
-    with pytest.raises(AnnDataLayerContractError):
+    with pytest.raises(InvalidResultError, match="not numeric"):
         writer_for(broken, checks="strict").write(broken, target)
 
     assert target.read_bytes() == before
@@ -905,7 +923,7 @@ def test_the_anndata_writer_satisfies_the_parser_owned_writer_contract(
     assert (tmp_path / "ion.h5ad").is_file()
 
 
-def test_mudata_writer_materializes_each_level_with_its_configured_anndata_writer(
+def test_mudata_writer_materializes_each_canonical_level(
     tmp_path: Path,
 ) -> None:
     ion = level(
@@ -919,7 +937,7 @@ def test_mudata_writer_materializes_each_level_with_its_configured_anndata_write
     )
     target = tmp_path / "levels.h5mu"
 
-    MuDataWriter(level_writers={"ion": writer_for(ion), "protein": writer_for(protein)}).write(
+    MuDataWriter().write(
         ParsedLevels(
             levels={"ion": ion, "protein": protein},
             uns={
@@ -943,7 +961,7 @@ def test_mudata_writer_materializes_each_level_with_its_configured_anndata_write
 
 def test_mudata_writer_accepts_one_level_but_rejects_no_levels(tmp_path: Path) -> None:
     ion = level()
-    writer = MuDataWriter(level_writers={"ion": writer_for(ion)})
+    writer = MuDataWriter()
 
     writer.write(
         ParsedLevels(levels={"ion": ion}, uns={"produced_by": "apb2"}),
@@ -952,22 +970,18 @@ def test_mudata_writer_accepts_one_level_but_rejects_no_levels(tmp_path: Path) -
 
     assert list(mudata.read_h5mu(tmp_path / "ion.h5mu").mod) == ["ion"]
     with pytest.raises(MuDataLevelError, match="no parsed levels"):
-        MuDataWriter(level_writers={}).write(
+        MuDataWriter().write(
             ParsedLevels(levels={}, uns={}),
             tmp_path / "empty.h5mu",
         )
 
 
-def test_mudata_writer_requires_one_configured_writer_per_parsed_level(
+def test_mudata_writer_is_not_configured_per_level(
     tmp_path: Path,
 ) -> None:
-    ion = level()
+    del tmp_path
 
-    with pytest.raises(MuDataLevelError, match=r"parsed=.*ion.*writers"):
-        MuDataWriter(level_writers={}).write(
-            ParsedLevels(levels={"ion": ion}, uns={}),
-            tmp_path / "levels.h5mu",
-        )
+    assert not hasattr(MuDataWriter(), "level_writers")
 
 
 def test_one_array_is_allocated_for_each_encoded_layer(

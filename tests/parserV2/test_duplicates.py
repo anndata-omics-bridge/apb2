@@ -12,7 +12,6 @@ from typing import get_args
 import polars as pl
 import pytest
 
-from apb2.parserV2.compile import make_raw_value_presence, policy_for
 from apb2.parserV2.parse_quant.contracts import DuplicatePolicy, RawValuePresence
 from apb2.parserV2.parse_quant.data.raw import RawLayerTable
 from apb2.parserV2.parse_quant.duplicates import (
@@ -30,6 +29,7 @@ from apb2.parserV2.parse_quant.parameters.measurements import (
     RegexNumericRawValuePresenceConfig,
 )
 from apb2.parserV2.parse_quant.parameters.source import NumericTextFormat
+from apb2.parserV2.parser_factory import make_raw_value_presence, policy_for
 
 DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
 GROUPED = NumericTextFormat(decimal_mark=",", thousands_marks=(".",))

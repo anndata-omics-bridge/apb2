@@ -17,6 +17,7 @@ from apb2.cli import reformat as reformat_command
 from apb2.parserV2.parse_quant.data.parsed import (
     AnnotationTable,
     AuxiliaryLayerRole,
+    CategoricalLayerSemantics,
     FeatureRelation,
     FinalLayerTable,
     JsonValue,
@@ -24,13 +25,10 @@ from apb2.parserV2.parse_quant.data.parsed import (
     ObsFinal,
     ParsedLevel,
     ParsedLevels,
+    QuantitativeLayerSemantics,
     VarFinal,
 )
-from apb2.parserV2.parse_quant.io.anndata_writer import (
-    AnnDataPlanError,
-    numeric_result_level,
-    quantitative_layer_values,
-)
+from apb2.parserV2.parse_quant.io.anndata_writer import quantitative_layer_values
 from apb2.parserV2.parse_quant.io.duckdb import METADATA_TABLE
 from apb2.parserV2.parse_quant.io.errors import InvalidResultError, UnsupportedResultFormatError
 from apb2.parserV2.parse_quant.io.formats import (
@@ -69,8 +67,8 @@ def _plan(layer_names: tuple[str, ...]) -> str:
             )
     return json.dumps(
         {
-            "ann_data": {
-                "layer_encodings": encodings,
+            "canonicalization": {
+                "layer_values": encodings,
                 "layer_contract": {
                     "primary_layer_name": "Intensity",
                     "required_names": ["Intensity"],
@@ -107,10 +105,11 @@ def _level(name: str, feature_column: str) -> ParsedLevel:
             values=pl.DataFrame(
                 {
                     **layer_keys,
-                    "obs_0": ["100.5", "0"],
-                    "obs_1": ["200.5", None],
+                    "obs_0": [100.5, None],
+                    "obs_1": [200.5, None],
                 }
             ),
+            semantics=QuantitativeLayerSemantics(),
         ),
         "Status": FinalLayerTable(
             layer_name="Status",
@@ -118,11 +117,28 @@ def _level(name: str, feature_column: str) -> ParsedLevel:
             values=pl.DataFrame(
                 {
                     **layer_keys,
-                    "obs_0": ["MS/MS", "MBR"],
-                    "obs_1": ["MBR", None],
+                    "obs_0": [1, 2],
+                    "obs_1": [2, -1],
                 }
             ),
             role=AuxiliaryLayerRole(),
+            semantics=CategoricalLayerSemantics(
+                categories=(("MS/MS", 1), ("MBR", 2)),
+                missing_code=-1,
+            ),
+        ),
+        "Count": FinalLayerTable(
+            layer_name="Count",
+            var_key_columns=var_key_columns,
+            values=pl.DataFrame(
+                {
+                    **layer_keys,
+                    "obs_0": pl.Series([1, None], dtype=pl.Int64),
+                    "obs_1": pl.Series([2, 3], dtype=pl.Int64),
+                }
+            ),
+            role=AuxiliaryLayerRole(),
+            semantics=QuantitativeLayerSemantics(logical_type="integer"),
         ),
     }
     return ParsedLevel(
@@ -232,6 +248,7 @@ def _assert_layer_mapping(
         assert got.layer_name == wanted.layer_name
         assert got.var_key_columns == wanted.var_key_columns
         assert got.role == wanted.role
+        assert got.semantics == wanted.semantics
         assert_frame_equal(got.values, wanted.values)
 
 
@@ -317,17 +334,16 @@ def test_measurement_and_auxiliary_roles_round_trip_through_every_result_format(
     assert isinstance(restored.layers["Status"].role, AuxiliaryLayerRole)
 
 
-def test_parquet_metadata_without_a_layer_role_defaults_to_measurement(tmp_path: Path) -> None:
-    target = tmp_path / "legacy.parquet"
+def test_parquet_metadata_without_a_layer_role_is_rejected(tmp_path: Path) -> None:
+    target = tmp_path / "invalid.parquet"
     writer_for(ResultFormat.PARQUET).write(rich_result(), target)
     manifest_path = target / MANIFEST_NAME
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     del manifest["levels"]["ion"]["layers"]["Status"]["role"]
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
-    restored = reader_for(ResultFormat.PARQUET).read(target)
-
-    assert isinstance(restored.levels["ion"].layers["Status"].role, MeasurementLayerRole)
+    with pytest.raises(InvalidResultError, match="role"):
+        reader_for(ResultFormat.PARQUET).read(target)
 
 
 @pytest.mark.parametrize(
@@ -614,19 +630,26 @@ def test_every_writer_rejects_an_empty_collection_before_touching_the_target(
     assert target.read_bytes() == b"previous"
 
 
-def test_h5_writer_requires_the_stored_matrix_plan_before_touching_target(tmp_path: Path) -> None:
+def test_h5_writer_ignores_missing_and_corrupt_plan_json(tmp_path: Path) -> None:
+    baseline = rich_result()
+    baseline_target = tmp_path / "baseline.h5mu"
+    writer_for(ResultFormat.H5MU).write(baseline, baseline_target)
+    expected = reader_for(ResultFormat.H5MU).read(baseline_target)
+
     parsed = rich_result()
     del parsed.levels["protein"].uns["plan_json"]
+    parsed.levels["ion"].uns["plan_json"] = "not json"
     target = tmp_path / "result.h5mu"
-    target.write_bytes(b"previous")
 
-    with pytest.raises(InvalidResultError, match="plan_json"):
-        writer_for(ResultFormat.H5MU).write(parsed, target)
+    writer_for(ResultFormat.H5MU).write(parsed, target)
 
-    assert target.read_bytes() == b"previous"
+    restored = reader_for(ResultFormat.H5MU).read(target)
+    expected.levels["protein"].uns.pop("plan_json")
+    expected.levels["ion"].uns["plan_json"] = "not json"
+    _assert_result_equal(restored, expected)
 
 
-def test_quantitative_layer_projection_reuses_the_stored_vendor_encoding() -> None:
+def test_quantitative_layer_values_returns_canonical_values_directly() -> None:
     ion = _level("ion", "Ion")
 
     projected = quantitative_layer_values(ion, "Intensity")
@@ -635,61 +658,6 @@ def test_quantitative_layer_projection_reuses_the_stored_vendor_encoding() -> No
         "obs_0": [100.5, None],
         "obs_1": [200.5, None],
     }
-
-
-def test_numeric_result_level_accepts_numeric_and_null_values_without_mutating_input() -> None:
-    ion = _level("ion", "Ion")
-    ion.layers = {
-        "Intensity": FinalLayerTable(
-            layer_name="Intensity",
-            var_key_columns=("Ion",),
-            values=pl.DataFrame(
-                {
-                    "Ion": ["F1", "F2"],
-                    "obs_0": pl.Series([10, 20], dtype=pl.Int64),
-                    "obs_1": pl.Series([None, None], dtype=pl.Null),
-                }
-            ),
-        )
-    }
-    original_provenance = dict(ion.uns)
-
-    projected = numeric_result_level(ion)
-
-    assert ion.uns == original_provenance
-    assert ion.matrix_values_projected is False
-    assert projected is not ion
-    assert projected.layers is ion.layers
-    assert projected.uns is ion.uns
-    assert projected.matrix_values_projected is True
-
-
-@pytest.mark.parametrize(
-    "invalid_values",
-    [
-        pl.Series("obs_0", [True, False], dtype=pl.Boolean),
-        pl.Series("obs_0", ["10", "20"], dtype=pl.String),
-    ],
-    ids=["boolean", "string"],
-)
-def test_numeric_result_level_rejects_nonnumeric_values(invalid_values: pl.Series) -> None:
-    ion = _level("ion", "Ion")
-    ion.layers = {
-        "Intensity": FinalLayerTable(
-            layer_name="Intensity",
-            var_key_columns=("Ion",),
-            values=pl.DataFrame(
-                {
-                    "Ion": ["F1", "F2"],
-                    "obs_0": invalid_values,
-                    "obs_1": [10.0, 20.0],
-                }
-            ),
-        )
-    }
-
-    with pytest.raises(AnnDataPlanError, match=r"not already numeric.*obs_0"):
-        numeric_result_level(ion)
 
 
 def test_h5_writer_accepts_an_added_numeric_layer_missing_from_the_parse_plan(
@@ -720,7 +688,7 @@ def test_h5_writer_accepts_an_added_numeric_layer_missing_from_the_parse_plan(
     )
 
 
-def test_h5_writer_accepts_a_planless_matrix_projected_derived_level(tmp_path: Path) -> None:
+def test_h5_writer_accepts_a_planless_derived_level(tmp_path: Path) -> None:
     protein = _level("protein", "Protein")
     protein.var = VarFinal(
         frame=pl.DataFrame({"Protein": ["F1", "F2"]}),
@@ -730,7 +698,6 @@ def test_h5_writer_accepts_a_planless_matrix_projected_derived_level(tmp_path: P
         "produced_by": "apb-aggregate",
         "quantification_level": "protein",
     }
-    protein.matrix_values_projected = True
     protein.primary_layer_name = "medpolish_from_ion"
     protein.layers = {
         "medpolish_from_ion": FinalLayerTable(
@@ -769,7 +736,7 @@ def test_h5_writer_rejects_an_unplanned_nonnumeric_layer(tmp_path: Path) -> None
         ),
     )
 
-    with pytest.raises(AnnDataPlanError, match=r"unplanned layer.*not already numeric"):
+    with pytest.raises(InvalidResultError, match=r"not numeric"):
         write_parsed_levels(parsed, tmp_path / "result.h5mu")
 
 

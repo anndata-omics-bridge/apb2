@@ -65,8 +65,8 @@ type MergeBlock = Callable[[JsonDict, JsonDict], JsonDict]
 class RuleNotApplicable(ValueError):
     """This rule does not apply to what the caller has — try another level.
 
-    The skip contract: ``compile_parsers`` catches this to move to the next quantification
-    level, so anything meaning "not this level" must be this class or a subclass, and
+    Detection catches this while resolving level selections, so anything meaning "not this
+    level" must be this class or a subclass, and
     anything meaning "the caller is wrong" must not be.
     """
 

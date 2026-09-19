@@ -1,10 +1,10 @@
-"""Application workflows for one Parser V2 source-to-result conversion."""
+"""File-to-file conversion workflow owned by the ``apb2`` command."""
 
 from __future__ import annotations
 
 import json
 import re
-from collections.abc import Iterable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -13,23 +13,19 @@ from loguru import logger
 from pydantic import ValidationError
 
 from apb2.parserV2.compile import (
-    AnnDataOutput,
+    ExplicitRuleCompiler,
     ParseRuleCompiler,
 )
 from apb2.parserV2.detect_document import (
     UNKNOWN_SEARCH_PARAMETERS,
-    DetectedRuleSet,
+    LevelSelection,
     RuleDetectionError,
-    RuleUnavailableError,
-    detect_rule_documents,
-    guess_software,
     search_parameter_evidence,
-    select_document_levels,
     software_slug,
 )
 from apb2.parserV2.parse_quant.axis_columns import AxisCoercionError, ColumnComputationError
 from apb2.parserV2.parse_quant.data.layer_columns import StorageLabelError
-from apb2.parserV2.parse_quant.data.parsed import JsonValue, ParsedLevel, ParsedLevels
+from apb2.parserV2.parse_quant.data.parsed import ParsedLevel, ParsedLevels
 from apb2.parserV2.parse_quant.duplicates import AggregateTypeError, DuplicateCellError
 from apb2.parserV2.parse_quant.errors import (
     AmbiguousDialectError,
@@ -44,8 +40,11 @@ from apb2.parserV2.parse_quant.modifications import (
 )
 from apb2.parserV2.parse_quant.observation_groups import group_observations
 from apb2.parserV2.parse_quant.parameters.source import Folder, InputSource, SingleFile
-from apb2.parserV2.parse_quant.parser import AxisShapeError, CanonicalKeyCollisionError
-from apb2.parserV2.parse_rule_facade import ParseRuleFacade
+from apb2.parserV2.parse_quant.parser import (
+    AxisShapeError,
+    CanonicalKeyCollisionError,
+    ParserCollection,
+)
 from apb2.parserV2.prepare_source import InputPreparationError
 from apb2.parserV2.vendor_params.parsers.shared.model import Parameters, ParamsError
 from apb2.parserV2.vendor_params.registry import parse_params
@@ -58,13 +57,11 @@ from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import LEVELS, QuantificationLevel
 
 type AnnDataChecks = Literal["standard", "strict"]
-PRODUCER = "apb2"
-type RuleSelectionMethod = Literal["software_version", "columns", "rule_config"]
 ReformatError = ResultIOError
 
 
 def reformat_result(source: Path, target: Path, /) -> None:
-    """Run the storage-only result workflow behind the Parser V2 application facade."""
+    """Run the storage-only result workflow used by the command line."""
     formats.reformat(source, target)
 
 
@@ -133,16 +130,17 @@ def convert_from_rule_config(
             parameters_path=parameters_path,
             parameters_software=parameters_software,
         )
-        parsed, outputs = _parse_document_and_write(
-            source=_input_source(data),
-            levels=(level,),
-            output=output,
+        compiler = ExplicitRuleCompiler(
             document=document,
-            evidence=evidence,
+            source=_input_source(data),
+            requested_levels=(level,),
+            parameter_evidence=evidence,
             checks=checks,
-            selection_method="rule_config",
-            parameters=parameters,
-            parameters_path=parameters_path,
+        )
+        parsed, outputs = _parse_and_write(
+            output,
+            compiler.compile(),
+            compiler.selections,
         )
         return _conversion_summary(
             parsed.levels,
@@ -170,16 +168,17 @@ def convert_all_from_rule_config(
             parameters_path=parameters_path,
             parameters_software=parameters_software,
         )
-        parsed, outputs = _parse_document_and_write(
-            source=_input_source(data),
-            levels=document.levels,
-            output=output,
+        compiler = ExplicitRuleCompiler(
             document=document,
-            evidence=evidence,
+            source=_input_source(data),
+            requested_levels=document.levels,
+            parameter_evidence=evidence,
             checks=checks,
-            selection_method="rule_config",
-            parameters=parameters,
-            parameters_path=parameters_path,
+        )
+        parsed, outputs = _parse_and_write(
+            output,
+            compiler.compile(),
+            compiler.selections,
         )
         return _conversion_summary(
             parsed.levels,
@@ -203,28 +202,24 @@ def convert_from_packaged_rules(
 ) -> ConversionSummary:
     """Detect a packaged document from the source and parameter file, then convert it."""
     try:
-        source, detected, parameters, method = _packaged_conversion_inputs(
-            data=data,
-            parameters_path=parameters_path,
+        compiler = ParseRuleCompiler(
+            data,
+            parameters_path,
+            requested_levels=(level,),
+            checks=checks,
             software=software,
             parameters_software=parameters_software,
-            levels=(level,),
         )
-        parsed, outputs = _parse_detected_and_write(
-            source=source,
-            output=output,
-            detected=detected,
-            evidence=search_parameter_evidence(parameters),
-            checks=checks,
-            selection_method=method,
-            parameters=parameters,
-            parameters_path=parameters_path,
+        parsed, outputs = _parse_and_write(
+            output,
+            compiler.compile(),
+            compiler.detection.levels,
         )
         return _conversion_summary(
             parsed.levels,
             outputs=outputs,
-            software=detected.software,
-            version=detected.version,
+            software=compiler.detection.software,
+            version=compiler.detection.version,
         )
     except _EXPECTED_CONVERSION_FAILURES as error:
         raise ConversionError(str(error)) from error
@@ -241,28 +236,24 @@ def convert_all_from_packaged_rules(
 ) -> ConversionSummary:
     """Detect and convert every compatible packaged level from one file or folder."""
     try:
-        source, detected, parameters, method = _packaged_conversion_inputs(
-            data=data,
-            parameters_path=parameters_path,
+        compiler = ParseRuleCompiler(
+            data,
+            parameters_path,
+            requested_levels=LEVELS,
+            checks=checks,
             software=software,
             parameters_software=parameters_software,
-            levels=LEVELS,
         )
-        parsed, outputs = _parse_detected_and_write(
-            source=source,
-            output=output,
-            detected=detected,
-            evidence=search_parameter_evidence(parameters),
-            checks=checks,
-            selection_method=method,
-            parameters=parameters,
-            parameters_path=parameters_path,
+        parsed, outputs = _parse_and_write(
+            output,
+            compiler.compile(),
+            compiler.detection.levels,
         )
         return _conversion_summary(
             parsed.levels,
             outputs=outputs,
-            software=detected.software,
-            version=detected.version,
+            software=compiler.detection.software,
+            version=compiler.detection.version,
         )
     except _EXPECTED_CONVERSION_FAILURES as error:
         raise ConversionError(str(error)) from error
@@ -285,109 +276,20 @@ def _explicit_conversion_inputs(
     return document, parameters, search_parameter_evidence(parameters)
 
 
-def _packaged_conversion_inputs(
-    *,
-    data: Path,
-    parameters_path: Path,
-    software: str | None,
-    parameters_software: str | None,
-    levels: Iterable[QuantificationLevel],
-) -> tuple[InputSource, DetectedRuleSet, Parameters, RuleSelectionMethod]:
-    """Parse parameters and detect one packaged rule for each requested level."""
-    source = _input_source(data)
-    parser_slug = parameters_software or software or guess_software(source)
-    if parser_slug is None:
-        raise ConversionError(
-            f"could not auto-detect the vendor for {data}; pass --software SLUG "
-            "or --rule-config PATH"
-        )
-    parameters = parse_params(parameters_path, software=parser_slug)
-    detected = detect_rule_documents(parameters, source, levels)
-    if software is not None and detected.software != software:
-        raise ConversionError(
-            f"--software {software!r} does not match the detected vendor {detected.software!r}"
-        )
-    method: RuleSelectionMethod = "software_version" if detected.version is not None else "columns"
-    return source, detected, parameters, method
-
-
 def _input_source(data: Path) -> InputSource:
     """Bind a canonical vendor-result folder or one direct input file."""
     return Folder(path=data) if data.is_dir() else SingleFile(path=data)
 
 
-def _parse_document_and_write(
-    *,
-    source: InputSource,
-    levels: tuple[QuantificationLevel, ...],
+def _parse_and_write(
     output: Path,
-    document: RuleDocument,
-    evidence: SearchParameterEvidence,
-    checks: AnnDataChecks,
-    selection_method: RuleSelectionMethod,
-    parameters: Parameters | None,
-    parameters_path: Path | None,
-) -> tuple[ParsedLevels, tuple[Path, ...]]:
-    """Select one explicit document with the same table checks as packaged conversion."""
-    selected = select_document_levels(document, source, levels, evidence)
-    if not selected:
-        names = {
-            level: document.declared(level).input.file_name
-            for level in levels
-            if level in document.levels
-        }
-        raise RuleUnavailableError(
-            f"requested levels {list(levels)} are unavailable from {source.path}; "
-            f"expected named tables: {names}"
-        )
-    return _parse_detected_and_write(
-        source=source,
-        output=output,
-        detected=DetectedRuleSet(
-            software=software_slug(document.software_name),
-            version=parameters.software_version if parameters is not None else None,
-            levels=selected,
-        ),
-        evidence=evidence,
-        checks=checks,
-        selection_method=selection_method,
-        parameters=parameters,
-        parameters_path=parameters_path,
-    )
-
-
-def _parse_detected_and_write(
-    *,
-    source: InputSource,
-    output: Path,
-    detected: DetectedRuleSet,
-    evidence: SearchParameterEvidence,
-    checks: AnnDataChecks,
-    selection_method: RuleSelectionMethod,
-    parameters: Parameters | None,
-    parameters_path: Path | None,
+    parser: ParserCollection,
+    selections: tuple[LevelSelection, ...],
 ) -> tuple[ParsedLevels, tuple[Path, ...]]:
     """Parse selected levels, align compatible observations, and write each resolution."""
-    compiled = tuple(
-        (
-            selection,
-            ParseRuleCompiler(
-                facade=ParseRuleFacade(selection.document, selection.level, evidence),
-                output=AnnDataOutput(checks=checks),
-            ).compile(selection.source),
-        )
-        for selection in detected.levels
-    )
-    shared = _shared_parse_provenance(selection_method, parameters, parameters_path)
-    levels: dict[QuantificationLevel, ParsedLevel] = {}
-    for selection, parser in compiled:
+    for selection in selections:
         logger.info("level={} source={}", selection.level, selection.source_path)
-        parsed = parser.parse()
-        levels[selection.level] = parsed
-    combined = ParsedLevels(
-        levels=levels,
-        uns={"produced_by": PRODUCER, **shared},
-    )
+    combined = parser.parse()
     groups = group_observations(combined)
     outputs = _group_output_paths(groups, output)
     for group, target in zip(groups, outputs, strict=True):
@@ -414,29 +316,6 @@ def _group_output_paths(groups: tuple[ParsedLevels, ...], output: Path) -> tuple
     if output.exists():
         raise ConversionError(f"split conversion would leave an existing combined target: {output}")
     return outputs
-
-
-def _shared_parse_provenance(
-    selection_method: RuleSelectionMethod,
-    parameters: Parameters | None,
-    parameters_path: Path | None,
-) -> dict[str, JsonValue]:
-    """Shared selection and parameter facts written at one or several levels."""
-    provenance: dict[str, JsonValue] = {"rule_selection_method": selection_method}
-    if parameters is None:
-        return provenance
-    if parameters_path is None:
-        raise ValueError("parsed search parameters require their source path")
-    provenance.update(
-        {
-            "search_parameters_version_status": (
-                "missing" if parameters.software_version is None else "present"
-            ),
-            "search_parameters_path": str(parameters_path),
-            "search_parameters": json.dumps(parameters.model_dump(mode="json")),
-        }
-    )
-    return provenance
 
 
 def _conversion_summary(

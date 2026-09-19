@@ -132,11 +132,11 @@ The specification stays close to V5. These are the only intentional changes:
 | `ColumnComputer` receives only its configured input-series tuple; source resolution prunes computations blocked by absent optional inputs | V5 passed the complete axis frame and a `skipped` set into every computed-column strategy | Name the smallest capability, consume optionality once, and remove runtime absence branches from every computer |
 | Duplicate resolution receives one configured `RawValuePresence` per layer | V5 deferred all missing-sentinel interpretation to the writer, so `keep_first` could retain a sentinel such as AlphaDIA's `0` and discard a later real value | Determine only whether a raw scalar claims a cell; do not convert or replace the scalar, preserving late encoding and Parquet values |
 | `ParseRuleFacade.resolve_source(SourceEvidence)` replaces `resolve_header(header)` | V5 expected a column-name sequence to produce numeric formats, read dtypes, and Parquet compatibility decisions | Pass the exact physical evidence required for one atomic resolved plan and remove hidden compiler side channels |
-| Vendor-parameter parsing retains the `vendor_params` name and lives in the independent `parserV2/vendor_params/` child; parent-level `conversion_facade.py` translates its complete `Parameters` record to rule-owned `SearchParameterEvidence` | The first specification placed `vendor_params` beside `parserV2` and required a second outer composition layer | Give the CLI one Parser V2-only boundary without renaming the established parameter model, remove the legacy top-level package, and keep both `parse_quant` and `vendor_parse_rules` independent of it |
+| Vendor-parameter parsing retains the `vendor_params` name and lives in the independent `parserV2/vendor_params/` child; top-level `api.py` translates its complete `Parameters` record to rule-owned `SearchParameterEvidence` | The first specification placed `vendor_params` beside `parserV2` and required a second outer composition layer | Give applications one public in-memory boundary without renaming the established parameter model, and keep both `parse_quant` and `vendor_parse_rules` independent of it |
 | Parser V2 owns its boundary errors: rule applicability in `vendor_parse_rules/document.py`, shared parse/source errors in `parse_quant/errors.py`, and strategy-local errors beside their raiser | V5 named error categories but did not assign them to the folder dependency graph; importing the existing top-level `apb2.errors` would be an upward dependency | Keep catchable errors at the boundary that defines their meaning without creating a generic cross-package error module |
 | `parserV2` has an explicit directed import graph: `parse_quant/data` owns pipeline values, `parse_quant/parameters` owns working and source-resolved parameters, `parse_quant/io` owns parsed-result adapters and depends only on `data`, `parse_quant/contracts.py` owns Parser-consumed Protocols, source readers remain parent modules, parent-level `parse_rule_facade.py` translates `RuleDocument` into parameters, and the inward-only `vendor_parse_rules/schema/` child owns Pydantic storage declarations | V5 named implementation areas but did not assign concrete modules or prohibit child-to-parent and cyclic/excess sibling imports | Make directory nesting express dependency direction: a module owned by one child moves into that child; sibling edges are one-way and limited to one direct target, while genuine multi-child composition stays in the parent |
 | One-class private helpers are private methods; module-level `make_*` and `*_for` names are reserved for construction and selection | V5 showed several one-client parser and writer helpers as free functions | Put implementation details with their sole owner, reduce module namespace and forwarding code, and keep the construction boundary visible |
-| Omitted CLI level composes compatible `ParsedLevel` values as `ParsedLevels` and delegates persistence to the selected result writer | The initial specification explicitly excluded multi-level assembly | Match APB's compound-conversion contract without coupling parsing to one container: one parser per level, one storage-neutral collection, one selected writer |
+| Omitted CLI level compiles resolved selections into one `ParserCollection`, returns canonical `ParsedLevels`, and delegates persistence to the selected result writer | The initial specification explicitly excluded multi-level assembly | Match APB's compound-conversion contract without coupling parsing to one container: internal parser per level, one public collection parser, one storage-neutral value, one selected writer |
 | Result I/O operates on `ParsedLevels` through format-selected readers and writers | V5 specified only parser-owned one-level writing | Give later tools and `apb2 reformat` one storage-neutral boundary; keep `Parser.convert()` unchanged because Parser still owns one level |
 | `ParsedLevel` includes axis-aligned and sparse pairwise Polars frames | V5 stopped at axes, layers, and `uns` | Carry the AnnData/MuData slots later tools need without importing their containers into computation |
 | Final layers distinguish measurement and auxiliary roles | V5 treated every retained numeric layer as an occupancy peer | Let downstream tools persist diagnostic matrices without allowing their density or sparsity to alter quantitative matrix-occupancy checks |
@@ -245,9 +245,10 @@ select one effective rule and one physical source
 Omitting the CLI level changes only the outer composition:
 
 ```text
-compile_parsers(document.levels)
-    -> for each compatible Parser: parse() -> ParsedLevel
-    -> ParsedLevels({level: parsed_level, ...}, shared_uns)
+ParseRuleCompiler(data, parameters_path, requested_levels)
+    -> parameter parsing and rule detection in the constructor
+    -> compile() -> ParserCollection
+    -> ParserCollection.parse() -> ParsedLevels({level: parsed_level, ...}, {})
     -> write_parsed_levels(parsed, target)
     -> suffix-selected H5MU, Parquet, or DuckDB writer
     -> atomic result plus APB JSON representation
@@ -762,25 +763,16 @@ key columns lead the layer in that order, and their values equal `VarFinal` row-
 must never infer alignment from matching dimensions alone. It also requires the primary layer to
 have `MeasurementLayerRole`; an `AuxiliaryLayerRole` cannot define the primary quantitative matrix.
 
-Downstream APB tools use the public functions from their defining modules rather than importing
-adapter internals:
+Downstream APB tools use the public result facade rather than importing adapter internals:
 
 ```python
-from apb2.parserV2.parse_quant.data.layer_columns import observation_labels
-from apb2.parserV2.parse_quant.io.anndata_writer import (
-    numeric_result_level,
-    quantitative_layer_values,
-)
+from apb2.result_facade import observation_labels, quantitative_layer_values
 
 observation_labels(count: int, reserved: Iterable[str]) -> tuple[str, ...]
 quantitative_layer_values(parsed: ParsedLevel, layer_name: str, /) -> pl.DataFrame
-numeric_result_level(parsed: ParsedLevel, /) -> ParsedLevel
 ```
 
-The label helper establishes the collision-free positional observation columns used by wide layer
-tables. The projection helper interprets a stored layer through its APB2 encoding. The numeric-level
-helper validates every value column and returns a nonmutating shallow replacement marked for plain
-numeric output.
+The label helper establishes the collision-free positional observation columns used by wide layer tables. The value helper returns the already-canonical quantitative value block directly; it performs no interpretation or conversion.
 
 ### 6.1 Parquet
 
@@ -917,7 +909,7 @@ axis=0)` under MuData's non-pulling update semantics, writes shared provenance t
 `mdata.uns["apb"]["parse"]`, and
 atomically writes `.h5mu`. The authored unprefixed key remains an ordinary modality `.var` column.
 
-One modality is valid; zero modalities is an error. The parsed-level names and configured writer names must match exactly. Level-specific rule JSON and resolved-plan provenance remain inside each modality; root parse metadata contains common producer, selection and parameter provenance. Extension tools may add their own root provenance according to the [metadata specification](metadata_specification.md#ownership); modality names and ordering belong to the collection structure, not repeated parse metadata.
+One modality is valid; zero modalities is an error. Level-specific rule JSON and resolved-plan provenance remain inside each modality. Parsing does not synthesize root producer, rule-selection, level-list, or search-parameter JSON; typed search parameters remain on `ParseRuleCompiler.parameters`. Extension tools may add their own root provenance according to the [metadata specification](metadata_specification.md#ownership); modality names and ordering belong to the collection structure, not repeated parse metadata.
 
 ### 6.4 Shared result-I/O capability
 
@@ -1024,8 +1016,9 @@ classDiagram
     }
 
     class ParseRuleCompiler {
-        -ParseRuleFacade _facade
-        +compile(source) Parser
+        -Parameters _parameters
+        -DetectedRuleSet _detection
+        +compile() ParserCollection
     }
 
     class Parser {
@@ -1160,7 +1153,6 @@ controlling import graph for `parserV2`:
 flowchart TB
     subgraph PACKAGE["parserV2/"]
         subgraph ROOT_MODULES["modules directly in parserV2/ — cross-child composition"]
-            CONVERSION["conversion_facade.py<br/>CLI-facing application facade"]
             DETECTION["detect_document.py<br/>header-only packaged-rule selection"]
             FACADE["parse_rule_facade.py<br/>RuleDocument -> parsing parameters"]
             COMPILE["compile.py<br/>only runtime composition root"]
@@ -1281,13 +1273,7 @@ child packages: it
 imports the rule document and parsing parameter values, performs no parsing or I/O, and keeps the
 children independent.
 
-Parent-level `conversion_facade.py` is the CLI-facing application boundary. It may import all three
-child packages, preserves the complete parameter record for provenance, translates only the two
-permitted fields into rule-owned `SearchParameterEvidence`, and translates expected subsystem
-failures into one `ConversionError` for the CLI.
-`detect_document.py` combines header-only source inspection with rule compatibility and parameter
-evidence. The top-level `apb2/cli.py` imports only `apb2.parserV2.*`; no child package imports
-`conversion_facade.py` or `detect_document.py`.
+Top-level `apb2/api.py` is a thin public in-memory convenience. It binds the source, parses typed parameters, detects resolved level selections, compiles them, and calls `ParserCollection.parse()`. It does not write, group observations, mutate provenance, embed parameter JSON, or translate CLI errors. `detect_document.py` combines header-only source inspection with rule compatibility and parameter evidence. File-to-file grouping, naming, writing, summaries, and error translation live under `apb2.command`; `apb2/cli.py` imports that command workflow. No child package imports `api.py`.
 
 Physical source readers sit directly in `parse_quant/` because they consume source parameters as
 well as parse-owned data. Parsed-result I/O sits in the `io/` child and depends only on the `data/`
@@ -1319,52 +1305,21 @@ declaration discriminator.
 
 ## 8. Public API
 
-One level:
+One or several detected levels:
 
 ```python
-document = load_rule_document(rule_path)
-parameters = parse_search_parameters(parameter_source)
-parameter_evidence = SearchParameterEvidence(
-    acquisition_method=parameters.acquisition_method,
-    combine_charge_states=parameters.combine_charge_states,
-)
-source = SingleFile(report_path)
-
-facade = ParseRuleFacade(document, "ion", parameter_evidence)
 parser = ParseRuleCompiler(
-    facade,
-    output=AnnDataOutput(checks="standard"),
-).compile(source)
+    report_path,
+    parameter_source,
+    requested_levels=("ion",),
+    checks="standard",
+).compile()
 
-parsed = parser.parse()  # Contains unencoded Polars layer values.
-parser.convert(parsed, Path("ion.h5ad"))
+parsed = parser.parse()
+write_parsed_levels(parsed, Path("ion.h5ad"))
 ```
 
-Several levels return a list, and the caller iterates:
-
-```python
-parsers = compile_parsers(
-    document=document,
-    levels=requested_levels,
-    parameter_evidence=parameter_evidence,
-    source=source,
-    output=ParquetOutput(),
-)
-
-for parser in parsers:
-    parsed = parser.parse()
-    parser.convert(
-        parsed,
-        output_folder / parser.level,
-    )
-```
-
-`compile_parsers()` preserves canonical level order, skips incompatible levels without affecting
-compatible ones, and raises when no requested level is compatible. Every returned parser is fully
-initialized and retains configuration only for its own level.
-
-`AnnDataOutput` and `ParquetOutput` are composition-boundary declarations. The compiler consumes
-the output choice once and injects a writer; `Parser` never receives or inspects an output tag.
+The constructor owns physical source binding, parameter-parser selection, typed parameter parsing, packaged-rule detection, and canonical level selection. `compile()` consumes the resolved selections exactly once and returns one `ParserCollection`. The collection exposes `parse()` only; persistence remains `write_parsed_levels(parsed, target)` and no storage declaration enters compilation.
 
 Persisted results use the collection boundary even when they contain one level:
 
@@ -2045,9 +2000,9 @@ paths intact.
 `parserV2.vendor_params.parsers.shared.model.Parameters`. Schema 0.3 permits only
 `acquisition_method` and `combine_charge_states` in `requires_search_parameters` and
 `when_search_parameters`; the schema owns that finite field vocabulary and rejects every other
-condition key. Parent-level `conversion_facade.py` reads those two values from the complete
-`Parameters` model and constructs `SearchParameterEvidence`; it also retains the complete record
-as parse provenance. `ParseRuleFacade` consumes only the evidence. Neither `parse_quant` nor
+condition key. `ParseRuleCompiler` reads those two values from the complete
+`Parameters` model and constructs `SearchParameterEvidence`; the complete typed record remains on
+`ParseRuleCompiler.parameters` and is not embedded into parse provenance. `ParseRuleFacade` consumes only the evidence. Neither `parse_quant` nor
 `vendor_parse_rules` imports `vendor_params`, and the rule package imports no module above
 `parserV2/vendor_parse_rules`.
 
@@ -2388,7 +2343,7 @@ nonempty candidate lists, and essential complete-rule references. We author and 
 these documents; the schema does not accumulate validators for harmless duplicate spellings or
 every theoretical combination.
 
-A vendor-result folder supplies table-local physical inputs. MaxQuant's direct evidence group produces ions at raw-file resolution; its preparation function unpivots only higher-level exports and joins evidence-ID references plus experiment. AlphaDIA 1.12 joins authoritative matrix quantities with precursor metadata. `prepare_source` composes reads with independent tool functions; `PreparedTable` shares the frame within its group. Direct evidence never acquires preparation provenance or join fan-out. The parsing-owned `observation_groups` module aligns explicit, complete bijections without changing measurement cells and otherwise separates observation identities. The parent conversion facade writes each group and returns actual output paths; backend writers make no scientific alignment decisions. Relationship records are JSON in existing parse provenance, not a new storage schema.
+A vendor-result folder supplies table-local physical inputs. MaxQuant's direct evidence group produces ions at raw-file resolution; its preparation function unpivots only higher-level exports and joins evidence-ID references plus experiment. AlphaDIA 1.12 joins authoritative matrix quantities with precursor metadata. `prepare_source` composes reads with independent tool functions; `PreparedTable` shares the frame within its group. Direct evidence never acquires preparation provenance or join fan-out. The parsing-owned `observation_groups` module aligns explicit, complete bijections without changing measurement cells and otherwise separates observation identities. The CLI-owned command workflow writes each group and returns actual output paths; backend writers make no scientific alignment decisions. Relationship records are JSON in existing parse provenance, not a new storage schema.
 
 #### C.5 Schema 0.3 rule-package migration (historical)
 
@@ -2816,7 +2771,7 @@ later interprets it using `NumericTextFormat`. Parquet output preserves the stri
 | effective declaration | `document.rule(level, parameter_evidence)` | validated `EffectiveRule` | plain projection and source evidence |
 | working parse parameters | `ParseRuleFacade(document, level, parameter_evidence).working_parameters` | `WorkingParseConfiguration` | physical matches, dialect/dtypes, and optional presence |
 | source-bound level | `facade.resolve_source(evidence)` | atomic `ResolvedLevelPlan` | nothing about the selected physical layout |
-| runtime composition | `ParseRuleCompiler(...).compile(source)` | fully injected `Parser` | nothing |
+| runtime composition | `ParseRuleCompiler(...).compile()` | fully injected `ParserCollection` | nothing |
 
 #### D.6 Wide initialization example
 
@@ -2949,7 +2904,7 @@ assert resolved.ann_data == AnnDataSerializationConfig(
 )
 ```
 
-With `ParquetOutput`, the compiler does not construct encoders from `resolved.ann_data`.
+Canonical layer values are identical regardless of the storage format chosen later.
 
 #### D.7 Packed-fragment initialization contrast
 
@@ -2981,28 +2936,20 @@ separator and ordinary long decomposer are injected into
 
 ### E. Compiler, input binding, and Polars execution
 
-Output selection is likewise one immutable composition-boundary value:
-
-```python
-@dataclass(frozen=True, slots=True)
-class AnnDataOutput:
-    checks: Literal["standard", "strict"] = "standard"
-
-
-@dataclass(frozen=True, slots=True)
-class ParquetOutput:
-    pass
-
-
-type OutputDeclaration = AnnDataOutput | ParquetOutput
-```
-
-The output declaration is consumed when the compiler constructs one `ParsedLevelWriter`; it is
-not stored in `Parser` and never crosses into computation.
+Storage selection is absent from compilation. Standard or strict validation is a parsing concern supplied directly as `checks`; `write_parsed_levels()` selects the structural serializer from the target suffix.
 
 #### E.1 Fixed compilation sequence
 
-`ParseRuleCompiler` performs one sequence:
+`ParseRuleCompiler` performs one application sequence:
+
+1. bind a file or canonical vendor folder from `data`;
+2. resolve or verify the vendor slug;
+3. parse the typed search parameters;
+4. detect the compatible packaged rules and concrete level sources;
+5. retain that complete resolved state;
+6. compile each selected level when `compile()` is called.
+
+The internal level parser factory performs one runtime-construction sequence:
 
 1. obtain `facade.working_parameters.input`;
 2. bind `SingleFile`, `DelimitedFile`, or `Folder` to one physical table;
@@ -3016,7 +2963,7 @@ not stored in `Parser` and never crosses into computation.
    an ordinary long decomposer;
 8. construct modification normalizers from `resolved.modifications`, one raw-value presence
    strategy per retained layer, and one duplicate policy from `resolved.duplicate_mode`;
-9. consume the output declaration once and construct either `ParquetWriter` or `AnnDataWriter`;
+9. construct canonical layer-value parsers and parse-time validation;
 10. inject `resolved.level`, only runtime behavior, and a copy of `resolved.provenance` into
     `Parser`.
 
@@ -3024,11 +2971,7 @@ The compiler may inspect declaration/configuration unions because it is the comp
 must consume each discriminator at one registry and must not pass the tag into the constructed
 strategy.
 
-For MuData, `compile_mudata_parsers()` runs the same fixed sequence per compatible level with an
-`AnnDataWriter` constructor. The shared `_compile_level()` operation returns the parser and the
-exact writer it just injected, allowing the parent composition root to retain the same writer by
-level without exposing `Parser._writer` or resolving the level twice. It returns the ordinary
-parser list plus one configured `MuDataWriter`; no public compiled-parser wrapper is introduced.
+For several levels, `ParseRuleCompiler.compile()` runs the same fixed sequence once per resolved `LevelSelection` and retains the resulting level parsers inside `ParserCollection`. The collection parses them into one canonical `ParsedLevels`. H5AD, H5MU, Parquet, and DuckDB persistence is selected later by `write_parsed_levels()`.
 
 Each level performs its own physical binding and header inspection and obtains its own
 `ResolvedLevelPlan`, `LevelReadPlan`, strategies, and parser. No level receives the whole source
@@ -3047,7 +2990,7 @@ Source binding is allowed to branch on evidence outcomes:
 
 These are facts about a physical source, not behavior selectors inside computation.
 
-`Folder` does not imply a Builder. For one compiler invocation it is one complete caller-supplied source value, resolved to exactly one named table. The conversion facade can invoke that compiler once per detected document/level pair and collect every parsed value before one write. If a future rule genuinely reads several files for one level, a new file-set declaration and bound reader implement that behavior behind the existing `BoundInputReader` Protocol.
+`Folder` does not imply a Builder. Detection resolves it to concrete table-local `LevelSelection` values; `ParseRuleCompiler.compile()` consumes each selection once and `ParserCollection.parse()` collects every parsed value before a write. If a future rule genuinely reads several files for one level, a new file-set declaration and bound reader implement that behavior behind the existing `BoundInputReader` Protocol.
 
 #### E.3 Polars reader boundary
 
@@ -3326,7 +3269,7 @@ parser collaborators are not called.
 Import Linter is the merge-blocking enforcement mechanism. `make lint` and therefore `make check`
 run `lint-imports`. When the first Parser V2 package skeleton is created, `.importlinter` gains:
 
-- an exhaustive `layers` contract for the `parserV2` container, with `conversion_facade`, `detect_document`, `compile`, `prepare_source`, and `parse_rule_facade` above the independent `parse_quant | vendor_params | vendor_parse_rules | joins` children;
+- an exhaustive `layers` contract for the `parserV2` container, with `detect_document`, `compile`, `prepare_source`, and `parse_rule_facade` above the independent `parse_quant | vendor_params | vendor_parse_rules | joins` children;
 - an exhaustive `layers` contract keeping the AlphaDIA and MaxQuant join modules independent of one another;
 - an exhaustive `layers` contract for the `parse_quant` container, with modules directly in
   `parse_quant` above `io`, and with the single declared child edge `io -> data` while
@@ -3356,9 +3299,8 @@ Do not add a wrapper script. The resulting static checks must verify:
   result readers and writers under `parse_quant/io/` import only `data/parsed.py`, I/O-owned
   metadata, validation, errors, and their external backend libraries; none imports Parser, raw
   data, contracts, parameters, or parsing strategies;
-- `parse_rule_facade.py` projects `vendor_parse_rules` into `parse_quant.parameters`; `compile.py` constructs runtime strategies; `prepare_source.py` composes physical input binding with tool joins; `detect_document.py` selects rules using physical headers or the prepared schema; and `conversion_facade.py` owns the complete CLI-facing workflow;
-- only parent-level Parser V2 composition modules import `vendor_params`; `conversion_facade.py`
-  constructs `SearchParameterEvidence` before calling the facade;
+- `parse_rule_facade.py` projects `vendor_parse_rules` into `parse_quant.parameters`; `compile.py` constructs runtime strategies and the collection parser; `prepare_source.py` composes physical input binding with tool joins; `detect_document.py` selects rules using physical headers or the prepared schema; top-level `api.py` owns only the thin in-memory convenience; and `command/conversion.py` owns the file-to-file workflow;
+- only Parser V2 composition modules, top-level `api.py`, and the command workflow import `vendor_params`; the two outer boundaries construct `SearchParameterEvidence` before compilation;
 - source input adapters remain parent modules because they compose `data/` and `parameters/`;
   parsed-result adapters live in `io/`, whose sole sibling dependency is `data/`;
 - `parserV2/__init__.py` does not eagerly import `compile.py` or an adapter;
@@ -3403,11 +3345,12 @@ This is the recommended initial structure. It is deliberately coarser than one f
 ```text
 apb2/src/apb2/parserV2/
 ├── __init__.py                 # package marker; no eager imports or composition
-├── conversion_facade.py        # CLI-facing workflows, summary, and error translation
 ├── detect_document.py          # packaged selection from headers or prepared schema
 ├── parse_rule_facade.py        # RuleDocument -> parsing parameter values
-├── compile.py                  # compiler, output declarations, registries, injection
-├── prepare_source.py           # physical input binding, join factory, shared preparation
+├── compile.py                  # stateful public compiler objects
+├── parser_factory.py           # resolved plans -> parser runtime collaborators
+├── source_binding.py           # physical table binding and source evidence
+├── prepare_source.py           # multi-file preparation and joins
 ├── joins/
 │   ├── __init__.py             # empty marker; no re-exports
 │   ├── alphadia.py             # authoritative matrix plus precursor metadata
@@ -3556,8 +3499,8 @@ The four parent-level modules are intentionally narrow:
   injects configured behavior;
 - `detect_document.py` alone combines header-only source evidence with packaged-rule
   compatibility; and
-- `conversion_facade.py` alone acquires parameters, selects the rule route, attaches full provenance,
-  and runs parse plus AnnData writing for the CLI.
+- top-level `apb2/api.py` acquires parameters, detects and compiles resolved selections, and returns typed in-memory inputs plus canonical parsed levels without writing or altering provenance;
+- `apb2/command/conversion.py` owns grouping, output naming, writing, summaries, and CLI error translation.
 
 The parse-owned boundary modules are likewise narrow:
 

@@ -3,7 +3,7 @@
 The rule states what any source of one vendor may look like; the plan states what *this*
 source turned out to be — which columns were projected and at which read dtype, which dialect
 and number notation won, which optional layers this export could not provide, which vendor
-modification tokens resolved to which accessions, and what the AnnData encoders were told.
+modification tokens resolved to which accessions, and how layer values were parsed.
 None of that is recoverable from the rule afterwards, which is why the plan travels with the
 output instead of staying in the process that produced it.
 

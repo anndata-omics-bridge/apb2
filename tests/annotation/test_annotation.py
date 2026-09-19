@@ -46,8 +46,8 @@ from apb2.parserV2.parse_quant.io.formats import read_parsed_levels, write_parse
 def _plan() -> str:
     return json.dumps(
         {
-            "ann_data": {
-                "layer_encodings": [
+            "canonicalization": {
+                "layer_values": [
                     {
                         "kind": "plain_numeric",
                         "layer_name": "Intensity",

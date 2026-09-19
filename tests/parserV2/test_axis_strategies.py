@@ -10,7 +10,6 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
-from apb2.parserV2.compile import make_modification_normalizer
 from apb2.parserV2.parse_quant.axis_columns import (
     AxisCoercionError,
     BooleanAxisCoercer,
@@ -53,6 +52,7 @@ from apb2.parserV2.parse_quant.parameters.axis import (
     TokenRegexModificationConfig,
     UnknownModificationPolicy,
 )
+from apb2.parserV2.parser_factory import make_modification_normalizer
 
 OXIDATION = ModificationMapEntry(
     token="ox",

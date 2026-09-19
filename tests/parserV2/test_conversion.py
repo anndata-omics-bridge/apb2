@@ -11,13 +11,16 @@ import anndata
 import mudata
 import pytest
 
-from apb2.parserV2 import conversion_facade
-from apb2.parserV2 import detect_document as detection_module
-from apb2.parserV2.conversion_facade import (
+import apb2.api as public_api
+from apb2.api import ParseRuleCompiler
+from apb2.command import conversion as conversion_application
+from apb2.command.conversion import (
     ConversionError,
     convert_all_from_packaged_rules,
     convert_from_packaged_rules,
 )
+from apb2.parserV2 import compile as compilation_module
+from apb2.parserV2 import detect_document as detection_module
 from apb2.parserV2.detect_document import (
     AmbiguousRuleError,
     detect_rule_document,
@@ -39,6 +42,14 @@ from parserV2.join_fixtures import maxquant_tables
 
 class _StopAfterParserSelection(Exception):
     """End a precedence test immediately after the parameter parser is selected."""
+
+
+def test_public_api_exposes_result_io_without_storage_declarations() -> None:
+    assert callable(public_api.read_parsed_levels)
+    assert callable(public_api.write_parsed_levels)
+    assert not hasattr(public_api, "AnnDataOutput")
+    assert not hasattr(public_api, "ParquetOutput")
+    assert not hasattr(public_api, "AnnDataChecks")
 
 
 def _diann_v2() -> PackagedDocument:
@@ -83,7 +94,7 @@ def _maxquant_folder(
     return destination
 
 
-def test_packaged_conversion_detects_parses_and_writes_with_provenance(tmp_path: Path) -> None:
+def test_packaged_conversion_writes_only_parser_provenance(tmp_path: Path) -> None:
     pair = _diann_v2()
     data = pair.required_data_path()
     parameters_path = _parameter_file(pair)
@@ -103,17 +114,31 @@ def test_packaged_conversion_detects_parses_and_writes_with_provenance(tmp_path:
     assert target.is_file()
     stored = anndata.read_h5ad(target)
     namespace = stored.uns[NAMESPACE][PARSE_NAMESPACE]
-    expected = parse_params(parameters_path, software="diann").model_dump(mode="json")
-    assert json.loads(str(namespace["search_parameters"])) == expected
-    assert namespace["search_parameters_path"] == str(parameters_path)
-    assert namespace["rule_selection_method"] in {"software_version", "columns"}
+    assert "search_parameters" not in namespace
+    assert "search_parameters_path" not in namespace
+    assert "rule_selection_method" not in namespace
     representation = json.loads(sidecar_path(target).read_text(encoding="utf-8"))
     assert representation["levels"][0]["name"] == "protein"
     assert representation["root"] is None
-    assert (
-        representation["levels"][0]["apb"]["parse"]["search_parameters_path"]
-        == parameters_path.name
+    assert "search_parameters_path" not in representation["levels"][0]["apb"]["parse"]
+
+
+def test_in_memory_vendor_parse_returns_typed_inputs_without_writing(tmp_path: Path) -> None:
+    pair = _diann_v2()
+    parameters_path = _parameter_file(pair)
+
+    compiler = ParseRuleCompiler(
+        pair.required_data_path(),
+        parameters_path,
+        requested_levels=("protein",),
     )
+    parsed = compiler.compile().parse()
+
+    assert compiler.parameters == parse_params(parameters_path, software="diann")
+    assert compiler.detection.software == "diann"
+    assert list(parsed.levels) == ["protein"]
+    assert parsed.uns == {}
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_packaged_conversion_without_a_level_writes_every_compatible_modality(
@@ -136,10 +161,11 @@ def test_packaged_conversion_without_a_level_writes_every_compatible_modality(
     stored = mudata.read_h5mu(target)
     assert list(stored.mod) == [summary.level for summary in result.levels]
     assert set(stored.mod) >= {"ion", "protein"}
-    namespace = stored.uns[NAMESPACE][PARSE_NAMESPACE]
-    assert namespace["rule_selection_method"] in {"software_version", "columns"}
+    assert stored.uns[NAMESPACE][PARSE_NAMESPACE] == {}
     assert all(
         "search_parameters" not in modality.uns[NAMESPACE][PARSE_NAMESPACE]
+        and "search_parameters_path" not in modality.uns[NAMESPACE][PARSE_NAMESPACE]
+        and "rule_selection_method" not in modality.uns[NAMESPACE][PARSE_NAMESPACE]
         for modality in stored.mod.values()
     )
     representation = json.loads(sidecar_path(target).read_text(encoding="utf-8"))
@@ -288,7 +314,7 @@ def test_explicit_rule_config_binds_its_one_document_from_a_folder(tmp_path: Pat
     target = tmp_path / "ion.h5ad"
     document = next(pair for pair in document_pairs() if pair.key == "maxquant")
 
-    result = conversion_facade.convert_from_rule_config(
+    result = conversion_application.convert_from_rule_config(
         data=folder,
         level="ion",
         output=target,
@@ -306,7 +332,7 @@ def test_explicit_rule_config_binds_its_one_document_from_a_folder(tmp_path: Pat
     ("parameters_software", "software", "inferred", "expected"),
     (
         ("params-choice", "software-choice", "source-choice", "params-choice"),
-        (None, "software-choice", "source-choice", "software-choice"),
+        (None, "software-choice", "source-choice", "softwarechoice"),
         (None, None, "source-choice", "source-choice"),
     ),
 )
@@ -327,12 +353,12 @@ def test_parameter_parser_selection_precedence(
         selected.append(software)
         raise _StopAfterParserSelection
 
-    monkeypatch.setattr(conversion_facade, "guess_software", infer)
-    monkeypatch.setattr(conversion_facade, "parse_params", stop_after_selection)
+    monkeypatch.setattr(compilation_module, "guess_software", infer)
+    monkeypatch.setattr(compilation_module, "parse_params", stop_after_selection)
 
     with pytest.raises(_StopAfterParserSelection):
         convert_from_packaged_rules(
-            data=tmp_path / "source.tsv",
+            data=_diann_v2().required_data_path(),
             level="ion",
             output=tmp_path / "out.h5ad",
             parameters_path=tmp_path / "parameters.txt",
@@ -348,14 +374,18 @@ def test_expected_subsystem_failure_becomes_one_conversion_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fail_parse_and_write(**_arguments: object) -> Never:
+    def fail_parse_and_write(*_arguments: object, **_keywords: object) -> Never:
         raise OSError("cannot write target")
 
-    monkeypatch.setattr(conversion_facade, "_parse_document_and_write", fail_parse_and_write)
+    monkeypatch.setattr(
+        conversion_application,
+        "_parse_and_write",
+        fail_parse_and_write,
+    )
 
     with pytest.raises(ConversionError, match="cannot write target"):
-        conversion_facade.convert_from_rule_config(
-            data=tmp_path / "source.tsv",
+        conversion_application.convert_from_rule_config(
+            data=_diann_v2().required_data_path(),
             level="ion",
             output=tmp_path / "out.h5ad",
             rule_config=_diann_v2().parser_v2_path,
@@ -369,14 +399,18 @@ def test_unexpected_subsystem_failure_remains_visible(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fail_parse_and_write(**_arguments: object) -> Never:
+    def fail_parse_and_write(*_arguments: object, **_keywords: object) -> Never:
         raise RuntimeError("implementation defect")
 
-    monkeypatch.setattr(conversion_facade, "_parse_document_and_write", fail_parse_and_write)
+    monkeypatch.setattr(
+        conversion_application,
+        "_parse_and_write",
+        fail_parse_and_write,
+    )
 
     with pytest.raises(RuntimeError, match="implementation defect"):
-        conversion_facade.convert_from_rule_config(
-            data=tmp_path / "source.tsv",
+        conversion_application.convert_from_rule_config(
+            data=_diann_v2().required_data_path(),
             level="ion",
             output=tmp_path / "out.h5ad",
             rule_config=_diann_v2().parser_v2_path,

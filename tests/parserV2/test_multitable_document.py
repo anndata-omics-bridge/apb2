@@ -11,7 +11,7 @@ import polars as pl
 import pytest
 from pydantic import ValidationError
 
-from apb2.parserV2.conversion_facade import (
+from apb2.command.conversion import (
     ConversionError,
     convert_all_from_rule_config,
     convert_from_rule_config,
@@ -201,7 +201,7 @@ def test_explicit_multitable_conversion_round_trips_in_canonical_order(
 
 
 @pytest.mark.parametrize("suffix", [".h5mu", ".parquet", ".duckdb"])
-def test_integer_measurements_round_trip_with_logical_type_and_float_matrix_dtype(
+def test_integer_measurements_round_trip_with_canonical_integer_dtype(
     tmp_path: Path, suffix: str
 ) -> None:
     payload = _payload()
@@ -225,8 +225,8 @@ def test_integer_measurements_round_trip_with_logical_type_and_float_matrix_dtyp
     representation = json.loads(sidecar_path(target).read_text(encoding="utf-8"))
     layers = [level["layers"][0] for level in representation["levels"]]
     assert [(layer["type"], layer["dtype"]) for layer in layers] == [
-        ("integer", "Float64"),
-        ("integer", "Float64"),
+        ("integer", "Int64"),
+        ("integer", "Int64"),
     ]
     result = read_parsed_levels(target)
     assert list(result.levels) == ["ion", "protein"]

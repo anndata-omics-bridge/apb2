@@ -13,13 +13,13 @@ from loguru import logger
 from polars.testing import assert_frame_equal
 
 from apb2.cli import app
-from apb2.parserV2 import prepare_source as preparation_module
-from apb2.parserV2.compile import ParquetOutput, compile_parsers
-from apb2.parserV2.conversion_facade import (
+from apb2.command.conversion import (
     ConversionError,
     convert_all_from_rule_config,
     convert_from_rule_config,
 )
+from apb2.parserV2 import prepare_source as preparation_module
+from apb2.parserV2.compile import ExplicitRuleCompiler
 from apb2.parserV2.detect_document import (
     UNKNOWN_SEARCH_PARAMETERS,
     AmbiguousRuleError,
@@ -111,25 +111,27 @@ def test_maxquant_higher_join_fanout_preserves_original_cells(tmp_path: Path) ->
     assert not any(column.startswith("evidence.") for column in joined.columns)
     source = PreparedTable(tmp_path, joined, "maxquant", (), 0.0)
     document = load_rule_document(RULES / "maxquant/rules.json")
-    parsed = {
-        parser.level: parser.parse()
-        for parser in compile_parsers(
-            document=document,
-            levels=("peptidoform", "peptide", "protein"),
-            parameter_evidence=UNKNOWN_SEARCH_PARAMETERS,
-            source=source,
-            output=ParquetOutput(),
+    parsed = (
+        ExplicitRuleCompiler(
+            document,
+            source,
+            ("peptidoform", "peptide", "protein"),
+            UNKNOWN_SEARCH_PARAMETERS,
+            checks="standard",
         )
-    }
+        .compile()
+        .parse()
+        .levels
+    )
     assert set(parsed) == {"peptidoform", "peptide", "protein"}
     protein = parsed["protein"]
     assert protein.obs.frame["Experiment"].to_list() == ["A", "B"]
     assert protein.layers["Intensity"].values.rows() == [
-        ("P", "100", "101"),
-        ("Q", "200", None),
-        ("UNMATCHED", "300", "301"),
+        ("P", 100.0, 101.0),
+        ("Q", 200.0, None),
+        ("UNMATCHED", 300.0, 301.0),
     ]
-    assert parsed["peptide"].layers["Intensity"].values.row(0)[1:] == ("25",)
+    assert parsed["peptide"].layers["Intensity"].values.row(0)[1:] == (25.0,)
 
 
 def test_maxquant_join_does_not_accept_evidence() -> None:
@@ -486,4 +488,4 @@ def test_cli_directory_joins_before_ion_conversion(tmp_path: Path) -> None:
         )
     assert result.value.code == 0
     parsed = read_parsed_levels(tmp_path / "output.parquet").levels["ion"]
-    assert parsed.layers["Intensity"].values.row(0)[1:] == ("12", None)
+    assert parsed.layers["Intensity"].values.row(0)[1:] == (12.0, None)

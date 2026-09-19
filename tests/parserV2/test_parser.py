@@ -15,11 +15,6 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-from apb2.parserV2.compile import (
-    make_raw_value_presence,
-    make_source_decomposer,
-    policy_for,
-)
 from apb2.parserV2.parse_quant.axis_columns import (
     CoalesceColumn,
     IntegerAxisCoercer,
@@ -30,6 +25,8 @@ from apb2.parserV2.parse_quant.contracts import (
     AxisPhaseRuntimePlan,
     AxisRuntimePlan,
     ColumnComputer,
+    LayerSetValidator,
+    LayerValueParser,
     ParsedLevelWriter,
     RawValuePresence,
     SelectedAxisColumn,
@@ -48,7 +45,9 @@ from apb2.parserV2.parse_quant.duplicates import DuplicateCellError
 from apb2.parserV2.parse_quant.parameters.axis import AxisKeyPlan, AxisSourcePlan
 from apb2.parserV2.parse_quant.parameters.measurements import (
     DuplicateMode,
+    LayerContractConfig,
     NullOnlyRawValuePresenceConfig,
+    PlainNumericLayerConfig,
     PlainNumericRawValuePresenceConfig,
 )
 from apb2.parserV2.parse_quant.parameters.source import (
@@ -61,12 +60,42 @@ from apb2.parserV2.parse_quant.parser import (
     CanonicalKeyCollisionError,
     Parser,
 )
+from apb2.parserV2.parser_factory import (
+    make_layer_validator,
+    make_layer_value_parser,
+    make_raw_value_presence,
+    make_source_decomposer,
+    policy_for,
+)
 
 DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
 DOT_NUMBERS = NumberNotation(decimal_mark=".", thousands_marks=())
 NULL_ONLY = make_raw_value_presence(
     NullOnlyRawValuePresenceConfig(kind="null_only", layer_name="Intensity")
 )
+
+
+def numeric_layer_parser(name: str) -> LayerValueParser:
+    return make_layer_value_parser(
+        PlainNumericLayerConfig(
+            kind="plain_numeric",
+            layer_name=name,
+            missing_values=(),
+            number_format=DOT,
+        )
+    )
+
+
+def layer_validator(primary: str) -> LayerSetValidator:
+    return make_layer_validator(
+        LayerContractConfig(
+            primary_layer_name=primary,
+            required_names=(primary,),
+            empty_ratio=0.001,
+            populated_ratio=0.5,
+        ),
+        "standard",
+    )
 
 
 def axis_source(
@@ -138,6 +167,8 @@ def parser_for(
         modification_normalizers=(),
         duplicates=policy_for(duplicates),
         raw_value_presence=presence or {name: NULL_ONLY for name, _ in layers},
+        layer_parsers={name: numeric_layer_parser(name) for name, _source in layers},
+        layer_validator=layer_validator(layers[0][0]),
         writer=writer or Writer(),
         provenance={"software_name": "Synthetic", "quantification_level": "ion"},
     )
@@ -230,13 +261,21 @@ def test_parse_runs_its_collaborators_in_the_documented_order() -> None:
         modification_normalizers=(Normalizer(),),
         duplicates=Policy(),
         raw_value_presence={"Intensity": Presence()},
+        layer_parsers={"Intensity": numeric_layer_parser("Intensity")},
+        layer_validator=layer_validator("Intensity"),
         writer=Writer(),
         provenance={},
     )
 
     parsed = parser.parse()
 
-    assert calls == ["read", "decompose", "normalize", "resolve", "present"]
+    assert calls == [
+        "read",
+        "decompose",
+        "normalize",
+        "resolve",
+        "present",
+    ]
     assert parsed.primary_layer_name == "Intensity"
     assert parsed.uns["unknown_mod_tokens"] == ["Mystery@M", "Other@C"]
 
@@ -264,6 +303,8 @@ def test_convert_writes_the_result_it_is_given_and_parses_nothing(tmp_path: Path
         modification_normalizers=(),
         duplicates=policy_for("error"),
         raw_value_presence={},
+        layer_parsers={},
+        layer_validator=layer_validator("Intensity"),
         writer=writer,
         provenance={},
     )
@@ -681,7 +722,6 @@ def test_a_parsed_level_is_a_direct_composition_and_keeps_no_key_map() -> None:
         "obsp",
         "varp",
         "metadata",
-        "matrix_values_projected",
     }
     assert parsed.uns == {"software_name": "Synthetic", "quantification_level": "ion"}
     assert isinstance(parsed.obs.frame, pl.DataFrame)
@@ -726,6 +766,8 @@ def test_the_parser_holds_only_configured_behaviour() -> None:
         "_modification_normalizers",
         "_duplicates",
         "_raw_value_presence",
+        "_layer_parsers",
+        "_layer_validator",
         "_writer",
         "_provenance",
     }
@@ -787,6 +829,8 @@ def test_a_derived_column_of_the_wrong_length_fails_at_the_boundary() -> None:
         modification_normalizers=(Shrinking(),),
         duplicates=policy_for("error"),
         raw_value_presence={"Intensity": NULL_ONLY},
+        layer_parsers={"Intensity": numeric_layer_parser("Intensity")},
+        layer_validator=layer_validator("Intensity"),
         writer=Writer(),
         provenance={},
     )

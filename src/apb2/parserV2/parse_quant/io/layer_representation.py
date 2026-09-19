@@ -4,15 +4,64 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from functools import singledispatch
 from typing import Literal, cast
 
 import polars as pl
 
-from apb2.parserV2.parse_quant.data.parsed import JsonValue
+from apb2.parserV2.parse_quant.data.parsed import (
+    CategoricalLayerSemantics,
+    FinalLayerSemantics,
+    JsonValue,
+    QuantitativeLayerSemantics,
+)
 
 OBSERVATION_SUMMARY_LIMIT = 100
 QUANTILE_SAMPLE_LIMIT = 100_000
 QUARTILE_INTERPOLATION = "linear"
+
+
+@singledispatch
+def represent_semantics(
+    semantics: FinalLayerSemantics,
+    values: pl.DataFrame,
+    /,
+    *,
+    observation_limit: int,
+) -> dict[str, JsonValue]:
+    """Describe canonical values according to their attached semantics."""
+    raise TypeError(f"unsupported layer semantics {type(semantics).__name__}")
+
+
+@represent_semantics.register
+def represent_quantitative_semantics(
+    semantics: QuantitativeLayerSemantics,
+    values: pl.DataFrame,
+    /,
+    *,
+    observation_limit: int,
+) -> dict[str, JsonValue]:
+    return quantitative_representation(
+        values,
+        logical_type=semantics.logical_type,
+        observation_limit=observation_limit,
+    )
+
+
+@represent_semantics.register
+def represent_categorical_semantics(
+    semantics: CategoricalLayerSemantics,
+    values: pl.DataFrame,
+    /,
+    *,
+    observation_limit: int,
+) -> dict[str, JsonValue]:
+    del observation_limit
+    return categorical_representation(
+        values,
+        category_count=len(semantics.categories),
+        valid_codes=tuple(code for _label, code in semantics.categories),
+    )
 
 
 def quantitative_representation(

@@ -3,36 +3,18 @@
 What these tests are for is the claim the whole architecture rests on — that after compilation
 no object knows what vendor, level, layout, encoding, duplicate mode, or output format it came
 from. So they check the registries for coverage, the constructed graph for tags, and
-``compile_parsers`` for the ordering and skipping behaviour a multi-level caller relies on.
+the compiler objects for the ordering and skipping behaviour a multi-level caller relies on.
 """
 
 from __future__ import annotations
 
 import dataclasses
 from pathlib import Path
-from typing import get_args
+from typing import Literal, get_args
 
 import pytest
 
-from apb2.parserV2.compile import (
-    AnnDataOutput,
-    NoCompatibleLevelError,
-    ParquetOutput,
-    ParseRuleCompiler,
-    compile_mudata_parsers,
-    compile_parsers,
-    header_predicate,
-    make_anndata_layer_contract_checker,
-    make_anndata_layer_encoder,
-    make_axis_coercer,
-    make_column_computer,
-    make_fragment_table_separator,
-    make_modification_normalizer,
-    make_parsed_level_writer,
-    make_raw_value_presence,
-    make_source_decomposer,
-    policy_for,
-)
+from apb2.parserV2.compile import ExplicitRuleCompiler
 from apb2.parserV2.parse_quant.axis_columns import (
     BooleanAxisCoercer,
     CoalesceColumn,
@@ -62,16 +44,7 @@ from apb2.parserV2.parse_quant.fragments import (
     ColumnLabeledFragmentTableSeparator,
     PositionalFragmentTableSeparator,
 )
-from apb2.parserV2.parse_quant.io.anndata_writer import (
-    AnnDataWriter,
-    FactorAnnDataEncoder,
-    MuDataWriter,
-    PlainNumericAnnDataEncoder,
-    RegexNumericAnnDataEncoder,
-    StandardAnnDataLayerContract,
-    StrictAnnDataLayerContract,
-)
-from apb2.parserV2.parse_quant.io.parquet_writer import ParquetWriter
+from apb2.parserV2.parse_quant.layer_validation import LayerContractValidator
 from apb2.parserV2.parse_quant.modifications import SiteListNormalizer, TokenRegexNormalizer
 from apb2.parserV2.parse_quant.parameters.axis import (
     AxisKeyPlan,
@@ -88,18 +61,18 @@ from apb2.parserV2.parse_quant.parameters.axis import (
 )
 from apb2.parserV2.parse_quant.parameters.measurements import (
     DuplicateMode,
-    FactorAnnDataEncodingConfig,
+    FactorLayerConfig,
+    LayerContractConfig,
     NullOnlyRawValuePresenceConfig,
-    PlainNumericAnnDataEncodingConfig,
+    PlainNumericLayerConfig,
     PlainNumericRawValuePresenceConfig,
-    RegexNumericAnnDataEncodingConfig,
+    RegexNumericLayerConfig,
     RegexNumericRawValuePresenceConfig,
 )
-from apb2.parserV2.parse_quant.parameters.resolved import ResolvedLevelPlan
 from apb2.parserV2.parse_quant.parameters.source import (
     ColumnLabeledFragmentSeparationConfig,
     DelimitedFragmentDecompositionConfig,
-    DelimitedSourceEvidence,
+    InputSource,
     LongDecompositionConfig,
     LongRawLayerSource,
     NumericTextFormat,
@@ -110,7 +83,25 @@ from apb2.parserV2.parse_quant.parameters.source import (
     WideRawLayerSource,
 )
 from apb2.parserV2.parse_quant.parser import Parser
+from apb2.parserV2.parse_quant.value_parsing import (
+    FactorLayerParser,
+    PlainNumericLayerParser,
+    RegexNumericLayerParser,
+)
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
+from apb2.parserV2.parser_factory import (
+    compile_level,
+    make_axis_coercer,
+    make_column_computer,
+    make_fragment_table_separator,
+    make_layer_validator,
+    make_layer_value_parser,
+    make_modification_normalizer,
+    make_raw_value_presence,
+    make_source_decomposer,
+    policy_for,
+)
+from apb2.parserV2.source_binding import header_predicate
 from apb2.parserV2.vendor_parse_rules.document import make_rule_document
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import LEVELS, SCHEMA_VERSION
@@ -243,33 +234,33 @@ def test_every_presence_declaration_names_one_strategy(config: object, expected:
     ("config", "expected"),
     [
         (
-            PlainNumericAnnDataEncodingConfig(
+            PlainNumericLayerConfig(
                 kind="plain_numeric", layer_name="L", missing_values=(), number_format=DOT
             ),
-            PlainNumericAnnDataEncoder,
+            PlainNumericLayerParser,
         ),
         (
-            RegexNumericAnnDataEncodingConfig(
+            RegexNumericLayerConfig(
                 kind="regex_numeric",
                 layer_name="L",
                 missing_values=(),
                 pattern=r"(\d+)",
                 number_format=DOT,
             ),
-            RegexNumericAnnDataEncoder,
+            RegexNumericLayerParser,
         ),
         (
-            FactorAnnDataEncodingConfig(kind="factor", layer_name="L", categories=(("a", 0),)),
-            FactorAnnDataEncoder,
+            FactorLayerConfig(kind="factor", layer_name="L", categories=(("a", 0),)),
+            FactorLayerParser,
         ),
     ],
     ids=lambda value: getattr(value, "kind", getattr(value, "__name__", "")),
 )
-def test_every_encoding_declaration_names_one_encoder(config: object, expected: type) -> None:
-    encoder = make_anndata_layer_encoder(config)  # pyright: ignore[reportArgumentType]
+def test_every_value_declaration_names_one_layer_parser(config: object, expected: type) -> None:
+    parser = make_layer_value_parser(config)  # pyright: ignore[reportArgumentType]
 
-    assert isinstance(encoder, expected)
-    assert not hasattr(encoder, "kind")
+    assert isinstance(parser, expected)
+    assert not hasattr(parser, "kind")
 
 
 def test_every_modification_declaration_names_one_normalizer() -> None:
@@ -374,55 +365,21 @@ def test_every_physical_shape_names_one_decomposer() -> None:
         assert not hasattr(decomposer, "config")
 
 
-def test_the_output_declaration_selects_one_writer_and_is_not_kept() -> None:
-    resolved = _resolved_plan()
-
-    parquet = make_parsed_level_writer(ParquetOutput(), resolved)
-    standard = make_parsed_level_writer(AnnDataOutput(), resolved)
-    strict = make_parsed_level_writer(AnnDataOutput(checks="strict"), resolved)
-
-    assert isinstance(parquet, ParquetWriter)
-    assert isinstance(standard, AnnDataWriter)
-    assert isinstance(standard.contract, StandardAnnDataLayerContract)
-    assert isinstance(strict, AnnDataWriter)
-    assert isinstance(strict.contract, StrictAnnDataLayerContract)
-    assert not hasattr(parquet, "checks")
-
-
-def test_a_parquet_compile_constructs_no_annData_collaborator() -> None:
-    resolved = _resolved_plan()
-
-    writer = make_parsed_level_writer(ParquetOutput(), resolved)
-
-    assert not hasattr(writer, "encoders")
-    assert not hasattr(writer, "contract")
-
-
-def test_the_contract_checker_carries_the_resolved_occupancy_policy() -> None:
-    resolved = _resolved_plan()
-
-    checker = make_anndata_layer_contract_checker(resolved.ann_data, "standard")
-
-    assert isinstance(checker, StandardAnnDataLayerContract)
-    assert checker.policy.primary_layer_name == "Quantity"
-    assert checker.policy.required_names == ("Quantity",)
-
-
-def _resolved_plan() -> ResolvedLevelPlan:
-    """One resolved plan for the smallest rule there is, for the factories to consume."""
-    document = synthetic.long_document(
-        obs_select={"sample": "Sample"}, var_select={"Feature": "Feature"}
+def test_checks_configure_a_separate_layer_set_validator() -> None:
+    config = LayerContractConfig(
+        primary_layer_name="Quantity",
+        required_names=("Quantity",),
+        empty_ratio=0.001,
+        populated_ratio=0.5,
     )
-    facade = synthetic.facade(document)
-    return facade.resolve_source(
-        DelimitedSourceEvidence(
-            columns=("Sample", "Feature", "Quantity"),
-            delimiter="\t",
-            quote_char='"',
-            encoding="utf8",
-            number_format=DOT,
-        )
-    )
+
+    standard = make_layer_validator(config, "standard")
+    strict = make_layer_validator(config, "strict")
+
+    assert isinstance(standard, LayerContractValidator)
+    assert isinstance(strict, LayerContractValidator)
+    assert standard.strict is False
+    assert strict.strict is True
 
 
 # --------------------------------------------------------------------------- one compilation
@@ -442,13 +399,13 @@ def test_one_level_compiles_into_a_complete_parser(tmp_path: Path) -> None:
     path = written(tmp_path, ("Sample", "Feature", "Quantity"), ("A", "F1", "1.5"))
     facade = synthetic.facade(document)
 
-    parser = ParseRuleCompiler(facade=facade, output=ParquetOutput()).compile(SingleFile(path=path))
+    parser = compile_level(facade, SingleFile(path=path), "standard")
     parsed = parser.parse()
 
     assert isinstance(parser, Parser)
     assert parser.level == "ion"
     assert parsed.obs.frame.to_dicts() == [{"sample": "A"}]
-    assert parsed.layers["Quantity"].values.get_column("obs_0").to_list() == ["1.5"]
+    assert parsed.layers["Quantity"].values.get_column("obs_0").to_list() == [1.5]
 
 
 def test_compilation_injects_the_detected_number_notation_into_axis_coercers(
@@ -498,10 +455,7 @@ def test_compilation_injects_the_detected_number_notation_into_axis_coercers(
         ("A", "F1", "23,451117", "10,5"),
     )
 
-    parser = ParseRuleCompiler(
-        facade=synthetic.facade(document),
-        output=ParquetOutput(),
-    ).compile(SingleFile(path=path))
+    parser = compile_level(synthetic.facade(document), SingleFile(path=path), "standard")
     parsed = parser.parse()
 
     assert parsed.var.frame.get_column("Score").to_list() == [23.451117]
@@ -523,9 +477,7 @@ def test_compilation_resolves_the_source_exactly_once(
     )
     path = written(tmp_path, ("Sample", "Feature", "Quantity"), ("A", "F1", "1.5"))
 
-    ParseRuleCompiler(facade=synthetic.facade(document), output=ParquetOutput()).compile(
-        SingleFile(path=path)
-    )
+    compile_level(synthetic.facade(document), SingleFile(path=path), "standard")
 
     assert calls == ["resolve_source"]
 
@@ -538,9 +490,7 @@ def test_a_compiled_parser_holds_no_registry_and_no_output_declaration(
     )
     path = written(tmp_path, ("Sample", "Feature", "Quantity"), ("A", "F1", "1.5"))
 
-    parser = ParseRuleCompiler(facade=synthetic.facade(document), output=AnnDataOutput()).compile(
-        SingleFile(path=path)
-    )
+    parser = compile_level(synthetic.facade(document), SingleFile(path=path), "standard")
 
     held = {name: getattr(parser, name) for name in Parser.__slots__}
     assert not any(isinstance(value, dict) and "kind" in value for value in held.values())
@@ -552,113 +502,127 @@ def test_a_compiled_parser_holds_no_registry_and_no_output_declaration(
 # ------------------------------------------------------------------------- several levels
 
 
-def test_several_levels_return_a_list_in_canonical_order() -> None:
+def test_several_levels_return_one_collection_in_canonical_order() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1_8")
     document = load_rule_document(pair.parser_v2_path)
-    path = pair.required_data_path()
+    source = SingleFile(path=pair.required_data_path())
+    parser = ExplicitRuleCompiler(
+        document,
+        source,
+        ("protein", "ion"),
+        synthetic.NO_EVIDENCE,
+        checks="standard",
+    ).compile()
+    parsed = parser.parse()
 
-    parsers = compile_parsers(
-        document=document,
-        levels=("protein", "ion"),
-        parameter_evidence=synthetic.NO_EVIDENCE,
-        source=SingleFile(path=path),
-        output=ParquetOutput(),
-    )
-
-    assert [parser.level for parser in parsers] == ["ion", "protein"]
+    assert list(parsed.levels) == ["ion", "protein"]
     assert LEVELS.index("ion") < LEVELS.index("protein")
 
 
-def test_mudata_compilation_retains_each_parsers_configured_anndata_writer() -> None:
+def test_each_detection_selection_is_compiled_exactly_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1_8")
     document = load_rule_document(pair.parser_v2_path)
-    path = pair.required_data_path()
+    source = SingleFile(path=pair.required_data_path())
+    compiled: list[str] = []
+    from apb2.parserV2 import compile as compilation
 
-    parsers, writer = compile_mudata_parsers(
-        document=document,
-        levels=("protein", "ion"),
-        parameter_evidence=synthetic.NO_EVIDENCE,
-        source=SingleFile(path=path),
+    original_compile = compilation.compile_level
+
+    def record_compile(
+        facade: ParseRuleFacade,
+        selected_source: InputSource,
+        checks: Literal["standard", "strict"],
+    ) -> Parser:
+        compiled.append(facade.working_parameters.level)
+        return original_compile(facade, selected_source, checks)
+
+    monkeypatch.setattr(compilation, "compile_level", record_compile)
+
+    ExplicitRuleCompiler(
+        document,
+        source,
+        ("ion", "protein"),
+        synthetic.NO_EVIDENCE,
         checks="standard",
-    )
+    ).compile()
 
-    assert isinstance(writer, MuDataWriter)
-    assert [parser.level for parser in parsers] == ["ion", "protein"]
-    assert list(writer.level_writers) == ["ion", "protein"]
+    assert compiled == ["ion", "protein"]
+
+
+def test_collection_parser_has_no_persistence_api() -> None:
+    pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1_8")
+    document = load_rule_document(pair.parser_v2_path)
+    source = SingleFile(path=pair.required_data_path())
+    parser = ExplicitRuleCompiler(
+        document,
+        source,
+        ("ion", "protein"),
+        synthetic.NO_EVIDENCE,
+        checks="standard",
+    ).compile()
+
+    assert not hasattr(parser, "convert")
+    assert parser.parse().uns == {}
 
 
 def test_an_incompatible_level_does_not_poison_the_compatible_ones() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "spectronaut")
     document = load_rule_document(pair.parser_v2_path)
-    path = pair.required_data_path()
-
-    parsers = compile_parsers(
-        document=document,
-        levels=document.levels,
-        parameter_evidence=synthetic.NO_EVIDENCE,
-        source=SingleFile(path=path),
-        output=ParquetOutput(),
-    )
+    source = SingleFile(path=pair.required_data_path())
+    parser = ExplicitRuleCompiler(
+        document,
+        source,
+        document.levels,
+        synthetic.NO_EVIDENCE,
+        checks="standard",
+    ).compile()
 
     # The cached export carries no fragment columns; the other two levels still compile.
-    assert [parser.level for parser in parsers] == ["ion", "protein"]
+    assert list(parser.parse().levels) == ["ion", "protein"]
 
 
-def test_a_source_that_satisfies_nothing_says_so_and_names_every_reason(
-    tmp_path: Path,
-) -> None:
+def test_an_empty_selection_fails_explicitly() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1_8")
-    document = load_rule_document(pair.parser_v2_path)
-    path = written(tmp_path, ("Unrelated",), ("x",))
-
-    with pytest.raises(NoCompatibleLevelError) as error:
-        compile_parsers(
-            document=document,
-            levels=document.levels,
-            parameter_evidence=synthetic.NO_EVIDENCE,
-            source=SingleFile(path=path),
-            output=ParquetOutput(),
+    with pytest.raises(ValueError, match="at least one quantification level"):
+        ExplicitRuleCompiler(
+            load_rule_document(pair.parser_v2_path),
+            SingleFile(path=pair.required_data_path()),
+            (),
+            synthetic.NO_EVIDENCE,
+            checks="standard",
         )
-
-    assert "ion" in str(error.value)
-    assert "protein" in str(error.value)
 
 
 def test_a_gated_level_is_skipped_without_evidence_that_admits_it() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "sage")
     document = load_rule_document(pair.parser_v2_path)
-    path = pair.required_data_path()
+    source = SingleFile(path=pair.required_data_path())
     combined = dataclasses.replace(synthetic.NO_EVIDENCE, combine_charge_states=True)
+    parser = ExplicitRuleCompiler(
+        document,
+        source,
+        document.levels,
+        combined,
+        checks="standard",
+    ).compile()
 
-    parsers = compile_parsers(
-        document=document,
-        levels=document.levels,
-        parameter_evidence=combined,
-        source=SingleFile(path=path),
-        output=ParquetOutput(),
-    )
-
-    assert [parser.level for parser in parsers] == ["peptidoform"]
+    assert list(parser.parse().levels) == ["peptidoform"]
 
 
-def test_each_level_of_one_document_gets_its_own_strategy_graph() -> None:
+def test_duplicate_selections_fail_before_compilation() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1_8")
     document = load_rule_document(pair.parser_v2_path)
-    path = pair.required_data_path()
-
-    parsers = compile_parsers(
-        document=document,
-        levels=("ion", "protein"),
-        parameter_evidence=synthetic.NO_EVIDENCE,
-        source=SingleFile(path=path),
-        output=ParquetOutput(),
-    )
-    first, second = parsers
-
-    for name in Parser.__slots__:
-        if name == "level":
-            continue
-        assert getattr(first, name) is not getattr(second, name) or name in {"_writer"}
+    source = SingleFile(path=pair.required_data_path())
+    with pytest.raises(ValueError, match="duplicate quantification levels"):
+        ExplicitRuleCompiler(
+            document,
+            source,
+            ("ion", "ion"),
+            synthetic.NO_EVIDENCE,
+            checks="standard",
+        )
 
 
 # ---------------------------------------------------------------------- the header predicate

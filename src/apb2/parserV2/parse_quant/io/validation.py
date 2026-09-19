@@ -6,9 +6,11 @@ import polars as pl
 
 from apb2.parserV2.parse_quant.data.parsed import (
     AnnotationTable,
+    CategoricalLayerSemantics,
     FeatureRelation,
     ParsedLevel,
     ParsedLevels,
+    QuantitativeLayerSemantics,
 )
 from apb2.parserV2.parse_quant.io.errors import InvalidResultError
 
@@ -75,10 +77,69 @@ def validate_parsed_level(name: str, parsed: ParsedLevel, /) -> None:
                 f"level {name!r} layer {layer_name!r} has {value_count} observation "
                 f"columns; obs has {parsed.obs.frame.height} rows"
             )
+        _validate_layer_values(
+            name,
+            layer_name,
+            layer.values.select(layer.values.columns[len(layer.var_key_columns) :]),
+            layer.semantics,
+        )
     _validate_aligned(name, "obsm", parsed.obsm, parsed.obs.frame.height)
     _validate_aligned(name, "varm", parsed.varm, parsed.var.frame.height)
     _validate_pairwise(name, "obsp", parsed.obsp, parsed.obs.frame.height)
     _validate_pairwise(name, "varp", parsed.varp, parsed.var.frame.height)
+
+
+def _validate_layer_values(
+    level: str,
+    layer: str,
+    values: pl.DataFrame,
+    semantics: QuantitativeLayerSemantics | CategoricalLayerSemantics,
+    /,
+) -> None:
+    if isinstance(semantics, QuantitativeLayerSemantics):
+        nonnumeric = [
+            name
+            for name, dtype in values.schema.items()
+            if dtype != pl.Null and not dtype.is_numeric()
+        ]
+        if nonnumeric:
+            raise InvalidResultError(
+                f"level {level!r} quantitative layer {layer!r} is not numeric in "
+                f"column(s) {nonnumeric}"
+            )
+        if semantics.logical_type == "integer":
+            for column in values.get_columns():
+                if (
+                    column.dtype.is_float()
+                    and (
+                        column.is_not_null()
+                        & ~column.is_nan().fill_null(False)
+                        & (column != column.floor()).fill_null(False)
+                    ).any()
+                ):
+                    raise InvalidResultError(
+                        f"level {level!r} integer layer {layer!r} contains fractional values"
+                    )
+        return
+    noninteger = [
+        name for name, dtype in values.schema.items() if dtype != pl.Null and not dtype.is_integer()
+    ]
+    if noninteger:
+        raise InvalidResultError(
+            f"level {level!r} categorical layer {layer!r} is not integer-coded in "
+            f"column(s) {noninteger}"
+        )
+    valid = [code for _label, code in semantics.categories]
+    if semantics.missing_code in valid:
+        raise InvalidResultError(
+            f"level {level!r} categorical layer {layer!r} reuses its missing code"
+        )
+    for column in values.get_columns():
+        invalid = column.is_not_null() & ~column.is_in([*valid, semantics.missing_code])
+        if invalid.any():
+            raise InvalidResultError(
+                f"level {level!r} categorical layer {layer!r} contains undeclared codes"
+            )
 
 
 def _validate_axis_keys(

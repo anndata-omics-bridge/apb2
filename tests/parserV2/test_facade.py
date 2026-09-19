@@ -24,11 +24,10 @@ from apb2.parserV2.parse_quant.parameters.axis import (
     TokenRegexModificationConfig,
 )
 from apb2.parserV2.parse_quant.parameters.measurements import (
-    AnnDataLayerContractConfig,
-    AnnDataSerializationConfig,
-    FactorAnnDataEncodingConfig,
+    FactorLayerConfig,
+    LayerContractConfig,
     NullOnlyRawValuePresenceConfig,
-    PlainNumericAnnDataEncodingConfig,
+    PlainNumericLayerConfig,
     PlainNumericRawValuePresenceConfig,
     RegexNumericRawValuePresenceConfig,
 )
@@ -244,21 +243,19 @@ def test_the_alphadia_wide_ion_level_resolves_exactly_as_specified() -> None:
             number_format=NUMBERS,
         ),
     )
-    assert resolved.ann_data == AnnDataSerializationConfig(
-        layer_encodings=(
-            PlainNumericAnnDataEncodingConfig(
-                kind="plain_numeric",
-                layer_name="Intensity",
-                missing_values=(0.0,),
-                number_format=NUMBERS,
-            ),
+    assert resolved.layer_values == (
+        PlainNumericLayerConfig(
+            kind="plain_numeric",
+            layer_name="Intensity",
+            missing_values=(0.0,),
+            number_format=NUMBERS,
         ),
-        layer_contract=AnnDataLayerContractConfig(
-            primary_layer_name="Intensity",
-            required_names=("Intensity",),
-            empty_ratio=0.001,
-            populated_ratio=0.5,
-        ),
+    )
+    assert resolved.layer_contract == LayerContractConfig(
+        primary_layer_name="Intensity",
+        required_names=("Intensity",),
+        empty_ratio=0.001,
+        populated_ratio=0.5,
     )
 
 
@@ -660,7 +657,7 @@ def test_a_required_wide_layer_matching_only_other_samples_stays_as_an_empty_lay
     plans = {plan.name: plan for plan in decomposition.layer_plans}
 
     assert plans["Count"].sources == ()
-    assert resolved.ann_data.layer_contract.required_names == ("Intensity", "Count")
+    assert resolved.layer_contract.required_names == ("Intensity", "Count")
 
 
 def test_a_required_wide_layer_with_no_match_at_all_is_incompatible() -> None:
@@ -709,7 +706,7 @@ def test_an_optional_long_layer_absent_from_the_header_is_omitted() -> None:
     assert isinstance(decomposition, LongDecompositionConfig)
 
     assert [source.name for source in decomposition.layer_sources] == ["Quantity"]
-    assert resolved.ann_data.layer_contract.required_names == ("Quantity",)
+    assert resolved.layer_contract.required_names == ("Quantity",)
     assert resolved.provenance["layer_roles"] == {"abundance": ["Quantity"]}
 
 
@@ -747,7 +744,7 @@ def test_layers_keep_their_authored_order_across_the_required_split() -> None:
         "Quantity",
         "Last",
     ]
-    assert [config.layer_name for config in resolved.ann_data.layer_encodings] == [
+    assert [config.layer_name for config in resolved.layer_values] == [
         "First",
         "Quantity",
         "Last",
@@ -783,13 +780,13 @@ def test_each_layer_declaration_projects_into_a_presence_and_an_encoding() -> No
         delimited(("Sample", "Feature", "Quantity", "Plain", "Structured", "Kind"))
     )
     presence = {config.layer_name: config for config in resolved.raw_value_presence}
-    encodings = {config.layer_name: config for config in resolved.ann_data.layer_encodings}
+    encodings = {config.layer_name: config for config in resolved.layer_values}
 
     assert isinstance(presence["Quantity"], PlainNumericRawValuePresenceConfig)
     assert isinstance(presence["Plain"], NullOnlyRawValuePresenceConfig)
     assert isinstance(presence["Structured"], RegexNumericRawValuePresenceConfig)
     assert isinstance(presence["Kind"], NullOnlyRawValuePresenceConfig)
-    assert isinstance(encodings["Kind"], FactorAnnDataEncodingConfig)
+    assert isinstance(encodings["Kind"], FactorLayerConfig)
     assert encodings["Kind"].categories == (("a", 0), ("b", 1))
     # Every measurement keeps its tokens; only an aggregating rule reads them as numbers.
     assert {"Kind", "Structured", "Plain", "Quantity"} <= resolved.read.text_sources
@@ -917,7 +914,8 @@ def test_a_resolved_plan_carries_every_field_the_compiler_destructures() -> None
         "modifications",
         "duplicate_mode",
         "raw_value_presence",
-        "ann_data",
+        "layer_values",
+        "layer_contract",
         "provenance",
     }
     assert all(getattr(resolved, field) is not None for field in ("read", "decomposition"))

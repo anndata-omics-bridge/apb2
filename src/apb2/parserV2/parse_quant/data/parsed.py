@@ -1,8 +1,8 @@
-"""The result of one parse: final axes, final wide layers, and their composition.
+"""The result of one parse: final axes, canonical layers, and their composition.
 
-Layer values are still Polars scalars exactly as the vendor wrote them. Encoding them for a
-backend is the writer's business, which is why this module knows nothing about matrices,
-pandas indexes, or AnnData.
+Layer values have already been converted to their declared numeric or categorical meaning.
+Writers only map these storage-neutral values into a physical backend, which is why this
+module knows nothing about matrices, pandas indexes, or AnnData.
 
 ``JsonScalar`` and ``JsonValue`` are declared here rather than imported: provenance crosses
 this boundary as data, and a shared parent module holding the alias would force this child
@@ -21,6 +21,7 @@ import polars as pl
 type JsonScalar = bool | int | float | str | None
 type JsonValue = JsonScalar | list[JsonValue] | dict[str, JsonValue]
 type ParsedLevelName = Literal["ion", "peptidoform", "peptide", "protein", "fragment"]
+type NumericLayerType = Literal["number", "integer"]
 
 LEVEL_ORDER: tuple[ParsedLevelName, ...] = (
     "ion",
@@ -104,9 +105,31 @@ class AuxiliaryLayerRole:
 type FinalLayerRole = MeasurementLayerRole | AuxiliaryLayerRole
 
 
+@dataclass(frozen=True, slots=True)
+class QuantitativeLayerSemantics:
+    """A canonical numeric layer and its declared scientific number type."""
+
+    logical_type: NumericLayerType = "number"
+
+
+@dataclass(frozen=True, slots=True)
+class CategoricalLayerSemantics:
+    """Canonical category codes together with their stable label mapping."""
+
+    categories: tuple[tuple[str, int], ...]
+    missing_code: int = -1
+
+    def __post_init__(self) -> None:
+        if self.missing_code in {code for _label, code in self.categories}:
+            raise ValueError(f"categorical missing code {self.missing_code} is reserved")
+
+
+type FinalLayerSemantics = QuantitativeLayerSemantics | CategoricalLayerSemantics
+
+
 @dataclass(slots=True)
 class FinalLayerTable:
-    """One matrix layer aligned to the final axes, its raw scalars still unencoded."""
+    """One canonical matrix layer aligned to the final axes."""
 
     layer_name: str
     # "Intensity"
@@ -124,6 +147,9 @@ class FinalLayerTable:
 
     role: FinalLayerRole = field(default_factory=MeasurementLayerRole)
     # MeasurementLayerRole()
+
+    semantics: FinalLayerSemantics = field(default_factory=QuantitativeLayerSemantics)
+    # QuantitativeLayerSemantics(logical_type="number")
 
 
 @dataclass(slots=True)
@@ -160,9 +186,6 @@ class ParsedLevel:
     metadata: dict[str, JsonValue] = field(default_factory=dict)
     # {"annotation": {"prolfquapp": {"schema_version": "1"}}}
 
-    matrix_values_projected: bool = False
-    # True after a matrix backend has decoded vendor values into their numeric representation.
-
 
 @dataclass(slots=True)
 class AnnotationTable:
@@ -191,7 +214,7 @@ class ParsedLevels:
     # {"ion": ion_parsed_level, "protein": protein_parsed_level}
 
     uns: dict[str, JsonValue]
-    # {"produced_by": "apb2", "rule_selection_method": "software_version"}
+    # Empty after vendor parsing; later collection-level operations may add provenance.
 
     metadata: dict[str, JsonValue] = field(default_factory=dict)
     # Post-parse sections persisted beside, never inside, APB's parse provenance.

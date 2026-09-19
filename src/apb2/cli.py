@@ -11,7 +11,7 @@ from cyclopts import App, Parameter
 from loguru import logger
 
 from apb2 import annotation_facade
-from apb2.parserV2 import conversion_facade
+from apb2.command import conversion
 
 app = App(name="apb2", help="Rules-driven vendor-result conversion", help_on_error=True)
 
@@ -41,7 +41,7 @@ _MULTI_LEVEL_SUFFIX = {"hdf5": ".h5mu", "parquet": ".parquet", "duckdb": ".duckd
 @app.command
 def convert(
     data: Path,
-    level: conversion_facade.QuantificationLevel | None = None,
+    level: conversion.QuantificationLevel | None = None,
     options: Annotated[ConvertCliOptions, Parameter(name="*")] = DEFAULT_CONVERT_CLI_OPTIONS,
 ) -> int:
     """Convert one vendor table or result directory.
@@ -78,7 +78,7 @@ def convert(
     try:
         if options.rule_config is not None:
             if level is None:
-                result = conversion_facade.convert_all_from_rule_config(
+                result = conversion.convert_all_from_rule_config(
                     data=data,
                     output=output,
                     rule_config=options.rule_config,
@@ -87,7 +87,7 @@ def convert(
                     checks=checks,
                 )
             else:
-                result = conversion_facade.convert_from_rule_config(
+                result = conversion.convert_from_rule_config(
                     data=data,
                     level=level,
                     output=output,
@@ -101,7 +101,7 @@ def convert(
                 logger.error("pass --params (it gives the software version) or --rule-config PATH")
                 return 1
             if level is None:
-                result = conversion_facade.convert_all_from_packaged_rules(
+                result = conversion.convert_all_from_packaged_rules(
                     data=data,
                     output=output,
                     parameters_path=options.params,
@@ -110,7 +110,7 @@ def convert(
                     checks=checks,
                 )
             else:
-                result = conversion_facade.convert_from_packaged_rules(
+                result = conversion.convert_from_packaged_rules(
                     data=data,
                     level=level,
                     output=output,
@@ -124,7 +124,7 @@ def convert(
                 result.software,
                 result.version or "missing",
             )
-    except conversion_facade.ConversionError as error:
+    except conversion.ConversionError as error:
         logger.error(str(error))
         return 1
     _log_result(result)
@@ -135,8 +135,8 @@ def convert(
 def reformat(source: Path, target: Path) -> int:
     """Convert one APB2-authored result between h5ad, h5mu, Parquet, and DuckDB."""
     try:
-        conversion_facade.reformat_result(source, target)
-    except (conversion_facade.ReformatError, OSError) as error:
+        conversion.reformat_result(source, target)
+    except (conversion.ReformatError, OSError) as error:
         logger.error(str(error))
         return 1
     return 0
@@ -182,7 +182,7 @@ def annotate(
     return 0
 
 
-def _log_result(result: conversion_facade.ConversionSummary) -> None:
+def _log_result(result: conversion.ConversionSummary) -> None:
     for level in result.levels:
         logger.info(
             "level={} shape=({}, {}) layers={}",

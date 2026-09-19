@@ -1,20 +1,22 @@
-"""PEAKS settings are persisted metadata, never conversion-time measurement filters."""
+"""PEAKS settings select rules but never filter measurements or enter parsed provenance."""
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
 from polars.testing import assert_frame_equal
 
-from apb2.parserV2.conversion_facade import convert_all_from_packaged_rules
+from apb2.command.conversion import convert_all_from_packaged_rules
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels
 from parserV2.fixtures import committed_sample
 
 
 @pytest.mark.parametrize("suffix", [".h5ad", ".h5mu", ".parquet", ".duckdb"])
-def test_peaks_fdr_metadata_roundtrips_without_filtering(tmp_path: Path, suffix: str) -> None:
+def test_peaks_fdr_does_not_filter_or_enter_parsed_provenance(
+    tmp_path: Path,
+    suffix: str,
+) -> None:
     data = committed_sample("peaks")
     assert data is not None
     source_params = Path(__file__).parent / "vendor_params/params/PEAKS_astral_report.txt"
@@ -47,10 +49,5 @@ def test_peaks_fdr_metadata_roundtrips_without_filtering(tmp_path: Path, suffix:
     assert first.layers.keys() == second.layers.keys()
     for name in first.layers:
         assert_frame_equal(first.layers[name].values, second.layers[name].values)
-    for parsed, expected_fdr in ((first_result, 0.01), (second_result, 0.0)):
-        metadata = parsed.uns["search_parameters"]
-        assert isinstance(metadata, str)
-        parameters = json.loads(metadata)
-        assert parameters["ident_fdr_protein"] == {"value": expected_fdr}
-        assert parameters["enable_match_between_runs"] is None
-        assert parameters["software_version"] is None
+    assert first_result.uns == {}
+    assert second_result.uns == {}

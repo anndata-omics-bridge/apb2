@@ -15,7 +15,6 @@ from pathlib import Path
 import anndata
 import pytest
 
-from apb2.parserV2.compile import AnnDataOutput, ParquetOutput, ParseRuleCompiler
 from apb2.parserV2.parse_quant.errors import IncompatibleSourceError
 from apb2.parserV2.parse_quant.io.metadata import NAMESPACE, PARSE_NAMESPACE
 from apb2.parserV2.parse_quant.io.parquet_writer import MANIFEST_NAME
@@ -30,6 +29,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
     NumericTextFormat,
     SingleFile,
 )
+from apb2.parserV2.parser_factory import compile_level
 from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
 from parserV2 import synthetic
 from parserV2.fixtures import PackagedDocument, level_pairs
@@ -90,11 +90,9 @@ def test_the_plan_states_what_this_source_resolved_to_not_what_the_rule_permits(
 
     assert decoded["read"]["projected_columns"] == list(plan.read.projected_columns)
     assert [config["layer_name"] for config in decoded["raw_value_presence"]] == ["Quantity"]
-    assert [config["layer_name"] for config in decoded["ann_data"]["layer_encodings"]] == [
-        "Quantity"
-    ]
+    assert [config["layer_name"] for config in decoded["layer_values"]] == ["Quantity"]
     assert decoded["var"]["skipped"] == ["Extra"]
-    assert decoded["ann_data"]["layer_contract"]["primary_layer_name"] == "Quantity"
+    assert decoded["layer_contract"]["primary_layer_name"] == "Quantity"
 
 
 def test_the_notation_the_source_was_read_under_survives_into_the_record() -> None:
@@ -112,7 +110,7 @@ def test_the_notation_the_source_was_read_under_survives_into_the_record() -> No
         )
     )
 
-    encoding = json.loads(resolved_plan_json(plan))["ann_data"]["layer_encodings"][0]
+    encoding = json.loads(resolved_plan_json(plan))["layer_values"][0]
 
     assert encoding["number_format"] == {"decimal_mark": ",", "thousands_marks": ["."]}
 
@@ -125,7 +123,7 @@ def test_the_declared_numeric_type_survives_into_the_record() -> None:
     )
     plan = synthetic.facade(document).resolve_source(evidence(("Sample", "Feature", "Quantity")))
 
-    encoding = json.loads(resolved_plan_json(plan))["ann_data"]["layer_encodings"][0]
+    encoding = json.loads(resolved_plan_json(plan))["layer_values"][0]
 
     assert encoding["type"] == "integer"
 
@@ -167,8 +165,8 @@ def test_a_compiled_parser_stores_the_plan_beside_the_rule_it_came_from(tmp_path
     document = synthetic.long_document(
         obs_select={"sample": "Sample"}, var_select={"Feature": "Feature"}
     )
-    parser = ParseRuleCompiler(facade=synthetic.facade(document), output=ParquetOutput()).compile(
-        SingleFile(path=written(tmp_path))
+    parser = compile_level(
+        synthetic.facade(document), SingleFile(path=written(tmp_path)), "standard"
     )
 
     parsed = parser.parse()
@@ -181,8 +179,8 @@ def test_the_plan_reaches_the_parse_namespace_of_a_written_h5ad(tmp_path: Path) 
     document = synthetic.long_document(
         obs_select={"sample": "Sample"}, var_select={"Feature": "Feature"}
     )
-    parser = ParseRuleCompiler(facade=synthetic.facade(document), output=AnnDataOutput()).compile(
-        SingleFile(path=written(tmp_path))
+    parser = compile_level(
+        synthetic.facade(document), SingleFile(path=written(tmp_path)), "standard"
     )
     target = tmp_path / "ion.h5ad"
 
@@ -198,10 +196,10 @@ def test_the_plan_reaches_the_manifest_of_a_written_parquet_dataset(tmp_path: Pa
     document = synthetic.long_document(
         obs_select={"sample": "Sample"}, var_select={"Feature": "Feature"}
     )
-    parser = ParseRuleCompiler(facade=synthetic.facade(document), output=ParquetOutput()).compile(
-        SingleFile(path=written(tmp_path))
+    parser = compile_level(
+        synthetic.facade(document), SingleFile(path=written(tmp_path)), "standard"
     )
-    target = tmp_path / "ion"
+    target = tmp_path / "ion.parquet"
 
     parser.convert(parser.parse(), target)
 

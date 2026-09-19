@@ -19,13 +19,14 @@ Shape laws, checked at each collaborator boundary rather than trusted:
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
 import polars as pl
 
-from apb2.parserV2.parse_quant.data.parsed import ParsedLevel
+from apb2.parserV2.parse_quant.data.parsed import FinalLayerTable, ParsedLevel
 from apb2.parserV2.parse_quant.data.raw import DecomposedDataRaw, RawLayerTable
 from apb2.parserV2.parse_quant.data.source import LevelSourceTable
 from apb2.parserV2.parse_quant.parameters.axis import AxisKeyPlan
@@ -97,6 +98,18 @@ class DuplicatePolicy(Protocol):
     """Resolve repeated values of each raw wide cell into one value."""
 
     def resolve(self, layer: RawLayerTable, presence: RawValuePresence, /) -> RawLayerTable: ...
+
+
+class LayerValueParser(Protocol):
+    """Parse one aligned raw layer into its final canonical values and semantics."""
+
+    def parse(self, layer: FinalLayerTable, /) -> FinalLayerTable: ...
+
+
+class LayerSetValidator(Protocol):
+    """Validate relationships across the complete set of canonical layers."""
+
+    def validate(self, layers: Mapping[str, FinalLayerTable], /) -> None: ...
 
 
 class ParsedLevelWriter(Protocol):

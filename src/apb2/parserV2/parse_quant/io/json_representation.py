@@ -46,7 +46,6 @@ _EMBEDDED_JSON_FIELDS = frozenset(
         "aggregate",
         "plan_json",
         "rule_json",
-        "search_parameters",
     }
 )
 

@@ -91,38 +91,25 @@ The [complete CLI reference](cli.md) lists every argument, option, and exit stat
 
 ## Python API
 
-File-to-file facades mirror complete CLI operations. Compiler/parser APIs expose the
-storage-neutral values between parsing, transformation, and persistence.
+The Python API exposes storage-neutral values between parsing, transformation, and persistence. File-to-file conversion remains a CLI workflow.
 
-### Convert with the facade
+### Parse vendor output in memory
 
 ```python
 from pathlib import Path
 
-from apb2.parserV2.conversion_facade import (
-    convert_all_from_packaged_rules,
-    convert_from_packaged_rules,
-)
+from apb2.api import ParseRuleCompiler
 
-convert_from_packaged_rules(
-    data=Path("report.tsv"),
-    level="ion",
-    output=Path("results/ion.h5ad"),
-    parameters_path=Path("search-parameters.txt"),
-    software=None,
-    parameters_software=None,
-    checks="standard",
+compiler = ParseRuleCompiler(
+    Path("report.tsv"),
+    Path("search-parameters.txt"),
+    requested_levels=("ion",),
+    software="spectronaut",
 )
-
-convert_all_from_packaged_rules(
-    data=Path("report.tsv"),
-    output=Path("results/all-levels.h5mu"),
-    parameters_path=Path("search-parameters.txt"),
-    software=None,
-    parameters_software=None,
-    checks="standard",
-)
+parsed_levels = compiler.compile().parse()
 ```
+
+`compiler.parameters` retains the typed vendor parameters and `compiler.detection` retains the resolved software, version, documents, sources, and levels. Compilation and parsing perform no writes.
 
 ### Compile and parse
 
@@ -131,22 +118,17 @@ Use the compiler/parser boundary to keep the parsed result in memory:
 ```python
 from pathlib import Path
 
-from apb2.parserV2.compile import AnnDataOutput, ParseRuleCompiler
-from apb2.parserV2.detect_document import detect_rule_document, search_parameter_evidence
-from apb2.parserV2.parse_quant.parameters.source import SingleFile
-from apb2.parserV2.parse_rule_facade import ParseRuleFacade
-from apb2.parserV2.vendor_params.registry import parse_params
+from apb2.api import ParseRuleCompiler, write_parsed_levels
 
-source = SingleFile(path=Path("report.tsv"))
-parameters = parse_params(Path("search-parameters.txt"), software="spectronaut")
-document = detect_rule_document(parameters, source).document
 parser = ParseRuleCompiler(
-    facade=ParseRuleFacade(document, "ion", search_parameter_evidence(parameters)),
-    output=AnnDataOutput(checks="standard"),
-).compile(source)
+    Path("report.tsv"),
+    Path("search-parameters.txt"),
+    requested_levels=("ion",),
+    checks="standard",
+).compile()
 
 parsed = parser.parse()
-parser.convert(parsed, Path("results/ion.h5ad"))
+write_parsed_levels(parsed, Path("results/ion.h5ad"))
 ```
 
 ### Read and write results

@@ -13,7 +13,3 @@ class UnsupportedResultFormatError(ResultIOError):
 
 class InvalidResultError(ResultIOError):
     """A result value or persisted result violates its declared format contract."""
-
-
-class AnnDataLayerContractError(ResultIOError):
-    """An encoded measurement is too sparse to be a usable quantitative layer."""

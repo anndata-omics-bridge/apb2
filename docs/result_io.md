@@ -77,7 +77,7 @@ Quantitative layers expose both logical `type` (`number` or `integer`) and physi
 
 The representation never contains matrix cells, complete observation or variable rows, distinct/category values, absolute filesystem paths in path-bearing provenance fields, or generated timestamps. At most 100 observation identities appear once in each level and quantitative summaries refer to them by index. Every bounded collection records total, emitted and truncated status. Absolute values stored under `path`, `paths`, `*_path`, or `*_paths` fields are reduced to their basename; slash-prefixed separators and patterns in other fields retain their exact meaning.
 
-Provenance containers that AnnData persistence stores as JSON text (`rule_json`, `plan_json`, `search_parameters`, and aggregation metadata) are projected back into JSON objects or arrays. Invalid and scalar JSON text remains text, and the scientific artifact's stored `.uns` and extension metadata are not changed.
+Provenance containers that AnnData persistence stores as JSON text (`rule_json`, `plan_json`, and aggregation metadata) are projected back into JSON objects or arrays. Invalid and scalar JSON text remains text, and the scientific artifact's stored `.uns` and extension metadata are not changed. Typed vendor parameters are application inputs and are never embedded into parsed provenance.
 
 Sidecar publication invalidates any previous sidecar after the new scientific artifact succeeds, then uses a temporary file plus atomic replacement. If projection or publication fails, the producing call fails, the newly valid scientific artifact remains, and no stale sidecar can describe it.
 

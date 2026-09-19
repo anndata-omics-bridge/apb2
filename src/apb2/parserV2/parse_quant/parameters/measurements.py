@@ -1,10 +1,8 @@
-"""Measurement parameters: duplicate mode, raw presence, and AnnData serialization.
+"""Measurement parameters: duplicate presence, canonical values, and validation.
 
-Raw presence and AnnData encoding are two projections of the same authored layer, kept
-apart on purpose. Presence answers only "does this raw scalar claim its cell" and is needed
-by every parse whose duplicate policy must skip a declared sentinel. Encoding answers "what
-does this scalar become in a dense float matrix" and is constructed only when the caller
-asked for AnnData — a Parquet compile builds no encoder at all.
+Raw presence and final value parsing are two questions about the same authored layer.
+Presence decides whether a raw scalar claims a duplicate cell. Value parsing decides the
+canonical scalar stored in ``ParsedLevels`` after duplicate resolution.
 """
 
 from __future__ import annotations
@@ -60,11 +58,11 @@ type RawValuePresenceConfig = (
 )
 
 
-# ------------------------------------------------------------------------- AnnData encoding
+# --------------------------------------------------------------------- canonical layer values
 
 
 @dataclass(frozen=True, slots=True)
-class PlainNumericAnnDataEncodingConfig:
+class PlainNumericLayerConfig:
     """Directly parseable scalars; declared missing values become missing."""
 
     kind: Literal["plain_numeric"]
@@ -75,7 +73,7 @@ class PlainNumericAnnDataEncodingConfig:
 
 
 @dataclass(frozen=True, slots=True)
-class RegexNumericAnnDataEncodingConfig:
+class RegexNumericLayerConfig:
     """One numeric capture per structured token, then plain numeric conversion."""
 
     kind: Literal["regex_numeric"]
@@ -87,7 +85,7 @@ class RegexNumericAnnDataEncodingConfig:
 
 
 @dataclass(frozen=True, slots=True)
-class FactorAnnDataEncodingConfig:
+class FactorLayerConfig:
     """Declared category labels become their codes; null and unknown labels become -1."""
 
     kind: Literal["factor"]
@@ -95,16 +93,12 @@ class FactorAnnDataEncodingConfig:
     categories: tuple[tuple[str, int], ...]
 
 
-type AnnDataLayerEncodingConfig = (
-    PlainNumericAnnDataEncodingConfig
-    | RegexNumericAnnDataEncodingConfig
-    | FactorAnnDataEncodingConfig
-)
+type LayerValueConfig = PlainNumericLayerConfig | RegexNumericLayerConfig | FactorLayerConfig
 
 
 @dataclass(frozen=True, slots=True)
-class AnnDataLayerContractConfig:
-    """The occupancy policy an encoded layer set must satisfy.
+class LayerContractConfig:
+    """The occupancy policy a canonical layer set must satisfy.
 
     A layer is suspicious only below ``empty_ratio`` while a sibling reaches
     ``populated_ratio``: without a populated sibling, occupancy cannot tell an empty
@@ -115,11 +109,3 @@ class AnnDataLayerContractConfig:
     required_names: tuple[str, ...]
     empty_ratio: float
     populated_ratio: float
-
-
-@dataclass(frozen=True, slots=True)
-class AnnDataSerializationConfig:
-    """Everything AnnData-only about one level; routed to ``AnnDataWriter`` construction."""
-
-    layer_encodings: tuple[AnnDataLayerEncodingConfig, ...]
-    layer_contract: AnnDataLayerContractConfig
