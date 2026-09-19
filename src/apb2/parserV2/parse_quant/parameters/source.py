@@ -12,7 +12,8 @@ table has.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+import re
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -128,6 +129,92 @@ class InputContract:
 
     file_name: str | None
     formats: tuple[PhysicalFormatContract, ...]
+
+
+# ---------------------------------------------------------------- projected source layouts
+
+
+@dataclass(frozen=True, slots=True)
+class LongSourceLayout:
+    """One physical row per observation and feature."""
+
+    def packed_sources(self) -> tuple[str, ...]:
+        """Return physical columns that require packed-value splitting."""
+        return ()
+
+    def has_layer_source(self, source: str, header: Collection[str]) -> bool:
+        """Whether an exact long-layer source occurs in the header."""
+        return source in header
+
+    def synthesized_var_columns(self) -> tuple[str, ...]:
+        """Return feature columns synthesized before axis materialization."""
+        return ()
+
+
+@dataclass(frozen=True, slots=True)
+class WideSourceLayout:
+    """One physical row per feature; observations are header captures."""
+
+    def packed_sources(self) -> tuple[str, ...]:
+        """Return physical columns that require packed-value splitting."""
+        return ()
+
+    def has_layer_source(self, source: str, header: Collection[str]) -> bool:
+        """Whether a wide-layer pattern matches at least one header column."""
+        pattern = re.compile(source)
+        return any(pattern.match(name) for name in header)
+
+    def synthesized_var_columns(self) -> tuple[str, ...]:
+        """Return feature columns synthesized before axis materialization."""
+        return ()
+
+
+@dataclass(frozen=True, slots=True)
+class PositionalFragmentLayout:
+    """Long rows whose packed fragment lists carry positional labels."""
+
+    delimiter: str
+    label_output: str
+    packed_value_sources: tuple[str, ...]
+
+    def packed_sources(self) -> tuple[str, ...]:
+        """Return the value columns split in parallel."""
+        return self.packed_value_sources
+
+    def has_layer_source(self, source: str, header: Collection[str]) -> bool:
+        """Whether an exact packed layer source occurs in the header."""
+        return source in header
+
+    def synthesized_var_columns(self) -> tuple[str, ...]:
+        """Return the fragment label synthesized during separation."""
+        return (self.label_output,)
+
+
+@dataclass(frozen=True, slots=True)
+class ColumnLabeledFragmentLayout:
+    """Long rows whose fragment labels and values are packed in parallel."""
+
+    label_source: str
+    delimiter: str
+    label_output: str
+    packed_value_sources: tuple[str, ...]
+
+    def packed_sources(self) -> tuple[str, ...]:
+        """Return the label column and value columns split in parallel."""
+        return (self.label_source, *self.packed_value_sources)
+
+    def has_layer_source(self, source: str, header: Collection[str]) -> bool:
+        """Whether an exact packed layer source occurs in the header."""
+        return source in header
+
+    def synthesized_var_columns(self) -> tuple[str, ...]:
+        """Return the fragment label synthesized during separation."""
+        return (self.label_output,)
+
+
+type SourceLayoutDeclaration = (
+    LongSourceLayout | WideSourceLayout | PositionalFragmentLayout | ColumnLabeledFragmentLayout
+)
 
 
 # ------------------------------------------------------------------------ observed evidence

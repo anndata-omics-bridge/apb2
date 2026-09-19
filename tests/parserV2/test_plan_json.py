@@ -18,16 +18,16 @@ import pytest
 from apb2.parserV2.parse_quant.errors import IncompatibleSourceError
 from apb2.parserV2.parse_quant.io.metadata import NAMESPACE, PARSE_NAMESPACE
 from apb2.parserV2.parse_quant.io.parquet_writer import MANIFEST_NAME
-from apb2.parserV2.parse_quant.parameters.plan_json import (
-    PLAN_JSON_KEY,
-    as_json_value,
-    resolved_plan_json,
-)
-from apb2.parserV2.parse_quant.parameters.resolved import ResolvedLevelPlan
+from apb2.parserV2.parse_quant.parameters.level import ResolvedLevelPlan
 from apb2.parserV2.parse_quant.parameters.source import (
     DelimitedSourceEvidence,
     NumericTextFormat,
     SingleFile,
+)
+from apb2.parserV2.parse_quant.plan_json import (
+    PLAN_JSON_KEY,
+    as_json_value,
+    resolved_plan_json,
 )
 from apb2.parserV2.parser_factory import compile_level
 from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel

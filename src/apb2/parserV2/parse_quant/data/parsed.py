@@ -6,7 +6,7 @@ module knows nothing about matrices, pandas indexes, or AnnData.
 
 ``JsonScalar`` and ``JsonValue`` are declared here rather than imported: provenance crosses
 this boundary as data, and a shared parent module holding the alias would force this child
-to import upward. The identical shape in ``parameters/working.py`` is the input side of the
+to import upward. The identical shape in ``parameters/level.py`` is the input side of the
 same value, not duplicated behaviour.
 """
 

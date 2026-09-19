@@ -23,11 +23,7 @@ from apb2.parserV2.prepare_source import (
     prepare_source,
     recognizes_preparation,
 )
-from apb2.parserV2.source_binding import (
-    bind_source,
-    header_predicate,
-    source_recognition_evidence,
-)
+from apb2.parserV2.source_binding import BoundTable
 from apb2.parserV2.vendor_params.parsers.shared.model import Parameters
 from apb2.parserV2.vendor_parse_rules.document import (
     RuleDocument,
@@ -396,7 +392,7 @@ def _matched_source_path(facade: ParseRuleFacade, source: InputSource) -> Path:
             )
         )
         return source.path
-    bound = bind_source(source, working.input)
+    bound = BoundTable(source, working.input)
     extensions = {
         extension
         for physical_format in working.input.formats
@@ -407,7 +403,7 @@ def _matched_source_path(facade: ParseRuleFacade, source: InputSource) -> Path:
         raise IncompatibleSourceError(f"{bound.path} is Parquet but the rule is delimited")
     if suffix != ".parquet" and extensions == {".parquet"}:
         raise IncompatibleSourceError(f"{bound.path} is not a Parquet file")
-    observed = source_recognition_evidence(source, bound, header_predicate(working))
+    observed = bound.recognition_evidence(working.accepts_header)
     facade.resolve_source(observed)
     return bound.path
 

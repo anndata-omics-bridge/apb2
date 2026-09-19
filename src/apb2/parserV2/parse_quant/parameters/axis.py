@@ -117,6 +117,18 @@ class AxisColumnDeclaration:
 
 
 @dataclass(frozen=True, slots=True)
+class WorkingAxisConfiguration:
+    """One axis's final identity and projected column declarations."""
+
+    final_key_columns: tuple[str, ...]
+    columns: AxisColumnDeclaration
+
+    def required_sources(self) -> tuple[str, ...]:
+        """Return physical selection sources required to construct this axis."""
+        return tuple(selection.source for selection in self.columns.required_selections)
+
+
+@dataclass(frozen=True, slots=True)
 class AxisMaterializationConfig:
     """One materialization phase: resolved selections and computers, in execution order."""
 

@@ -52,20 +52,25 @@ from apb2.parserV2.parse_quant.parameters.axis import (
     SiteListModificationConfig,
     StrippedSequenceColumnConfig,
     TokenRegexModificationConfig,
+    WorkingAxisConfiguration,
+)
+from apb2.parserV2.parse_quant.parameters.level import (
+    JsonValue,
+    QuantificationLevel,
+    ResolvedLevelPlan,
+    WorkingParseConfiguration,
 )
 from apb2.parserV2.parse_quant.parameters.measurements import (
-    FactorLayerConfig,
+    FactorLayerDeclaration,
     LayerContractConfig,
-    LayerValueConfig,
-    NullOnlyRawValuePresenceConfig,
-    PlainNumericLayerConfig,
-    PlainNumericRawValuePresenceConfig,
-    RawValuePresenceConfig,
-    RegexNumericLayerConfig,
-    RegexNumericRawValuePresenceConfig,
+    LayerValueDeclaration,
+    PlainNumericLayerDeclaration,
+    RegexNumericLayerDeclaration,
+    WorkingMeasurementLayer,
+    WorkingMeasurements,
 )
-from apb2.parserV2.parse_quant.parameters.resolved import ResolvedLevelPlan
 from apb2.parserV2.parse_quant.parameters.source import (
+    ColumnLabeledFragmentLayout,
     ColumnLabeledFragmentSeparationConfig,
     DecompositionConfig,
     DelimitedFormatContract,
@@ -79,35 +84,18 @@ from apb2.parserV2.parse_quant.parameters.source import (
     LevelReadPlan,
     LongDecompositionConfig,
     LongRawLayerSource,
+    LongSourceLayout,
     NumericTextFormat,
     ParquetFormatContract,
     PhysicalFormatContract,
+    PositionalFragmentLayout,
     PositionalFragmentSeparationConfig,
     SourceEvidence,
+    SourceLayoutDeclaration,
     WideDecompositionConfig,
     WideRawLayerPlan,
     WideRawLayerSource,
-)
-from apb2.parserV2.parse_quant.parameters.working import (
-    ColumnLabeledFragmentLayout,
-    FactorLayerDeclaration,
-    JsonValue,
-    LayerValueDeclaration,
-    LongSourceLayout,
-    NullOnlyRawValuePresenceDeclaration,
-    PlainNumericLayerDeclaration,
-    PlainNumericRawValuePresenceDeclaration,
-    PositionalFragmentLayout,
-    QuantificationLevel,
-    RawValuePresenceDeclaration,
-    RegexNumericLayerDeclaration,
-    RegexNumericRawValuePresenceDeclaration,
-    SourceLayoutDeclaration,
     WideSourceLayout,
-    WorkingAxisConfiguration,
-    WorkingMeasurementLayer,
-    WorkingMeasurements,
-    WorkingParseConfiguration,
 )
 from apb2.parserV2.vendor_params.parsers.shared.unimod import UNIMOD_REGISTRY
 from apb2.parserV2.vendor_parse_rules.document import (
@@ -359,21 +347,15 @@ class ParseRuleFacade:
     def _project_layout(rule: LongRule | WideRule) -> SourceLayoutDeclaration:
         fragments = rule.fragments
         if fragments is None:
-            return (
-                LongSourceLayout(kind="long")
-                if isinstance(rule, LongRule)
-                else WideSourceLayout(kind="wide")
-            )
+            return LongSourceLayout() if isinstance(rule, LongRule) else WideSourceLayout()
         if isinstance(fragments, ColumnLabeledFragments):
             return ColumnLabeledFragmentLayout(
-                kind="column_labeled_fragment",
                 label_source=fragments.label_column,
                 delimiter=fragments.delimiter,
                 label_output=fragments.label_output,
                 packed_value_sources=tuple(fragments.value_columns),
             )
         return PositionalFragmentLayout(
-            kind="positional_fragment",
             delimiter=fragments.delimiter,
             label_output=fragments.label_output,
             packed_value_sources=tuple(fragments.value_columns),
@@ -478,9 +460,8 @@ class ParseRuleFacade:
         return WorkingMeasurements(
             primary_layer_name=rule.measurements.primary_layer,
             duplicate_mode=rule.measurements.duplicates.mode,
-            required_layers=tuple(layer for layer in projected if layer.name in required),
-            optional_layers=tuple(layer for layer in projected if layer.name not in required),
-            authored_order=tuple(layer.name for layer in projected),
+            layers=projected,
+            required_names=required,
         )
 
     @staticmethod
@@ -488,41 +469,22 @@ class ParseRuleFacade:
         return WorkingMeasurementLayer(
             name=layer.name,
             source=layer.source,
-            raw_presence=ParseRuleFacade._project_presence(layer),
             value=ParseRuleFacade._project_layer_value(layer),
             roles=tuple(layer.roles),
         )
 
     @staticmethod
-    def _project_presence(layer: Layer) -> RawValuePresenceDeclaration:
-        """What makes a raw scalar of this layer claim its cell, before any conversion."""
-        if isinstance(layer, FactorLayer):
-            return NullOnlyRawValuePresenceDeclaration(kind="null_only")
-        if isinstance(layer.value_pattern, RegexValuePattern):
-            return RegexNumericRawValuePresenceDeclaration(
-                kind="regex_numeric",
-                missing_values=tuple(layer.missing_values),
-                pattern=layer.value_pattern.pattern,
-            )
-        if layer.missing_values:
-            return PlainNumericRawValuePresenceDeclaration(
-                kind="plain_numeric", missing_values=tuple(layer.missing_values)
-            )
-        return NullOnlyRawValuePresenceDeclaration(kind="null_only")
-
-    @staticmethod
     def _project_layer_value(layer: Layer) -> LayerValueDeclaration:
         if isinstance(layer, FactorLayer):
-            return FactorLayerDeclaration(kind="factor", categories=tuple(layer.categories.items()))
+            return FactorLayerDeclaration(categories=tuple(layer.categories.items()))
         if isinstance(layer.value_pattern, RegexValuePattern):
             return RegexNumericLayerDeclaration(
-                kind="regex_numeric",
                 missing_values=tuple(layer.missing_values),
                 pattern=layer.value_pattern.pattern,
                 type=layer.type,
             )
         return PlainNumericLayerDeclaration(
-            kind="plain_numeric", missing_values=tuple(layer.missing_values), type=layer.type
+            missing_values=tuple(layer.missing_values), type=layer.type
         )
 
     @staticmethod
@@ -646,8 +608,10 @@ class ParseRuleFacade:
             var=var,
             modifications=modifications,
             duplicate_mode=working.measurements.duplicate_mode,
-            raw_value_presence=tuple(_presence_config(layer, numbers) for layer in layers.retained),
-            layer_values=tuple(_layer_value_config(layer, numbers) for layer in layers.retained),
+            raw_value_presence=tuple(
+                layer.raw_presence_config(numbers) for layer in layers.retained
+            ),
+            layer_values=tuple(layer.canonical_value_config(numbers) for layer in layers.retained),
             layer_contract=LayerContractConfig(
                 primary_layer_name=working.measurements.primary_layer_name,
                 required_names=layers.required_names,
@@ -682,10 +646,7 @@ class ParseRuleFacade:
 
     def _var_synthesized(self) -> tuple[str, ...]:
         """Names the fragment separator creates as real columns of the scalar-long table."""
-        layout = self._configuration.source_layout
-        if isinstance(layout, PositionalFragmentLayout | ColumnLabeledFragmentLayout):
-            return (layout.label_output,)
-        return ()
+        return self._configuration.source_layout.synthesized_var_columns()
 
     def _obs_synthesized(self) -> tuple[str, ...]:
         """A wide observation axis comes from header captures, not from selected columns."""
@@ -872,7 +833,9 @@ class ParseRuleFacade:
                 f"{self._label()} requires layer source column(s) {missing} that this source "
                 "does not carry"
             )
-        retained = tuple(layer for layer in self._authored_layers() if layer.source in present)
+        retained = tuple(
+            layer for layer in measurements.authored_layers() if layer.source in present
+        )
         return _ResolvedLayers(
             retained=retained,
             required_names=tuple(layer.name for layer in retained if layer.name in required),
@@ -883,9 +846,7 @@ class ParseRuleFacade:
             wide_plans=(),
             source_columns=frozenset(layer.source for layer in retained),
             plain_numeric_columns=frozenset(
-                layer.source
-                for layer in retained
-                if isinstance(layer.value, PlainNumericLayerDeclaration)
+                layer.source for layer in retained if layer.supports_native_numeric_read()
             ),
         )
 
@@ -902,7 +863,7 @@ class ParseRuleFacade:
         candidates = tuple(name for name in columns if name not in accounted)
         matches = {
             layer.name: _match_samples(candidates, layer.source)
-            for layer in self._authored_layers()
+            for layer in measurements.authored_layers()
         }
         primary = measurements.primary_layer_name
         samples = _ordered_unique(sample for _column, sample in matches[primary])
@@ -913,7 +874,7 @@ class ParseRuleFacade:
         required = {layer.name for layer in measurements.required_layers}
         retained: list[WorkingMeasurementLayer] = []
         plans: list[WideRawLayerPlan] = []
-        for layer in self._authored_layers():
+        for layer in measurements.authored_layers():
             aligned = tuple(
                 WideRawLayerSource(source_column=column, sample=sample)
                 for column, sample in matches[layer.name]
@@ -939,19 +900,10 @@ class ParseRuleFacade:
             plain_numeric_columns=frozenset(
                 source.source_column
                 for layer, plan in zip(retained, plans, strict=True)
-                if isinstance(layer.value, PlainNumericLayerDeclaration)
+                if layer.supports_native_numeric_read()
                 for source in plan.sources
             ),
         )
-
-    def _authored_layers(self) -> tuple[WorkingMeasurementLayer, ...]:
-        """Every declared measurement in the order the document authored it."""
-        measurements = self._configuration.measurements
-        by_name = {
-            layer.name: layer
-            for layer in (*measurements.required_layers, *measurements.optional_layers)
-        }
-        return tuple(by_name[name] for name in measurements.authored_order)
 
     # -------------------------------------------------------------------- read and structure
 
@@ -978,7 +930,7 @@ class ParseRuleFacade:
                 *var.source.keys.raw_key_columns,
                 *var.source.payload_sources,
                 *(column for columns in derived.values() for column in columns),
-                *self._packed_sources(),
+                *self._configuration.source_layout.packed_sources(),
             }
         )
         needed = lexical | layers.source_columns
@@ -1005,15 +957,6 @@ class ParseRuleFacade:
             text_sources=frozenset(projected) - native,
             native_numeric_sources=native,
         )
-
-    def _packed_sources(self) -> tuple[str, ...]:
-        """The physical columns a fragment separator splits, plus its packed label column."""
-        layout = self._configuration.source_layout
-        if isinstance(layout, ColumnLabeledFragmentLayout):
-            return (layout.label_source, *layout.packed_value_sources)
-        if isinstance(layout, PositionalFragmentLayout):
-            return layout.packed_value_sources
-        return ()
 
     def _decomposition(self, layers: _ResolvedLayers) -> DecompositionConfig:
         """Name the one physical shape this level's table has."""
@@ -1182,53 +1125,3 @@ def _resolved_numbers(evidence: SourceEvidence) -> NumericTextFormat:
     if isinstance(evidence, DelimitedSourceEvidence | ExcelSourceEvidence):
         return evidence.number_format
     return NumericTextFormat(decimal_mark=".", thousands_marks=())
-
-
-def _presence_config(
-    layer: WorkingMeasurementLayer, numbers: NumericTextFormat
-) -> RawValuePresenceConfig:
-    """Which raw scalars of this layer claim a cell, with its layer name attached."""
-    declaration = layer.raw_presence
-    if isinstance(declaration, PlainNumericRawValuePresenceDeclaration):
-        return PlainNumericRawValuePresenceConfig(
-            kind="plain_numeric",
-            layer_name=layer.name,
-            missing_values=declaration.missing_values,
-            number_format=numbers,
-        )
-    if isinstance(declaration, RegexNumericRawValuePresenceDeclaration):
-        return RegexNumericRawValuePresenceConfig(
-            kind="regex_numeric",
-            layer_name=layer.name,
-            missing_values=declaration.missing_values,
-            pattern=declaration.pattern,
-            number_format=numbers,
-        )
-    return NullOnlyRawValuePresenceConfig(kind="null_only", layer_name=layer.name)
-
-
-def _layer_value_config(
-    layer: WorkingMeasurementLayer, numbers: NumericTextFormat
-) -> LayerValueConfig:
-    """How this layer's aligned raw scalars become final canonical values."""
-    declaration = layer.value
-    if isinstance(declaration, FactorLayerDeclaration):
-        return FactorLayerConfig(
-            kind="factor", layer_name=layer.name, categories=declaration.categories
-        )
-    if isinstance(declaration, RegexNumericLayerDeclaration):
-        return RegexNumericLayerConfig(
-            kind="regex_numeric",
-            layer_name=layer.name,
-            missing_values=declaration.missing_values,
-            pattern=declaration.pattern,
-            number_format=numbers,
-            type=declaration.type,
-        )
-    return PlainNumericLayerConfig(
-        kind="plain_numeric",
-        layer_name=layer.name,
-        missing_values=declaration.missing_values,
-        number_format=numbers,
-        type=declaration.type,
-    )

@@ -26,7 +26,6 @@ from apb2.parserV2.parse_quant.excel_input import sheet_header
 from apb2.parserV2.parse_quant.parameters.source import PreparedTable, SingleFile
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.prepare_source import prepare_source
-from apb2.parserV2.source_binding import header_predicate
 from apb2.parserV2.vendor_parse_rules.document import (
     RuleDocument,
     RuleNotApplicable,
@@ -131,7 +130,7 @@ def _document_admits(document: RuleDocument, header: tuple[str, ...]) -> bool:
                 facade = ParseRuleFacade(document, level, evidence)
             except RuleNotApplicable:
                 continue
-            if header_predicate(facade.working_parameters)(header):
+            if facade.working_parameters.accepts_header(header):
                 return True
     return False
 

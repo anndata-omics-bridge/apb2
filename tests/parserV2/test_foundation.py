@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import polars as pl
+import pytest
 
 from apb2.parserV2.parse_quant.contracts import (
     AxisPhaseRuntimePlan,
@@ -48,33 +49,36 @@ from apb2.parserV2.parse_quant.parameters.axis import (
     AxisSourcePlan,
     ProformaIonColumnConfig,
     ResolvedAxisColumnPlan,
+    WorkingAxisConfiguration,
+)
+from apb2.parserV2.parse_quant.parameters.level import (
+    ResolvedLevelPlan,
+    WorkingParseConfiguration,
 )
 from apb2.parserV2.parse_quant.parameters.measurements import (
     LayerContractConfig,
     PlainNumericLayerConfig,
+    PlainNumericLayerDeclaration,
     PlainNumericRawValuePresenceConfig,
+    WorkingMeasurementLayer,
+    WorkingMeasurements,
 )
-from apb2.parserV2.parse_quant.parameters.resolved import ResolvedLevelPlan
 from apb2.parserV2.parse_quant.parameters.source import (
+    ColumnLabeledFragmentLayout,
     DelimitedFormatContract,
     DelimitedSourceEvidence,
     InputContract,
     LevelReadPlan,
     LongDecompositionConfig,
     LongRawLayerSource,
+    LongSourceLayout,
     NumericTextFormat,
+    PositionalFragmentLayout,
+    SourceLayoutDeclaration,
     WideDecompositionConfig,
     WideRawLayerPlan,
     WideRawLayerSource,
-)
-from apb2.parserV2.parse_quant.parameters.working import (
-    LongSourceLayout,
-    PlainNumericLayerDeclaration,
-    PlainNumericRawValuePresenceDeclaration,
-    WorkingAxisConfiguration,
-    WorkingMeasurementLayer,
-    WorkingMeasurements,
-    WorkingParseConfiguration,
+    WideSourceLayout,
 )
 
 DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
@@ -236,14 +240,11 @@ def test_pipeline_values_carry_no_matrices_indexes_or_temporary_identities() -> 
 # --------------------------------------------------------------------------------- parameters
 
 
-def test_a_working_configuration_separates_presence_from_annData_encoding() -> None:
+def test_a_working_configuration_derives_presence_and_canonical_values() -> None:
     layer = WorkingMeasurementLayer(
         name="Intensity",
         source="precursor.intensity",
-        raw_presence=PlainNumericRawValuePresenceDeclaration(
-            kind="plain_numeric", missing_values=(0.0,)
-        ),
-        value=PlainNumericLayerDeclaration(kind="plain_numeric", missing_values=(0.0,)),
+        value=PlainNumericLayerDeclaration(missing_values=(0.0,)),
     )
     working = WorkingParseConfiguration(
         level="ion",
@@ -259,7 +260,7 @@ def test_a_working_configuration_separates_presence_from_annData_encoding() -> N
                 ),
             ),
         ),
-        source_layout=LongSourceLayout(kind="long"),
+        source_layout=LongSourceLayout(),
         obs=WorkingAxisConfiguration(
             final_key_columns=("sample",),
             columns=AxisColumnDeclaration(
@@ -283,18 +284,166 @@ def test_a_working_configuration_separates_presence_from_annData_encoding() -> N
         measurements=WorkingMeasurements(
             primary_layer_name="Intensity",
             duplicate_mode="keep_first",
-            required_layers=(layer,),
-            optional_layers=(),
-            authored_order=("Intensity",),
+            layers=(layer,),
+            required_names=("Intensity",),
         ),
         modifications=(),
         provenance={"software_name": "AlphaDIA"},
     )
 
-    assert working.measurements.required_layers[0].raw_presence.kind == "plain_numeric"
+    presence = working.measurements.required_layers[0].raw_presence_config(DOT)
+    assert isinstance(presence, PlainNumericRawValuePresenceConfig)
     assert working.measurements.optional_layers == ()
     # Optionality is a separate collection, never a flag on the record.
     assert not hasattr(working.obs.columns.required_selections[0], "required")
+
+
+@pytest.mark.parametrize(
+    ("layout", "source", "header", "packed", "synthesized"),
+    [
+        (LongSourceLayout(), "Quantity", ("Quantity",), (), ()),
+        (
+            WideSourceLayout(),
+            r"^(?P<sample>.+) Quantity$",
+            ("A Quantity",),
+            (),
+            (),
+        ),
+        (
+            PositionalFragmentLayout(
+                delimiter=";",
+                label_output="fragment_label",
+                packed_value_sources=("Quantity",),
+            ),
+            "Quantity",
+            ("Quantity",),
+            ("Quantity",),
+            ("fragment_label",),
+        ),
+        (
+            ColumnLabeledFragmentLayout(
+                label_source="Info",
+                delimiter=";",
+                label_output="fragment_label",
+                packed_value_sources=("Quantity",),
+            ),
+            "Quantity",
+            ("Info", "Quantity"),
+            ("Info", "Quantity"),
+            ("fragment_label",),
+        ),
+    ],
+)
+def test_source_layouts_answer_their_own_header_questions(
+    layout: SourceLayoutDeclaration,
+    source: str,
+    header: tuple[str, ...],
+    packed: tuple[str, ...],
+    synthesized: tuple[str, ...],
+) -> None:
+    assert layout.has_layer_source(source, header)
+    assert layout.packed_sources() == packed
+    assert layout.synthesized_var_columns() == synthesized
+
+
+def test_working_measurements_derives_all_views_from_one_ordered_collection() -> None:
+    first = WorkingMeasurementLayer(
+        name="First",
+        source="first",
+        value=PlainNumericLayerDeclaration(missing_values=()),
+    )
+    primary = WorkingMeasurementLayer(
+        name="Quantity",
+        source="quantity",
+        value=PlainNumericLayerDeclaration(missing_values=()),
+    )
+    last = WorkingMeasurementLayer(
+        name="Last",
+        source="last",
+        value=PlainNumericLayerDeclaration(missing_values=()),
+    )
+
+    measurements = WorkingMeasurements(
+        primary_layer_name="Quantity",
+        duplicate_mode="error",
+        layers=(first, primary, last),
+        required_names=("Quantity", "Last"),
+    )
+
+    assert measurements.authored_layers() == (first, primary, last)
+    assert measurements.authored_order == ("First", "Quantity", "Last")
+    assert measurements.required_layers == (primary, last)
+    assert measurements.optional_layers == (first,)
+    assert measurements.required_sources() == ("quantity", "last")
+
+
+@pytest.mark.parametrize(
+    ("layers", "required_names", "message"),
+    [
+        ((), ("Quantity",), "not among"),
+        (
+            (
+                WorkingMeasurementLayer(
+                    name="Quantity",
+                    source="first",
+                    value=PlainNumericLayerDeclaration(missing_values=()),
+                ),
+                WorkingMeasurementLayer(
+                    name="Quantity",
+                    source="second",
+                    value=PlainNumericLayerDeclaration(missing_values=()),
+                ),
+            ),
+            ("Quantity",),
+            "must be unique",
+        ),
+        (
+            (
+                WorkingMeasurementLayer(
+                    name="Quantity",
+                    source="quantity",
+                    value=PlainNumericLayerDeclaration(missing_values=()),
+                ),
+            ),
+            (),
+            "must be required",
+        ),
+        (
+            (
+                WorkingMeasurementLayer(
+                    name="Quantity",
+                    source="quantity",
+                    value=PlainNumericLayerDeclaration(missing_values=()),
+                ),
+            ),
+            ("Quantity", "Unknown"),
+            "not declared",
+        ),
+        (
+            (
+                WorkingMeasurementLayer(
+                    name="Quantity",
+                    source="quantity",
+                    value=PlainNumericLayerDeclaration(missing_values=()),
+                ),
+            ),
+            ("Quantity", "Quantity"),
+            "required measurement names must be unique",
+        ),
+    ],
+)
+def test_working_measurements_rejects_inconsistent_construction(
+    layers: tuple[WorkingMeasurementLayer, ...],
+    required_names: tuple[str, ...],
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        WorkingMeasurements(
+            primary_layer_name="Quantity",
+            duplicate_mode="error",
+            layers=layers,
+            required_names=required_names,
+        )
 
 
 def test_a_resolved_plan_is_one_atomic_value_for_one_physical_source() -> None:

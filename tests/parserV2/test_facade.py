@@ -23,6 +23,7 @@ from apb2.parserV2.parse_quant.parameters.axis import (
     SiteListModificationConfig,
     TokenRegexModificationConfig,
 )
+from apb2.parserV2.parse_quant.parameters.level import ResolvedLevelPlan
 from apb2.parserV2.parse_quant.parameters.measurements import (
     FactorLayerConfig,
     LayerContractConfig,
@@ -31,7 +32,6 @@ from apb2.parserV2.parse_quant.parameters.measurements import (
     PlainNumericRawValuePresenceConfig,
     RegexNumericRawValuePresenceConfig,
 )
-from apb2.parserV2.parse_quant.parameters.resolved import ResolvedLevelPlan
 from apb2.parserV2.parse_quant.parameters.source import (
     DelimitedFragmentDecompositionConfig,
     DelimitedSourceEvidence,
@@ -106,6 +106,10 @@ def _contains_model(value: object, seen: set[int] | None = None) -> bool:
         return any(
             _contains_model(getattr(value, field.name), seen) for field in dataclasses.fields(value)
         )
+    slots = getattr(type(value), "__slots__", ())
+    if slots:
+        names = (slots,) if isinstance(slots, str) else slots
+        return any(_contains_model(getattr(value, name), seen) for name in names)
     if isinstance(value, (list, tuple, set, frozenset)):
         return any(_contains_model(item, seen) for item in value)
     if isinstance(value, dict):

@@ -327,7 +327,7 @@ def contract(
 def test_a_single_file_binds_through_its_extension(tmp_path: Path) -> None:
     path = write(tmp_path / "report.tsv", "Sample\tFeature\nA\tF\n")
 
-    bound = composition.bind_source(SingleFile(path=path), contract(TSV, PARQUET))
+    bound = composition.BoundTable(SingleFile(path=path), contract(TSV, PARQUET))
 
     assert bound.path == path
     assert bound.format == TSV
@@ -336,7 +336,7 @@ def test_a_single_file_binds_through_its_extension(tmp_path: Path) -> None:
 def test_one_declared_format_treats_the_extension_as_a_hint(tmp_path: Path) -> None:
     path = write(tmp_path / "generic-name.txt", "Sample\tFeature\nA\tF\n")
 
-    bound = composition.bind_source(SingleFile(path=path), contract(TSV))
+    bound = composition.BoundTable(SingleFile(path=path), contract(TSV))
 
     assert bound.format == TSV
 
@@ -345,7 +345,7 @@ def test_an_unknown_extension_is_incompatible_before_anything_is_read(tmp_path: 
     path = write(tmp_path / "report.dat", "Sample\tFeature\nA\tF\n")
 
     with pytest.raises(IncompatibleSourceError, match="no declared format accepts"):
-        composition.bind_source(SingleFile(path=path), contract(TSV, PARQUET))
+        composition.BoundTable(SingleFile(path=path), contract(TSV, PARQUET))
 
 
 def test_a_folder_binds_the_one_declared_candidate_it_holds(tmp_path: Path) -> None:
@@ -353,7 +353,7 @@ def test_a_folder_binds_the_one_declared_candidate_it_holds(tmp_path: Path) -> N
     write(tmp_path / "peptides.txt", "Sample\tFeature\nA\tF\n")
     declared = contract(TEXT, file_name="evidence.txt")
 
-    bound = composition.bind_source(Folder(path=tmp_path), declared)
+    bound = composition.BoundTable(Folder(path=tmp_path), declared)
 
     assert bound.path == tmp_path / "evidence.txt"
 
@@ -365,14 +365,14 @@ def test_a_folder_holding_none_of_the_declared_candidates_is_incompatible(
     declared = contract(TEXT, file_name="evidence.txt")
 
     with pytest.raises(IncompatibleSourceError, match="does not contain the declared file"):
-        composition.bind_source(Folder(path=tmp_path), declared)
+        composition.BoundTable(Folder(path=tmp_path), declared)
 
 
 def test_a_folder_bound_to_a_rule_declaring_no_candidate_names_is_incompatible(
     tmp_path: Path,
 ) -> None:
     with pytest.raises(IncompatibleSourceError, match="declares no file_name"):
-        composition.bind_source(Folder(path=tmp_path), contract(TEXT))
+        composition.BoundTable(Folder(path=tmp_path), contract(TEXT))
 
 
 def test_the_maxquant_ion_table_selects_direct_evidence_input() -> None:
@@ -393,13 +393,11 @@ def test_a_workbook_with_a_txt_suffix_reads_its_declared_sheet() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "prolinestudio")
     path = pair.required_data_path()
     source = SingleFile(path=path)
-    bound = composition.bind_source(source, contract(WORKBOOK))
+    bound = composition.BoundTable(source, contract(WORKBOOK))
 
-    evidence = composition.source_evidence(
-        source, bound, lambda columns: "quant_is_valid_for_protein_set" in columns
-    )
+    evidence = bound.evidence(lambda columns: "quant_is_valid_for_protein_set" in columns)
     assert isinstance(evidence, ExcelSourceEvidence)
-    reader = composition.make_reader(bound, evidence, plan("sequence", "modifications"))
+    reader = bound.reader(evidence, plan("sequence", "modifications"))
 
     assert isinstance(reader, excel_input.ExcelInputReader)
     assert reader.read().frame.columns == ["sequence", "modifications"]
@@ -439,12 +437,12 @@ def test_binding_and_evidence_route_a_parquet_source_without_a_dialect(
     path = tmp_path / "report.parquet"
     pl.DataFrame({"Sample": ["A"], "Feature": ["F"]}).write_parquet(path)
     source = SingleFile(path=path)
-    bound = composition.bind_source(source, contract(TSV, PARQUET))
+    bound = composition.BoundTable(source, contract(TSV, PARQUET))
 
-    evidence = composition.source_evidence(source, bound, accepts_sample_and_feature)
+    evidence = bound.evidence(accepts_sample_and_feature)
 
     assert isinstance(evidence, FrameSourceEvidence)
-    reader = composition.make_reader(bound, evidence, plan("Sample"))
+    reader = bound.reader(evidence, plan("Sample"))
     assert isinstance(reader, parquet_input.ParquetInputReader)
 
 
@@ -519,12 +517,12 @@ def test_every_cached_vendor_export_resolves_to_one_unambiguous_reading(
         assert isinstance(prepared, PreparedTable)
         assert tuple(prepared.frame.columns) == pair.header()
         return
-    bound = composition.bind_source(source, facade.working_parameters.input)
+    bound = composition.BoundTable(source, facade.working_parameters.input)
 
     # A document with several levels shares one binding, so the predicate that decides a
     # dialect is "does any level recognize this header" -- the same question vendor
     # detection asks.
-    evidence = composition.source_evidence(source, bound, document.matches)
+    evidence = bound.evidence(document.matches)
 
     assert evidence.columns == pair.header()
     if isinstance(evidence, FrameSourceEvidence):

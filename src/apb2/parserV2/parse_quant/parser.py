@@ -52,7 +52,7 @@ from apb2.parserV2.parse_quant.data.raw import (
     RawToFinalKeyMap,
     VarRaw,
 )
-from apb2.parserV2.parse_quant.parameters.working import QuantificationLevel
+from apb2.parserV2.parse_quant.parameters.level import QuantificationLevel
 
 _EXAMPLE_LIMIT = 5
 _UNKNOWN_MOD_TOKENS = "unknown_mod_tokens"

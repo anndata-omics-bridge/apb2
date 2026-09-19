@@ -101,7 +101,6 @@ from apb2.parserV2.parser_factory import (
     make_source_decomposer,
     policy_for,
 )
-from apb2.parserV2.source_binding import header_predicate
 from apb2.parserV2.vendor_parse_rules.document import make_rule_document
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import LEVELS, SCHEMA_VERSION
@@ -638,12 +637,12 @@ def test_the_header_predicate_asks_only_for_what_the_level_cannot_do_without() -
             {"name": "Score", "source": "Score"},
         ],
     )
-    accepts = header_predicate(synthetic.facade(document).working_parameters)
+    working = synthetic.facade(document).working_parameters
 
-    assert accepts(("Sample", "Feature", "Quantity"))
-    assert accepts(("Sample", "Feature", "Quantity", "Extra"))
-    assert not accepts(("Sample", "Quantity"))
-    assert not accepts(("Sample", "Feature"))
+    assert working.accepts_header(("Sample", "Feature", "Quantity"))
+    assert working.accepts_header(("Sample", "Feature", "Quantity", "Extra"))
+    assert not working.accepts_header(("Sample", "Quantity"))
+    assert not working.accepts_header(("Sample", "Feature"))
 
 
 def test_a_wide_level_asks_whether_anything_matches_its_layer_pattern() -> None:
@@ -652,10 +651,10 @@ def test_a_wide_level_asks_whether_anything_matches_its_layer_pattern() -> None:
         layers=[{"name": "Intensity", "source": r"^(?P<sample>.+) Intensity$"}],
         primary_layer="Intensity",
     )
-    accepts = header_predicate(synthetic.facade(document).working_parameters)
+    working = synthetic.facade(document).working_parameters
 
-    assert accepts(("Feature", "A Intensity"))
-    assert not accepts(("Feature", "A Count"))
+    assert working.accepts_header(("Feature", "A Intensity"))
+    assert not working.accepts_header(("Feature", "A Count"))
 
 
 @pytest.mark.parametrize(
@@ -667,7 +666,6 @@ def test_every_packaged_level_accepts_a_header_built_from_its_own_requirements(
 ) -> None:
     facade = pair.first_admitted_facade(level)  # pyright: ignore[reportArgumentType]
     working = facade.working_parameters
-    accepts = header_predicate(working)
     header = pair.header()
     if not header:
         pytest.skip(f"no cached export for {pair.key}")
@@ -679,4 +677,5 @@ def test_every_packaged_level_accepts_a_header_built_from_its_own_requirements(
         for axis in (working.obs, working.var)
         for selection in axis.columns.required_selections
     }
-    assert accepts(header) == (exact <= set(header) and accepts(header))
+    accepts = working.accepts_header(header)
+    assert accepts == (exact <= set(header) and accepts)

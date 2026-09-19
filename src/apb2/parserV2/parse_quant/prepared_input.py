@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import polars as pl
 
 from apb2.parserV2.parse_quant.data.source import LevelSourceTable
-from apb2.parserV2.parse_quant.parameters.resolved import ResolvedLevelPlan
+from apb2.parserV2.parse_quant.parameters.level import ResolvedLevelPlan
 
 
 @dataclass(frozen=True, slots=True)

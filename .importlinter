@@ -78,7 +78,7 @@ exhaustive = True
 containers =
     apb2.parserV2.parse_quant
 layers =
-    (parser)
+    plan_json | (parser)
     value_parsing | layer_validation | decomposition | duplicates
     contracts
     axis_columns | modifications | fragments | delimited_input | excel_input | parquet_input | prepared_input | observation_groups

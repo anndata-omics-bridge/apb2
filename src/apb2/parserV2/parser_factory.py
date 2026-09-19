@@ -89,6 +89,7 @@ from apb2.parserV2.parse_quant.parameters.axis import (
     SiteListModificationConfig,
     StrippedSequenceColumnConfig,
 )
+from apb2.parserV2.parse_quant.parameters.level import ResolvedLevelPlan
 from apb2.parserV2.parse_quant.parameters.measurements import (
     DuplicateMode,
     LayerContractConfig,
@@ -99,8 +100,6 @@ from apb2.parserV2.parse_quant.parameters.measurements import (
     RegexNumericLayerConfig,
     RegexNumericRawValuePresenceConfig,
 )
-from apb2.parserV2.parse_quant.parameters.plan_json import PLAN_JSON_KEY, resolved_plan_json
-from apb2.parserV2.parse_quant.parameters.resolved import ResolvedLevelPlan
 from apb2.parserV2.parse_quant.parameters.source import (
     DecompositionConfig,
     FragmentSeparationConfig,
@@ -113,6 +112,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
     WideDecompositionConfig,
 )
 from apb2.parserV2.parse_quant.parser import Parser
+from apb2.parserV2.parse_quant.plan_json import PLAN_JSON_KEY, resolved_plan_json
 from apb2.parserV2.parse_quant.prepared_input import PreparedInputReader
 from apb2.parserV2.parse_quant.value_parsing import (
     FactorLayerParser,
@@ -121,12 +121,7 @@ from apb2.parserV2.parse_quant.value_parsing import (
 )
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.prepare_source import prepare_source
-from apb2.parserV2.source_binding import (
-    bind_source,
-    header_predicate,
-    make_reader,
-    source_evidence,
-)
+from apb2.parserV2.source_binding import BoundTable
 
 # ----------------------------------------------------------------------------- registries
 
@@ -380,11 +375,11 @@ def compile_level(
             }
         }
     else:
-        bound = bind_source(source, working.input)
-        evidence = source_evidence(source, bound, header_predicate(working))
+        bound = BoundTable(source, working.input)
+        evidence = bound.evidence(working.accepts_header)
 
         def read_physical(plan: ResolvedLevelPlan) -> BoundInputReader:
-            return make_reader(bound, evidence, plan.read)
+            return bound.reader(evidence, plan.read)
 
         reader_from = read_physical
     resolved = facade.resolve_source(evidence)
