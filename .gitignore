@@ -9,3 +9,4 @@ public/
 *.egg-info/
 .import_linter_cache/
 *.h5ad
+.DS_Store
