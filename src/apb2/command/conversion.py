@@ -123,7 +123,7 @@ def convert_from_rule_config(
     parameters_software: str | None,
     checks: AnnDataChecks,
 ) -> ConversionSummary:
-    """Convert one level using an explicitly supplied schema-0.7 rule document."""
+    """Convert one level using an explicitly supplied schema-0.8 rule document."""
     try:
         document, parameters, evidence = _explicit_conversion_inputs(
             rule_config=rule_config,
@@ -161,7 +161,7 @@ def convert_all_from_rule_config(
     parameters_software: str | None,
     checks: AnnDataChecks,
 ) -> ConversionSummary:
-    """Convert every compatible level of an explicit schema-0.7 document."""
+    """Convert every compatible level of an explicit schema-0.8 document."""
     try:
         document, parameters, evidence = _explicit_conversion_inputs(
             rule_config=rule_config,

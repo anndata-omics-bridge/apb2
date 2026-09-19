@@ -53,7 +53,7 @@ def convert(
     --params is the vendor parameter file and is required unless --rule-config is given.
     --software disambiguates packaged rule detection. --params-software selects the
     parameter parser independently for compound workflows. --rule-config selects an
-    explicit schema-0.7 document. --format selects hdf5, parquet, or duckdb. --output is a
+    explicit schema-0.8 document. --format selects hdf5, parquet, or duckdb. --output is a
     basename to which apb2 appends the selected suffix; the name may contain dots, it simply
     must not already carry that suffix. --strict promotes layer-contract warnings to errors.
     """

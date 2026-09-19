@@ -3075,7 +3075,7 @@ and reinterpret it as a different mode.
 
 #### G.1 Current rule coverage
 
-The schema-`0.7` package under `apb2/src/apb2/parserV2/vendor_parse_rules/documents/`, audited on 2026-09-17, contains:
+The package under `apb2/src/apb2/parserV2/vendor_parse_rules/documents/`, inventoried on 2026-09-17 and migrated to schema `0.8` on 2026-09-19 without changing its supported levels, contains:
 
 - 19 rule documents with 19 table groups;
 - 35 effective declared levels and therefore 70 obs/var axis plans;
@@ -3096,7 +3096,7 @@ The architecture covers that set through declarations, not vendor-specific parse
 | --- | --- |
 | transitive level-specific source projection | `LevelReadPlan` |
 | direct and computed axis keys | generic key-plan dependency walk |
-| modification-dependent identity | modification sources in raw-key closure; normalizers on `VarRaw` |
+| modification-dependent identity | declared logical dependencies in raw-key closure; independent sequence computations |
 | long physical shape | `LongSourceDecomposer` |
 | wide physical shape | source-resolved `WideSourceDecomposer` |
 | packed fragments | separator followed by reused long decomposer |
@@ -3113,12 +3113,12 @@ The architecture covers that set through declarations, not vendor-specific parse
 
 Tests must prove:
 
-- all 19 packaged documents validate as schema `0.7`;
+- all 19 packaged documents validate as schema `0.8`;
 - all 35 effective levels and every gate/override alternative validate;
 - no document contains `axis.x_layer`, `axis.duplicates`, root-level `layers`, or override
   `x_layer`;
 - every effective rule has identity-only `axis` plus one valid `measurements` block;
-- schema `0.7` rejects schema-0.5 documents, the legacy `keep_all_as_raw_table` duplicate mode, and older document shapes;
+- schema `0.8` rejects schema-0.7 and earlier documents, the legacy `keep_all_as_raw_table` duplicate mode, and older document shapes;
 - obs/var entries carry sourced or computed facts inline and have unique names;
 - role vocabulary and owner permissions match the packaged policy;
 - every effective primary and every declared non-primary abundance layer is tagged;

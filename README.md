@@ -56,7 +56,7 @@ Omit `LEVEL` to convert every compatible level into one APB2 result:
 apb2 convert DATA --params PARAMETER_FILE [--software VENDOR] [--format FORMAT] [--output BASENAME]
 ```
 
-Use an explicit schema-0.7 rule document, with optional search-parameter evidence:
+Use an explicit schema-0.8 rule document, with optional search-parameter evidence:
 
 ```bash
 apb2 convert DATA LEVEL --rule-config RULES_JSON [--params PARAMETER_FILE] \
