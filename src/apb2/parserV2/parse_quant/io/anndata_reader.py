@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
-from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
@@ -49,9 +48,10 @@ from apb2.parserV2.parse_quant.io.metadata import (
 from apb2.parserV2.parse_quant.io.validation import validate_parsed_levels
 
 
-@dataclass(frozen=True, slots=True)
 class H5adReader:
     """Read one APB2 h5ad envelope as a one-level result collection."""
+
+    __slots__ = ()
 
     def read(self, source: Path, /) -> ParsedLevels:
         try:
@@ -73,9 +73,10 @@ class H5adReader:
         return parsed
 
 
-@dataclass(frozen=True, slots=True)
 class H5muReader:
     """Read one APB2 h5mu envelope and all modalities in declared level order."""
+
+    __slots__ = ()
 
     def read(self, source: Path, /) -> ParsedLevels:
         try:

@@ -247,7 +247,7 @@ def _assert_layer_mapping(
         got = actual[name]
         assert got.layer_name == wanted.layer_name
         assert got.var_key_columns == wanted.var_key_columns
-        assert got.role == wanted.role
+        assert type(got.role) is type(wanted.role)
         assert got.semantics == wanted.semantics
         assert_frame_equal(got.values, wanted.values)
 

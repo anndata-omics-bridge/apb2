@@ -61,11 +61,11 @@ from apb2.parserV2.parse_quant.parser import (
     Parser,
 )
 from apb2.parserV2.parser_factory import (
+    duplicate_policy_for,
     make_layer_validator,
     make_layer_value_parser,
     make_raw_value_presence,
     make_source_decomposer,
-    policy_for,
 )
 
 DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
@@ -165,7 +165,7 @@ def parser_for(
         obs_plan=obs_plan,
         var_plan=var_plan,
         modification_normalizers=(),
-        duplicates=policy_for(duplicates),
+        duplicates=duplicate_policy_for(duplicates),
         raw_value_presence=presence or {name: NULL_ONLY for name, _ in layers},
         layer_parsers={name: numeric_layer_parser(name) for name, _source in layers},
         layer_validator=layer_validator(layers[0][0]),
@@ -301,7 +301,7 @@ def test_convert_writes_the_result_it_is_given_and_parses_nothing(tmp_path: Path
         obs_plan=SIMPLE_OBS_PLAN,
         var_plan=SIMPLE_VAR_PLAN,
         modification_normalizers=(),
-        duplicates=policy_for("error"),
+        duplicates=duplicate_policy_for("error"),
         raw_value_presence={},
         layer_parsers={},
         layer_validator=layer_validator("Intensity"),
@@ -827,7 +827,7 @@ def test_a_derived_column_of_the_wrong_length_fails_at_the_boundary() -> None:
         obs_plan=SIMPLE_OBS_PLAN,
         var_plan=SIMPLE_VAR_PLAN,
         modification_normalizers=(Shrinking(),),
-        duplicates=policy_for("error"),
+        duplicates=duplicate_policy_for("error"),
         raw_value_presence={"Intensity": NULL_ONLY},
         layer_parsers={"Intensity": numeric_layer_parser("Intensity")},
         layer_validator=layer_validator("Intensity"),

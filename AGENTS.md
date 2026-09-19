@@ -47,7 +47,7 @@ For a package `A/` with child packages `A/B/`, `A/C/`, and `A/D/`:
 
 For example, `A/B/ -> A/C/ -> A/D/` is permitted; reverse edges and a second direct
 `A/B/ -> A/D/` edge are forbidden. If a child needs two siblings, move the composition
-to `A/` or make the owned collaborators children of that package.
+to `A/` or place the owned collaborators beneath that package.
 
 For Parser V2, rule storage and parsing are sibling children. Their facade and
 runtime composition belong in the parent; neither child imports the other or
@@ -96,3 +96,22 @@ must execute `lint-imports`, so the prose rule is also a merge-blocking check.
 2. Add or update focused tests with each behavioral change.
 3. Run the smallest relevant check while iterating.
 4. Run `make check` before handoff and report its actual result.
+
+
+# APB2 implementation model
+
+- APB2 intentionally uses a restricted subset of Python programming styles.
+
+- Use dataclasses when generated construction would only assign declared fields. This includes values and configured behavior objects; methods belong on a dataclass when they operate cohesively on its configuration. Configuration and runtime-plan dataclasses should normally be frozen.
+
+- Use an explicit constructor when construction validates, normalizes, derives state, or acquires resources. Do not handwrite an `__init__` whose body only copies arguments to attributes.
+
+- Capabilities are Protocols. Protocols are defined by their consumer and describe the smallest capability required at an architectural boundary. Concrete implementations use structural typing and do not inherit from the Protocol.
+
+- Behavior lives in classes. Parsers, writers, policies, normalizers, matchers, compilers and other runtime behavior are objects. Stateless behavior uses an ordinary class without a generated constructor; configured behavior may use a dataclass under the construction rule above. Prefer composition over inheritance.
+
+- Free functions are reserved for composition and facades. Module-level make_*, *_for, compile_*, read_*, and write_* functions may construct/select objects or expose simple package operations. Domain behavior should not be implemented as an unrelated collection of free functions.
+
+- Pydantic is a boundary technology. Pydantic models validate persisted configuration. Runtime algorithms consume validated dataclasses and behavior objects, not Pydantic storage models.
+
+- No utility classes, mixins, service locators, runtime monkey-patching, implicit global state, or deep inheritance hierarchies.

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
-from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
@@ -45,9 +44,10 @@ MANIFEST_NAME = PARQUET_MANIFEST_NAME
 LEVELS_DIRECTORY = PARQUET_LEVELS_DIRECTORY
 
 
-@dataclass(frozen=True, slots=True)
 class ParquetReader:
     """Read only APB2 result datasets carrying the declared manifest and version."""
+
+    __slots__ = ()
 
     def read(self, source: Path, /) -> ParsedLevels:
         if not source.is_dir():

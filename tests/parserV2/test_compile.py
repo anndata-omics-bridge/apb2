@@ -91,6 +91,7 @@ from apb2.parserV2.parse_quant.value_parsing import (
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.parser_factory import (
     compile_level,
+    duplicate_policy_for,
     make_axis_coercer,
     make_column_computer,
     make_fragment_table_separator,
@@ -99,7 +100,6 @@ from apb2.parserV2.parser_factory import (
     make_modification_normalizer,
     make_raw_value_presence,
     make_source_decomposer,
-    policy_for,
 )
 from apb2.parserV2.vendor_parse_rules.document import make_rule_document
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
@@ -147,7 +147,7 @@ def test_the_four_coercers_are_four_different_implementations() -> None:
 
 @pytest.mark.parametrize("mode", get_args(DuplicateMode.__value__))
 def test_every_executable_duplicate_mode_names_one_policy(mode: DuplicateMode) -> None:
-    policy = policy_for(mode)
+    policy = duplicate_policy_for(mode)
 
     assert type(policy) in {ErrorOnDuplicates, KeepFirstDuplicate, AggregateNumericDuplicates}
     assert not hasattr(policy, "mode")

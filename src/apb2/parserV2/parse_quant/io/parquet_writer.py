@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
-from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -41,18 +40,20 @@ MANIFEST_NAME = PARQUET_MANIFEST_NAME
 LEVELS_DIRECTORY = PARQUET_LEVELS_DIRECTORY
 
 
-@dataclass(frozen=True, slots=True)
 class ParquetWriter:
     """Parser-owned single-level writer using the collection format on disk."""
+
+    __slots__ = ()
 
     def write(self, parsed: ParsedLevel, target: Path, /) -> None:
         level = _level_name(parsed)
         ParquetLevelsWriter().write(ParsedLevels(levels={level: parsed}, uns={}), target)
 
 
-@dataclass(frozen=True, slots=True)
 class ParquetLevelsWriter:
     """Write one or more parsed levels without translating any Polars scalar."""
+
+    __slots__ = ()
 
     def write(self, parsed: ParsedLevels, target: Path, /) -> None:
         validate_parsed_levels(parsed)

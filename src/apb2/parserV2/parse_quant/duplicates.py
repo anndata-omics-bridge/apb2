@@ -44,13 +44,14 @@ def _sentinel(numbers: pl.Expr, missing_values: tuple[float, ...]) -> pl.Expr:
     return numbers.is_in(list(missing_values)).fill_null(value=False)
 
 
-@dataclass(frozen=True, slots=True)
 class NullOnlyRawValuePresence:
     """Only absence claims nothing: a factor label or a native number needs no interpretation.
 
     ``NaN`` counts as absence because it is what a float column says instead of null; a
     factor label, including an empty one, is a label and claims its cell.
     """
+
+    __slots__ = ()
 
     def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr:
         return ~absent(values, dtype)
@@ -120,9 +121,10 @@ def _first_present(masked: _MaskedLayer) -> pl.DataFrame:
     )
 
 
-@dataclass(frozen=True, slots=True)
 class ErrorOnDuplicates:
     """More than one claiming scalar in one cell is a rule error, not a value to choose."""
+
+    __slots__ = ()
 
     def resolve(self, layer: RawLayerTable, presence: RawValuePresence, /) -> RawLayerTable:
         masked = _masked(layer, presence)
@@ -145,9 +147,10 @@ class ErrorOnDuplicates:
         )
 
 
-@dataclass(frozen=True, slots=True)
 class KeepFirstDuplicate:
     """The first claiming scalar wins, independently per observation column."""
+
+    __slots__ = ()
 
     def resolve(self, layer: RawLayerTable, presence: RawValuePresence, /) -> RawLayerTable:
         return RawLayerTable(
@@ -157,9 +160,10 @@ class KeepFirstDuplicate:
         )
 
 
-@dataclass(frozen=True, slots=True)
 class AggregateNumericDuplicates:
     """Claiming scalars are summed; a cell with none stays null rather than becoming zero."""
+
+    __slots__ = ()
 
     def resolve(self, layer: RawLayerTable, presence: RawValuePresence, /) -> RawLayerTable:
         masked = _masked(layer, presence)

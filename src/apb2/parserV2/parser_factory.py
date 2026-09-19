@@ -15,8 +15,7 @@ key.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
-from functools import partial
+from collections.abc import Mapping
 from typing import Literal
 
 from apb2.parserV2.parse_quant.axis_columns import (
@@ -34,7 +33,6 @@ from apb2.parserV2.parse_quant.contracts import (
     AxisPhaseRuntimePlan,
     AxisRuntimePlan,
     AxisValueCoercer,
-    BoundInputReader,
     ColumnComputer,
     DuplicatePolicy,
     FragmentTableSeparator,
@@ -89,7 +87,6 @@ from apb2.parserV2.parse_quant.parameters.axis import (
     SiteListModificationConfig,
     StrippedSequenceColumnConfig,
 )
-from apb2.parserV2.parse_quant.parameters.level import ResolvedLevelPlan
 from apb2.parserV2.parse_quant.parameters.measurements import (
     DuplicateMode,
     LayerContractConfig,
@@ -154,7 +151,7 @@ def make_axis_coercer(
     return StringAxisCoercer()
 
 
-def policy_for(mode: DuplicateMode) -> DuplicatePolicy:
+def duplicate_policy_for(mode: DuplicateMode) -> DuplicatePolicy:
     """Select the policy one resolved duplicate mode names."""
     return _DUPLICATE_POLICIES[mode]
 
@@ -359,12 +356,12 @@ def compile_level(
     working = facade.working_parameters
     source = prepare_source(source, working.preparation)
     preparation: dict[str, JsonValue] = {}
-    reader_from: Callable[[ResolvedLevelPlan], BoundInputReader]
     if isinstance(source, PreparedTable):
         evidence = FrameSourceEvidence(
             columns=tuple(source.frame.columns), dtypes=tuple(source.frame.schema.items())
         )
-        reader_from = partial(PreparedInputReader, source.frame)
+        resolved = facade.resolve_source(evidence)
+        input_reader = PreparedInputReader(source.frame, resolved)
         preparation = {
             "input_preparation": {
                 "how": source.how,
@@ -377,16 +374,12 @@ def compile_level(
     else:
         bound = BoundTable(source, working.input)
         evidence = bound.evidence(working.accepts_header)
-
-        def read_physical(plan: ResolvedLevelPlan) -> BoundInputReader:
-            return bound.reader(evidence, plan.read)
-
-        reader_from = read_physical
-    resolved = facade.resolve_source(evidence)
+        resolved = facade.resolve_source(evidence)
+        input_reader = bound.reader(evidence, resolved.read)
     layer_values = {config.layer_name: config for config in resolved.layer_values}
     return Parser(
         level=resolved.level,
-        input_reader=reader_from(resolved),
+        input_reader=input_reader,
         decomposer=make_source_decomposer(
             resolved.decomposition, resolved.obs.source, resolved.var.source
         ),
@@ -395,7 +388,7 @@ def compile_level(
         modification_normalizers=tuple(
             make_modification_normalizer(config) for config in resolved.modifications
         ),
-        duplicates=policy_for(resolved.duplicate_mode),
+        duplicates=duplicate_policy_for(resolved.duplicate_mode),
         raw_value_presence={
             config.layer_name: make_raw_value_presence(config)
             for config in resolved.raw_value_presence

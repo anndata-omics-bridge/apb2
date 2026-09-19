@@ -29,7 +29,7 @@ from apb2.parserV2.parse_quant.parameters.measurements import (
     RegexNumericRawValuePresenceConfig,
 )
 from apb2.parserV2.parse_quant.parameters.source import NumericTextFormat
-from apb2.parserV2.parser_factory import make_raw_value_presence, policy_for
+from apb2.parserV2.parser_factory import duplicate_policy_for, make_raw_value_presence
 
 DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
 GROUPED = NumericTextFormat(decimal_mark=",", thousands_marks=(".",))
@@ -304,9 +304,9 @@ def test_a_layer_with_no_observation_columns_resolves_to_its_keys() -> None:
 
 def test_the_declared_mode_selects_one_stateless_policy() -> None:
     """The removed legacy mode is not a value this selector can be given."""
-    assert isinstance(policy_for("error"), ErrorOnDuplicates)
-    assert isinstance(policy_for("keep_first"), KeepFirstDuplicate)
-    assert isinstance(policy_for("aggregate"), AggregateNumericDuplicates)
+    assert isinstance(duplicate_policy_for("error"), ErrorOnDuplicates)
+    assert isinstance(duplicate_policy_for("keep_first"), KeepFirstDuplicate)
+    assert isinstance(duplicate_policy_for("aggregate"), AggregateNumericDuplicates)
     # A PEP 695 alias holds its literal union in ``__value__``.
     assert set(get_args(DuplicateMode.__value__)) == {"error", "keep_first", "aggregate"}
 

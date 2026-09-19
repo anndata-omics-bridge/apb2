@@ -1845,7 +1845,7 @@ class Parser:
 | modification normalizer | `make_modification_normalizer(config)` |
 | axis coercer | `axis_coercer_for(logical_type)` |
 | column computer | `make_column_computer(config)` |
-| duplicate policy | `policy_for(resolved.duplicate_mode)` |
+| duplicate policy | `duplicate_policy_for(resolved.duplicate_mode)` |
 | raw-value presence | `make_raw_value_presence(config)` per resolved layer |
 | parsed-level writer | output-bound constructor |
 | AnnData layer encoder | `make_anndata_layer_encoder(config)` |
@@ -3560,7 +3560,7 @@ Concrete consequences in this specification are:
   methods on that class, not functions in a separate `projection.py`;
 - `_make_axis_frame`, `_write_namespace`, and `_write_atomically` are private static methods on
   `AnnDataWriter` while no second writer uses them;
-- `make_source_decomposer()`, `make_column_computer()`, and `policy_for()` remain free construction
+- `make_source_decomposer()`, `make_column_computer()`, and `duplicate_policy_for()` remain free construction
   or selection functions in the composition-root area; and
 - no module-level function exists merely to forward arguments to one method or to hide an import.
 

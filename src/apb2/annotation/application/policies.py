@@ -52,9 +52,10 @@ class AnnotationApplication(Protocol):
         ...
 
 
-@dataclass(frozen=True, slots=True)
 class MatchedAnnotationSelection:
     """Select observations matched to any annotation row."""
+
+    __slots__ = ()
 
     def validate(self, match: LevelAnnotationMatch, /) -> None:
         del match
@@ -106,9 +107,10 @@ class AllAnnotationSelections:
         return selected.rename("selected")
 
 
-@dataclass(frozen=True, slots=True)
 class KeepUnmatchedAnnotation:
     """Attach null metadata to unmatched observations and retain every observation."""
+
+    __slots__ = ()
 
     def validate(self, matches: AnnotationMatches, /) -> None:
         _require_any_match(matches)
@@ -117,9 +119,10 @@ class KeepUnmatchedAnnotation:
         return _apply(parsed, matches, selections=None)
 
 
-@dataclass(frozen=True, slots=True)
 class RequireCompleteAnnotation:
     """Require every observation to match before attaching annotation."""
+
+    __slots__ = ()
 
     def validate(self, matches: AnnotationMatches, /) -> None:
         _require_any_match(matches)

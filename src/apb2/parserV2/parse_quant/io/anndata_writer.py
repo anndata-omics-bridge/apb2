@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import cast
@@ -63,9 +62,10 @@ def _layer_value_block(layer: FinalLayerTable, /) -> pl.DataFrame:
     return layer.values.select(layer.values.columns[len(layer.var_key_columns) :])
 
 
-@dataclass(frozen=True, slots=True)
 class AnnDataWriter:
     """Structurally serialize one canonical parsed level as ``.h5ad``."""
+
+    __slots__ = ()
 
     def to_anndata(self, parsed: ParsedLevel, /) -> AnnData:
         """Materialize one canonical parsed level without writing it."""
@@ -250,9 +250,10 @@ def _storage_index(
     return pd.Index(labels, name=name)
 
 
-@dataclass(frozen=True, slots=True)
 class MuDataWriter:
     """Structurally serialize canonical parsed levels as one MuData file."""
+
+    __slots__ = ()
 
     def write(self, parsed: ParsedLevels, target: Path, /) -> None:
         if not parsed.levels:
@@ -306,9 +307,10 @@ class MuDataWriter:
         _write_atomically(target, result.write_h5mu)
 
 
-@dataclass(frozen=True, slots=True)
 class H5adWriter:
     """Collection-level structural h5ad adapter."""
+
+    __slots__ = ()
 
     def write(self, parsed: ParsedLevels, target: Path, /) -> None:
         validate_parsed_levels(parsed)
@@ -332,9 +334,10 @@ class H5adWriter:
         )
 
 
-@dataclass(frozen=True, slots=True)
 class H5muWriter:
     """Collection-level structural h5mu adapter."""
+
+    __slots__ = ()
 
     def write(self, parsed: ParsedLevels, target: Path, /) -> None:
         validate_parsed_levels(parsed)

@@ -57,9 +57,10 @@ class VarFinal:
     # ("ProForma_ion",)
 
 
-@dataclass(frozen=True, slots=True)
 class MeasurementLayerRole:
     """A quantitative layer that participates in matrix occupancy checks."""
+
+    __slots__ = ()
 
     def occupancy_candidates(
         self,
@@ -79,9 +80,10 @@ class MeasurementLayerRole:
         return "measurement"
 
 
-@dataclass(frozen=True, slots=True)
 class AuxiliaryLayerRole:
     """A numeric diagnostic layer that is exempt from matrix occupancy checks."""
+
+    __slots__ = ()
 
     def occupancy_candidates(
         self,

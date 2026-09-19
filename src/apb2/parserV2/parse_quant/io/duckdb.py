@@ -64,9 +64,10 @@ class _TableWriter:
         return table_metadata(frame, name)
 
 
-@dataclass(frozen=True, slots=True)
 class DuckDBWriter:
     """Stage a complete database beside the destination, then replace it atomically."""
+
+    __slots__ = ()
 
     def write(self, parsed: ParsedLevels, target: Path, /) -> None:
         validate_parsed_levels(parsed)
@@ -155,9 +156,10 @@ class DuckDBWriter:
         }
 
 
-@dataclass(frozen=True, slots=True)
 class DuckDBReader:
     """Read one APB2-authored result database and close it before returning."""
+
+    __slots__ = ()
 
     def read(self, source: Path, /) -> ParsedLevels:
         if not source.is_file():
