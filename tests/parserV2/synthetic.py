@@ -8,9 +8,11 @@ declares one is how those paths get tested without inventing a vendor.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
+from apb2.parserV2.parse_quant.parser import ParseStrategy
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.vendor_parse_rules.document import (
     RuleDocument,
@@ -20,6 +22,13 @@ from apb2.parserV2.vendor_parse_rules.document import (
 from apb2.parserV2.vendor_parse_rules.schema.base import SCHEMA_VERSION, QuantificationLevel
 
 NO_EVIDENCE = SearchParameterEvidence(acquisition_method="unknown", combine_charge_states=None)
+
+
+def plan_snapshot(strategy: ParseStrategy) -> dict[str, Any]:
+    """Inspect saved decisions without retaining another runtime configuration graph."""
+    encoded = strategy.provenance["plan_json"]
+    assert isinstance(encoded, str)
+    return json.loads(encoded)
 
 
 def _column_entries(

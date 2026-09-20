@@ -18,8 +18,8 @@ impossible unless a caller asks for one.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
 
 import polars as pl
 
@@ -40,7 +40,6 @@ from apb2.parserV2.parse_quant.data.parsed import (
     JsonValue,
     ObsFinal,
     ParsedLevel,
-    ParsedLevelName,
     ParsedLevels,
     VarFinal,
 )
@@ -51,7 +50,9 @@ from apb2.parserV2.parse_quant.data.raw import (
     RawToFinalKeyMap,
     VarRaw,
 )
+from apb2.parserV2.parse_quant.data.source import LevelSourceTable
 from apb2.parserV2.parse_quant.parameters.level import QuantificationLevel
+from apb2.parserV2.parse_quant.parameters.source import LevelReadPlan
 
 _EXAMPLE_LIMIT = 5
 _UNKNOWN_MOD_TOKENS = "unknown_mod_tokens"
@@ -87,67 +88,57 @@ class ParserCollection:
     def parse(self) -> ParsedLevels:
         """Parse every compiled level once and assemble the canonical collection."""
         return ParsedLevels(
-            levels={
-                cast(ParsedLevelName, parser.level): parser.parse() for parser in self._parsers
-            },
+            levels={parser.level: parser.parse() for parser in self._parsers},
             uns={},
         )
 
 
+@dataclass(frozen=True, slots=True)
 class Parser:
-    """One quantification level's completed strategy graph."""
+    """Bind physical IO without duplicating the executable strategy."""
 
-    __slots__ = (
-        "_decomposer",
-        "_duplicates",
-        "_input",
-        "_layer_parsers",
-        "_layer_validator",
-        "_obs_plan",
-        "_provenance",
-        "_raw_value_presence",
-        "_var_plan",
-        "_writer",
-        "level",
-    )
+    input_reader: BoundInputReader
+    strategy: ParseStrategy
+    writer: ParsedLevelWriter
 
-    def __init__(
-        self,
-        *,
-        level: QuantificationLevel,
-        input_reader: BoundInputReader,
-        decomposer: SourceDecomposer,
-        obs_plan: AxisRuntimePlan,
-        var_plan: AxisRuntimePlan,
-        duplicates: DuplicatePolicy,
-        raw_value_presence: Mapping[str, RawValuePresence],
-        layer_parsers: Mapping[str, LayerValueParser],
-        layer_validator: LayerSetValidator,
-        writer: ParsedLevelWriter,
-        provenance: Mapping[str, JsonValue],
-    ) -> None:
-        self.level = level
-        self._input = input_reader
-        self._decomposer = decomposer
-        self._obs_plan = obs_plan
-        self._var_plan = var_plan
-        self._duplicates = duplicates
-        self._raw_value_presence = dict(raw_value_presence)
-        self._layer_parsers = dict(layer_parsers)
-        self._layer_validator = layer_validator
-        self._writer = writer
-        self._provenance = dict(provenance)
+    @property
+    def level(self) -> QuantificationLevel:
+        """The quantification level this bound parser produces."""
+        return self.strategy.level
 
     def parse(self) -> ParsedLevel:
-        """Read one bound source and return one parsed level."""
-        source = self._input.read()
-        raw = self._decomposer.decompose(source)
+        """Read the bound input once, then execute the compiled strategy."""
+        return self.strategy.parse(self.input_reader.read())
+
+    def convert(self, parsed: ParsedLevel, target: Path, /) -> None:
+        """Write a supplied result without reading or parsing again."""
+        self.writer.write(parsed, target)
+
+
+@dataclass(frozen=True, slots=True)
+class ParseStrategy:
+    """One executable graph, compiled directly from authored declarations and evidence."""
+
+    level: QuantificationLevel
+    read: LevelReadPlan
+    decomposer: SourceDecomposer
+    obs: AxisRuntimePlan
+    var: AxisRuntimePlan
+    duplicates: DuplicatePolicy
+    raw_value_presence: Mapping[str, RawValuePresence]
+    layer_parsers: Mapping[str, LayerValueParser]
+    layer_validator: LayerSetValidator
+    provenance: dict[str, JsonValue]
+
+    def parse(self, source: LevelSourceTable) -> ParsedLevel:
+        """Execute the shared parsing pipeline on an already-read source table."""
+        raw = self.decomposer.decompose(source)
 
         obs, obs_map = self._prepare_obs(raw.obs)
         var, var_map, unknown_mod_tokens = self._prepare_var(raw.var)
         layers = self._prepare_layers(raw.layers, obs_map, var_map)
-        self._layer_validator.validate(layers)
-        uns = dict(self._provenance)
+        self.layer_validator.validate(layers)
+        uns = dict(self.provenance)
         if unknown_mod_tokens:
             uns[_UNKNOWN_MOD_TOKENS] = list(unknown_mod_tokens)
 
@@ -163,24 +154,18 @@ class Parser:
             varp={},
         )
 
-    def convert(self, parsed: ParsedLevel, target: Path, /) -> None:
-        """Write a result the caller already has. This never parses anything."""
-        self._writer.write(parsed, target)
-
     # ------------------------------------------------------------------------ the two axes
 
     def _prepare_obs(self, raw: ObsRaw) -> tuple[ObsFinal, RawToFinalKeyMap]:
-        frame, mapping, _diagnostics = self._prepare_axis(
-            raw.frame, raw.raw_key_columns, self._obs_plan
-        )
-        return ObsFinal(frame=frame, key_columns=self._obs_plan.keys.final_key_columns), mapping
+        frame, mapping, _diagnostics = self._prepare_axis(raw.frame, raw.raw_key_columns, self.obs)
+        return ObsFinal(frame=frame, key_columns=self.obs.keys.final_key_columns), mapping
 
     def _prepare_var(self, raw: VarRaw) -> tuple[VarFinal, RawToFinalKeyMap, tuple[str, ...]]:
         frame, mapping, unknown_mod_tokens = self._prepare_axis(
-            raw.frame, raw.raw_key_columns, self._var_plan
+            raw.frame, raw.raw_key_columns, self.var
         )
         return (
-            VarFinal(frame=frame, key_columns=self._var_plan.keys.final_key_columns),
+            VarFinal(frame=frame, key_columns=self.var.keys.final_key_columns),
             mapping,
             unknown_mod_tokens,
         )
@@ -197,23 +182,25 @@ class Parser:
         ``unique`` on the final keys: a repeated valid final key means two raw identities
         collapsed, which is an error rather than a deduplication.
         """
-        working, early_tokens = Parser._materialize_axis_columns(raw, raw, plan.key_phase)
+        working, early_tokens = ParseStrategy._materialize_axis_columns(raw, raw, plan.key_phase)
 
         mapping = RawToFinalKeyMap(
             # Read from the frame as it arrived: a declared column may carry the name of the
             # physical column it was selected from, and materializing it would then replace
             # the raw values this map exists to hold.
             raw_keys=raw.select(list(raw_key_columns)),
-            final_keys=Parser._normalized_keys(working.select(list(plan.keys.final_key_columns))),
+            final_keys=ParseStrategy._normalized_keys(
+                working.select(list(plan.keys.final_key_columns))
+            ),
         )
-        Parser._require_injective_key_mapping(mapping)
+        ParseStrategy._require_injective_key_mapping(mapping)
 
-        valid = Parser._valid_final_key_rows(mapping.final_keys)
-        final_rows, output_tokens = Parser._materialize_axis_columns(
+        valid = ParseStrategy._valid_final_key_rows(mapping.final_keys)
+        final_rows, output_tokens = ParseStrategy._materialize_axis_columns(
             working.filter(valid), raw.filter(valid), plan.output_phase
         )
         return (
-            Parser._finalize_axis_frame(final_rows, outputs=plan.outputs),
+            ParseStrategy._finalize_axis_frame(final_rows, outputs=plan.outputs),
             mapping,
             tuple(dict.fromkeys((*early_tokens, *output_tokens))),
         )
@@ -235,7 +222,9 @@ class Parser:
                 source=selected.source,
             )
             result = result.with_columns(
-                Parser._same_shape(coerced, result.height, selected.name).alias(selected.name)
+                ParseStrategy._same_shape(coerced, result.height, selected.name).alias(
+                    selected.name
+                )
             )
         unknown: dict[str, None] = {}
         for computer in phase.computers:
@@ -243,7 +232,7 @@ class Parser:
             computed = computer.compute(inputs)
             unknown.update(dict.fromkeys(computed.unknown_mod_tokens))
             result = result.with_columns(
-                Parser._same_shape(computed.values, result.height, computer.name).alias(
+                ParseStrategy._same_shape(computed.values, result.height, computer.name).alias(
                     computer.name
                 )
             )
@@ -293,7 +282,7 @@ class Parser:
         final key may well share a name — a rule may select ``Charge`` from a column called
         ``Charge`` — and the comparison has to keep them apart.
         """
-        valid = Parser._valid_final_key_rows(mapping.final_keys)
+        valid = ParseStrategy._valid_final_key_rows(mapping.final_keys)
         final = mapping.final_keys.filter(valid)
         raw = mapping.raw_keys.filter(valid)
         final_columns = [f"final_{index}" for index in range(final.width)]
@@ -351,16 +340,16 @@ class Parser:
         layers: dict[str, FinalLayerTable] = {}
         for layer in raw.values:
             mappable = self._retain_mappable_layer(layer, obs_map, var_map)
-            resolved = self._duplicates.resolve(
+            resolved = self.duplicates.resolve(
                 mappable,
-                self._raw_value_presence[layer.layer_name],
+                self.raw_value_presence[layer.layer_name],
             )
             aligned = self._align_layer_keys(
                 resolved,
                 obs_map,
                 var_map,
             )
-            layers[layer.layer_name] = self._layer_parsers[layer.layer_name].parse(aligned)
+            layers[layer.layer_name] = self.layer_parsers[layer.layer_name].parse(aligned)
         return layers
 
     @staticmethod
@@ -380,11 +369,11 @@ class Parser:
         kept_columns = [
             label
             for label, usable in zip(
-                value_columns, Parser._valid_final_key_rows(obs.final_keys), strict=True
+                value_columns, ParseStrategy._valid_final_key_rows(obs.final_keys), strict=True
             )
             if usable
         ]
-        usable_var = var.raw_keys.filter(Parser._valid_final_key_rows(var.final_keys))
+        usable_var = var.raw_keys.filter(ParseStrategy._valid_final_key_rows(var.final_keys))
         rows = layer.values.join(
             usable_var.unique(maintain_order=True),
             on=keys,
@@ -411,7 +400,7 @@ class Parser:
         layer never measured becomes a row of nulls rather than a missing row.
         """
         keys = list(layer.raw_var_key_columns)
-        var_valid = Parser._valid_final_key_rows(var.final_keys)
+        var_valid = ParseStrategy._valid_final_key_rows(var.final_keys)
         final_keys = var.final_keys.filter(var_valid)
         spine = var.raw_keys.filter(var_valid)
         joined = spine.join(

@@ -45,19 +45,12 @@ from apb2.parserV2.parse_quant.parameters.axis import (
     AxisColumnDeclaration,
     AxisColumnSelection,
     AxisKeyPlan,
-    AxisMaterializationConfig,
-    AxisSourcePlan,
-    ProformaIonColumnConfig,
-    ResolvedAxisColumnPlan,
     WorkingAxisConfiguration,
 )
 from apb2.parserV2.parse_quant.parameters.level import (
-    ResolvedLevelPlan,
     WorkingParseConfiguration,
 )
 from apb2.parserV2.parse_quant.parameters.measurements import (
-    LayerContractConfig,
-    LayerValueConfig,
     PlainNumericLayerDeclaration,
     WorkingMeasurementLayer,
     WorkingMeasurements,
@@ -67,14 +60,10 @@ from apb2.parserV2.parse_quant.parameters.source import (
     DelimitedFormatContract,
     DelimitedSourceEvidence,
     InputContract,
-    LevelReadPlan,
-    LongDecompositionConfig,
-    LongRawLayerSource,
     LongSourceLayout,
     NumericTextFormat,
     PositionalFragmentLayout,
     SourceLayoutDeclaration,
-    WideDecompositionConfig,
     WideRawLayerPlan,
     WideRawLayerSource,
     WideSourceLayout,
@@ -444,103 +433,32 @@ def test_working_measurements_rejects_inconsistent_construction(
         )
 
 
-def test_a_resolved_plan_is_one_atomic_value_for_one_physical_source() -> None:
-    keys = AxisKeyPlan(
-        raw_key_columns=("sequence", "charge"),
-        key_input_columns=("ProForma_peptidoform", "Charge"),
-        final_key_columns=("ProForma_ion",),
-    )
-    plan = ResolvedLevelPlan(
-        level="ion",
-        number_format=DOT,
-        read=LevelReadPlan(
-            projected_columns=("sequence", "charge", "intensity"),
-            text_sources=frozenset({"sequence", "charge"}),
-            native_numeric_sources=frozenset({"intensity"}),
-        ),
-        decomposition=LongDecompositionConfig(
-            kind="long",
-            primary_layer_name="Intensity",
-            layer_sources=(LongRawLayerSource(name="Intensity", source_column="intensity"),),
-        ),
-        obs=ResolvedAxisColumnPlan(
-            source=AxisSourcePlan(
-                keys=AxisKeyPlan(
-                    raw_key_columns=("run",),
-                    key_input_columns=("sample",),
-                    final_key_columns=("sample",),
-                ),
-                payload_sources=(),
-            ),
-            key_phase=AxisMaterializationConfig(
-                selections=(
-                    AxisColumnSelection(name="sample", source="run", logical_type="string"),
-                ),
-                computers=(),
-            ),
-            output_phase=AxisMaterializationConfig(selections=(), computers=()),
-            outputs=("sample",),
-            skipped=frozenset(),
-        ),
-        var=ResolvedAxisColumnPlan(
-            source=AxisSourcePlan(keys=keys, payload_sources=()),
-            key_phase=AxisMaterializationConfig(
-                selections=(
-                    AxisColumnSelection(name="Charge", source="charge", logical_type="integer"),
-                ),
-                computers=(
-                    ProformaIonColumnConfig(
-                        kind="proforma_ion",
-                        name="ProForma_ion",
-                        inputs=("ProForma_peptidoform", "Charge"),
-                    ),
-                ),
-            ),
-            output_phase=AxisMaterializationConfig(selections=(), computers=()),
-            outputs=("ProForma_ion",),
-            skipped=frozenset(),
-        ),
-        duplicate_mode="keep_first",
-        layer_values=(
-            LayerValueConfig(
-                layer_name="Intensity",
-                value=PlainNumericLayerDeclaration(missing_values=(0.0,)),
-            ),
-        ),
-        layer_contract=LayerContractConfig(
-            primary_layer_name="Intensity",
-            required_names=("Intensity",),
-            empty_ratio=0.001,
-            populated_ratio=0.5,
-        ),
-        provenance={"software_name": "AlphaDIA"},
-    )
+def test_source_compilation_returns_one_executable_strategy_not_a_resolved_graph() -> None:
+    from apb2.parserV2.parse_quant.parser import ParseStrategy
+    from parserV2 import synthetic
 
-    read = plan.read
+    facade = synthetic.facade(
+        synthetic.long_document(obs_select={"sample": "run"}, var_select={"Feature": "feature"})
+    )
+    strategy = facade.resolve_source(
+        DelimitedSourceEvidence(("run", "feature", "Quantity"), "\t", '"', "utf8", DOT)
+    )
+    assert isinstance(strategy, ParseStrategy)
+    read = strategy.read
     assert read.text_sources.isdisjoint(read.native_numeric_sources)
     assert read.text_sources | read.native_numeric_sources == set(read.projected_columns)
-    assert plan.var.source.keys.final_key_columns == ("ProForma_ion",)
+    assert strategy.var.keys.final_key_columns == ("Feature",)
+    assert callable(strategy.parse)
+    assert not hasattr(strategy, "layer_values")
+    assert not hasattr(strategy, "decomposition")
 
 
 def test_wide_layer_plans_keep_their_resolved_header_order() -> None:
-    config = WideDecompositionConfig(
-        kind="wide",
-        primary_layer_name="Intensity",
-        layer_plans=(
-            WideRawLayerPlan(
-                name="Intensity",
-                sources=(
-                    WideRawLayerSource(source_column="run_A", sample="run_A"),
-                    WideRawLayerSource(source_column="run_B", sample="run_B"),
-                ),
-            ),
-        ),
+    plan = WideRawLayerPlan(
+        name="Intensity",
+        sources=(WideRawLayerSource("run_A", "run_A"), WideRawLayerSource("run_B", "run_B")),
     )
-
-    assert tuple(source.sample for source in config.layer_plans[0].sources) == (
-        "run_A",
-        "run_B",
-    )
+    assert tuple(source.sample for source in plan.sources) == ("run_A", "run_B")
 
 
 def test_delimited_evidence_preserves_the_physical_header_order() -> None:

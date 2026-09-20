@@ -47,15 +47,14 @@ from apb2.parserV2.parse_quant.io.parquet_writer import (
     ParquetWriter,
 )
 from apb2.parserV2.parse_quant.layer_validation import LayerContractValidator
+from apb2.parserV2.parse_quant.operations import make_layer_operations
 from apb2.parserV2.parse_quant.parameters.measurements import (
     FactorLayerDeclaration,
-    LayerContractConfig,
     LayerValueConfig,
     PlainNumericLayerDeclaration,
     RegexNumericLayerDeclaration,
 )
 from apb2.parserV2.parse_quant.parameters.source import NumericTextFormat
-from apb2.parserV2.parser_factory import make_layer_operations
 
 DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
 GROUPED = NumericTextFormat(decimal_mark=",", thousands_marks=(".",))
@@ -450,12 +449,13 @@ def test_an_encoder_preserves_the_shape_and_the_column_order_it_was_given() -> N
 # ------------------------------------------------------------------------- contract checks
 
 
-def contract(*required: str, primary: str = "Intensity") -> LayerContractConfig:
-    return LayerContractConfig(
+def contract(*required: str, primary: str = "Intensity") -> LayerContractValidator:
+    return LayerContractValidator(
         primary_layer_name=primary,
         required_names=required or (primary,),
         empty_ratio=0.001,
         populated_ratio=0.5,
+        strict=False,
     )
 
 
@@ -464,7 +464,7 @@ def validate_layers(
     *,
     checks: Literal["standard", "strict"] = "standard",
     auxiliary: tuple[str, ...] = (),
-    config: LayerContractConfig | None = None,
+    config: LayerContractValidator | None = None,
 ) -> None:
     layers = {
         name: FinalLayerTable(

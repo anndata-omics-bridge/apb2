@@ -13,22 +13,21 @@ import pytest
 from apb2.parserV2.parse_quant.data.layer_columns import observation_labels
 from apb2.parserV2.parse_quant.data.raw import DecomposedDataRaw
 from apb2.parserV2.parse_quant.data.source import LevelSourceTable
-from apb2.parserV2.parse_quant.decomposition import DelimitedFragmentSourceDecomposer
-from apb2.parserV2.parse_quant.fragments import PackedLengthError
+from apb2.parserV2.parse_quant.decomposition import (
+    DelimitedFragmentSourceDecomposer,
+    LongSourceDecomposer,
+    WideSourceDecomposer,
+)
+from apb2.parserV2.parse_quant.fragments import (
+    ColumnLabeledFragmentTableSeparator,
+    PackedLengthError,
+    PositionalFragmentTableSeparator,
+)
 from apb2.parserV2.parse_quant.parameters.axis import AxisKeyPlan, AxisSourcePlan
 from apb2.parserV2.parse_quant.parameters.source import (
-    ColumnLabeledFragmentSeparationConfig,
-    DelimitedFragmentDecompositionConfig,
-    LongDecompositionConfig,
     LongRawLayerSource,
-    PositionalFragmentSeparationConfig,
-    WideDecompositionConfig,
     WideRawLayerPlan,
     WideRawLayerSource,
-)
-from apb2.parserV2.parser_factory import (
-    make_fragment_table_separator,
-    make_source_decomposer,
 )
 
 
@@ -39,9 +38,12 @@ def axis(raw: tuple[str, ...], payload: tuple[str, ...] = ()) -> AxisSourcePlan:
     )
 
 
-def long_config(*sources: tuple[str, str], primary: str) -> LongDecompositionConfig:
-    return LongDecompositionConfig(
-        kind="long",
+def long_decomposer(
+    *sources: tuple[str, str], primary: str, obs: AxisSourcePlan, var: AxisSourcePlan
+) -> LongSourceDecomposer:
+    return LongSourceDecomposer(
+        obs=obs,
+        var=var,
         primary_layer_name=primary,
         layer_sources=tuple(
             LongRawLayerSource(name=name, source_column=column) for name, column in sources
@@ -70,27 +72,22 @@ def test_equivalent_long_and_wide_inputs_produce_the_same_raw_invariant() -> Non
         frame=pl.DataFrame({"Feature": ["F1", "F2"], "A": [1.0, 2.0], "B": [3.0, 4.0]})
     )
 
-    from_long = make_source_decomposer(
-        long_config(("Intensity", "intensity"), primary="Intensity"),
-        axis(("run",)),
-        axis(("Feature",)),
+    from_long = long_decomposer(
+        ("Intensity", "intensity"), primary="Intensity", obs=axis(("run",)), var=axis(("Feature",))
     ).decompose(long_table)
-    from_wide = make_source_decomposer(
-        WideDecompositionConfig(
-            kind="wide",
-            primary_layer_name="Intensity",
-            layer_plans=(
-                WideRawLayerPlan(
-                    name="Intensity",
-                    sources=(
-                        WideRawLayerSource(source_column="A", sample="A"),
-                        WideRawLayerSource(source_column="B", sample="B"),
-                    ),
+    from_wide = WideSourceDecomposer(
+        primary_layer_name="Intensity",
+        layer_plans=(
+            WideRawLayerPlan(
+                name="Intensity",
+                sources=(
+                    WideRawLayerSource(source_column="A", sample="A"),
+                    WideRawLayerSource(source_column="B", sample="B"),
                 ),
             ),
         ),
-        axis(("run",)),
-        axis(("Feature",)),
+        obs=axis(("run",)),
+        var=axis(("Feature",)),
     ).decompose(wide_table)
 
     assert from_long.obs.frame.get_column("run").to_list() == ["A", "B"]
@@ -120,10 +117,11 @@ def test_a_layer_puts_its_var_keys_first_and_the_obs_columns_in_axis_order() -> 
         )
     )
 
-    raw = make_source_decomposer(
-        long_config(("Intensity", "intensity"), primary="Intensity"),
-        axis(("run",)),
-        axis(("seq", "charge")),
+    raw = long_decomposer(
+        ("Intensity", "intensity"),
+        primary="Intensity",
+        obs=axis(("run",)),
+        var=axis(("seq", "charge")),
     ).decompose(table)
     values = layers_of(raw)["Intensity"]
 
@@ -144,10 +142,11 @@ def test_a_raw_axis_keeps_the_first_payload_it_saw_for_one_key() -> None:
         )
     )
 
-    raw = make_source_decomposer(
-        long_config(("Intensity", "intensity"), primary="Intensity"),
-        axis(("run",)),
-        axis(("Feature",), ("Gene",)),
+    raw = long_decomposer(
+        ("Intensity", "intensity"),
+        primary="Intensity",
+        obs=axis(("run",)),
+        var=axis(("Feature",), ("Gene",)),
     ).decompose(table)
 
     assert raw.var.frame.to_dicts() == [{"Feature": "F1", "Gene": "first"}]
@@ -170,10 +169,8 @@ def test_a_missing_raw_key_component_is_an_identity_of_its_own() -> None:
         )
     )
 
-    raw = make_source_decomposer(
-        long_config(("Intensity", "intensity"), primary="Intensity"),
-        axis(("run",)),
-        axis(("Feature",)),
+    raw = long_decomposer(
+        ("Intensity", "intensity"), primary="Intensity", obs=axis(("run",)), var=axis(("Feature",))
     ).decompose(table)
 
     assert raw.obs.frame.get_column("run").to_list() == ["A", None, "B"]
@@ -196,10 +193,11 @@ def test_a_multi_column_obs_key_becomes_several_columns_of_one_raw_axis() -> Non
         )
     )
 
-    raw = make_source_decomposer(
-        long_config(("Intensity", "intensity"), primary="Intensity"),
-        axis(("run", "fraction")),
-        axis(("Feature",)),
+    raw = long_decomposer(
+        ("Intensity", "intensity"),
+        primary="Intensity",
+        obs=axis(("run", "fraction")),
+        var=axis(("Feature",)),
     ).decompose(table)
 
     assert raw.obs.raw_key_columns == ("run", "fraction")
@@ -243,16 +241,14 @@ def test_long_decomposition_pivots_distinct_layer_sources_together(
         )
     )
 
-    raw = make_source_decomposer(
-        long_config(
-            ("Intensity", "intensity"),
-            ("Intensity_Copy", "intensity"),
-            ("Status", "status"),
-            ("Empty", "empty"),
-            primary="Intensity",
-        ),
-        axis(("run",)),
-        axis(("Feature",)),
+    raw = long_decomposer(
+        ("Intensity", "intensity"),
+        ("Intensity_Copy", "intensity"),
+        ("Status", "status"),
+        ("Empty", "empty"),
+        primary="Intensity",
+        obs=axis(("run",)),
+        var=axis(("Feature",)),
     ).decompose(table)
     layers = layers_of(raw)
 
@@ -284,10 +280,11 @@ def test_a_repeated_long_cell_becomes_a_repeated_var_row() -> None:
     )
 
     values = layers_of(
-        make_source_decomposer(
-            long_config(("Intensity", "intensity"), primary="Intensity"),
-            axis(("run",)),
-            axis(("Feature",)),
+        long_decomposer(
+            ("Intensity", "intensity"),
+            primary="Intensity",
+            obs=axis(("run",)),
+            var=axis(("Feature",)),
         ).decompose(table)
     )["Intensity"]
 
@@ -303,8 +300,7 @@ def test_two_wide_columns_claiming_one_sample_become_repeated_rows() -> None:
             {"Feature": ["F1", "F2"], "A one": [1.0, 2.0], "A two": [9.0, None], "B": [3.0, 4.0]}
         )
     )
-    config = WideDecompositionConfig(
-        kind="wide",
+    config = WideSourceDecomposer(
         primary_layer_name="Intensity",
         layer_plans=(
             WideRawLayerPlan(
@@ -316,11 +312,11 @@ def test_two_wide_columns_claiming_one_sample_become_repeated_rows() -> None:
                 ),
             ),
         ),
+        obs=axis(("sample",)),
+        var=axis(("Feature",)),
     )
 
-    values = layers_of(
-        make_source_decomposer(config, axis(("sample",)), axis(("Feature",))).decompose(table)
-    )["Intensity"]
+    values = layers_of(config.decompose(table))["Intensity"]
 
     assert values.to_dicts() == [
         {"Feature": "F1", "obs_0": 1.0, "obs_1": 3.0},
@@ -332,19 +328,19 @@ def test_two_wide_columns_claiming_one_sample_become_repeated_rows() -> None:
 
 def test_a_required_wide_layer_with_no_aligned_column_stays_aligned_and_empty() -> None:
     table = LevelSourceTable(frame=pl.DataFrame({"Feature": ["F1"], "A": [1.0]}))
-    config = WideDecompositionConfig(
-        kind="wide",
+    config = WideSourceDecomposer(
         primary_layer_name="Intensity",
         layer_plans=(
             WideRawLayerPlan(
-                name="Intensity",
-                sources=(WideRawLayerSource(source_column="A", sample="A"),),
+                name="Intensity", sources=(WideRawLayerSource(source_column="A", sample="A"),)
             ),
             WideRawLayerPlan(name="Count", sources=()),
         ),
+        obs=axis(("sample",)),
+        var=axis(("Feature",)),
     )
 
-    raw = make_source_decomposer(config, axis(("sample",)), axis(("Feature",))).decompose(table)
+    raw = config.decompose(table)
     count = layers_of(raw)["Count"]
 
     assert count.columns == ["Feature", "obs_0"]
@@ -356,22 +352,21 @@ def test_the_wide_observation_axis_comes_from_the_primary_layer_alone() -> None:
     table = LevelSourceTable(
         frame=pl.DataFrame({"Feature": ["F1"], "A Int": [1.0], "Z Count": [2.0]})
     )
-    config = WideDecompositionConfig(
-        kind="wide",
+    config = WideSourceDecomposer(
         primary_layer_name="Intensity",
         layer_plans=(
             WideRawLayerPlan(
-                name="Intensity",
-                sources=(WideRawLayerSource(source_column="A Int", sample="A"),),
+                name="Intensity", sources=(WideRawLayerSource(source_column="A Int", sample="A"),)
             ),
             WideRawLayerPlan(
-                name="Count",
-                sources=(WideRawLayerSource(source_column="Z Count", sample="Z"),),
+                name="Count", sources=(WideRawLayerSource(source_column="Z Count", sample="Z"),)
             ),
         ),
+        obs=axis(("sample",)),
+        var=axis(("Feature",)),
     )
 
-    raw = make_source_decomposer(config, axis(("sample",)), axis(("Feature",))).decompose(table)
+    raw = config.decompose(table)
 
     assert raw.obs.frame.get_column("sample").to_list() == ["A"]
     # A non-primary sample token does not expand the observation axis, so the layer that
@@ -382,12 +377,9 @@ def test_the_wide_observation_axis_comes_from_the_primary_layer_alone() -> None:
 # ---------------------------------------------------------------------- packed fragments
 
 
-def positional(*packed: str, delimiter: str = ";") -> PositionalFragmentSeparationConfig:
-    return PositionalFragmentSeparationConfig(
-        kind="positional",
-        label_output="fragment_label",
-        delimiter=delimiter,
-        packed_value_sources=packed,
+def positional(*packed: str, delimiter: str = ";") -> PositionalFragmentTableSeparator:
+    return PositionalFragmentTableSeparator(
+        label_output="fragment_label", delimiter=delimiter, packed_value_sources=packed
     )
 
 
@@ -396,7 +388,7 @@ def test_positional_separation_labels_each_scalar_by_its_index() -> None:
         frame=pl.DataFrame({"Seq": ["P"], "Quant": ["1200;900;450"], "Corr": ["0.9;0.8;0.7"]})
     )
 
-    separated = make_fragment_table_separator(positional("Quant", "Corr")).separate(table)
+    separated = positional("Quant", "Corr").separate(table)
 
     assert separated.frame.to_dicts() == [
         {"Seq": "P", "Quant": "1200", "Corr": "0.9", "fragment_label": "frag_0"},
@@ -408,7 +400,7 @@ def test_positional_separation_labels_each_scalar_by_its_index() -> None:
 def test_a_trailing_terminator_is_not_an_extra_fragment() -> None:
     table = LevelSourceTable(frame=pl.DataFrame({"Quant": ["10;20;"]}))
 
-    separated = make_fragment_table_separator(positional("Quant")).separate(table)
+    separated = positional("Quant").separate(table)
 
     assert separated.frame.get_column("Quant").to_list() == ["10", "20"]
 
@@ -416,7 +408,7 @@ def test_a_trailing_terminator_is_not_an_extra_fragment() -> None:
 def test_whitespace_is_trimmed_around_the_cell_and_around_each_token() -> None:
     table = LevelSourceTable(frame=pl.DataFrame({"Quant": ["  10 ; 20  "]}))
 
-    separated = make_fragment_table_separator(positional("Quant")).separate(table)
+    separated = positional("Quant").separate(table)
 
     assert separated.frame.get_column("Quant").to_list() == ["10", "20"]
 
@@ -424,7 +416,7 @@ def test_whitespace_is_trimmed_around_the_cell_and_around_each_token() -> None:
 def test_an_interior_empty_token_stays_an_empty_scalar_at_its_position() -> None:
     table = LevelSourceTable(frame=pl.DataFrame({"Quant": ["10;;30"]}))
 
-    separated = make_fragment_table_separator(positional("Quant")).separate(table)
+    separated = positional("Quant").separate(table)
 
     assert separated.frame.get_column("Quant").to_list() == ["10", "", "30"]
     assert separated.frame.get_column("fragment_label").to_list() == [
@@ -438,7 +430,7 @@ def test_an_interior_empty_token_stays_an_empty_scalar_at_its_position() -> None
 def test_a_row_with_no_tokens_contributes_no_scalar_row(cell: str | None) -> None:
     table = LevelSourceTable(frame=pl.DataFrame({"Quant": [cell, "5"]}, strict=False))
 
-    separated = make_fragment_table_separator(positional("Quant")).separate(table)
+    separated = positional("Quant").separate(table)
 
     assert separated.frame.get_column("Quant").to_list() == ["5"]
 
@@ -447,12 +439,11 @@ def test_parallel_packed_cells_of_different_length_are_a_vendor_defect() -> None
     table = LevelSourceTable(frame=pl.DataFrame({"Quant": ["1;2"], "Corr": ["1;2;3"]}))
 
     with pytest.raises(PackedLengthError, match="different numbers"):
-        make_fragment_table_separator(positional("Quant", "Corr")).separate(table)
+        positional("Quant", "Corr").separate(table)
 
 
 def test_column_labelled_separation_takes_the_token_before_the_first_slash() -> None:
-    config = ColumnLabeledFragmentSeparationConfig(
-        kind="column",
+    config = ColumnLabeledFragmentTableSeparator(
         label_source="Info",
         label_output="fragment_label",
         delimiter=";",
@@ -464,7 +455,7 @@ def test_column_labelled_separation_takes_the_token_before_the_first_slash() -> 
         )
     )
 
-    separated = make_fragment_table_separator(config).separate(table)
+    separated = config.separate(table)
 
     assert separated.frame.columns == ["Seq", "Quant", "fragment_label"]
     assert separated.frame.get_column("fragment_label").to_list() == ["b4-unknown^1", "y3^1"]
@@ -492,13 +483,13 @@ def test_the_fragment_path_separates_first_and_then_delegates_once() -> None:
 
 
 def test_the_fragment_decomposer_reuses_the_ordinary_long_implementation() -> None:
-    config = DelimitedFragmentDecompositionConfig(
-        kind="delimited_fragment",
-        separator=positional("Quant"),
-        long=long_config(("Fragment_Quant", "Quant"), primary="Fragment_Quant"),
-    )
     obs, var = axis(("Run",)), axis(("Seq", "fragment_label"))
-    composed = make_source_decomposer(config, obs, var)
+    composed = DelimitedFragmentSourceDecomposer(
+        separator=positional("Quant"),
+        long_decomposer=long_decomposer(
+            ("Fragment_Quant", "Quant"), primary="Fragment_Quant", obs=obs, var=var
+        ),
+    )
     table = LevelSourceTable(
         frame=pl.DataFrame({"Run": ["A", "B"], "Seq": ["P", "P"], "Quant": ["10;20", "30;40"]})
     )
@@ -506,7 +497,7 @@ def test_the_fragment_decomposer_reuses_the_ordinary_long_implementation() -> No
     raw = composed.decompose(table)
 
     assert isinstance(composed, DelimitedFragmentSourceDecomposer)
-    assert type(composed.long_decomposer) is type(make_source_decomposer(config.long, obs, var))
+    assert type(composed.long_decomposer) is LongSourceDecomposer
     assert raw.var.frame.to_dicts() == [
         {"Seq": "P", "fragment_label": "frag_0"},
         {"Seq": "P", "fragment_label": "frag_1"},
@@ -531,10 +522,8 @@ def test_a_layer_value_column_never_collides_with_a_var_key_column() -> None:
         frame=pl.DataFrame({"run": ["A"], "obs_0": ["F1"], "intensity": [1.0]})
     )
 
-    raw = make_source_decomposer(
-        long_config(("Intensity", "intensity"), primary="Intensity"),
-        axis(("run",)),
-        axis(("obs_0",)),
+    raw = long_decomposer(
+        ("Intensity", "intensity"), primary="Intensity", obs=axis(("run",)), var=axis(("obs_0",))
     ).decompose(table)
 
     assert layers_of(raw)["Intensity"].columns == ["obs_0", "obs__0"]
@@ -548,10 +537,8 @@ def test_no_returned_value_carries_a_counter_a_coordinate_or_a_matrix() -> None:
         frame=pl.DataFrame({"run": ["A", "A"], "Feature": ["F1", "F1"], "intensity": [1.0, 2.0]})
     )
 
-    raw = make_source_decomposer(
-        long_config(("Intensity", "intensity"), primary="Intensity"),
-        axis(("run",)),
-        axis(("Feature",)),
+    raw = long_decomposer(
+        ("Intensity", "intensity"), primary="Intensity", obs=axis(("run",)), var=axis(("Feature",))
     ).decompose(table)
 
     internal = {"_occurrence", "_var_slot", "_obs_slot"}

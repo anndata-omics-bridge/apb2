@@ -43,16 +43,21 @@ from apb2.parserV2.parse_quant.data.raw import (
     VarRaw,
 )
 from apb2.parserV2.parse_quant.data.source import LevelSourceTable
+from apb2.parserV2.parse_quant.decomposition import LongSourceDecomposer
 from apb2.parserV2.parse_quant.duplicates import DuplicateCellError
+from apb2.parserV2.parse_quant.layer_validation import LayerContractValidator
+from apb2.parserV2.parse_quant.operations import (
+    duplicate_policy_for,
+    make_layer_operations,
+)
 from apb2.parserV2.parse_quant.parameters.axis import AxisKeyPlan, AxisSourcePlan
 from apb2.parserV2.parse_quant.parameters.measurements import (
     DuplicateMode,
-    LayerContractConfig,
     LayerValueConfig,
     PlainNumericLayerDeclaration,
 )
 from apb2.parserV2.parse_quant.parameters.source import (
-    LongDecompositionConfig,
+    LevelReadPlan,
     LongRawLayerSource,
     NumericTextFormat,
 )
@@ -60,12 +65,7 @@ from apb2.parserV2.parse_quant.parser import (
     AxisShapeError,
     CanonicalKeyCollisionError,
     Parser,
-)
-from apb2.parserV2.parser_factory import (
-    duplicate_policy_for,
-    make_layer_operations,
-    make_layer_validator,
-    make_source_decomposer,
+    ParseStrategy,
 )
 
 DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
@@ -83,14 +83,12 @@ def numeric_layer_parser(name: str) -> LayerValueParser:
 
 
 def layer_validator(primary: str) -> LayerSetValidator:
-    return make_layer_validator(
-        LayerContractConfig(
-            primary_layer_name=primary,
-            required_names=(primary,),
-            empty_ratio=0.001,
-            populated_ratio=0.5,
-        ),
-        "standard",
+    return LayerContractValidator(
+        primary_layer_name=primary,
+        required_names=(primary,),
+        empty_ratio=0.001,
+        populated_ratio=0.5,
+        strict=False,
     )
 
 
@@ -147,25 +145,29 @@ def parser_for(
         def read(self) -> LevelSourceTable:
             return LevelSourceTable(frame=frame)
 
-    config = LongDecompositionConfig(
-        kind="long",
+    config = LongSourceDecomposer(
         primary_layer_name=layers[0][0],
         layer_sources=tuple(
-            LongRawLayerSource(name=name, source_column=column) for name, column in layers
+            (LongRawLayerSource(name=name, source_column=column) for name, column in layers)
         ),
+        obs=obs,
+        var=var,
     )
     return Parser(
-        level="ion",
         input_reader=Reader(),
-        decomposer=make_source_decomposer(config, obs, var),
-        obs_plan=obs_plan,
-        var_plan=var_plan,
-        duplicates=duplicate_policy_for(duplicates),
-        raw_value_presence=presence or {name: NULL_ONLY for name, _ in layers},
-        layer_parsers={name: numeric_layer_parser(name) for name, _source in layers},
-        layer_validator=layer_validator(layers[0][0]),
+        strategy=ParseStrategy(
+            level="ion",
+            decomposer=config,
+            obs=obs_plan,
+            var=var_plan,
+            duplicates=duplicate_policy_for(duplicates),
+            raw_value_presence=presence or {name: NULL_ONLY for name, _ in layers},
+            layer_parsers={name: numeric_layer_parser(name) for name, _source in layers},
+            layer_validator=layer_validator(layers[0][0]),
+            provenance={"software_name": "Synthetic", "quantification_level": "ion"},
+            read=LevelReadPlan((), frozenset(), frozenset()),
+        ),
         writer=writer or Writer(),
-        provenance={"software_name": "Synthetic", "quantification_level": "ion"},
     )
 
 
@@ -243,20 +245,23 @@ def test_parse_runs_its_collaborators_in_the_documented_order() -> None:
             return layer
 
     parser = Parser(
-        level="ion",
         input_reader=Reader(),
-        decomposer=Decomposer(),
-        obs_plan=SIMPLE_OBS_PLAN,
-        var_plan=replace(
-            SIMPLE_VAR_PLAN,
-            key_phase=phase(SIMPLE_VAR_PLAN.key_phase.selections, (Normalizer(),)),
+        strategy=ParseStrategy(
+            level="ion",
+            decomposer=Decomposer(),
+            obs=SIMPLE_OBS_PLAN,
+            var=replace(
+                SIMPLE_VAR_PLAN,
+                key_phase=phase(SIMPLE_VAR_PLAN.key_phase.selections, (Normalizer(),)),
+            ),
+            duplicates=Policy(),
+            raw_value_presence={"Intensity": Presence()},
+            layer_parsers={"Intensity": numeric_layer_parser("Intensity")},
+            layer_validator=layer_validator("Intensity"),
+            provenance={},
+            read=LevelReadPlan((), frozenset(), frozenset()),
         ),
-        duplicates=Policy(),
-        raw_value_presence={"Intensity": Presence()},
-        layer_parsers={"Intensity": numeric_layer_parser("Intensity")},
-        layer_validator=layer_validator("Intensity"),
         writer=Writer(),
-        provenance={},
     )
 
     parsed = parser.parse()
@@ -287,17 +292,20 @@ def test_convert_writes_the_result_it_is_given_and_parses_nothing(tmp_path: Path
 
     writer = Writer()
     parser = Parser(
-        level="ion",
         input_reader=Reader(),
-        decomposer=Decomposer(),
-        obs_plan=SIMPLE_OBS_PLAN,
-        var_plan=SIMPLE_VAR_PLAN,
-        duplicates=duplicate_policy_for("error"),
-        raw_value_presence={},
-        layer_parsers={},
-        layer_validator=layer_validator("Intensity"),
+        strategy=ParseStrategy(
+            level="ion",
+            decomposer=Decomposer(),
+            obs=SIMPLE_OBS_PLAN,
+            var=SIMPLE_VAR_PLAN,
+            duplicates=duplicate_policy_for("error"),
+            raw_value_presence={},
+            layer_parsers={},
+            layer_validator=layer_validator("Intensity"),
+            provenance={},
+            read=LevelReadPlan((), frozenset(), frozenset()),
+        ),
         writer=writer,
-        provenance={},
     )
     parsed = ParsedLevel(
         obs=ObsFinal(frame=pl.DataFrame({"Run": ["A"]}), key_columns=("Run",)),
@@ -744,18 +752,18 @@ def test_the_parser_holds_only_configured_behaviour() -> None:
         var=SIMPLE_VAR,
     )
 
-    assert set(Parser.__slots__) == {
+    assert set(Parser.__slots__) == {"input_reader", "strategy", "writer"}
+    assert set(ParseStrategy.__slots__) == {
         "level",
-        "_input",
-        "_decomposer",
-        "_obs_plan",
-        "_var_plan",
-        "_duplicates",
-        "_raw_value_presence",
-        "_layer_parsers",
-        "_layer_validator",
-        "_writer",
-        "_provenance",
+        "read",
+        "decomposer",
+        "obs",
+        "var",
+        "duplicates",
+        "raw_value_presence",
+        "layer_parsers",
+        "layer_validator",
+        "provenance",
     }
     assert parser.level == "ion"
     assert not hasattr(parser, "_output")
@@ -800,28 +808,28 @@ def test_a_computed_column_of_the_wrong_length_fails_at_the_boundary() -> None:
             return ColumnComputation(columns[0].head(1))
 
     parser = Parser(
-        level="ion",
         input_reader=_ReaderOf(SIMPLE_FRAME),
-        decomposer=make_source_decomposer(
-            LongDecompositionConfig(
-                kind="long",
+        strategy=ParseStrategy(
+            level="ion",
+            decomposer=LongSourceDecomposer(
                 primary_layer_name="Intensity",
                 layer_sources=(LongRawLayerSource(name="Intensity", source_column="intensity"),),
+                obs=SIMPLE_OBS,
+                var=SIMPLE_VAR,
             ),
-            SIMPLE_OBS,
-            SIMPLE_VAR,
+            obs=SIMPLE_OBS_PLAN,
+            var=replace(
+                SIMPLE_VAR_PLAN,
+                key_phase=phase(SIMPLE_VAR_PLAN.key_phase.selections, (Shrinking(),)),
+            ),
+            duplicates=duplicate_policy_for("error"),
+            raw_value_presence={"Intensity": NULL_ONLY},
+            layer_parsers={"Intensity": numeric_layer_parser("Intensity")},
+            layer_validator=layer_validator("Intensity"),
+            provenance={},
+            read=LevelReadPlan((), frozenset(), frozenset()),
         ),
-        obs_plan=SIMPLE_OBS_PLAN,
-        var_plan=replace(
-            SIMPLE_VAR_PLAN,
-            key_phase=phase(SIMPLE_VAR_PLAN.key_phase.selections, (Shrinking(),)),
-        ),
-        duplicates=duplicate_policy_for("error"),
-        raw_value_presence={"Intensity": NULL_ONLY},
-        layer_parsers={"Intensity": numeric_layer_parser("Intensity")},
-        layer_validator=layer_validator("Intensity"),
         writer=Writer(),
-        provenance={},
     )
 
     with pytest.raises(AxisShapeError, match="axis operation"):

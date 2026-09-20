@@ -130,14 +130,6 @@ class WorkingAxisConfiguration:
         return tuple(selection.source for selection in self.columns.required_selections)
 
 
-@dataclass(frozen=True, slots=True)
-class AxisMaterializationConfig:
-    """One materialization phase: resolved selections and computers, in execution order."""
-
-    selections: tuple[AxisColumnSelection, ...]
-    computers: tuple[ComputedColumnConfig, ...]
-
-
 # ---------------------------------------------------------------------------- axis identity
 
 
@@ -161,22 +153,6 @@ class AxisSourcePlan:
 
     keys: AxisKeyPlan
     payload_sources: tuple[str, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class ResolvedAxisColumnPlan:
-    """One axis fully resolved against physical evidence.
-
-    ``skipped`` records the optional outputs this source cannot provide. It is evidence for
-    a caller and for tests; the runtime phases contain only operations that can execute, so
-    no strategy ever consults it.
-    """
-
-    source: AxisSourcePlan
-    key_phase: AxisMaterializationConfig
-    output_phase: AxisMaterializationConfig
-    outputs: tuple[str, ...]
-    skipped: frozenset[str]
 
 
 # ------------------------------------------------------------------------------ modifications

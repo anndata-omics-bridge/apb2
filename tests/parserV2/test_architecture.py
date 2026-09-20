@@ -353,14 +353,35 @@ def _tag_keyed_tables(path: Path) -> list[str]:
     return found
 
 
-def test_the_registries_live_only_in_the_composition_root() -> None:
+def test_the_registries_live_only_in_the_operation_constructors() -> None:
     """A runtime module holding a tag table would be choosing behaviour per parse."""
     for path in _modules(PARSER_V2):
         tables = _tag_keyed_tables(path)
-        if path.name == "parser_factory.py":
-            assert tables, "the runtime factory is where the tag tables belong"
+        if path == PARSE_QUANT / "operations.py":
+            assert tables, "operation constructors own the compilation-time tag tables"
             continue
         assert not tables, f"{path} holds a tag table: {tables}"
+
+
+def test_the_removed_resolved_configuration_types_stay_removed() -> None:
+    removed = {
+        "ResolvedLevelPlan",
+        "ResolvedAxisColumnPlan",
+        "AxisMaterializationConfig",
+        "LongDecompositionConfig",
+        "WideDecompositionConfig",
+        "DelimitedFragmentDecompositionConfig",
+        "PositionalFragmentSeparationConfig",
+        "ColumnLabeledFragmentSeparationConfig",
+        "LayerContractConfig",
+    }
+    for path in _modules(PARSE_QUANT):
+        classes = {
+            node.name
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+            if isinstance(node, ast.ClassDef)
+        }
+        assert not classes & removed, path
 
 
 def test_only_physical_result_adapters_reach_for_storage_backends() -> None:

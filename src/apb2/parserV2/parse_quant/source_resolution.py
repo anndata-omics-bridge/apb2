@@ -5,52 +5,67 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
+from typing import Literal
 
+from apb2.parserV2.parse_quant.contracts import (
+    AxisPhaseRuntimePlan,
+    AxisRuntimePlan,
+    FragmentTableSeparator,
+    SelectedAxisColumn,
+    SourceDecomposer,
+)
+from apb2.parserV2.parse_quant.decomposition import (
+    DelimitedFragmentSourceDecomposer,
+    LongSourceDecomposer,
+    WideSourceDecomposer,
+)
 from apb2.parserV2.parse_quant.errors import IncompatibleSourceError
+from apb2.parserV2.parse_quant.fragments import (
+    ColumnLabeledFragmentTableSeparator,
+    PositionalFragmentTableSeparator,
+)
+from apb2.parserV2.parse_quant.layer_validation import LayerContractValidator
+from apb2.parserV2.parse_quant.operations import (
+    duplicate_policy_for,
+    make_axis_coercer,
+    make_column_computer,
+    make_layer_operations,
+)
 from apb2.parserV2.parse_quant.parameters.axis import (
     AxisColumnSelection,
     AxisKeyPlan,
-    AxisMaterializationConfig,
     AxisSourcePlan,
     CoalesceColumnConfig,
     ComputedColumnConfig,
     JoinNonemptyColumnConfig,
     ProformaSequenceColumnConfig,
-    ResolvedAxisColumnPlan,
     WorkingAxisConfiguration,
 )
 from apb2.parserV2.parse_quant.parameters.level import (
     JsonValue,
-    ResolvedLevelPlan,
     WorkingParseConfiguration,
 )
 from apb2.parserV2.parse_quant.parameters.measurements import (
-    LayerContractConfig,
     LayerValueConfig,
     WorkingMeasurementLayer,
 )
 from apb2.parserV2.parse_quant.parameters.source import (
     ColumnLabeledFragmentLayout,
-    ColumnLabeledFragmentSeparationConfig,
-    DecompositionConfig,
-    DelimitedFragmentDecompositionConfig,
     DelimitedSourceEvidence,
     ExcelSourceEvidence,
-    FragmentSeparationConfig,
     FrameSourceEvidence,
     LevelReadPlan,
-    LongDecompositionConfig,
     LongRawLayerSource,
     LongSourceLayout,
     NumericTextFormat,
     PositionalFragmentLayout,
-    PositionalFragmentSeparationConfig,
     SourceEvidence,
-    WideDecompositionConfig,
     WideRawLayerPlan,
     WideRawLayerSource,
     WideSourceLayout,
 )
+from apb2.parserV2.parse_quant.parser import ParseStrategy
+from apb2.parserV2.parse_quant.plan_json import PLAN_JSON_KEY, resolved_plan_json
 
 _EMPTY_RATIO = 0.001
 _POPULATED_RATIO = 0.5
@@ -85,39 +100,69 @@ class SourcePlanResolver:
 
     # -------------------------------------------------------------------- source resolution
 
-    def resolve(self, evidence: SourceEvidence) -> ResolvedLevelPlan:
-        """Bind the working parameters to one observed source, once and completely.
-
-        Raises ``IncompatibleSourceError`` when this source cannot satisfy the level: a
-        required column, layer, or final key that its header does not provide.
-        """
+    def resolve(
+        self, evidence: SourceEvidence, *, checks: Literal["standard", "strict"] = "standard"
+    ) -> ParseStrategy:
+        """Compile source-dependent decisions directly into the executable strategy."""
         working = self._configuration
         present = frozenset(evidence.columns)
-        var = self._resolve_axis(working.var, present, self._var_synthesized())
-        layers = self._resolve_layers(evidence.columns, present, self._accounted(var))
-        obs = self._resolve_axis(working.obs, present, self._obs_synthesized())
-        read = self._read_plan(evidence, obs, var, layers)
-        self._require_aggregatable(evidence, read, layers)
         numbers = self._resolved_numbers(evidence)
-        return ResolvedLevelPlan(
+        var_source, var, var_json = self._resolve_axis(
+            working.var, present, self._var_synthesized(), numbers
+        )
+        layers = self._resolve_layers(evidence.columns, present, self._accounted(var_source))
+        obs_source, obs, obs_json = self._resolve_axis(
+            working.obs, present, self._obs_synthesized(), numbers
+        )
+        read = self._read_plan(evidence, obs_source, var_source, layers)
+        self._require_aggregatable(evidence, read, layers)
+        decomposer, decomposition_json = self._decomposition(layers, obs_source, var_source)
+        layer_values = tuple(
+            LayerValueConfig(layer_name=layer.name, value=layer.value) for layer in layers.retained
+        )
+        operations = {
+            value.layer_name: make_layer_operations(value, numbers) for value in layer_values
+        }
+        validator = LayerContractValidator(
+            primary_layer_name=working.measurements.primary_layer_name,
+            required_names=layers.required_names,
+            empty_ratio=_EMPTY_RATIO,
+            populated_ratio=_POPULATED_RATIO,
+            strict=checks == "strict",
+        )
+        snapshot = resolved_plan_json(
+            {
+                "level": working.level,
+                "number_format": numbers,
+                "read": read,
+                "decomposition": decomposition_json,
+                "obs": obs_json,
+                "var": var_json,
+                "duplicate_mode": working.measurements.duplicate_mode,
+                "layer_values": layer_values,
+                "layer_contract": {
+                    "primary_layer_name": validator.primary_layer_name,
+                    "required_names": validator.required_names,
+                    "empty_ratio": validator.empty_ratio,
+                    "populated_ratio": validator.populated_ratio,
+                },
+            }
+        )
+        return ParseStrategy(
             level=working.level,
-            number_format=numbers,
             read=read,
-            decomposition=self._decomposition(layers),
+            decomposer=decomposer,
             obs=obs,
             var=var,
-            duplicate_mode=working.measurements.duplicate_mode,
-            layer_values=tuple(
-                LayerValueConfig(layer_name=layer.name, value=layer.value)
-                for layer in layers.retained
-            ),
-            layer_contract=LayerContractConfig(
-                primary_layer_name=working.measurements.primary_layer_name,
-                required_names=layers.required_names,
-                empty_ratio=_EMPTY_RATIO,
-                populated_ratio=_POPULATED_RATIO,
-            ),
-            provenance={**working.provenance, "layer_roles": self._layer_roles(layers.retained)},
+            duplicates=duplicate_policy_for(working.measurements.duplicate_mode),
+            raw_value_presence={name: pair[0] for name, pair in operations.items()},
+            layer_parsers={name: pair[1] for name, pair in operations.items()},
+            layer_validator=validator,
+            provenance={
+                **working.provenance,
+                "layer_roles": self._layer_roles(layers.retained),
+                PLAN_JSON_KEY: snapshot,
+            },
         )
 
     def _var_synthesized(self) -> tuple[str, ...]:
@@ -130,7 +175,7 @@ class SourcePlanResolver:
             return self._configuration.obs.final_key_columns
         return ()
 
-    def _accounted(self, var: ResolvedAxisColumnPlan) -> frozenset[str]:
+    def _accounted(self, var: AxisSourcePlan) -> frozenset[str]:
         """Names a permissive wide layer pattern must not mistake for a sample column."""
         declaration = self._configuration.var.columns
         return frozenset(
@@ -138,8 +183,8 @@ class SourcePlanResolver:
                 *declaration.declared_order,
                 *(selection.source for selection in declaration.required_selections),
                 *(selection.source for selection in declaration.optional_selections),
-                *var.source.keys.raw_key_columns,
-                *var.source.payload_sources,
+                *var.keys.raw_key_columns,
+                *var.payload_sources,
             }
         )
 
@@ -150,7 +195,8 @@ class SourcePlanResolver:
         axis: WorkingAxisConfiguration,
         present: frozenset[str],
         synthesized: tuple[str, ...],
-    ) -> ResolvedAxisColumnPlan:
+        numbers: NumericTextFormat,
+    ) -> tuple[AxisSourcePlan, AxisRuntimePlan, dict[str, object]]:
         """Resolve one axis: prune what this source cannot provide, then plan both phases."""
         declaration = axis.columns
         missing = [
@@ -188,19 +234,29 @@ class SourcePlanResolver:
         )
         closure = self._dependency_closure((*axis.final_key_columns, *early_outputs), computers)
         self._require_output_phase_keeps_identity(axis.final_key_columns, closure, selections)
-        return ResolvedAxisColumnPlan(
-            source=AxisSourcePlan(
-                keys=keys,
-                payload_sources=self._ordered_unique(
-                    column
-                    for column in (*(selection.source for selection in selections),)
-                    if column not in set(keys.raw_key_columns)
-                ),
+        source = AxisSourcePlan(
+            keys=keys,
+            payload_sources=self._ordered_unique(
+                selection.source
+                for selection in selections
+                if selection.source not in set(keys.raw_key_columns)
             ),
-            key_phase=self._phase(selections, computers, closure, inside=True),
-            output_phase=self._phase(selections, computers, closure, inside=False),
-            outputs=tuple(name for name in declaration.declared_order if name not in skipped),
-            skipped=frozenset(skipped),
+        )
+        key_phase, key_json = self._phase(selections, computers, closure, numbers, inside=True)
+        output_phase, output_json = self._phase(
+            selections, computers, closure, numbers, inside=False
+        )
+        outputs = tuple(name for name in declaration.declared_order if name not in skipped)
+        return (
+            source,
+            AxisRuntimePlan(keys, key_phase, output_phase, outputs),
+            {
+                "source": source,
+                "key_phase": key_json,
+                "output_phase": output_json,
+                "outputs": outputs,
+                "skipped": frozenset(skipped),
+            },
         )
 
     def _require_output_phase_keeps_identity(
@@ -385,8 +441,8 @@ class SourcePlanResolver:
     def _read_plan(
         self,
         evidence: SourceEvidence,
-        obs: ResolvedAxisColumnPlan,
-        var: ResolvedAxisColumnPlan,
+        obs: AxisSourcePlan,
+        var: AxisSourcePlan,
         layers: _ResolvedLayers,
     ) -> LevelReadPlan:
         """Project exactly this level's transitive source closure, and decide every dtype.
@@ -399,10 +455,10 @@ class SourcePlanResolver:
         """
         lexical = frozenset(
             {
-                *obs.source.keys.raw_key_columns,
-                *obs.source.payload_sources,
-                *var.source.keys.raw_key_columns,
-                *var.source.payload_sources,
+                *obs.keys.raw_key_columns,
+                *obs.payload_sources,
+                *var.keys.raw_key_columns,
+                *var.payload_sources,
                 *self._configuration.source_layout.packed_sources(),
             }
         )
@@ -431,30 +487,38 @@ class SourcePlanResolver:
             native_numeric_sources=native,
         )
 
-    def _decomposition(self, layers: _ResolvedLayers) -> DecompositionConfig:
-        """Name the one physical shape this level's table has."""
+    def _decomposition(
+        self, layers: _ResolvedLayers, obs: AxisSourcePlan, var: AxisSourcePlan
+    ) -> tuple[SourceDecomposer, dict[str, object]]:
+        """Construct the physical-shape strategy and record its source decisions."""
         layout = self._configuration.source_layout
         primary = self._configuration.measurements.primary_layer_name
         if isinstance(layout, WideSourceLayout):
-            return WideDecompositionConfig(
-                kind="wide", primary_layer_name=primary, layer_plans=layers.wide_plans
-            )
-        long = LongDecompositionConfig(
-            kind="long", primary_layer_name=primary, layer_sources=layers.long_sources
-        )
+            return WideSourceDecomposer(primary, layers.wide_plans, obs, var), {
+                "kind": "wide",
+                "primary_layer_name": primary,
+                "layer_plans": layers.wide_plans,
+            }
+        long = LongSourceDecomposer(primary, layers.long_sources, obs, var)
+        long_json: dict[str, object] = {
+            "kind": "long",
+            "primary_layer_name": primary,
+            "layer_sources": layers.long_sources,
+        }
         if isinstance(layout, LongSourceLayout):
-            return long
-        return DelimitedFragmentDecompositionConfig(
-            kind="delimited_fragment",
-            separator=self._separator(layout, layers),
-            long=long,
-        )
+            return long, long_json
+        separator, separator_json = self._separator(layout, layers)
+        return DelimitedFragmentSourceDecomposer(separator, long), {
+            "kind": "delimited_fragment",
+            "separator": separator_json,
+            "long": long_json,
+        }
 
     def _separator(
         self,
         layout: PositionalFragmentLayout | ColumnLabeledFragmentLayout,
         layers: _ResolvedLayers,
-    ) -> FragmentSeparationConfig:
+    ) -> tuple[FragmentTableSeparator, dict[str, object]]:
         """Keep the retained packed sources in authored order; drop what is absent."""
         packed = tuple(
             column for column in layout.packed_value_sources if column in layers.source_columns
@@ -465,19 +529,21 @@ class SourcePlanResolver:
                 f"{list(layout.packed_value_sources)}"
             )
         if isinstance(layout, ColumnLabeledFragmentLayout):
-            return ColumnLabeledFragmentSeparationConfig(
-                kind="column",
-                label_source=layout.label_source,
-                label_output=layout.label_output,
-                delimiter=layout.delimiter,
-                packed_value_sources=packed,
-            )
-        return PositionalFragmentSeparationConfig(
-            kind="positional",
-            label_output=layout.label_output,
-            delimiter=layout.delimiter,
-            packed_value_sources=packed,
-        )
+            return ColumnLabeledFragmentTableSeparator(
+                layout.label_source, layout.label_output, layout.delimiter, packed
+            ), {
+                "kind": "column",
+                "label_source": layout.label_source,
+                "label_output": layout.label_output,
+                "delimiter": layout.delimiter,
+                "packed_value_sources": packed,
+            }
+        return PositionalFragmentTableSeparator(layout.label_output, layout.delimiter, packed), {
+            "kind": "positional",
+            "label_output": layout.label_output,
+            "delimiter": layout.delimiter,
+            "packed_value_sources": packed,
+        }
 
     def _require_aggregatable(
         self, evidence: SourceEvidence, read: LevelReadPlan, layers: _ResolvedLayers
@@ -573,18 +639,20 @@ class SourcePlanResolver:
         selections: tuple[AxisColumnSelection, ...],
         computers: tuple[ComputedColumnConfig, ...],
         closure: frozenset[str],
+        numbers: NumericTextFormat,
         *,
         inside: bool,
-    ) -> AxisMaterializationConfig:
-        """Split the declarations at the identity closure, keeping declaration order in each."""
-        return AxisMaterializationConfig(
+    ) -> tuple[AxisPhaseRuntimePlan, dict[str, object]]:
+        """Compile each phase once; declarations survive only in the JSON snapshot."""
+        selections = tuple(s for s in selections if (s.name in closure) is inside)
+        computers = tuple(c for c in computers if (c.name in closure) is inside)
+        return AxisPhaseRuntimePlan(
             selections=tuple(
-                selection for selection in selections if (selection.name in closure) is inside
+                SelectedAxisColumn(s.name, s.source, make_axis_coercer(s.logical_type, numbers))
+                for s in selections
             ),
-            computers=tuple(
-                computer for computer in computers if (computer.name in closure) is inside
-            ),
-        )
+            computers=tuple(make_column_computer(c) for c in computers),
+        ), {"selections": selections, "computers": computers}
 
     @staticmethod
     def _resolved_numbers(evidence: SourceEvidence) -> NumericTextFormat:

@@ -25,6 +25,16 @@ The [APB metadata specification](metadata_specification.md) is authoritative for
 
 The current rule storage version is schema `0.8`; [How rules-driven conversion works](rule-based.md) is the authoring guide. Earlier schema migrations remain historical context. Schema `0.8` adds explicit, independent sequence computations and named syntax/modification-map references; axis, measurement, physical-input, role, and preparation declarations retain their existing shapes.
 
+## Current source-compilation boundary
+
+Source compilation now returns an executable `ParseStrategy`, not a `ResolvedLevelPlan` configuration graph. This revision supersedes earlier resolved-DTO and factory listings in the historical decision tables and implementation supplement; the scientific pipeline, public compiler API and result contracts are unchanged.
+
+`Pydantic RuleDocument → facade → WorkingParseConfiguration → source evidence + SourcePlanResolver → ParseStrategy → bound Parser`
+
+The facade remains the schema adapter. Source resolution constructs existing axis operations, decomposers, duplicate policies, value parsers and layer validation directly. `operations.py` owns the retained operation constructors inside the parsing package; it imports no Pydantic or rule schema. The parent `parser_factory.py` only binds physical/prepared input and the writer.
+
+The executable strategy owns its collaborators once. `Parser.parse()` reads once and invokes `strategy.parse(source)`; `Parser.convert(result, target)` only writes. Prepared input receives the read projection and both axes' raw key tuples, not the strategy graph. `plan_json` preserves the previous serialized decisions, including skipped declarations and both axis phases, but runtime never consumes it.
+
 ## 1. Executive decision
 
 Parser V2 is a forward-only pipeline built from fully configured runtime strategies. A parser
@@ -974,7 +984,7 @@ classDiagram
     class ParseRuleFacade {
         -WorkingParseConfiguration _configuration
         +working_parameters WorkingParseConfiguration
-        +resolve_source(evidence) ResolvedLevelPlan
+        +resolve_source(evidence) ParseStrategy
     }
 
     class ParseRuleCompiler {
@@ -1740,7 +1750,7 @@ class AxisRuntimePlan:
 ```
 
 An optional selection that is present becomes an ordinary `SelectedAxisColumn`. An optional
-selection that is absent contributes its output name to `ResolvedAxisColumnPlan.skipped`; source
+selection that is absent contributes its output name to the persisted axis snapshot's `skipped` list; source
 resolution also removes every computation blocked by that absence. The compiler constructs the
 runtime phases and retained `outputs` only from executable operations. No runtime object carries
 `required: bool`, a skipped-name set, or chooses behavior from presence.
@@ -2394,252 +2404,27 @@ dependency graph. This prevents `rules.json` and a manually maintained raw-key l
 
 #### D.2 `ParseRuleFacade`
 
-`ParseRuleFacade` lives at `parserV2/parse_rule_facade.py`. It is the explicit parent-level adapter
-that imports both sibling packages: it consumes `vendor_parse_rules.RuleDocument` and produces
-`parse_quant.parameters` values. Neither sibling imports the other.
+`ParseRuleFacade` is the parent adapter between independent rule-schema and parsing packages. It composes effective declarations, resolves named syntax/maps and UniMod identities, and projects one `WorkingParseConfiguration`. It retains no Pydantic model. Search-parameter evidence is constructed explicitly at the outer API boundary.
 
-```python
-@dataclass(frozen=True, slots=True)
-class DelimitedSourceEvidence:
-    columns: tuple[str, ...]
-    delimiter: str
-    quote_char: str
-    encoding: Literal["utf8", "utf8-lossy"]
-    number_format: NumericTextFormat
+`facade.resolve_source(evidence, checks="standard")` delegates to parsing-owned `SourcePlanResolver`. Evidence supplies observed header order and physical facts: delimited dialect/number format, workbook sheet/number format, or native frame dtypes. The resolver uses only plain authored contracts and evidence.
 
+#### D.3 Direct strategy compilation
 
-@dataclass(frozen=True, slots=True)
-class ParquetSourceEvidence:
-    columns: tuple[str, ...]
-    dtypes: tuple[tuple[str, pl.DataType], ...]
+The resolver derives raw-key closure, optional-source pruning, phase order, wide sample expansion, packed-source order and read dtypes once, and immediately constructs the executable collaborators.
 
-
-type SourceEvidence = DelimitedSourceEvidence | ParquetSourceEvidence
-
-
-class ParseRuleFacade:
-    __slots__ = ("_configuration",)
-
-    def __init__(
-        self,
-        document: RuleDocument,
-        level: QuantificationLevel,
-        parameter_evidence: SearchParameterEvidence,
-    ) -> None:
-        effective = document.rule(level, parameter_evidence)
-        self._configuration = self._project_effective_rule(effective)
-
-    @property
-    def working_parameters(self) -> WorkingParseConfiguration:
-        return self._configuration
-
-    def resolve_source(self, evidence: SourceEvidence) -> ResolvedLevelPlan: ...
-```
-
-Both evidence variants preserve physical header order. Parquet dtype entries have the same names
-and order as `columns`. Delimited evidence contains the already selected, unambiguous dialect and
-number format. These are observed boundary facts, not strategies.
-
-The facade is a composition-boundary API, not a computation argument. `ParseRuleCompiler`
-destructures its results and injects each operation with narrow values. No parser helper receives
-the facade or `WorkingParseConfiguration`.
-
-The facade receives rule-owned evidence, not the existing `Parameters` Pydantic model. The outer
-APB composition layer constructs `SearchParameterEvidence` explicitly from
-`parameters.acquisition_method` and `parameters.combine_charge_states`. This keeps the search-rule
-vocabulary visible while preventing a sibling-package import into Parser V2.
-
-Thus the requested adapter is explicit:
-
-```text
-RuleDocument
-    -> ParseRuleFacade(...).working_parameters
-    -> WorkingParseConfiguration
-    -> ParseRuleFacade.resolve_source(evidence)
-    -> ResolvedLevelPlan
-```
-
-#### D.3 Source-resolved parsing parameters
-
-Every type in this section is a parsing parameter. They live under
-`parse_quant/parameters/`, grouped by the operation they configure:
-
-| Module | Parameter values |
+| Compiler input or decision | Executable consumer |
 | --- | --- |
-| `working.py` | working axes, measurements, source-layout declarations, and `WorkingParseConfiguration` |
-| `source.py` | source bindings, numeric format, `InputContract`, source evidence, `LevelReadPlan`, and decomposition configurations |
-| `axis.py` | `AxisKeyPlan`, `AxisSourcePlan`, modification and materialization configurations, and `ResolvedAxisColumnPlan` |
-| `measurements.py` | duplicate mode, shared value declarations, retained `LayerValueConfig`, and `LayerContractConfig` |
-| `resolved.py` | `ResolvedLevelPlan`, composing the exact values from the other parameter modules |
+| Final keys, available selections/computations | Existing `AxisRuntimePlan` and its two runtime phases |
+| Long sources or wide header captures | Existing long/wide decomposer |
+| Packed source layout | Existing separator composed with ordinary long decomposition |
+| Duplicate mode | Existing duplicate policy |
+| Retained measurement declaration | Raw-presence and canonical-value operations |
+| Required layers and check level | Existing `LayerContractValidator` |
+| Projected columns and physical dtypes | `LevelReadPlan` for input binding |
 
-These classes import no Pydantic rule model, reader, writer, AnnData object, or Parser. The facade
-constructs them; `compile.py` destructures them and injects configured runtime behavior.
+The removed graph comprised `ResolvedLevelPlan`, `ResolvedAxisColumnPlan`, `AxisMaterializationConfig`, five decomposition/separation configurations and `LayerContractConfig`. There are no aliases or replacement configuration wrappers. Authored compiler records remain intentional decoupling; concrete runtime collaborators retain their own behavior.
 
-```python
-@dataclass(frozen=True, slots=True)
-class LevelReadPlan:
-    projected_columns: tuple[str, ...]
-    text_sources: frozenset[str]
-    native_numeric_sources: frozenset[str]
-
-
-@dataclass(frozen=True, slots=True)
-class AxisSourcePlan:
-    keys: AxisKeyPlan
-    payload_sources: tuple[str, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class LongRawLayerSource:
-    name: str
-    source_column: str
-
-
-@dataclass(frozen=True, slots=True)
-class WideRawLayerSource:
-    source_column: str
-    sample: str
-
-
-@dataclass(frozen=True, slots=True)
-class WideRawLayerPlan:
-    name: str
-    sources: tuple[WideRawLayerSource, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class LongDecompositionConfig:
-    kind: Literal["long"]
-    primary_layer_name: str
-    layer_sources: tuple[LongRawLayerSource, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class WideDecompositionConfig:
-    kind: Literal["wide"]
-    primary_layer_name: str
-    layer_plans: tuple[WideRawLayerPlan, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class PositionalFragmentSeparationConfig:
-    kind: Literal["positional"]
-    label_output: str
-    delimiter: str
-    packed_value_sources: tuple[str, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class ColumnLabeledFragmentSeparationConfig:
-    kind: Literal["column"]
-    label_source: str
-    label_output: str
-    delimiter: str
-    packed_value_sources: tuple[str, ...]
-
-
-type FragmentSeparationConfig = (
-    PositionalFragmentSeparationConfig
-    | ColumnLabeledFragmentSeparationConfig
-)
-
-
-@dataclass(frozen=True, slots=True)
-class DelimitedFragmentDecompositionConfig:
-    kind: Literal["delimited_fragment"]
-    separator: FragmentSeparationConfig
-    long: LongDecompositionConfig
-
-
-type DecompositionConfig = (
-    LongDecompositionConfig
-    | WideDecompositionConfig
-    | DelimitedFragmentDecompositionConfig
-)
-
-
-@dataclass(frozen=True, slots=True)
-class ResolvedAxisColumnPlan:
-    source: AxisSourcePlan
-    key_phase: AxisMaterializationConfig
-    output_phase: AxisMaterializationConfig
-    outputs: tuple[str, ...]
-    skipped: frozenset[str]
-
-
-@dataclass(frozen=True, slots=True)
-class PlainNumericLayerDeclaration:
-    missing_values: tuple[float, ...]
-    type: Literal["number", "integer"] = "number"
-    kind: Literal["plain_numeric"] = field(default="plain_numeric", init=False)
-
-
-@dataclass(frozen=True, slots=True)
-class RegexNumericLayerDeclaration:
-    missing_values: tuple[float, ...]
-    pattern: str
-    type: Literal["number", "integer"] = "number"
-    kind: Literal["regex_numeric"] = field(default="regex_numeric", init=False)
-
-
-@dataclass(frozen=True, slots=True)
-class FactorLayerDeclaration:
-    categories: tuple[tuple[str, int], ...]
-    kind: Literal["factor"] = field(default="factor", init=False)
-
-
-type LayerValueDeclaration = (
-    PlainNumericLayerDeclaration | RegexNumericLayerDeclaration | FactorLayerDeclaration
-)
-
-
-@dataclass(frozen=True, slots=True)
-class LayerValueConfig:
-    layer_name: str
-    value: LayerValueDeclaration
-
-
-@dataclass(frozen=True, slots=True)
-class LayerContractConfig:
-    primary_layer_name: str
-    required_names: tuple[str, ...]
-    empty_ratio: float
-    populated_ratio: float
-
-
-@dataclass(frozen=True, slots=True)
-class ResolvedLevelPlan:
-    level: QuantificationLevel
-    number_format: NumericTextFormat
-    read: LevelReadPlan
-    decomposition: DecompositionConfig
-    obs: ResolvedAxisColumnPlan
-    var: ResolvedAxisColumnPlan
-    duplicate_mode: DuplicateMode
-    layer_values: tuple[LayerValueConfig, ...]
-    layer_contract: LayerContractConfig
-    provenance: Mapping[str, JsonValue]
-```
-
-`AxisMaterializationConfig` in `ResolvedAxisColumnPlan` is the plain declaration-to-runtime input
-for one phase: resolved selections, computed-column configs, and their fixed order. The compiler
-consumes it to construct `AxisPhaseRuntimePlan`; no computation receives it.
-
-The `kind` fields above exist only in composition-boundary DTOs. Factories consume them and return
-behavior types that carry no discriminator.
-
-`resolve_source()` creates the complete `ResolvedLevelPlan` atomically. Therefore:
-
-- one projected physical source set feeds the reader, axes, decomposer, separator, and encoders;
-- optional-source presence cannot disagree between plans;
-- wide regexes become concrete source-column/sample mappings;
-- packed sources remain in authored order;
-- required layers are resolved against the same primary sample set;
-- only modification configs retained by the resolved axis dependency closure reach the compiler;
-- level, duplicate mode, and provenance cannot drift from the source plans resolved with them;
-- each retained layer reuses its original immutable value declaration;
-- `make_layer_operations` selects two distinct runtime behaviors from that declaration: raw duplicate presence, then canonical value parsing;
-- numeric notation is recorded once per level, not copied into every layer; output writers receive canonical values, not parsing configurations.
+`ParseStrategy` holds the configured collaborators, read plan and provenance. Saved-plan JSON is assembled where the source decisions are available, then serialized immediately. It retains level, notation, read choices, decomposition, both axes, duplicate mode, layer values and occupancy policy; strictness remains runtime-only as before. Optional omissions remain inspectable without keeping a second graph for runtime reconstruction.
 
 #### D.4 Complete read dtypes in `LevelReadPlan`
 
@@ -2669,154 +2454,20 @@ later interprets it using `NumericTextFormat`. Parquet output preserves the stri
 
 #### D.5 Construction phases
 
-| Phase | Operation | Result | Still unresolved |
-| --- | --- | --- | --- |
-| authored file | `load_rule_document(path)` | `RuleDocument` retaining `_shell` | level, parameter evidence, source evidence |
-| effective declaration | `document.rule(level, parameter_evidence)` | validated `EffectiveRule` | plain projection and source evidence |
-| working parse parameters | `ParseRuleFacade(document, level, parameter_evidence).working_parameters` | `WorkingParseConfiguration` | physical matches, dialect/dtypes, and optional presence |
-| source-bound level | `facade.resolve_source(evidence)` | atomic `ResolvedLevelPlan` | nothing about the selected physical layout |
-| runtime composition | `ParseRuleCompiler(...).compile()` | fully injected `ParserCollection` | nothing |
+| Phase | Operation | Result |
+| --- | --- | --- |
+| Authored file | Load and validate rules | Pydantic rule document |
+| Schema projection | Facade composes declarations | Plain `WorkingParseConfiguration` |
+| Source compilation | Resolve evidence and construct operations | Executable `ParseStrategy` |
+| IO binding | Bind reader and writer | `Parser`, collected in `ParserCollection` |
 
 #### D.6 Wide initialization example
 
-The following values illustrate the existing AlphaDIA v1.10 ion rule; no AlphaDIA-specific
-constructor exists.
-
-```python
-rules_path = Path(
-    "apb2/src/apb2/parserV2/vendor_parse_rules/"
-    "documents/alphadia/v1_10/rules.json"
-)
-document = load_rule_document(rules_path)
-parameter_evidence = SearchParameterEvidence(
-    acquisition_method="unknown",
-    combine_charge_states=None,
-)
-facade = ParseRuleFacade(document, "ion", parameter_evidence)
-
-working = facade.working_parameters
-
-assert working.obs.final_key_columns == ("sample",)
-assert working.var.final_key_columns == ("ProForma_ion",)
-assert working.level == "ion"
-assert working.measurements.primary_layer_name == "Intensity"
-assert working.measurements.duplicate_mode == "keep_first"
-assert tuple(layer.name for layer in working.measurements.required_layers) == (
-    "Intensity",
-)
-```
-
-Given this representative header:
-
-```python
-header = (
-    "sequence",
-    "mods",
-    "mod_sites",
-    "charge",
-    "genes",
-    "decoy",
-    "run_A",
-    "run_B",
-)
-evidence = DelimitedSourceEvidence(
-    columns=header,
-    delimiter="\t",
-    quote_char='"',
-    encoding="utf8",
-    number_format=NumericTextFormat(decimal_mark=".", thousands_marks=()),
-)
-resolved = facade.resolve_source(evidence)
-```
-
-the generic dependency walk yields:
-
-```python
-assert resolved.obs.source.keys == AxisKeyPlan(
-    raw_key_columns=("sample",),
-    key_input_columns=("sample",),
-    final_key_columns=("sample",),
-)
-
-assert resolved.var.source.keys == AxisKeyPlan(
-    raw_key_columns=("sequence", "mods", "mod_sites", "charge"),
-    key_input_columns=("ProForma_peptidoform", "Charge"),
-    final_key_columns=("ProForma_ion",),
-)
-
-assert resolved.read == LevelReadPlan(
-    projected_columns=header,
-    text_sources=frozenset(
-        {"sequence", "mods", "mod_sites", "charge", "genes", "decoy"}
-    ),
-    native_numeric_sources=frozenset({"run_A", "run_B"}),
-)
-
-assert resolved.decomposition == WideDecompositionConfig(
-    kind="wide",
-    primary_layer_name="Intensity",
-    layer_plans=(
-        WideRawLayerPlan(
-            name="Intensity",
-            sources=(
-                WideRawLayerSource(source_column="run_A", sample="run_A"),
-                WideRawLayerSource(source_column="run_B", sample="run_B"),
-            ),
-        ),
-    ),
-)
-```
-
-AlphaDIA's authored zero sentinel remains one declaration. The composition factory uses it for both raw presence (skip zero during `keep_first`) and canonical parsing (store zero as missing). Their algorithms remain separate, and source resolution does not reconstruct their configuration twice.
-
-```python
-assert resolved.layer_values == (
-    LayerValueConfig(
-        layer_name="Intensity",
-        value=PlainNumericLayerDeclaration(missing_values=(0.0,)),
-    ),
-)
-assert resolved.number_format == NumericTextFormat(decimal_mark=".", thousands_marks=())
-assert resolved.layer_contract == LayerContractConfig(
-    primary_layer_name="Intensity",
-    required_names=("Intensity",),
-    empty_ratio=0.001,
-    populated_ratio=0.5,
-)
-presence, parser = make_layer_operations(resolved.layer_values[0], resolved.number_format)
-```
-
-`plan_json` now records each layer as `{layer_name, value}` and omits the redundant `raw_value_presence` collection. This is a documentation-only provenance shape change, not an authored rule-schema change: schema 0.8 stays unchanged, and stored-result readers preserve old plan JSON without interpreting it.
-
-Canonical layer values are identical regardless of the storage format chosen later.
+A wide rule expands each layer pattern against the physical header, aligns other layers to the primary layer's ordered samples, and constructs `WideSourceDecomposer` directly. The same resolved sources feed the read projection and persisted decomposition snapshot. No intermediate `WideDecompositionConfig` is constructed.
 
 #### D.7 Packed-fragment initialization contrast
 
-For DIA-NN v1 fragment, the final key dependency is:
-
-```text
-ProForma_fragment
-    <- ProForma_ion + fragment_label
-    <- normalized Modified.Sequence + Precursor.Charge + fragment_label
-```
-
-The source-resolved separator configuration contains physical packed sources in authored order:
-
-```python
-PositionalFragmentSeparationConfig(
-    kind="positional",
-    label_output="fragment_label",
-    delimiter=";",
-    packed_value_sources=(
-        "Fragment.Quant.Raw",
-        "Fragment.Correlations",
-    ),
-)
-```
-
-The nested long config treats `fragment_label` as a normal synthesized raw-key dependency. The
-separator and ordinary long decomposer are injected into
-`DelimitedFragmentSourceDecomposer`; no fragment branch appears inside the long strategy.
+A fragment rule constructs a positional or column-labelled separator using retained packed sources in authored order. It composes that separator with `LongSourceDecomposer`. The separator's synthetic label enters the raw-key closure before canonical fragment keys are computed. No second dispatch converts separator/decomposition configuration records into runtime objects.
 
 ### E. Compiler, input binding, and Polars execution
 
@@ -2857,7 +2508,7 @@ strategy.
 For several levels, `ParseRuleCompiler.compile()` runs the same fixed sequence once per resolved `LevelSelection` and retains the resulting level parsers inside `ParserCollection`. The collection parses them into one canonical `ParsedLevels`. H5AD, H5MU, Parquet, and DuckDB persistence is selected later by `write_parsed_levels()`.
 
 Each level performs its own physical binding and header inspection and obtains its own
-`ResolvedLevelPlan`, `LevelReadPlan`, strategies, and parser. No level receives the whole source
+`ParseStrategy`, its `LevelReadPlan`, and a bound parser. No level receives the whole source
 table merely because another level needs additional columns. Sharing the full read is not part of
 MuData output.
 
@@ -3231,7 +2882,7 @@ apb2/src/apb2/parserV2/
 ├── detect_document.py          # packaged selection from headers or prepared schema
 ├── parse_rule_facade.py        # RuleDocument -> parsing parameter values
 ├── compile.py                  # stateful public compiler objects
-├── parser_factory.py           # resolved plans -> parser runtime collaborators
+├── parser_factory.py           # executable strategy -> bound reader/writer
 ├── source_binding.py           # physical table binding and source evidence
 ├── prepare_source.py           # multi-file preparation and joins
 ├── joins/
@@ -3318,7 +2969,7 @@ The boundary ownership behind that tree is:
 | physical shape -> Parser algorithm | raw types in `parse_quant/data/raw.py` | `SourceDecomposer` and `FragmentTableSeparator` in `parse_quant/contracts.py` | `parse_quant/decomposition.py` and `fragments.py` |
 | Parser -> persistence | `ParsedLevel` in `parse_quant/data/parsed.py` | `ParsedLevelWriter` in `parse_quant/contracts.py` | `parse_quant/io/anndata_writer.py` or `parse_quant/io/parquet_writer.py` |
 | parsed result -> format-neutral persistence | `ParsedLevels` in `parse_quant/data/parsed.py` | `ParsedLevelsReader` and `ParsedLevelsWriter` in `parse_quant/io/formats.py` | h5ad/h5mu, Parquet, and DuckDB result adapters |
-| validated rule -> compilation | `ResolvedLevelPlan` in `parse_quant/parameters/resolved.py` | no Protocol: one concrete facade API | parent-level `parse_rule_facade.py` |
+| validated rule -> compilation | `WorkingParseConfiguration` in `parse_quant/parameters/level.py` | no Protocol: one stable plain compiler contract | parent-level `parse_rule_facade.py` |
 
 `BoundInputReader`, `ParsedLevelWriter`, `SourceDecomposer`, `FragmentTableSeparator`,
 `AxisValueCoercer`, `ColumnComputer`, `RawValuePresence`, and

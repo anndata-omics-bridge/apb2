@@ -18,21 +18,6 @@ type NumericType = Literal["number", "integer"]
 """Logical numeric type declared for a measurement layer."""
 
 
-@dataclass(frozen=True, slots=True)
-class LayerContractConfig:
-    """The occupancy policy a canonical layer set must satisfy.
-
-    A layer is suspicious only below ``empty_ratio`` while a sibling reaches
-    ``populated_ratio``: without a populated sibling, occupancy cannot tell an empty
-    experiment from a parse failure.
-    """
-
-    primary_layer_name: str
-    required_names: tuple[str, ...]
-    empty_ratio: float
-    populated_ratio: float
-
-
 # --------------------------------------------------------------- projected declarations
 
 

@@ -27,6 +27,7 @@ from apb2.parserV2.parser_factory import compile_level
 from apb2.parserV2.vendor_params.parsers.shared.unimod import UNIMOD_REGISTRY
 from apb2.parserV2.vendor_parse_rules.document import RuleDocument
 from parserV2 import synthetic
+from parserV2.synthetic import plan_snapshot as snapshot
 from parserV2.test_facade import delimited
 
 INLINE: dict[str, Any] = {
@@ -101,13 +102,12 @@ def test_missing_optional_sequence_input_blocks_its_operation(
 ) -> None:
     declaration = base([operation])
     declaration["columns"]["var"][1]["required"] = False
-    var = (
-        synthetic.facade(document(declaration))
-        .resolve_source(delimited(("run", "id", "other sequence", "quantity")))
-        .var
+    var_strategy = synthetic.facade(document(declaration)).resolve_source(
+        delimited(("run", "id", "other sequence", "quantity"))
     )
+    var = var_strategy.var
 
-    assert var.skipped == {"Modified_Sequence", operation["name"]}
+    assert set(snapshot(var_strategy)["var"]["skipped"]) == {"Modified_Sequence", operation["name"]}
     assert operation["name"] not in var.outputs
     assert var.key_phase.computers == var.output_phase.computers == ()
 
@@ -222,7 +222,7 @@ def test_multicolumn_normalization_records_and_consumes_every_input(
         delimited(tuple(values.columns))
     )
     expected = ("sequence", "mods", "sites") if parser == "site_list" else ("sequence", "mods")
-    assert resolved.var.source.keys.raw_key_columns == expected
+    assert resolved.var.keys.raw_key_columns == expected
     with pytest.raises(IncompatibleSourceError):
         facade.resolve_source(delimited(tuple(c for c in values.columns if c != "mods")))
     parsed = parse(tmp_path, document(declaration), values)

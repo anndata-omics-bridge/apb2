@@ -180,7 +180,7 @@ def _spy_on_reads(parser: object, calls: list[str]) -> None:
             calls.append("read")
             raise AssertionError("convert must not read")
 
-    object.__setattr__(parser, "_input", Refusing())
+    object.__setattr__(parser, "input_reader", Refusing())
 
 
 # ------------------------------------------------------------------- the outer boundary

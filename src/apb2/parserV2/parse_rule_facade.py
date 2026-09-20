@@ -13,7 +13,7 @@ declaration is not retained: after construction the facade holds plain values, s
 downstream can reach a storage model through it.
 
 ``resolve_source`` binds those values to one observed header, once, and returns one complete
-``ResolvedLevelPlan``. Atomic on purpose: the reader, both axes, the decomposer, the separator,
+executable ``ParseStrategy``. Atomic on purpose: the reader, both axes, the decomposer, the separator,
 the presence strategies and value parsers are all derived from the same projected column set,
 so optional-source presence, wide sample captures, and packed source order cannot disagree
 between plans resolved separately.
@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
+from typing import Literal
 
 from apb2.parserV2.parse_quant.parameters.axis import (
     AxisColumnDeclaration,
@@ -53,7 +54,6 @@ from apb2.parserV2.parse_quant.parameters.axis import (
 from apb2.parserV2.parse_quant.parameters.level import (
     JsonValue,
     QuantificationLevel,
-    ResolvedLevelPlan,
     WorkingParseConfiguration,
 )
 from apb2.parserV2.parse_quant.parameters.measurements import (
@@ -78,6 +78,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
     SourceLayoutDeclaration,
     WideSourceLayout,
 )
+from apb2.parserV2.parse_quant.parser import ParseStrategy
 from apb2.parserV2.parse_quant.source_resolution import SourcePlanResolver
 from apb2.parserV2.vendor_params.parsers.shared.unimod import UNIMOD_REGISTRY
 from apb2.parserV2.vendor_parse_rules.document import (
@@ -529,6 +530,8 @@ class ParseRuleFacade:
             )
         return provenance
 
-    def resolve_source(self, evidence: SourceEvidence) -> ResolvedLevelPlan:
+    def resolve_source(
+        self, evidence: SourceEvidence, *, checks: Literal["standard", "strict"] = "standard"
+    ) -> ParseStrategy:
         """Resolve this declaration against one observed physical source."""
-        return SourcePlanResolver(self._configuration).resolve(evidence)
+        return SourcePlanResolver(self._configuration).resolve(evidence, checks=checks)

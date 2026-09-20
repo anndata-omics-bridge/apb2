@@ -6,18 +6,17 @@ import json
 from collections.abc import Mapping, Sequence, Set
 from dataclasses import fields, is_dataclass
 
-from apb2.parserV2.parse_quant.parameters.level import JsonValue, ResolvedLevelPlan
+from apb2.parserV2.parse_quant.parameters.level import JsonValue
 
 PLAN_JSON_KEY = "plan_json"
 """The provenance key the serialized plan is stored under, beside ``rule_json``."""
 
 
-def resolved_plan_json(plan: ResolvedLevelPlan) -> str:
-    """Serialize source-specific decisions without copying their parse provenance."""
+def resolved_plan_json(plan: Mapping[str, object]) -> str:
+    """Serialize source-specific decisions into the documentation-only snapshot."""
     document = as_json_value(plan)
     if not isinstance(document, dict):
         raise TypeError("a resolved plan must serialize as an object")
-    document.pop("provenance")
     return json.dumps(document, ensure_ascii=False, allow_nan=False)
 
 

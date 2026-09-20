@@ -22,6 +22,7 @@ from apb2.parserV2.parse_quant.duplicates import (
     KeepFirstDuplicate,
     NullOnlyRawValuePresence,
 )
+from apb2.parserV2.parse_quant.operations import duplicate_policy_for, make_layer_operations
 from apb2.parserV2.parse_quant.parameters.measurements import (
     DuplicateMode,
     FactorLayerDeclaration,
@@ -31,7 +32,6 @@ from apb2.parserV2.parse_quant.parameters.measurements import (
     RegexNumericLayerDeclaration,
 )
 from apb2.parserV2.parse_quant.parameters.source import NumericTextFormat
-from apb2.parserV2.parser_factory import duplicate_policy_for, make_layer_operations
 
 DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
 GROUPED = NumericTextFormat(decimal_mark=",", thousands_marks=(".",))

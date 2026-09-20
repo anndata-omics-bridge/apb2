@@ -43,6 +43,7 @@ from apb2.parserV2.parse_quant.modifications import (
     normalize_token_regex,
     render_proforma,
 )
+from apb2.parserV2.parse_quant.operations import make_sequence_normalizer
 from apb2.parserV2.parse_quant.parameters.axis import (
     EmbeddedSiteListModificationConfig,
     ModificationMapEntry,
@@ -51,7 +52,6 @@ from apb2.parserV2.parse_quant.parameters.axis import (
     TokenRegexModificationConfig,
     UnknownModificationPolicy,
 )
-from apb2.parserV2.parser_factory import make_sequence_normalizer
 
 OXIDATION = ModificationMapEntry(
     token="ox",

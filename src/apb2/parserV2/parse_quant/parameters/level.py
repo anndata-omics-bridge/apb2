@@ -1,4 +1,4 @@
-"""One quantification level before and after physical-source resolution."""
+"""The stable compiler input for one authored quantification level."""
 
 from __future__ import annotations
 
@@ -7,20 +7,13 @@ from dataclasses import dataclass
 from typing import Literal
 
 from apb2.parserV2.parse_quant.parameters.axis import (
-    ResolvedAxisColumnPlan,
     WorkingAxisConfiguration,
 )
 from apb2.parserV2.parse_quant.parameters.measurements import (
-    DuplicateMode,
-    LayerContractConfig,
-    LayerValueConfig,
     WorkingMeasurements,
 )
 from apb2.parserV2.parse_quant.parameters.source import (
-    DecompositionConfig,
     InputContract,
-    LevelReadPlan,
-    NumericTextFormat,
     SourceLayoutDeclaration,
 )
 
@@ -70,19 +63,3 @@ class WorkingParseConfiguration:
             self.source_layout.has_layer_source(source, header)
             for source in self.measurements.required_sources()
         )
-
-
-@dataclass(frozen=True, slots=True)
-class ResolvedLevelPlan:
-    """One complete level plan resolved against one physical source."""
-
-    level: QuantificationLevel
-    number_format: NumericTextFormat
-    read: LevelReadPlan
-    decomposition: DecompositionConfig
-    obs: ResolvedAxisColumnPlan
-    var: ResolvedAxisColumnPlan
-    duplicate_mode: DuplicateMode
-    layer_values: tuple[LayerValueConfig, ...]
-    layer_contract: LayerContractConfig
-    provenance: Mapping[str, JsonValue]

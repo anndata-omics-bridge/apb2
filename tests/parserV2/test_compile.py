@@ -50,6 +50,13 @@ from apb2.parserV2.parse_quant.modifications import (
     SiteListNormalizer,
     TokenRegexNormalizer,
 )
+from apb2.parserV2.parse_quant.operations import (
+    duplicate_policy_for,
+    make_axis_coercer,
+    make_column_computer,
+    make_layer_operations,
+    make_sequence_normalizer,
+)
 from apb2.parserV2.parse_quant.parameters.axis import (
     AxisKeyPlan,
     AxisLogicalType,
@@ -68,24 +75,16 @@ from apb2.parserV2.parse_quant.parameters.axis import (
 from apb2.parserV2.parse_quant.parameters.measurements import (
     DuplicateMode,
     FactorLayerDeclaration,
-    LayerContractConfig,
     LayerValueConfig,
     LayerValueDeclaration,
     PlainNumericLayerDeclaration,
     RegexNumericLayerDeclaration,
 )
 from apb2.parserV2.parse_quant.parameters.source import (
-    ColumnLabeledFragmentSeparationConfig,
-    DelimitedFragmentDecompositionConfig,
+    DelimitedSourceEvidence,
     InputSource,
-    LongDecompositionConfig,
-    LongRawLayerSource,
     NumericTextFormat,
-    PositionalFragmentSeparationConfig,
     SingleFile,
-    WideDecompositionConfig,
-    WideRawLayerPlan,
-    WideRawLayerSource,
 )
 from apb2.parserV2.parse_quant.parser import Parser
 from apb2.parserV2.parse_quant.value_parsing import (
@@ -94,17 +93,7 @@ from apb2.parserV2.parse_quant.value_parsing import (
     RegexNumericLayerParser,
 )
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
-from apb2.parserV2.parser_factory import (
-    compile_level,
-    duplicate_policy_for,
-    make_axis_coercer,
-    make_column_computer,
-    make_fragment_table_separator,
-    make_layer_operations,
-    make_layer_validator,
-    make_sequence_normalizer,
-    make_source_decomposer,
-)
+from apb2.parserV2.parser_factory import compile_level
 from apb2.parserV2.vendor_parse_rules.document import make_rule_document
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import LEVELS, SCHEMA_VERSION
@@ -328,82 +317,80 @@ def test_every_modification_declaration_names_one_normalizer() -> None:
     assert from_embedded.rules is embedded
 
 
-def test_every_separation_declaration_names_one_separator() -> None:
-    positional = make_fragment_table_separator(
-        PositionalFragmentSeparationConfig(
-            kind="positional",
-            label_output="fragment_label",
-            delimiter=";",
-            packed_value_sources=("Quant",),
+@pytest.mark.parametrize("label_strategy", ["positional", "column"])
+def test_source_resolution_constructs_the_separator_and_long_decomposer(
+    label_strategy: str,
+) -> None:
+    document = synthetic.document(
+        shape="long",
+        base={
+            "axis": {"obs_keys": ["sample"], "var_keys": ["Feature"]},
+            "columns": {
+                "obs": [{"name": "sample", "source": "Sample"}],
+                "var": [{"name": "Feature", "source": "Feature"}],
+            },
+            "measurements": {
+                "primary_layer": "Quantity",
+                "layers": [{"name": "Quantity", "source": "Quantity"}],
+            },
+        },
+        levels={
+            "fragment": {
+                "fragments": {
+                    "label_strategy": label_strategy,
+                    "value_columns": ["Quantity"],
+                    **({"label_column": "Info"} if label_strategy == "column" else {}),
+                }
+            }
+        },
+    )
+    strategy = synthetic.facade(document, "fragment").resolve_source(
+        DelimitedSourceEvidence(("Sample", "Feature", "Quantity", "Info"), "\t", '"', "utf8", DOT)
+    )
+    decomposer = strategy.decomposer
+    assert isinstance(decomposer, DelimitedFragmentSourceDecomposer)
+    assert isinstance(decomposer.long_decomposer, LongSourceDecomposer)
+    expected = {
+        "positional": PositionalFragmentTableSeparator,
+        "column": ColumnLabeledFragmentTableSeparator,
+    }[label_strategy]
+    assert isinstance(decomposer.separator, expected)
+    assert decomposer.separator.packed_value_sources == ("Quantity",)
+    assert not hasattr(decomposer, "config")
+    assert not hasattr(decomposer.separator, "kind")
+
+
+@pytest.mark.parametrize("shape", ["long", "wide"])
+def test_source_resolution_constructs_the_physical_decomposer(shape: str) -> None:
+    if shape == "wide":
+        document = synthetic.wide_document(
+            var_select={"Feature": "Feature"},
+            layers=[{"name": "Quantity", "source": "^(?P<sample>A)$"}],
+            primary_layer="Quantity",
         )
-    )
-    labelled = make_fragment_table_separator(
-        ColumnLabeledFragmentSeparationConfig(
-            kind="column",
-            label_source="Info",
-            label_output="fragment_label",
-            delimiter=";",
-            packed_value_sources=("Quant",),
+        header = ("Feature", "A")
+        expected = WideSourceDecomposer
+    else:
+        document = synthetic.long_document(
+            obs_select={"sample": "Sample"}, var_select={"Feature": "Feature"}
         )
+        header = ("Sample", "Feature", "Quantity")
+        expected = LongSourceDecomposer
+    strategy = synthetic.facade(document).resolve_source(
+        DelimitedSourceEvidence(header, "\t", '"', "utf8", DOT)
     )
-
-    assert isinstance(positional, PositionalFragmentTableSeparator)
-    assert isinstance(labelled, ColumnLabeledFragmentTableSeparator)
-    assert not hasattr(positional, "kind")
-    assert not hasattr(labelled, "kind")
-
-
-def test_every_physical_shape_names_one_decomposer() -> None:
-    long_config = LongDecompositionConfig(
-        kind="long",
-        primary_layer_name="Intensity",
-        layer_sources=(LongRawLayerSource(name="Intensity", source_column="intensity"),),
-    )
-    wide_config = WideDecompositionConfig(
-        kind="wide",
-        primary_layer_name="Intensity",
-        layer_plans=(
-            WideRawLayerPlan(
-                name="Intensity",
-                sources=(WideRawLayerSource(source_column="A", sample="A"),),
-            ),
-        ),
-    )
-    fragment_config = DelimitedFragmentDecompositionConfig(
-        kind="delimited_fragment",
-        separator=PositionalFragmentSeparationConfig(
-            kind="positional",
-            label_output="fragment_label",
-            delimiter=";",
-            packed_value_sources=("Quant",),
-        ),
-        long=long_config,
-    )
-
-    from_long = make_source_decomposer(long_config, AXIS, AXIS)
-    from_wide = make_source_decomposer(wide_config, AXIS, AXIS)
-    from_fragment = make_source_decomposer(fragment_config, AXIS, AXIS)
-
-    assert isinstance(from_long, LongSourceDecomposer)
-    assert isinstance(from_wide, WideSourceDecomposer)
-    assert isinstance(from_fragment, DelimitedFragmentSourceDecomposer)
-    assert isinstance(from_fragment.long_decomposer, LongSourceDecomposer)
-    for decomposer in (from_long, from_wide, from_fragment):
-        assert not hasattr(decomposer, "kind")
-        assert not hasattr(decomposer, "config")
+    assert isinstance(strategy.decomposer, expected)
+    assert not hasattr(strategy.decomposer, "kind")
+    assert not hasattr(strategy.decomposer, "config")
 
 
 def test_checks_configure_a_separate_layer_set_validator() -> None:
-    config = LayerContractConfig(
-        primary_layer_name="Quantity",
-        required_names=("Quantity",),
-        empty_ratio=0.001,
-        populated_ratio=0.5,
+    facade = synthetic.facade(
+        synthetic.long_document(obs_select={"sample": "Sample"}, var_select={"Feature": "Feature"})
     )
-
-    standard = make_layer_validator(config, "standard")
-    strict = make_layer_validator(config, "strict")
-
+    evidence = DelimitedSourceEvidence(("Sample", "Feature", "Quantity"), "\t", '"', "utf8", DOT)
+    standard = facade.resolve_source(evidence, checks="standard").layer_validator
+    strict = facade.resolve_source(evidence, checks="strict").layer_validator
     assert isinstance(standard, LayerContractValidator)
     assert isinstance(strict, LayerContractValidator)
     assert standard.strict is False
@@ -495,9 +482,14 @@ def test_compilation_resolves_the_source_exactly_once(
     calls: list[str] = []
     original = ParseRuleFacade.resolve_source
 
-    def counting(self: ParseRuleFacade, evidence: object) -> object:
+    def counting(
+        self: ParseRuleFacade,
+        evidence: object,
+        *,
+        checks: Literal["standard", "strict"] = "standard",
+    ) -> object:
         calls.append("resolve_source")
-        return original(self, evidence)  # pyright: ignore[reportArgumentType]
+        return original(self, evidence, checks=checks)  # pyright: ignore[reportArgumentType]
 
     monkeypatch.setattr(ParseRuleFacade, "resolve_source", counting)
     document = synthetic.long_document(

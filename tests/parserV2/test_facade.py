@@ -15,42 +15,48 @@ import polars as pl
 import pytest
 from pydantic import BaseModel
 
+from apb2.parserV2.parse_quant.axis_columns import (
+    CoalesceColumn,
+    JoinNonemptyColumn,
+    ProformaIonColumn,
+)
+from apb2.parserV2.parse_quant.decomposition import (
+    DelimitedFragmentSourceDecomposer,
+    LongSourceDecomposer,
+    WideSourceDecomposer,
+)
+from apb2.parserV2.parse_quant.duplicates import AggregateNumericDuplicates
 from apb2.parserV2.parse_quant.errors import IncompatibleSourceError
+from apb2.parserV2.parse_quant.fragments import PositionalFragmentTableSeparator
+from apb2.parserV2.parse_quant.layer_validation import LayerContractValidator
 from apb2.parserV2.parse_quant.parameters.axis import (
     AxisKeyPlan,
-    CoalesceColumnConfig,
-    JoinNonemptyColumnConfig,
-    ProformaIonColumnConfig,
     ProformaSequenceColumnConfig,
     SiteListModificationConfig,
     TokenRegexModificationConfig,
 )
-from apb2.parserV2.parse_quant.parameters.level import ResolvedLevelPlan
 from apb2.parserV2.parse_quant.parameters.measurements import (
     FactorLayerDeclaration,
-    LayerContractConfig,
-    LayerValueConfig,
     PlainNumericLayerDeclaration,
     RegexNumericLayerDeclaration,
 )
 from apb2.parserV2.parse_quant.parameters.source import (
-    DelimitedFragmentDecompositionConfig,
     DelimitedSourceEvidence,
     FrameSourceEvidence,
     LevelReadPlan,
-    LongDecompositionConfig,
     NumericTextFormat,
-    PositionalFragmentSeparationConfig,
-    WideDecompositionConfig,
     WideRawLayerPlan,
     WideRawLayerSource,
 )
+from apb2.parserV2.parse_quant.parser import ParseStrategy
+from apb2.parserV2.parse_quant.plan_json import as_json_value
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.vendor_parse_rules.document import RuleNotApplicable, SearchParameterEvidence
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
 from parserV2 import synthetic
 from parserV2.fixtures import PackagedDocument, document_pairs, level_pairs
+from parserV2.synthetic import plan_snapshot as snapshot
 
 NUMBERS = NumericTextFormat(decimal_mark=".", thousands_marks=())
 
@@ -151,7 +157,7 @@ def test_every_compatible_level_resolves_both_axis_key_plans(
     resolved = facade.resolve_source(delimited(header))
 
     for axis in (resolved.obs, resolved.var):
-        keys = axis.source.keys
+        keys = axis.keys
         assert keys.raw_key_columns
         assert keys.key_input_columns
         assert keys.final_key_columns
@@ -209,12 +215,12 @@ def test_the_alphadia_wide_ion_level_resolves_exactly_as_specified() -> None:
     assert working.measurements.duplicate_mode == "keep_first"
 
     resolved = facade.resolve_source(delimited(header))
-    assert resolved.obs.source.keys == AxisKeyPlan(
+    assert resolved.obs.keys == AxisKeyPlan(
         raw_key_columns=("sample",),
         key_input_columns=("sample",),
         final_key_columns=("sample",),
     )
-    assert resolved.var.source.keys == AxisKeyPlan(
+    assert resolved.var.keys == AxisKeyPlan(
         raw_key_columns=("sequence", "mods", "mod_sites", "charge"),
         key_input_columns=("ProForma_peptidoform", "Charge"),
         final_key_columns=("ProForma_ion",),
@@ -227,8 +233,10 @@ def test_the_alphadia_wide_ion_level_resolves_exactly_as_specified() -> None:
         text_sources=frozenset(header),
         native_numeric_sources=frozenset(),
     )
-    assert resolved.decomposition == WideDecompositionConfig(
-        kind="wide",
+    assert isinstance(resolved.decomposer, WideSourceDecomposer)
+    assert resolved.decomposer == WideSourceDecomposer(
+        obs=resolved.decomposer.obs,
+        var=resolved.decomposer.var,
         primary_layer_name="Intensity",
         layer_plans=(
             WideRawLayerPlan(
@@ -240,17 +248,18 @@ def test_the_alphadia_wide_ion_level_resolves_exactly_as_specified() -> None:
             ),
         ),
     )
-    assert resolved.layer_values == (
-        LayerValueConfig(
-            layer_name="Intensity",
-            value=PlainNumericLayerDeclaration(missing_values=(0.0,)),
-        ),
-    )
-    assert resolved.layer_contract == LayerContractConfig(
+    assert snapshot(resolved)["layer_values"] == [
+        {
+            "layer_name": "Intensity",
+            "value": {"kind": "plain_numeric", "missing_values": [0.0], "type": "number"},
+        }
+    ]
+    assert resolved.layer_validator == LayerContractValidator(
         primary_layer_name="Intensity",
         required_names=("Intensity",),
         empty_ratio=0.001,
         populated_ratio=0.5,
+        strict=False,
     )
 
 
@@ -268,20 +277,20 @@ def test_the_diann_fragment_level_separates_packed_values_before_decomposing() -
 
     resolved = facade.resolve_source(delimited(header))
 
-    assert resolved.var.source.keys == AxisKeyPlan(
+    assert resolved.var.keys == AxisKeyPlan(
         raw_key_columns=("Modified.Sequence", "Precursor.Charge", "fragment_label"),
         key_input_columns=("ProForma_ion", "fragment_label"),
         final_key_columns=("ProForma_fragment",),
     )
-    decomposition = resolved.decomposition
-    assert isinstance(decomposition, DelimitedFragmentDecompositionConfig)
-    assert decomposition.separator == PositionalFragmentSeparationConfig(
-        kind="positional",
+    decomposition = resolved.decomposer
+    assert isinstance(decomposition, DelimitedFragmentSourceDecomposer)
+    assert decomposition.separator == PositionalFragmentTableSeparator(
         label_output="fragment_label",
         delimiter=";",
         packed_value_sources=("Fragment.Quant.Raw", "Fragment.Correlations"),
     )
-    assert decomposition.long.primary_layer_name == "Fragment_Quant_Raw"
+    assert isinstance(decomposition.long_decomposer, LongSourceDecomposer)
+    assert decomposition.long_decomposer.primary_layer_name == "Fragment_Quant_Raw"
     # The label the separator synthesizes is identity, so its tokens must survive as text.
     assert "Fragment.Quant.Raw" in resolved.read.text_sources
 
@@ -331,7 +340,7 @@ def test_a_directly_selected_key_is_its_own_input() -> None:
     facade = ParseRuleFacade(load_rule_document(path), "protein", _EVIDENCES[0])
     header = ("Run", "Protein.Group", "Protein.Ids", "Protein.Names", "Genes", "PG.MaxLFQ")
 
-    keys = facade.resolve_source(delimited(header)).var.source.keys
+    keys = facade.resolve_source(delimited(header)).var.keys
 
     assert keys == AxisKeyPlan(
         raw_key_columns=("Protein.Group",),
@@ -362,7 +371,7 @@ def test_a_multi_column_key_keeps_every_authored_component_in_order() -> None:
         "F.PeakArea",
     )
 
-    keys = facade.resolve_source(delimited(header)).var.source.keys
+    keys = facade.resolve_source(delimited(header)).var.keys
 
     assert keys.final_key_columns == (
         "EG_PrecursorId",
@@ -400,10 +409,11 @@ def test_payload_metadata_is_retained_without_becoming_identity() -> None:
         "intensity",
     )
 
-    var = facade.resolve_source(delimited(header)).var
+    var_strategy = facade.resolve_source(delimited(header))
+    var = var_strategy.var
 
-    assert "genes" not in var.source.keys.raw_key_columns
-    assert "genes" in var.source.payload_sources
+    assert "genes" not in var.keys.raw_key_columns
+    assert "genes" in snapshot(var_strategy)["var"]["source"]["payload_sources"]
     assert "Genes" in var.outputs
 
 
@@ -422,20 +432,22 @@ def test_an_absent_optional_input_narrows_a_coalesce_instead_of_blocking_it() ->
     )
     facade = synthetic.facade(document)
 
-    both = facade.resolve_source(
+    both_strategy = facade.resolve_source(
         delimited(("Sample", "Feature", "Primary", "Fallback", "Quantity"))
-    ).var
-    only_primary = facade.resolve_source(
-        delimited(("Sample", "Feature", "Primary", "Quantity"))
-    ).var
-
-    assert both.skipped == frozenset()
-    assert both.output_phase.computers == (
-        CoalesceColumnConfig(kind="coalesce", name="Merged", inputs=("Primary", "Fallback")),
     )
-    assert only_primary.skipped == frozenset({"Fallback"})
+    both = both_strategy.var
+    only_primary_strategy = facade.resolve_source(
+        delimited(("Sample", "Feature", "Primary", "Quantity"))
+    )
+    only_primary = only_primary_strategy.var
+
+    assert set(snapshot(both_strategy)["var"]["skipped"]) == frozenset()
+    assert both.output_phase.computers == (
+        CoalesceColumn(name="Merged", inputs=("Primary", "Fallback")),
+    )
+    assert set(snapshot(only_primary_strategy)["var"]["skipped"]) == frozenset({"Fallback"})
     assert only_primary.output_phase.computers == (
-        CoalesceColumnConfig(kind="coalesce", name="Merged", inputs=("Primary",)),
+        CoalesceColumn(name="Merged", inputs=("Primary",)),
     )
     assert "Fallback" not in only_primary.outputs
     assert "Merged" in only_primary.outputs
@@ -465,17 +477,14 @@ def test_pruning_removes_exactly_the_chain_a_missing_optional_blocks() -> None:
     )
     facade = synthetic.facade(document)
 
-    var = facade.resolve_source(delimited(("Sample", "Feature", "Charge", "Quantity"))).var
+    var_strategy = facade.resolve_source(delimited(("Sample", "Feature", "Charge", "Quantity")))
+    var = var_strategy.var
 
     # ``join_nonempty`` keeps the inputs it has, so only the absent name is skipped.
-    assert var.skipped == frozenset({"Extra"})
+    assert set(snapshot(var_strategy)["var"]["skipped"]) == frozenset({"Extra"})
     assert var.output_phase.computers == (
-        JoinNonemptyColumnConfig(
-            kind="join_nonempty", name="Joined", inputs=("Feature", "Charge"), separator="-"
-        ),
-        JoinNonemptyColumnConfig(
-            kind="join_nonempty", name="Downstream", inputs=("Joined",), separator="+"
-        ),
+        JoinNonemptyColumn(name="Joined", inputs=("Feature", "Charge"), separator="-"),
+        JoinNonemptyColumn(name="Downstream", inputs=("Joined",), separator="+"),
     )
 
 
@@ -498,9 +507,10 @@ def test_a_blocked_sequence_operation_removes_itself_and_its_consumers() -> None
     )
     facade = synthetic.facade(document)
 
-    var = facade.resolve_source(delimited(("Sample", "Feature", "Quantity"))).var
+    var_strategy = facade.resolve_source(delimited(("Sample", "Feature", "Quantity")))
+    var = var_strategy.var
 
-    assert var.skipped == frozenset({"Charge"})
+    assert set(snapshot(var_strategy)["var"]["skipped"]) == frozenset({"Charge"})
     assert var.output_phase.computers[0].inputs == ("Feature",)
 
 
@@ -532,11 +542,12 @@ def test_combining_operations_with_no_surviving_inputs_are_skipped(how: str) -> 
             }
         ],
     )
-    var = (
-        synthetic.facade(document).resolve_source(delimited(("Sample", "Feature", "Quantity"))).var
+    var_strategy = synthetic.facade(document).resolve_source(
+        delimited(("Sample", "Feature", "Quantity"))
     )
+    var = var_strategy.var
 
-    assert var.skipped == {"First", "Second", "Merged"}
+    assert set(snapshot(var_strategy)["var"]["skipped"]) == {"First", "Second", "Merged"}
     assert var.output_phase.computers == ()
     assert "Merged" not in var.outputs
 
@@ -551,9 +562,10 @@ def test_a_non_injective_coalesce_is_planned_and_left_for_the_parser_to_catch() 
     )
     facade = synthetic.facade(document)
 
-    var = facade.resolve_source(delimited(("Sample", "First", "Second", "Quantity"))).var
+    var_strategy = facade.resolve_source(delimited(("Sample", "First", "Second", "Quantity")))
+    var = var_strategy.var
 
-    assert var.source.keys == AxisKeyPlan(
+    assert var.keys == AxisKeyPlan(
         raw_key_columns=("First", "Second"),
         key_input_columns=("First", "Second"),
         final_key_columns=("Key",),
@@ -585,7 +597,10 @@ def test_the_key_phase_holds_identity_and_the_output_phase_holds_the_rest() -> N
     )
     facade = synthetic.facade(document)
 
-    var = facade.resolve_source(delimited(("Sample", "Feature", "Charge", "Gene", "Quantity"))).var
+    var_strategy = facade.resolve_source(
+        delimited(("Sample", "Feature", "Charge", "Gene", "Quantity"))
+    )
+    var = var_strategy.var
 
     assert [selection.name for selection in var.key_phase.selections] == ["Feature", "Charge"]
     assert [computer.name for computer in var.key_phase.computers] == ["Key"]
@@ -603,13 +618,14 @@ def test_a_computed_column_may_widen_the_selection_of_its_own_name() -> None:
     )
     facade = synthetic.facade(document)
 
-    var = facade.resolve_source(
+    var_strategy = facade.resolve_source(
         delimited(("Sample", "Feature", "Proteins", "Leading", "Quantity"))
-    ).var
+    )
+    var = var_strategy.var
 
     assert var.output_phase.computers[0].inputs == ("Proteins", "Leading")
-    assert "Proteins" in var.source.payload_sources
-    assert "Leading" in var.source.payload_sources
+    assert "Proteins" in snapshot(var_strategy)["var"]["source"]["payload_sources"]
+    assert "Leading" in snapshot(var_strategy)["var"]["source"]["payload_sources"]
 
 
 # ------------------------------------------------------------------------- wide resolution
@@ -628,13 +644,13 @@ def test_wide_layers_resolve_to_concrete_columns_in_header_order() -> None:
     header = ("Feature", "B Intensity", "A Intensity", "A Count", "B Count")
 
     resolved = facade.resolve_source(delimited(header))
-    decomposition = resolved.decomposition
-    assert isinstance(decomposition, WideDecompositionConfig)
+    decomposition = resolved.decomposer
+    assert isinstance(decomposition, WideSourceDecomposer)
     plans = {plan.name: plan for plan in decomposition.layer_plans}
 
     assert [source.sample for source in plans["Intensity"].sources] == ["B", "A"]
     assert [source.source_column for source in plans["Count"].sources] == ["A Count", "B Count"]
-    assert resolved.obs.source.keys.raw_key_columns == ("sample",)
+    assert resolved.obs.keys.raw_key_columns == ("sample",)
 
 
 def test_a_permissive_wide_pattern_never_claims_an_accounted_for_column() -> None:
@@ -646,8 +662,8 @@ def test_a_permissive_wide_pattern_never_claims_an_accounted_for_column() -> Non
     facade = synthetic.facade(document)
 
     resolved = facade.resolve_source(delimited(("Feature", "Gene", "run_1", "run_2")))
-    decomposition = resolved.decomposition
-    assert isinstance(decomposition, WideDecompositionConfig)
+    decomposition = resolved.decomposer
+    assert isinstance(decomposition, WideSourceDecomposer)
 
     assert [source.sample for source in decomposition.layer_plans[0].sources] == [
         "run_1",
@@ -667,11 +683,11 @@ def test_an_optional_wide_layer_without_aligned_samples_is_omitted() -> None:
     facade = synthetic.facade(document)
 
     resolved = facade.resolve_source(delimited(("Feature", "A Intensity", "Z Count")))
-    decomposition = resolved.decomposition
-    assert isinstance(decomposition, WideDecompositionConfig)
+    decomposition = resolved.decomposer
+    assert isinstance(decomposition, WideSourceDecomposer)
 
     assert [plan.name for plan in decomposition.layer_plans] == ["Intensity"]
-    assert [config.layer_name for config in resolved.layer_values] == ["Intensity"]
+    assert list(resolved.layer_parsers) == ["Intensity"]
 
 
 def test_a_required_wide_layer_matching_only_other_samples_stays_as_an_empty_layer() -> None:
@@ -686,12 +702,13 @@ def test_a_required_wide_layer_matching_only_other_samples_stays_as_an_empty_lay
     facade = synthetic.facade(document)
 
     resolved = facade.resolve_source(delimited(("Feature", "A Intensity", "Z Count")))
-    decomposition = resolved.decomposition
-    assert isinstance(decomposition, WideDecompositionConfig)
+    decomposition = resolved.decomposer
+    assert isinstance(decomposition, WideSourceDecomposer)
     plans = {plan.name: plan for plan in decomposition.layer_plans}
 
     assert plans["Count"].sources == ()
-    assert resolved.layer_contract.required_names == ("Intensity", "Count")
+    assert isinstance(resolved.layer_validator, LayerContractValidator)
+    assert resolved.layer_validator.required_names == ("Intensity", "Count")
 
 
 def test_a_required_wide_layer_with_no_match_at_all_is_incompatible() -> None:
@@ -736,11 +753,12 @@ def test_an_optional_long_layer_absent_from_the_header_is_omitted() -> None:
     facade = synthetic.facade(document)
 
     resolved = facade.resolve_source(delimited(("Sample", "Feature", "Quantity")))
-    decomposition = resolved.decomposition
-    assert isinstance(decomposition, LongDecompositionConfig)
+    decomposition = resolved.decomposer
+    assert isinstance(decomposition, LongSourceDecomposer)
 
     assert [source.name for source in decomposition.layer_sources] == ["Quantity"]
-    assert resolved.layer_contract.required_names == ("Quantity",)
+    assert isinstance(resolved.layer_validator, LayerContractValidator)
+    assert resolved.layer_validator.required_names == ("Quantity",)
     assert resolved.provenance["layer_roles"] == {"abundance": ["Quantity"]}
 
 
@@ -773,7 +791,7 @@ def test_layers_keep_their_authored_order_across_the_required_split() -> None:
 
     resolved = facade.resolve_source(delimited(("Sample", "Feature", "First", "Quantity", "Last")))
 
-    assert [config.layer_name for config in resolved.layer_values] == [
+    assert list(resolved.layer_parsers) == [
         "First",
         "Quantity",
         "Last",
@@ -808,15 +826,17 @@ def test_resolution_reuses_each_retained_layer_declaration_without_copying_it() 
     resolved = facade.resolve_source(
         delimited(("Sample", "Feature", "Quantity", "Plain", "Structured", "Kind"))
     )
-    values = {config.layer_name: config.value for config in resolved.layer_values}
+    values = {
+        config["layer_name"]: config["value"] for config in snapshot(resolved)["layer_values"]
+    }
     for layer in facade.working_parameters.measurements.authored_layers():
-        assert values[layer.name] is layer.value
-    assert values["Quantity"] == PlainNumericLayerDeclaration(missing_values=(0.0,))
-    assert values["Plain"] == PlainNumericLayerDeclaration(missing_values=())
-    assert values["Structured"] == RegexNumericLayerDeclaration(
-        missing_values=(), pattern=r":(-?\d+(?:\.\d+)?)"
+        assert values[layer.name] == as_json_value(layer.value)
+    assert values["Quantity"] == as_json_value(PlainNumericLayerDeclaration(missing_values=(0.0,)))
+    assert values["Plain"] == as_json_value(PlainNumericLayerDeclaration(missing_values=()))
+    assert values["Structured"] == as_json_value(
+        RegexNumericLayerDeclaration(missing_values=(), pattern=r":(-?\d+(?:\.\d+)?)")
     )
-    assert values["Kind"] == FactorLayerDeclaration(categories=(("a", 0), ("b", 1)))
+    assert values["Kind"] == as_json_value(FactorLayerDeclaration(categories=(("a", 0), ("b", 1))))
     # Every measurement keeps its tokens; only an aggregating rule reads them as numbers.
     assert {"Kind", "Structured", "Plain", "Quantity"} <= resolved.read.text_sources
     assert resolved.read.native_numeric_sources == frozenset()
@@ -836,7 +856,7 @@ def test_a_grouped_number_notation_leaves_every_value_as_text() -> None:
     resolved = facade.resolve_source(grouped)
     read = resolved.read
 
-    assert resolved.number_format == grouped.number_format
+    assert snapshot(resolved)["number_format"] == as_json_value(grouped.number_format)
     assert read.native_numeric_sources == frozenset()
     assert read.text_sources == set(read.projected_columns)
 
@@ -880,7 +900,7 @@ def test_an_aggregate_rule_needs_layer_values_this_source_delivers_as_numbers() 
     )
 
     resolved = facade.resolve_source(delimited(("Sample", "Feature", "Quantity")))
-    assert resolved.duplicate_mode == "aggregate"
+    assert isinstance(resolved.duplicates, AggregateNumericDuplicates)
     # Summing needs numbers, so an aggregating rule is the one case that reads them eagerly.
     assert resolved.read.native_numeric_sources == frozenset({"Quantity"})
     with pytest.raises(IncompatibleSourceError, match="native numeric"):
@@ -933,19 +953,19 @@ def test_a_resolved_plan_carries_every_field_the_compiler_destructures() -> None
 
     resolved = facade.resolve_source(delimited(pair.header()))
 
-    assert {field.name for field in dataclasses.fields(ResolvedLevelPlan)} == {
+    assert {field.name for field in dataclasses.fields(ParseStrategy)} == {
         "level",
-        "number_format",
         "read",
-        "decomposition",
+        "decomposer",
         "obs",
         "var",
-        "duplicate_mode",
-        "layer_values",
-        "layer_contract",
+        "duplicates",
+        "raw_value_presence",
+        "layer_parsers",
+        "layer_validator",
         "provenance",
     }
-    assert all(getattr(resolved, field) is not None for field in ("read", "decomposition"))
+    assert all(getattr(resolved, field) is not None for field in ("read", "decomposer"))
     assert isinstance(resolved.provenance["rule_json"], str)
 
 
@@ -957,11 +977,11 @@ def test_a_proforma_ion_computer_reads_the_peptidoform_and_the_typed_charge() ->
         SearchParameterEvidence(acquisition_method="DDA", combine_charge_states=False),
     )
 
-    var = facade.resolve_source(delimited(pair.header())).var
+    var_strategy = facade.resolve_source(delimited(pair.header()))
+    var = var_strategy.var
     computers = {computer.name: computer for computer in var.key_phase.computers}
 
-    assert computers["ProForma_ion"] == ProformaIonColumnConfig(
-        kind="proforma_ion",
+    assert computers["ProForma_ion"] == ProformaIonColumn(
         name="ProForma_ion",
         inputs=("ProForma_peptidoform", "Charge"),
     )

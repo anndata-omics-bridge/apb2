@@ -19,16 +19,15 @@ from apb2.parserV2.parse_quant.errors import IncompatibleSourceError
 from apb2.parserV2.parse_quant.io.anndata_reader import H5adReader
 from apb2.parserV2.parse_quant.io.metadata import NAMESPACE, PARSE_NAMESPACE
 from apb2.parserV2.parse_quant.io.parquet_writer import MANIFEST_NAME
-from apb2.parserV2.parse_quant.parameters.level import ResolvedLevelPlan
 from apb2.parserV2.parse_quant.parameters.source import (
     DelimitedSourceEvidence,
     NumericTextFormat,
     SingleFile,
 )
+from apb2.parserV2.parse_quant.parser import ParseStrategy
 from apb2.parserV2.parse_quant.plan_json import (
     PLAN_JSON_KEY,
     as_json_value,
-    resolved_plan_json,
 )
 from apb2.parserV2.parser_factory import compile_level
 from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
@@ -48,7 +47,7 @@ def evidence(columns: tuple[str, ...]) -> DelimitedSourceEvidence:
     )
 
 
-def resolved() -> ResolvedLevelPlan:
+def resolved() -> ParseStrategy:
     """One plan whose source withheld something: an optional column and an optional layer."""
     document = synthetic.long_document(
         obs_select={"sample": "Sample"},
@@ -74,10 +73,18 @@ def written(tmp_path: Path) -> Path:
 def test_the_serialization_covers_every_source_decision_without_provenance() -> None:
     plan = resolved()
 
-    decoded = json.loads(resolved_plan_json(plan))
+    decoded = json.loads(str(plan.provenance[PLAN_JSON_KEY]))
 
     assert set(decoded) == {
-        field.name for field in dataclasses.fields(plan) if field.name != "provenance"
+        "level",
+        "number_format",
+        "read",
+        "decomposition",
+        "obs",
+        "var",
+        "duplicate_mode",
+        "layer_values",
+        "layer_contract",
     }
     assert set(decoded["read"]) == {field.name for field in dataclasses.fields(plan.read)}
     assert decoded["level"] == "ion"
@@ -87,7 +94,7 @@ def test_the_serialization_covers_every_source_decision_without_provenance() -> 
 def test_the_plan_states_what_this_source_resolved_to_not_what_the_rule_permits() -> None:
     plan = resolved()
 
-    decoded = json.loads(resolved_plan_json(plan))
+    decoded = json.loads(str(plan.provenance[PLAN_JSON_KEY]))
 
     assert decoded["read"]["projected_columns"] == list(plan.read.projected_columns)
     assert "raw_value_presence" not in decoded
@@ -111,7 +118,7 @@ def test_the_notation_the_source_was_read_under_survives_into_the_record() -> No
         )
     )
 
-    decoded = json.loads(resolved_plan_json(plan))
+    decoded = json.loads(str(plan.provenance[PLAN_JSON_KEY]))
 
     assert decoded["number_format"] == {"decimal_mark": ",", "thousands_marks": ["."]}
     assert decoded["layer_values"] == [
@@ -130,7 +137,7 @@ def test_the_declared_numeric_type_survives_into_the_record() -> None:
     )
     plan = synthetic.facade(document).resolve_source(evidence(("Sample", "Feature", "Quantity")))
 
-    encoding = json.loads(resolved_plan_json(plan))["layer_values"][0]
+    encoding = json.loads(str(plan.provenance[PLAN_JSON_KEY]))["layer_values"][0]
 
     assert encoding["value"]["type"] == "integer"
 
@@ -141,7 +148,7 @@ def test_the_declared_numeric_type_survives_into_the_record() -> None:
 def test_a_set_becomes_a_sorted_list_so_the_record_can_be_diffed() -> None:
     plan = resolved()
 
-    decoded = json.loads(resolved_plan_json(plan))
+    decoded = json.loads(str(plan.provenance[PLAN_JSON_KEY]))
 
     assert decoded["read"]["text_sources"] == sorted(plan.read.text_sources)
     assert decoded["read"]["native_numeric_sources"] == sorted(plan.read.native_numeric_sources)
@@ -149,7 +156,7 @@ def test_a_set_becomes_a_sorted_list_so_the_record_can_be_diffed() -> None:
 
 
 def test_two_resolutions_of_one_source_serialize_to_the_same_text() -> None:
-    assert resolved_plan_json(resolved()) == resolved_plan_json(resolved())
+    assert str(resolved().provenance[PLAN_JSON_KEY]) == str(resolved().provenance[PLAN_JSON_KEY])
 
 
 # ---------------------------------------------------------------------------------- refusals
@@ -268,7 +275,7 @@ def test_every_packaged_level_this_data_satisfies_serializes_its_plan(
     except IncompatibleSourceError as exc:
         pytest.skip(str(exc))
 
-    decoded = json.loads(resolved_plan_json(plan))
+    decoded = json.loads(str(plan.provenance[PLAN_JSON_KEY]))
 
     assert decoded["level"] == level
     assert "provenance" not in decoded
