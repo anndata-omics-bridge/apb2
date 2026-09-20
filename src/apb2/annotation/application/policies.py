@@ -267,12 +267,7 @@ def _subset_layer(layer: FinalLayerTable, kept: list[int]) -> FinalLayerTable:
     values = layer.values.select([*layer.var_key_columns, *selected_names])
     replacement = observation_labels(len(kept), layer.var_key_columns)
     values = values.rename(dict(zip(selected_names, replacement, strict=True)))
-    return FinalLayerTable(
-        layer_name=layer.layer_name,
-        var_key_columns=layer.var_key_columns,
-        values=values,
-        role=layer.role,
-    )
+    return replace(layer, values=values)
 
 
 def _subset_pairwise(frame: pl.DataFrame, kept: list[int]) -> pl.DataFrame:

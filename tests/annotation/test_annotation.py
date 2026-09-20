@@ -12,7 +12,9 @@ from polars.testing import assert_frame_equal
 
 from apb2.annotation.application.policies import (
     AllAnnotationSelections,
+    AnnotationApplication,
     BooleanAnnotationSelection,
+    KeepUnmatchedAnnotation,
     MatchedAnnotationSelection,
     SelectAnnotatedObservations,
 )
@@ -33,11 +35,15 @@ from apb2.annotation.matching.core import (
 from apb2.annotation.prolfquapp import ProlfquappAnnotationParameters
 from apb2.cli import annotate as annotate_command
 from apb2.parserV2.parse_quant.data.parsed import (
+    AuxiliaryLayerRole,
+    CategoricalLayerSemantics,
+    FinalLayerSemantics,
     FinalLayerTable,
     JsonValue,
     ObsFinal,
     ParsedLevel,
     ParsedLevels,
+    QuantitativeLayerSemantics,
     VarFinal,
 )
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels, write_parsed_levels
@@ -258,6 +264,67 @@ def test_boolean_selection_rejects_null_for_a_matched_annotation() -> None:
         _prolfquapp_compiler(ProlfquappAnnotationParameters(application=application)).compile(
             source
         ).parse(_parsed(("run_A",)))
+
+
+@pytest.mark.parametrize(
+    ("application", "kept"),
+    [
+        (KeepUnmatchedAnnotation(), (0, 1, 2)),
+        (SelectAnnotatedObservations(MatchedAnnotationSelection()), (0, 2)),
+    ],
+    ids=["retain-all", "select-subset"],
+)
+@pytest.mark.parametrize(
+    "semantics",
+    [
+        CategoricalLayerSemantics(categories=(("MS/MS", 1), ("MBR", 2)), missing_code=-1),
+        QuantitativeLayerSemantics(logical_type="integer"),
+    ],
+    ids=["categorical", "integer"],
+)
+def test_annotation_preserves_layer_semantics_and_round_trips(
+    application: AnnotationApplication,
+    kept: tuple[int, ...],
+    semantics: FinalLayerSemantics,
+    tmp_path: Path,
+) -> None:
+    parsed = _parsed()
+    layer = FinalLayerTable(
+        layer_name="Evidence",
+        var_key_columns=("feature",),
+        values=pl.DataFrame(
+            {"feature": ["p1", "p2"], "obs_0": [1, -1], "obs_1": [2, 1], "obs_2": [-1, 2]}
+        ),
+        role=AuxiliaryLayerRole(),
+        semantics=semantics,
+    )
+    parsed.levels["ion"].layers["Evidence"] = layer
+    source = pl.DataFrame({"raw_file": ["run_C", "run_A"], "condition": ["C", "A"]})
+    result = (
+        _prolfquapp_compiler(ProlfquappAnnotationParameters(application=application))
+        .compile(source)
+        .parse(parsed)
+        .annotate()
+        .parsed
+    )
+    annotated = result.levels["ion"].layers["Evidence"]
+    assert annotated.semantics is semantics
+    assert annotated.role is layer.role
+    target = tmp_path / "annotated.h5ad"
+    write_parsed_levels(result, target)
+    restored = read_parsed_levels(target)
+    expected = layer.values.select(
+        "feature", *(pl.col(f"obs_{old}").alias(f"obs_{new}") for new, old in enumerate(kept))
+    )
+    for level in (result.levels["ion"], restored.levels["ion"]):
+        copied = level.layers["Evidence"]
+        assert copied.semantics == semantics
+        assert copied.layer_name == layer.layer_name
+        assert copied.var_key_columns == layer.var_key_columns
+        assert isinstance(copied.role, AuxiliaryLayerRole)
+        assert_frame_equal(copied.values, expected)
+        assert level.obs.frame["run"].to_list() == [["run_A", "run_B", "run_C"][i] for i in kept]
+    assert layer.values.columns == ["feature", "obs_0", "obs_1", "obs_2"]
 
 
 def test_exact_matching_supports_composite_keys() -> None:
