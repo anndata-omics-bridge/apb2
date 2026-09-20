@@ -422,13 +422,14 @@ class ParseRuleFacade:
     @staticmethod
     def _project_stripping(
         column: StrippedSequence, rule: LongRule | WideRule
-    ) -> PlainSequenceStripper | SequenceColumn:
+    ) -> PlainSequenceStripper | TokenRegexStripper:
         syntax = rule.sequence_syntax[column.syntax]
         if isinstance(syntax, TokenRegexSyntax):
-            return SequenceColumn(
+            return TokenRegexStripper(
                 column.name,
                 tuple(column.inputs),
-                TokenRegexStripper(syntax.token_pattern, syntax.token_position),
+                syntax.token_pattern,
+                syntax.token_position,
             )
         assert isinstance(syntax, PlainSequenceSyntax)
         return PlainSequenceStripper(column.name, tuple(column.inputs))

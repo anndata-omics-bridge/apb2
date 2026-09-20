@@ -116,14 +116,14 @@ def _align(
         # Do not overwrite an already authored metadata column with a different value.
         if set(additions) & set(frame.columns):
             return {}
-        if frame.join(mapping, on=other_keys, how="anti").height:
-            return {}
-        frame = frame.join(
-            mapping, on=other_keys, how="left", maintain_order="left", validate="m:1"
+        joined = frame.join(
+            mapping, on=other_keys, how="inner", maintain_order="left", validate="m:1"
         )
+        if joined.height != frame.height:
+            return {}
         aligned[name] = replace(
             level,
-            obs=ObsFinal(frame=frame, key_columns=keys),
+            obs=ObsFinal(frame=joined, key_columns=keys),
             uns={**level.uns, "observation_keys_original": list(other_keys)},
         )
     return aligned

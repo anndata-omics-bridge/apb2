@@ -23,6 +23,7 @@ dependencies = [
     "packaging>=24",
     "pandas>=2.2",
     "polars>=1.43,<2",
+    "fastexcel>=0.21,<1",
     "python-calamine>=0.5,<1",
     "pydantic>=2.10",
     "pyarrow>=15",
@@ -118,4 +119,5 @@ exclude = ["documentation", "tests", "venv", "[.]venv", "[.]direnv", "[.]git", "
 [tool.deptry.per_rule_ignores]
 # DuckDB asks Polars for Arrow record batches when a DataFrame is registered. Polars imports
 # PyArrow dynamically at that boundary, so no direct APB2 import exists for Deptry to observe.
-DEP002 = ["pyarrow"]
+# The parameter-workbook reader still loads python-calamine through Pandas' Excel engine.
+DEP002 = ["pyarrow", "python-calamine"]

@@ -45,7 +45,7 @@ def as_json_value(value: object) -> JsonValue:
     """Return the JSON form of one plan value without interpreting it."""
     if value is None or isinstance(value, bool | int | float | str):
         return value
-    if isinstance(value, SequenceColumn):
+    if isinstance(value, SequenceColumn | TokenRegexStripper):
         return as_json_value(_sequence_snapshot(value))
     if isinstance(value, PlainSequenceStripper):
         return {
@@ -75,9 +75,9 @@ def as_json_value(value: object) -> JsonValue:
     )
 
 
-def _sequence_snapshot(value: SequenceColumn) -> dict[str, object]:
+def _sequence_snapshot(value: SequenceColumn | TokenRegexStripper) -> dict[str, object]:
     """Document an executable sequence operation without another runtime record."""
-    operation = value.operation
+    operation = value.operation if isinstance(value, SequenceColumn) else value
     payload: Mapping[str, object]
     if isinstance(
         operation, TokenRegexNormalizer | SiteListNormalizer | EmbeddedSiteListNormalizer

@@ -7,12 +7,13 @@ original XLSX bytes.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 import polars as pl
-from python_calamine import CalamineError, load_workbook
+import polars.selectors as cs
+from fastexcel import FastExcelError
 
 from apb2.parserV2.parse_quant.data.source import LevelSourceTable
 from apb2.parserV2.parse_quant.errors import IncompatibleSourceError
@@ -26,26 +27,23 @@ from apb2.parserV2.parse_quant.parameters.source import (
 _DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
 
 
-def _sheet_rows(path: Path, sheet_name: str) -> Sequence[Sequence[object]]:
-    """Load one declared sheet through the workbook reader."""
+def sheet_header(path: Path, sheet_name: str) -> tuple[str, ...]:
+    """Inspect the named sheet without materializing its data rows in Python."""
     try:
-        workbook = load_workbook(path)
-        try:
-            return workbook.get_sheet_by_name(sheet_name).to_python()
-        finally:
-            workbook.close()
-    except (CalamineError, OSError, ValueError) as error:
+        frame = pl.read_excel(
+            path,
+            sheet_name=sheet_name,
+            read_options={"n_rows": 0},
+            drop_empty_cols=False,
+            raise_if_empty=False,
+        )
+    except (FastExcelError, OSError, ValueError, pl.exceptions.PolarsError) as error:
         raise IncompatibleSourceError(
             f"{path}: cannot read workbook sheet {sheet_name!r}: {error}"
         ) from error
-
-
-def sheet_header(path: Path, sheet_name: str) -> tuple[str, ...]:
-    """Read a named sheet's header."""
-    rows = _sheet_rows(path, sheet_name)
-    if not rows:
+    if not frame.width:
         raise IncompatibleSourceError(f"{path}: workbook sheet {sheet_name!r} is empty")
-    return tuple(str(name) for name in rows[0])
+    return tuple(frame.columns)
 
 
 def schema_evidence(
@@ -76,31 +74,22 @@ class ExcelInputReader:
 
     def read(self) -> LevelSourceTable:
         """Read only projected columns and apply the already resolved dtypes."""
-        rows = _sheet_rows(self.path, self.evidence.sheet_name)
-        header = tuple(str(name) for name in rows[0])
-        positions = {name: index for index, name in enumerate(header)}
-        projected = pl.DataFrame(
-            {
-                name: _column_values(rows[1:], positions[name])
-                for name in self.plan.projected_columns
-            },
-            strict=False,
+        projected = pl.read_excel(
+            self.path,
+            sheet_name=self.evidence.sheet_name,
+            columns=self.plan.projected_columns,
+            infer_schema_length=None,
+            drop_empty_rows=False,
+            drop_empty_cols=False,
+            raise_if_empty=False,
         )
-        expressions = [
-            pl.col(name).cast(pl.String, strict=True).alias(name) for name in self.plan.text_sources
-        ]
-        expressions.extend(
-            pl.col(name).cast(pl.Float64, strict=True).alias(name)
-            for name in self.plan.native_numeric_sources
+        # Calamine's previous Python reader exposed Excel numbers as floats and empty
+        # cells as empty strings. Preserve those axis semantics using whole-frame casts.
+        projected = projected.with_columns(cs.integer().cast(pl.Float64)).with_columns(
+            pl.col(self.plan.text_sources).cast(pl.String).fill_null(""),
+            pl.col(self.plan.native_numeric_sources).cast(pl.Float64),
         )
-        if expressions:
-            projected = projected.with_columns(expressions)
         return LevelSourceTable(frame=projected)
-
-
-def _column_values(rows: Sequence[Sequence[object]], index: int) -> list[object | None]:
-    """Read one rectangular column, treating absent trailing cells as missing."""
-    return [row[index] if index < len(row) else None for row in rows]
 
 
 def make_excel_reader(

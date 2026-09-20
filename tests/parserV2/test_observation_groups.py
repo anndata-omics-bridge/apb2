@@ -65,6 +65,21 @@ def test_bijective_alignment_preserves_measurement_order_and_original_metadata()
     assert json.loads(relationships)[0]["aligned"] is True
 
 
+@pytest.mark.parametrize("samples", [[], ["B", "A", "B"]])
+def test_alignment_keeps_empty_and_repeated_observation_rows(samples: list[str]) -> None:
+    parsed = _parsed(["B", "A"], samples)
+    # Preserve the declared dtype even when the frame contains no observations.
+    parsed.levels["protein"].obs.frame = pl.DataFrame(
+        {"Experiment": samples}, schema={"Experiment": pl.String}
+    )
+    (result,) = group_observations(parsed)
+    assert result.levels["protein"].obs.frame.to_dict(as_series=False) == {
+        "Experiment": samples,
+        "Raw_File": [{"A": "raw_a", "B": "raw_z"}[name] for name in samples],
+    }
+    assert result.levels["protein"].layers is parsed.levels["protein"].layers
+
+
 @pytest.mark.parametrize(
     ("experiments", "samples"),
     [(["A", "A"], ["A"]), (["A", None], ["A"]), (["A", "B"], ["C"]), (["A", "B"], ["A", "C"])],

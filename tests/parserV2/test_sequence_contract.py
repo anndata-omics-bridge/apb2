@@ -351,10 +351,40 @@ def test_independent_stripping_handles_vendor_syntax_terminals_and_nulls(
     position: ModificationTokenPosition,
     modified: str,
 ) -> None:
-    computer = SequenceColumn("Peptide", ("Sequence",), TokenRegexStripper(pattern, position))
+    computer = TokenRegexStripper("Peptide", ("Sequence",), pattern, position)
     result, tokens = computer.compute(pl.DataFrame({"Sequence": [modified, None, ""]}))
     assert result["Peptide"].to_list() == ["PEPMIDE", "", ""]
     assert tokens == ()
+
+
+@pytest.mark.parametrize(
+    ("pattern", "position", "modified", "expected"),
+    [
+        (r"\(([^()]*(?:\([^()]*\)[^()]*)*)\)", "after_residue", "_M(Oxidation (M))PEP_", "MPEP"),
+        (r"(?<=M)\(ox\)", "after_residue", "M(ox)PEP", "MPEP"),
+        (r"[a-z]", "before_residue", "PEPabM", "PEPbM"),
+    ],
+)
+def test_stripping_preserves_nested_and_python_only_token_grammars(
+    pattern: str, position: ModificationTokenPosition, modified: str, expected: str
+) -> None:
+    computer = TokenRegexStripper("Sequence", ("Sequence",), pattern, position)
+    values = pl.DataFrame({"Sequence": [modified, modified], "other": [1, 2]})
+    result, tokens = computer.compute(values)
+    assert result.to_dict(as_series=False) == {"Sequence": [expected, expected], "other": [1, 2]}
+    assert tokens == ()
+
+
+def test_native_stripping_does_not_tokenize_or_map_python_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def forbidden(*args: object, **kwargs: object) -> None:
+        pytest.fail("native stripping must not call the scalar tokenizer")
+
+    monkeypatch.setattr(TokenRegexStripper, "transform", forbidden)
+    computer = TokenRegexStripper("Peptide", ("Sequence",), r"\[([^\]]+)\]", "after_residue")
+    result, _ = computer.compute(pl.DataFrame({"Sequence": ["_M[unknown]PEP_", "_M[unknown]PEP_"]}))
+    assert result["Peptide"].to_list() == ["MPEP", "MPEP"]
 
 
 def test_plain_stripping_preserves_site_list_residue_semantics() -> None:

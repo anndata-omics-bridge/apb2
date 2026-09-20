@@ -17,7 +17,6 @@ import codecs
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
-from itertools import islice
 from pathlib import Path
 from typing import Literal
 
@@ -37,7 +36,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
 type HeaderPredicate = Callable[[tuple[str, ...]], bool]
 """Whether one inspected header satisfies the level being constructed for."""
 
-_SCAN_LINES = 500
+_SCAN_ROWS = 500
 _GROUP_WIDTH = 3
 
 
@@ -199,46 +198,39 @@ def _resolved_number_format(
         )
     if len(usable) == 1:
         return usable[0]
-    observed = _decimal_marks_in_use(
-        path, delimiter, {candidate.decimal_mark for candidate in usable}
+    # Bound logical records, respecting quoted fields. Lossy UTF-8 is sufficient for this
+    # digit/punctuation probe even when the final reader uses a single-byte encoding.
+    # Three trailing digits remain ambiguous with thousands grouping, not decimal evidence.
+    observed = (
+        pl.scan_csv(
+            path,
+            separator=delimiter,
+            quote_char=contract.quote_char,
+            encoding="utf8-lossy",
+            infer_schema=False,
+            n_rows=_SCAN_ROWS,
+        )
+        .select(
+            pl.any_horizontal(
+                pl.all().str.extract(rf"^-?\d+{re.escape(mark)}(\d+)$", 1).str.len_chars()
+                != _GROUP_WIDTH
+            )
+            .any()
+            .alias(mark)
+            for mark in {candidate.decimal_mark for candidate in usable}
+        )
+        .collect()
+        .row(0, named=True)
     )
-    if len(observed) > 1:
+    marks = {mark for mark, present in observed.items() if present}
+    if len(marks) > 1:
         raise AmbiguousDialectError(
             f"{path} contains fields readable as decimals under several declared marks "
-            f"{sorted(observed)}; bind an explicit dialect instead"
+            f"{sorted(marks)}; bind an explicit dialect instead"
         )
-    if not observed:
+    if not marks:
         return usable[0]
-    mark = observed.pop()
-    return next(candidate for candidate in usable if candidate.decimal_mark == mark)
-
-
-def _decimal_marks_in_use(
-    path: Path,
-    delimiter: str,
-    marks: set[str],
-) -> set[str]:
-    """Which candidate marks this file actually writes fractions with.
-
-    Only the shape of the number distinguishes the two readings of ``1,234``: a thousands
-    separator always groups exactly three digits, so a field whose mark is followed by three
-    digits is ambiguous and is never counted as evidence.
-    """
-    patterns = {
-        mark: re.compile(rf"^-?\d+{re.escape(mark)}(\d+)$") for mark in marks if mark != delimiter
-    }
-    observed: set[str] = set()
-    # Tolerant decoding: this scan looks only for digits and punctuation, and must not turn a
-    # file the reader can still parse into a decode failure before the reader sees it.
-    with path.open(encoding="utf-8-sig", newline="", errors="replace") as handle:
-        handle.readline()
-        for line in islice(handle, _SCAN_LINES):
-            for field in line.rstrip("\n").split(delimiter):
-                for mark, pattern in patterns.items():
-                    match = pattern.match(field)
-                    if match is not None and len(match.group(1)) != _GROUP_WIDTH:
-                        observed.add(mark)
-    return observed
+    return next(candidate for candidate in usable if candidate.decimal_mark in marks)
 
 
 _ENCODING_PROBE_BYTES = 8 * 1024 * 1024

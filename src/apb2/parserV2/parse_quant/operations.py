@@ -42,6 +42,7 @@ from apb2.parserV2.parse_quant.duplicates import (
 from apb2.parserV2.parse_quant.modifications import (
     PlainSequenceStripper,
     SequenceColumn,
+    TokenRegexStripper,
 )
 from apb2.parserV2.parse_quant.parameters.axis import (
     AxisColumnSelection,
@@ -73,6 +74,7 @@ type ComputedOperation = (
     | JoinNonemptyColumn
     | SequenceColumn
     | PlainSequenceStripper
+    | TokenRegexStripper
     | ProformaIonColumn
     | ProformaFragmentColumn
 )

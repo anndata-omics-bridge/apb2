@@ -7,7 +7,9 @@ decided before the read, so a lexical token cannot be reinterpreted on the way i
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
+from zipfile import ZipFile
 
 import polars as pl
 import pytest
@@ -252,6 +254,34 @@ def test_a_three_digit_group_is_never_read_as_decimal_evidence(tmp_path: Path) -
     assert evidence.number_format == DOT
 
 
+@pytest.mark.parametrize("quote", ['"', "'", None])
+def test_decimal_probe_obeys_the_declared_quoting(tmp_path: Path, quote: str | None) -> None:
+    written_quote = quote or '"'
+    path = write(
+        tmp_path / "quoted.tsv",
+        f"Sample\tFeature\tQuantity\nA\tF\t{written_quote}1,5{written_quote}\n",
+    )
+    evidence = delimited_input.detected_evidence(
+        path, replace(TEXT, quote_char=quote), accepts_sample_and_feature
+    )
+    assert evidence.number_format == (COMMA if quote else DOT)
+
+
+def test_decimal_probe_ignores_numeric_fragments_inside_quoted_metadata(tmp_path: Path) -> None:
+    path = write(tmp_path / "quoted.tsv", 'Sample\tFeature\tQuantity\n"A\t2,5\nB"\tF\t1.5\n')
+    evidence = delimited_input.detected_evidence(path, TEXT, accepts_sample_and_feature)
+    assert evidence.number_format == DOT
+
+
+def test_decimal_probe_is_bounded_to_500_records(tmp_path: Path) -> None:
+    path = write(
+        tmp_path / "bounded.tsv",
+        "Sample\tFeature\tQuantity\n" + "A\tF\t1.5\n" * 500 + "B\tG\t2,5\n",
+    )
+    evidence = delimited_input.detected_evidence(path, TEXT, accepts_sample_and_feature)
+    assert evidence.number_format == DOT
+
+
 def test_a_comma_delimited_file_cannot_also_carry_comma_decimals(tmp_path: Path) -> None:
     path = write(tmp_path / "commas.txt", "Sample,Feature,Quantity\nA,F,1.5\n")
 
@@ -401,6 +431,86 @@ def test_a_workbook_with_a_txt_suffix_reads_its_declared_sheet() -> None:
 
     assert isinstance(reader, excel_input.ExcelInputReader)
     assert reader.read().frame.columns == ["sequence", "modifications"]
+
+
+def _workbook_sheet(tmp_path: Path, rows: str) -> Path:
+    """Replace the data sheet in the committed XLSX fixture, keeping its real container."""
+    template = Path(__file__).parent / "data" / "prolinestudio" / "sample.txt"
+    path = tmp_path / "workbook.txt"
+    sheet = (
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        f"<sheetData>{rows}</sheetData></worksheet>"
+    )
+    with ZipFile(template) as original, ZipFile(path, "w") as workbook:
+        for entry in original.infolist():
+            workbook.writestr(
+                entry,
+                sheet if entry.filename == "xl/worksheets/sheet5.xml" else original.read(entry),
+            )
+    return path
+
+
+_EXCEL_HEADER = (
+    '<row r="1"><c r="A1" t="inlineStr"><is><t>ID</t></is></c>'
+    '<c r="B1" t="inlineStr"><is><t>Quantity</t></is></c></row>'
+)
+
+
+@pytest.mark.parametrize("rows", ["", '<row r="2"><c r="A2" t="n"><v>2</v></c></row>'])
+def test_workbook_keeps_header_only_and_missing_trailing_cells(tmp_path: Path, rows: str) -> None:
+    path = _workbook_sheet(tmp_path, _EXCEL_HEADER + rows)
+    evidence = excel_input.schema_evidence(
+        path, WORKBOOK, lambda columns: columns == ("ID", "Quantity")
+    )
+    frame = (
+        excel_input.make_excel_reader(path, evidence, plan("Quantity", "ID", numeric=("Quantity",)))
+        .read()
+        .frame
+    )
+    assert frame.columns == ["Quantity", "ID"]
+    assert frame.schema == {"Quantity": pl.Float64, "ID": pl.String}
+    assert frame.to_dict(as_series=False) == {
+        "Quantity": [None] if rows else [],
+        "ID": ["2.0"] if rows else [],
+    }
+
+
+def test_workbook_keeps_empty_rows_and_text_identifiers(tmp_path: Path) -> None:
+    path = _workbook_sheet(
+        tmp_path,
+        _EXCEL_HEADER
+        + '<row r="2"><c r="A2" t="inlineStr"><is><t>001</t></is></c><c r="B2"><v>1.5</v></c></row>'
+        '<row r="3"/>'
+        '<row r="4"><c r="B4"><v>2</v></c></row>',
+    )
+    evidence = excel_input.schema_evidence(path, WORKBOOK, lambda columns: "ID" in columns)
+    frame = (
+        excel_input.make_excel_reader(path, evidence, plan("ID", "Quantity", numeric=("Quantity",)))
+        .read()
+        .frame
+    )
+    assert frame.to_dict(as_series=False) == {"ID": ["001", "", ""], "Quantity": [1.5, None, 2.0]}
+
+
+def test_workbook_invalid_numeric_tokens_are_not_silently_discarded(tmp_path: Path) -> None:
+    path = _workbook_sheet(
+        tmp_path,
+        _EXCEL_HEADER + '<row r="2"><c r="A2" t="inlineStr"><is><t>001</t></is></c>'
+        '<c r="B2" t="inlineStr"><is><t>bad</t></is></c></row>',
+    )
+    evidence = excel_input.schema_evidence(path, WORKBOOK, lambda columns: "ID" in columns)
+    with pytest.raises(pl.exceptions.InvalidOperationError, match="bad"):
+        excel_input.make_excel_reader(
+            path, evidence, plan("Quantity", numeric=("Quantity",))
+        ).read()
+
+
+def test_workbook_reports_missing_and_empty_sheets(tmp_path: Path) -> None:
+    path = _workbook_sheet(tmp_path, "")
+    with pytest.raises(IncompatibleSourceError, match="empty"):
+        excel_input.sheet_header(path, WORKBOOK.sheet_name)
+    with pytest.raises(IncompatibleSourceError, match="missing"):
+        excel_input.sheet_header(path, "missing")
 
 
 # ------------------------------------------------------------------------------- parquet

@@ -18,6 +18,7 @@ from apb2.parserV2.parse_quant.decomposition import (
     LongSourceDecomposer,
     WideSourceDecomposer,
 )
+from apb2.parserV2.parse_quant.duplicates import KeepFirstDuplicate, NullOnlyRawValuePresence
 from apb2.parserV2.parse_quant.fragments import (
     ColumnLabeledFragmentTableSeparator,
     PackedLengthError,
@@ -346,6 +347,37 @@ def test_a_required_wide_layer_with_no_aligned_column_stays_aligned_and_empty() 
     assert count.columns == ["Feature", "obs_0"]
     assert count.to_dicts() == [{"Feature": "F1", "obs_0": None}]
     assert [layer.layer_name for layer in raw.layers.values] == ["Intensity", "Count"]
+
+
+@pytest.mark.parametrize("repetitions", [0, 1, 20])
+@pytest.mark.parametrize("duplicate_headers", [False, True])
+def test_wide_keep_first_preserves_file_order_for_equal_keys(
+    repetitions: int, duplicate_headers: bool
+) -> None:
+    table = LevelSourceTable(
+        pl.DataFrame(
+            {
+                "Feature": ["F1", "F2", None] * repetitions,
+                "A": list(range(1, repetitions * 3 + 1)),
+                "A again": [999] * (repetitions * 3),
+            },
+            schema={"Feature": pl.String, "A": pl.Int64, "A again": pl.Int64},
+        )
+    )
+    sources = (WideRawLayerSource("A", "A"),)
+    if duplicate_headers:
+        sources += (WideRawLayerSource("A again", "A"),)
+    raw = WideSourceDecomposer(
+        primary_layer_name="Intensity",
+        layer_plans=(WideRawLayerPlan("Intensity", sources),),
+        obs=axis(("sample",)),
+        var=axis(("Feature",)),
+    ).decompose(table)
+    result = KeepFirstDuplicate().resolve(raw.layers.values[0], NullOnlyRawValuePresence())
+    assert result.values.to_dict(as_series=False) == {
+        "Feature": ["F1", "F2", None] if repetitions else [],
+        "obs_0": [1, 2, 3] if repetitions else [],
+    }
 
 
 def test_the_wide_observation_axis_comes_from_the_primary_layer_alone() -> None:

@@ -287,10 +287,11 @@ def test_join_nonempty_skips_nulls_and_empty_strings_alike() -> None:
 
 def test_a_stripping_column_consumes_the_sequence_directly() -> None:
     sequence = pl.Series("Modified_Sequence", ["PEPM(ox)IDE"])
-    computer = SequenceColumn(
+    computer = TokenRegexStripper(
         name="ProForma_peptide",
         inputs=("Modified_Sequence",),
-        operation=TokenRegexStripper(r"\(([^()]*)\)", "after_residue"),
+        token_pattern=r"\(([^()]*)\)",
+        token_position="after_residue",
     )
     result, tokens = computer.compute(sequence.to_frame())
     assert result[computer.name].to_list() == ["PEPMIDE"]
@@ -376,9 +377,7 @@ def test_a_computer_preserves_its_input_length_and_row_order(
 @pytest.mark.parametrize("sequences", [[], [None, None]])
 def test_sequence_mapping_handles_empty_and_all_null_frames(sequences: list[str | None]) -> None:
     frame = pl.DataFrame({"Sequence": sequences}, schema={"Sequence": pl.String})
-    computer = SequenceColumn(
-        "Peptide", ("Sequence",), TokenRegexStripper(r"\(([^()]*)\)", "after_residue")
-    )
+    computer = TokenRegexStripper("Peptide", ("Sequence",), r"\(([^()]*)\)", "after_residue")
     result, tokens = computer.compute(frame)
     assert result["Peptide"].to_list() == [""] * len(sequences)
     assert result.schema["Peptide"] == pl.String

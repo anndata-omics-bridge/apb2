@@ -36,7 +36,7 @@ from apb2.parserV2.parse_quant.parameters.axis import (
 )
 
 _MASS_TOLERANCE = 1e-3
-_TERM_MARKERS = {"_", "-", "."}
+_TERM_MARKERS = "_-."
 _TERMINUS_TARGETS = {
     "N-term",
     "C-term",
@@ -393,16 +393,6 @@ class _TokenPlacement:
     next_cursor: int
 
 
-def _strip_terminal_markers(sequence: str) -> str:
-    """Drop leading and trailing terminal markers (``_``, ``-``, ``.``)."""
-    start, end = 0, len(sequence)
-    while start < end and sequence[start] in _TERM_MARKERS:
-        start += 1
-    while end > start and sequence[end - 1] in _TERM_MARKERS:
-        end -= 1
-    return sequence[start:end]
-
-
 def _place_token(
     sequence: str,
     match: re.Match[str],
@@ -459,7 +449,7 @@ def normalize_token_regex(
 ) -> ModifiedSequence:
     """Normalize one inline-token sequence: strip, tokenize, resolve, render."""
     pattern = re.compile(config.token_pattern)
-    sequence = _strip_terminal_markers(modified_sequence)
+    sequence = modified_sequence.strip(_TERM_MARKERS)
     residues, pending = _tokenize(sequence, pattern, config.token_position)
     stripped = "".join(residues)
     occurrences: list[ModificationOccurrence] = []
@@ -660,13 +650,35 @@ class PlainSequenceStripper:
 class TokenRegexStripper:
     """Remove recognized inline tokens; neither resolve nor render modifications."""
 
+    name: str
+    inputs: tuple[str, ...]
     token_pattern: str
     token_position: ModificationTokenPosition
+
+    def compute(self, frame: pl.DataFrame, /) -> tuple[pl.DataFrame, tuple[str, ...]]:
+        # Before-residue tokenization may consume a letter in the next match; keep that
+        # Python grammar, as well as patterns unsupported by Polars' regex engine.
+        if self.token_position == "before_residue":
+            return SequenceColumn(self.name, self.inputs, self).compute(frame)
+        try:
+            pl.select(pl.lit("").str.replace_all(self.token_pattern, ""))
+        except pl.exceptions.ComputeError:
+            return SequenceColumn(self.name, self.inputs, self).compute(frame)
+        (source,) = self.inputs
+        stripped = (
+            pl.col(source)
+            .cast(pl.String)
+            .fill_null("")
+            .str.strip_chars(_TERM_MARKERS)
+            .str.replace_all(self.token_pattern, "")
+            .str.replace_all(r"[^\p{L}]", "")
+        )
+        return frame.with_columns(stripped.alias(self.name)), ()
 
     def transform(self, row: tuple[str, ...], /) -> SequenceValue:
         (sequence,) = row
         residues, _tokens = _tokenize(
-            _strip_terminal_markers(sequence), re.compile(self.token_pattern), self.token_position
+            sequence.strip(_TERM_MARKERS), re.compile(self.token_pattern), self.token_position
         )
         return SequenceValue("".join(residues))
 

@@ -32,7 +32,6 @@ from apb2.parserV2.parse_quant.parameters.axis import AxisSourcePlan
 from apb2.parserV2.parse_quant.parameters.source import LongRawLayerSource, WideRawLayerPlan
 
 _OCCURRENCE = "_occurrence"
-_VAR_SLOT = "_var_slot"
 _OBS_SLOT = "_obs_slot"
 _PIVOT_SEPARATOR = "::"
 
@@ -56,18 +55,6 @@ def _axis_frame(frame: pl.DataFrame, plan: AxisSourcePlan) -> pl.DataFrame:
     keys = plan.keys.raw_key_columns
     return frame.select(pl.col(keys), pl.col(plan.payload_sources).exclude(keys)).unique(
         subset=keys, keep="first", maintain_order=True
-    )
-
-
-def _ordered_by_axis(
-    values: pl.DataFrame, axis: pl.DataFrame, keys: tuple[str, ...]
-) -> pl.DataFrame:
-    """Sort layer rows into axis order, keeping repeated cells adjacent and in file order."""
-    slots = axis.select(list(keys)).with_row_index(_VAR_SLOT)
-    return (
-        values.join(slots, on=list(keys), how="left", nulls_equal=True, maintain_order="left")
-        .sort([_VAR_SLOT, _OCCURRENCE])
-        .drop(_VAR_SLOT, _OCCURRENCE)
     )
 
 
@@ -156,7 +143,11 @@ class LongSourceDecomposer:
             values=list(source_aliases.values()),
             separator=_PIVOT_SEPARATOR,
         )
-        return _ordered_by_axis(pivoted, var_frame, var_keys)
+        return (
+            var_frame.select(var_keys)
+            .join(pivoted, on=var_keys, how="left", nulls_equal=True, maintain_order="left_right")
+            .drop(_OCCURRENCE)
+        )
 
     @staticmethod
     def _pivot_value_aliases(count: int, reserved: tuple[str, ...] | list[str]) -> tuple[str, ...]:
@@ -259,14 +250,16 @@ class WideSourceDecomposer:
                         for sample, label in zip(samples, labels, strict=True)
                     ),
                 ]
-            ).with_columns(pl.lit(occurrence, dtype=pl.UInt32).alias(_OCCURRENCE))
+            )
             for occurrence in range(depth)
         ]
         stacked = pl.concat(blocks) if blocks else frame.select(list(var_keys))
         return RawLayerTable(
             layer_name=plan.name,
             raw_var_key_columns=var_keys,
-            values=_ordered_by_axis(stacked, var_frame, var_keys),
+            values=var_frame.select(var_keys).join(
+                stacked, on=var_keys, how="left", nulls_equal=True, maintain_order="left_right"
+            ),
         )
 
     @staticmethod
