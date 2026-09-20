@@ -39,6 +39,8 @@ The executable strategy owns its collaborators once. `Parser.parse()` reads once
 
 Each retained layer now has one configured value parser exposing both `present()` and `parse()`. Duplicate policies consume only its narrow `RawValuePresence` capability; occupancy checking still precedes duplicate reduction, and value parsing still follows alignment. No parallel presence-object mapping remains. Sequence normalizers record localized rendering labels directly and return `SequenceValue`, without intermediate occurrence records or a second result wrapper; independently declared stripping remains a separate computation.
 
+Normalizers own their immutable settings and scalar algorithms directly, without separate modification-configuration records or forwarding functions. Locations answer residue matching directly rather than allocating adjacent-residue wrappers. Source resolution constructs layer parsers from the retained declarations without `LayerValueConfig` repacking and is the sole producer of resolved layer-role metadata. `NumericTextFormat` is shared unchanged by source evidence and value/axis parsing; the numeric helper lives directly in `parse_quant`, preserving the independent `data` and `parameters` leaves. The saved-plan serializer preserves the existing JSON shape without retaining those deleted runtime wrappers.
+
 ## 1. Executive decision
 
 Parser V2 is a forward-only pipeline built from fully configured runtime strategies. A parser
@@ -1163,7 +1165,7 @@ flowchart TB
             SOURCE_DATA["data/source.py<br/>LevelSourceTable"]
             RAW_DATA["data/raw.py<br/>raw axes, layers, key map"]
             PARSED_DATA["data/parsed.py<br/>final axes, slots, ParsedLevel(s)"]
-            NUMERIC_DATA["data/numeric_text.py<br/>storage-neutral scalar interpretation"]
+            NUMERIC_TEXT["numeric_text.py<br/>shared numeric expressions"]
             PARAMETERS["parameters/<br/>working and source-resolved values"]
             CONTRACTS["contracts.py<br/>Parser-consumed Protocols and runtime plans"]
             PARSE["Parser, decomposers, columns,<br/>modifications, duplicate policies"]
@@ -1215,7 +1217,8 @@ flowchart TB
     CONTRACTS --> RAW_DATA
     CONTRACTS --> PARSED_DATA
     ANNDATA_WRITER --> PARSED_DATA
-    ANNDATA_WRITER --> NUMERIC_DATA
+    PARSE --> NUMERIC_TEXT
+    NUMERIC_TEXT --> PARAMETERS
     ANNDATA_READER --> PARSED_DATA
     PARQUET_WRITER --> PARSED_DATA
     PARQUET_READER --> PARSED_DATA
@@ -2906,10 +2909,10 @@ apb2/src/apb2/parserV2/
 │   ├── parquet_input.py         # binding, evidence, configured Polars Parquet reader
 │   ├── prepared_input.py        # per-level projection of the shared prepared frame
 │   ├── errors.py                # shared parse/source boundary errors
+│   ├── numeric_text.py          # shared numeric expressions using NumericTextFormat
 │   ├── data/
 │   │   ├── __init__.py         # data package marker; no broad re-exports
 │   │   ├── layer_columns.py    # positional layer-column naming invariant
-│   │   ├── numeric_text.py     # storage-neutral numeric-token interpretation
 │   │   ├── source.py           # LevelSourceTable
 │   │   ├── raw.py              # raw axes/layers, decomposition result, key map
 │   │   └── parsed.py           # final axes/layers, ParsedLevel, and ParsedLevels
@@ -2993,8 +2996,7 @@ Data placement follows pipeline state and boundary:
   `ParsedLevel`. Parsing returns these values and output adapters consume them.
 - `parse_quant/data/layer_columns.py` owns the collision-free positional naming convention shared
   by raw and final layer tables. It is part of their tabular representation, not a generic helper.
-- `parse_quant/data/numeric_text.py` owns `NumberNotation` and the storage-neutral interpretation of
-  numeric tokens used consistently by computation and the AnnData projection.
+- `parse_quant/numeric_text.py` owns shared numeric expressions for raw presence and canonical value parsing; both consume the existing `NumericTextFormat` from `parameters/source.py` without a second notation record.
 - `parse_quant/parameters` owns every storage-neutral value used to configure parsing: working
   declarations, source bindings and evidence, `AxisKeyPlan`, `InputContract`, `LevelReadPlan`,
   source/decomposition configurations, resolved axis/encoding/presence contracts, and

@@ -25,7 +25,6 @@ from apb2.parserV2.parse_quant.operations import duplicate_policy_for, make_laye
 from apb2.parserV2.parse_quant.parameters.measurements import (
     DuplicateMode,
     FactorLayerDeclaration,
-    LayerValueConfig,
     LayerValueDeclaration,
     PlainNumericLayerDeclaration,
     RegexNumericLayerDeclaration,
@@ -35,16 +34,11 @@ from apb2.parserV2.parse_quant.parameters.source import NumericTextFormat
 DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
 GROUPED = NumericTextFormat(decimal_mark=",", thousands_marks=(".",))
 
-NULL_ONLY = make_layer_parser(
-    LayerValueConfig("L", PlainNumericLayerDeclaration(missing_values=())), DOT
-)
-ZERO_SENTINEL = make_layer_parser(
-    LayerValueConfig("L", PlainNumericLayerDeclaration(missing_values=(0.0,))), DOT
-)
+NULL_ONLY = make_layer_parser("L", PlainNumericLayerDeclaration(missing_values=()), DOT)
+ZERO_SENTINEL = make_layer_parser("L", PlainNumericLayerDeclaration(missing_values=(0.0,)), DOT)
 ASCORE = make_layer_parser(
-    LayerValueConfig(
-        "L", RegexNumericLayerDeclaration(missing_values=(0.0,), pattern=r":(-?\d+(?:\.\d+)?)")
-    ),
+    "L",
+    RegexNumericLayerDeclaration(missing_values=(0.0,), pattern=r":(-?\d+(?:\.\d+)?)"),
     DOT,
 )
 
@@ -85,7 +79,7 @@ def test_null_only_presence_asks_nothing_of_the_value_itself() -> None:
 def test_no_sentinel_and_factor_declarations_keep_blank_text_present(
     value: LayerValueDeclaration,
 ) -> None:
-    presence = make_layer_parser(LayerValueConfig("L", value), DOT)
+    presence = make_layer_parser("L", value, DOT)
 
     assert presence_mask(presence, pl.Series("obs_0", ["", "  ", None])).to_list() == [
         True,
@@ -117,7 +111,8 @@ def test_a_nonblank_token_that_cannot_be_read_stays_present() -> None:
 
 def test_a_localized_sentinel_is_recognized_under_its_own_notation() -> None:
     presence = make_layer_parser(
-        LayerValueConfig("L", PlainNumericLayerDeclaration(missing_values=(0.0, 1000.0))),
+        "L",
+        PlainNumericLayerDeclaration(missing_values=(0.0, 1000.0)),
         GROUPED,
     )
     values = pl.Series("obs_0", ["1.000", "1.000,5", "0", None])

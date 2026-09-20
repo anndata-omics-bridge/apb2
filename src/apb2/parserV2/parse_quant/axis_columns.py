@@ -6,8 +6,9 @@ from dataclasses import dataclass
 
 import polars as pl
 
-from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation, as_numbers
 from apb2.parserV2.parse_quant.errors import ColumnComputationError
+from apb2.parserV2.parse_quant.numeric_text import as_numbers
+from apb2.parserV2.parse_quant.parameters.source import NumericTextFormat
 
 _EXAMPLE_LIMIT = 5
 _INT64_MIN = -(2**63)
@@ -59,7 +60,7 @@ class StringAxisCoercer:
 class NumberAxisCoercer:
     """Read floating-point values, rejecting every invalid non-missing token."""
 
-    notation: NumberNotation
+    notation: NumericTextFormat
 
     def coerce(self, frame: pl.DataFrame, *, name: str, source: str) -> pl.Expr:
         parsed = as_numbers(pl.col(source), frame.schema[source], self.notation)
@@ -72,7 +73,7 @@ class NumberAxisCoercer:
 class IntegerAxisCoercer:
     """Read integers, rejecting fractions and values outside the 64-bit range."""
 
-    notation: NumberNotation
+    notation: NumericTextFormat
 
     def coerce(self, frame: pl.DataFrame, *, name: str, source: str) -> pl.Expr:
         parsed = as_numbers(pl.col(source), frame.schema[source], self.notation)

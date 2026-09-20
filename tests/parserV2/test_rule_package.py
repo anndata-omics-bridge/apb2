@@ -120,7 +120,8 @@ def test_entry_shaped_columns_project_roles_and_runtime_selections(tmp_path: Pat
         "protein_assignment": "feature",
         "fasta_accessions": "feature",
     }
-    assert working.provenance["layer_roles"] == {"abundance": ["quantity"]}
+    assert working.measurements.layers[0].roles == ("abundance",)
+    assert "layer_roles" not in working.provenance
 
 
 def test_role_configuration_owns_the_role_vocabulary() -> None:

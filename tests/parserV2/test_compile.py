@@ -25,7 +25,6 @@ from apb2.parserV2.parse_quant.axis_columns import (
     ProformaIonColumn,
     StringAxisCoercer,
 )
-from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation
 from apb2.parserV2.parse_quant.decomposition import (
     DelimitedFragmentSourceDecomposer,
     LongSourceDecomposer,
@@ -57,14 +56,10 @@ from apb2.parserV2.parse_quant.parameters.axis import (
     AxisKeyPlan,
     AxisLogicalType,
     AxisSourcePlan,
-    EmbeddedSiteListModificationConfig,
-    SiteListModificationConfig,
-    TokenRegexModificationConfig,
 )
 from apb2.parserV2.parse_quant.parameters.measurements import (
     DuplicateMode,
     FactorLayerDeclaration,
-    LayerValueConfig,
     LayerValueDeclaration,
     PlainNumericLayerDeclaration,
     RegexNumericLayerDeclaration,
@@ -99,7 +94,7 @@ from parserV2 import synthetic
 from parserV2.fixtures import PackagedDocument, document_pairs, level_pairs
 
 DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
-DOT_NUMBERS = NumberNotation(decimal_mark=".", thousands_marks=())
+DOT_NUMBERS = NumericTextFormat(decimal_mark=".", thousands_marks=())
 AXIS = AxisSourcePlan(
     keys=AxisKeyPlan(raw_key_columns=("a",), key_input_columns=("A",), final_key_columns=("A",)),
     payload_sources=(),
@@ -252,10 +247,8 @@ def test_every_computed_column_declaration_names_one_computer(
 def test_one_declaration_selects_one_layer_parser(
     value: LayerValueDeclaration, expected_parser: type
 ) -> None:
-    config = LayerValueConfig(layer_name="L", value=value)
-    parser = make_layer_parser(config, DOT)
+    parser = make_layer_parser("L", value, DOT)
 
-    assert config.value is value
     assert isinstance(parser, expected_parser)
     assert not hasattr(parser, "kind")
 
@@ -274,10 +267,10 @@ def test_numeric_parser_retains_the_resolved_notation(
 ) -> None:
     numbers = NumericTextFormat(decimal_mark=",", thousands_marks=(".",))
 
-    parser = make_layer_parser(LayerValueConfig("Count", value), numbers)
+    parser = make_layer_parser("Count", value, numbers)
 
     assert isinstance(parser, PlainNumericLayerParser | RegexNumericLayerParser)
-    assert parser.number_format == NumberNotation(decimal_mark=",", thousands_marks=(".",))
+    assert parser.number_format is numbers
     assert parser.missing_values == (1000.0,)
     assert parser.numeric_type == "integer"
     assert parser.layer_name == "Count"
@@ -286,25 +279,22 @@ def test_numeric_parser_retains_the_resolved_notation(
         assert parser.pattern == value.pattern
 
 
-def test_every_modification_declaration_names_one_normalizer() -> None:
-    site_list = SiteListModificationConfig(
-        kind="site_list",
+def test_normalizers_own_their_settings_without_configuration_wrappers() -> None:
+    site_list = SiteListNormalizer(
         delimiter=";",
         site_base=1,
         case_sensitive=False,
         unknown_policy="preserve",
         entries=(),
     )
-    token_regex = TokenRegexModificationConfig(
-        kind="token_regex",
+    token_regex = TokenRegexNormalizer(
         token_pattern=r"\(([^()]*)\)",
         token_position="after_residue",
         case_sensitive=False,
         unknown_policy="preserve",
         entries=(),
     )
-    embedded = EmbeddedSiteListModificationConfig(
-        kind="embedded_site_list",
+    embedded = EmbeddedSiteListNormalizer(
         delimiter=";",
         entry_pattern=r"^(?P<token>.+?)\s+\((?P<site>[^)]+)\)$",
         site_base=1,
@@ -313,19 +303,10 @@ def test_every_modification_declaration_names_one_normalizer() -> None:
         entries=(),
     )
 
-    from_site_list = SiteListNormalizer(site_list)
-    from_token_regex = TokenRegexNormalizer(token_regex)
-    from_embedded = EmbeddedSiteListNormalizer(embedded)
-
-    assert isinstance(from_site_list, SiteListNormalizer)
-    assert isinstance(from_token_regex, TokenRegexNormalizer)
-    assert isinstance(from_embedded, EmbeddedSiteListNormalizer)
-    assert not hasattr(from_site_list, "sources")
-    assert not hasattr(from_token_regex, "sources")
-    assert not hasattr(from_embedded, "sources")
-    assert from_site_list.rules is site_list
-    assert from_token_regex.rules is token_regex
-    assert from_embedded.rules is embedded
+    for normalizer in (site_list, token_regex, embedded):
+        assert not hasattr(normalizer, "rules")
+        assert not hasattr(normalizer, "sources")
+        assert not hasattr(normalizer, "kind")
 
 
 @pytest.mark.parametrize("label_strategy", ["positional", "column"])

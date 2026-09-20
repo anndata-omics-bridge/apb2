@@ -2,12 +2,8 @@
 
 ``AxisColumnSelection`` describes the physical source of one logical column. Computations
 are executable objects in the compiler contract, not configuration copies. ``AxisKeyPlan`` says which columns
-carry identity, at which of the three stages. ``ModificationConfig`` carries everything one
-modification normalizer needs, already resolved — the accession lookups happened during rule
-projection, so nothing here consults a registry or a Unimod file.
-
-Every value is a plain immutable record. Normalizer ``kind`` tags support provenance;
-normalizers reuse these settings directly but never dispatch on their tags.
+carry identity, at which of the three stages. ``ModificationMapEntry`` carries identities
+already resolved during rule projection; nothing here consults a registry or a Unimod file.
 """
 
 from __future__ import annotations
@@ -71,45 +67,3 @@ class ModificationMapEntry:
     target: tuple[str, ...]
     position: str
     mass_delta: float
-
-
-@dataclass(frozen=True, slots=True)
-class TokenRegexModificationConfig:
-    """Inline modification tokens extracted by one regex (``PEPM[15.9949]TIDE``)."""
-
-    kind: Literal["token_regex"]
-    token_pattern: str
-    token_position: ModificationTokenPosition
-    case_sensitive: bool
-    unknown_policy: UnknownModificationPolicy
-    entries: tuple[ModificationMapEntry, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class SiteListModificationConfig:
-    """Parallel modification-name and site columns beside a bare sequence."""
-
-    kind: Literal["site_list"]
-    delimiter: str
-    site_base: int
-    case_sensitive: bool
-    unknown_policy: UnknownModificationPolicy
-    entries: tuple[ModificationMapEntry, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class EmbeddedSiteListModificationConfig:
-    """Delimited modification entries that each contain their own site."""
-
-    kind: Literal["embedded_site_list"]
-    delimiter: str
-    entry_pattern: str
-    site_base: int
-    case_sensitive: bool
-    unknown_policy: UnknownModificationPolicy
-    entries: tuple[ModificationMapEntry, ...]
-
-
-type ModificationConfig = (
-    TokenRegexModificationConfig | SiteListModificationConfig | EmbeddedSiteListModificationConfig
-)

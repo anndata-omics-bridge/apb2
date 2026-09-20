@@ -26,11 +26,8 @@ from typing import Literal, Protocol
 import polars as pl
 
 from apb2.parserV2.parse_quant.parameters.axis import (
-    EmbeddedSiteListModificationConfig,
     ModificationMapEntry,
     ModificationTokenPosition,
-    SiteListModificationConfig,
-    TokenRegexModificationConfig,
     UnknownModificationPolicy,
 )
 
@@ -103,27 +100,6 @@ def render_proforma(
 
 
 @dataclass(frozen=True, slots=True)
-class AdjacentResidue:
-    """A location has an adjacent amino-acid residue."""
-
-    value: str
-
-    def carries(self, target: str) -> bool:
-        """Whether a modification allowed on ``target`` could sit at this location."""
-        return target == self.value
-
-
-@dataclass(frozen=True, slots=True)
-class NoAdjacentResidue:
-    """A location has no adjacent amino-acid residue."""
-
-    def carries(self, target: str) -> bool:
-        """Nothing residue-specific can sit where there is no residue."""
-        del target
-        return False
-
-
-@dataclass(frozen=True, slots=True)
 class ResidueLocation:
     """A modification localized to one sequence residue."""
 
@@ -133,8 +109,8 @@ class ResidueLocation:
     def target_position(self) -> str:
         return "Anywhere"
 
-    def adjacent(self) -> AdjacentResidue | NoAdjacentResidue:
-        return AdjacentResidue(self.residue)
+    def matches_residue(self, target: str) -> bool:
+        return target == self.residue
 
     def record_label(self, labels: ModificationLabels, label: str) -> None:
         labels.setdefault(self.sequence_index, []).append(label)
@@ -156,8 +132,8 @@ class TerminalLocation:
     def target_position(self) -> str:
         return self.position
 
-    def adjacent(self) -> AdjacentResidue | NoAdjacentResidue:
-        return AdjacentResidue(self.adjacent_residue)
+    def matches_residue(self, target: str) -> bool:
+        return target == self.adjacent_residue
 
     def record_label(self, labels: ModificationLabels, label: str) -> None:
         labels.setdefault(self.position, []).append(label)
@@ -177,8 +153,9 @@ class TerminalOnlyLocation:
     def target_position(self) -> str:
         return self.position
 
-    def adjacent(self) -> AdjacentResidue | NoAdjacentResidue:
-        return NoAdjacentResidue()
+    def matches_residue(self, target: str) -> bool:
+        del target
+        return False
 
     def record_label(self, labels: ModificationLabels, label: str) -> None:
         labels.setdefault(self.position, []).append(label)
@@ -196,8 +173,9 @@ class UnlocalizedLocation:
     def target_position(self) -> str:
         return "Anywhere"
 
-    def adjacent(self) -> AdjacentResidue | NoAdjacentResidue:
-        return NoAdjacentResidue()
+    def matches_residue(self, target: str) -> bool:
+        del target
+        return False
 
     def record_label(self, labels: ModificationLabels, label: str) -> None:
         del labels, label
@@ -230,12 +208,11 @@ def _target_matches(entry_target: tuple[str, ...], location: ModificationLocatio
     if not entry_target:
         return True
     position = location.target_position()
-    adjacent = location.adjacent()
     for target in entry_target:
         if target in _TERMINUS_TARGETS:
             if target.endswith(position) or target == position:
                 return True
-        elif adjacent.carries(target):
+        elif location.matches_residue(target):
             return True
     return False
 
@@ -366,47 +343,53 @@ def _tokenize(
     return residues, pending
 
 
-def normalize_token_regex(
-    modified_sequence: str, config: TokenRegexModificationConfig
-) -> SequenceValue:
-    """Normalize one inline-token sequence: strip, tokenize, resolve, render."""
-    pattern = re.compile(config.token_pattern)
-    sequence = modified_sequence.strip(_TERM_MARKERS)
-    residues, pending = _tokenize(sequence, pattern, config.token_position)
-    stripped = "".join(residues)
-    labels: ModificationLabels = {}
-    unknown_tokens: dict[int, str] = {}
-    unknown_token_list: list[str] = []
-    for token in pending:
-        entry = _matched_entry(
-            config.entries,
-            token.raw_token,
-            token.location,
-            case_sensitive=config.case_sensitive,
+@dataclass(frozen=True, slots=True)
+class TokenRegexNormalizer:
+    """Normalize the supplied inline-token sequence: strip, tokenize, resolve, render."""
+
+    token_pattern: str
+    token_position: ModificationTokenPosition
+    case_sensitive: bool
+    unknown_policy: UnknownModificationPolicy
+    entries: tuple[ModificationMapEntry, ...]
+
+    def transform(self, row: tuple[str, ...], /) -> SequenceValue:
+        (modified_sequence,) = row
+        pattern = re.compile(self.token_pattern)
+        sequence = modified_sequence.strip(_TERM_MARKERS)
+        residues, pending = _tokenize(sequence, pattern, self.token_position)
+        stripped = "".join(residues)
+        labels: ModificationLabels = {}
+        unknown_tokens: dict[int, str] = {}
+        unknown_token_list: list[str] = []
+        for token in pending:
+            entry = _matched_entry(
+                self.entries,
+                token.raw_token,
+                token.location,
+                case_sensitive=self.case_sensitive,
+            )
+            if entry is not None:
+                token.location.record_label(labels, entry.accession or entry.name)
+                continue
+            _apply_unknown_policy(
+                self.unknown_policy,
+                token.raw_token,
+                token.location,
+                len(stripped),
+                unknown_tokens,
+                unknown_token_list,
+            )
+        return SequenceValue(
+            value=render_proforma(stripped, labels, unknown_tokens),
+            unknown_tokens=tuple(unknown_token_list),
         )
-        if entry is not None:
-            token.location.record_label(labels, entry.accession or entry.name)
-            continue
-        _apply_unknown_policy(
-            config.unknown_policy,
-            token.raw_token,
-            token.location,
-            len(stripped),
-            unknown_tokens,
-            unknown_token_list,
-        )
-    return SequenceValue(
-        value=render_proforma(stripped, labels, unknown_tokens),
-        unknown_tokens=tuple(unknown_token_list),
-    )
 
 
 # ------------------------------------------------------------------- parallel name/site lists
 
 
-def _site_location(
-    site: int, config: SiteListModificationConfig, stripped: str
-) -> ModificationLocation:
+def _site_location(site: int, site_base: int, stripped: str) -> ModificationLocation:
     """Map one vendor site value to a ProForma position and a 0-based residue index.
 
     Site ``0`` is the N-terminus by convention, independent of ``site_base``: a 1-based
@@ -415,57 +398,62 @@ def _site_location(
     """
     if site == 0:
         return TerminalOnlyLocation("N-term")
-    index = site - config.site_base
+    index = site - site_base
     if index >= len(stripped):
         return TerminalOnlyLocation("C-term")
     return ResidueLocation(index, stripped[index])
 
 
-def normalize_site_list(
-    sequence: str,
-    modifications: str,
-    sites: str,
-    config: SiteListModificationConfig,
-) -> SequenceValue:
+@dataclass(frozen=True, slots=True)
+class SiteListNormalizer:
     """Normalize a bare sequence plus its parallel modification and site columns."""
-    stripped = "".join(character for character in sequence if character.isalpha())
-    tokens = [token for token in modifications.split(config.delimiter) if token]
-    raw_sites = [site for site in sites.split(config.delimiter) if site]
-    if len(tokens) != len(raw_sites):
-        raise PackedSiteMismatchError(
-            f"modification/site length mismatch for sequence {sequence!r}: "
-            f"{len(tokens)} token(s) {tokens} vs {len(raw_sites)} site(s) {raw_sites}"
-        )
-    by_token = {
-        (entry.token if config.case_sensitive else entry.token.lower()): entry
-        for entry in config.entries
-    }
-    labels: ModificationLabels = {}
-    unknown_tokens: dict[int, str] = {}
-    unknown_token_list: list[str] = []
-    for raw_token, raw_site in zip(tokens, raw_sites, strict=True):
-        if not _INTEGER_SITE.fullmatch(raw_site.strip()):
+
+    delimiter: str
+    site_base: int
+    case_sensitive: bool
+    unknown_policy: UnknownModificationPolicy
+    entries: tuple[ModificationMapEntry, ...]
+
+    def transform(self, row: tuple[str, ...], /) -> SequenceValue:
+        sequence, modifications, sites = row
+        stripped = "".join(character for character in sequence if character.isalpha())
+        tokens = [token for token in modifications.split(self.delimiter) if token]
+        raw_sites = [site for site in sites.split(self.delimiter) if site]
+        if len(tokens) != len(raw_sites):
             raise PackedSiteMismatchError(
-                f"non-integer modification site {raw_site!r} for sequence {sequence!r}"
+                f"modification/site length mismatch for sequence {sequence!r}: "
+                f"{len(tokens)} token(s) {tokens} vs {len(raw_sites)} site(s) {raw_sites}"
             )
-        location = _site_location(int(raw_site), config, stripped)
-        key = raw_token if config.case_sensitive else raw_token.lower()
-        entry = by_token.get(key)
-        if entry is not None:
-            location.record_label(labels, entry.accession or entry.name)
-            continue
-        _apply_unknown_policy(
-            config.unknown_policy,
-            raw_token,
-            location,
-            len(stripped),
-            unknown_tokens,
-            unknown_token_list,
+        by_token = {
+            (entry.token if self.case_sensitive else entry.token.lower()): entry
+            for entry in self.entries
+        }
+        labels: ModificationLabels = {}
+        unknown_tokens: dict[int, str] = {}
+        unknown_token_list: list[str] = []
+        for raw_token, raw_site in zip(tokens, raw_sites, strict=True):
+            if not _INTEGER_SITE.fullmatch(raw_site.strip()):
+                raise PackedSiteMismatchError(
+                    f"non-integer modification site {raw_site!r} for sequence {sequence!r}"
+                )
+            location = _site_location(int(raw_site), self.site_base, stripped)
+            key = raw_token if self.case_sensitive else raw_token.lower()
+            entry = by_token.get(key)
+            if entry is not None:
+                location.record_label(labels, entry.accession or entry.name)
+                continue
+            _apply_unknown_policy(
+                self.unknown_policy,
+                raw_token,
+                location,
+                len(stripped),
+                unknown_tokens,
+                unknown_token_list,
+            )
+        return SequenceValue(
+            value=render_proforma(stripped, labels, unknown_tokens),
+            unknown_tokens=tuple(unknown_token_list),
         )
-    return SequenceValue(
-        value=render_proforma(stripped, labels, unknown_tokens),
-        unknown_tokens=tuple(unknown_token_list),
-    )
 
 
 def _embedded_location(site: str, stripped: str, site_base: int) -> ModificationLocation:
@@ -491,48 +479,55 @@ def _embedded_location(site: str, stripped: str, site_base: int) -> Modification
     return ResidueLocation(index, stripped[index])
 
 
-def normalize_embedded_site_list(
-    sequence: str,
-    modifications: str,
-    config: EmbeddedSiteListModificationConfig,
-) -> SequenceValue:
+@dataclass(frozen=True, slots=True)
+class EmbeddedSiteListNormalizer:
     """Normalize a bare sequence plus entries shaped like ``Oxidation (M5)``."""
-    stripped = "".join(character for character in sequence if character.isalpha())
-    pattern = re.compile(config.entry_pattern)
-    labels: ModificationLabels = {}
-    unknown_tokens: dict[int, str] = {}
-    unknown_token_list: list[str] = []
-    for raw_entry in modifications.split(config.delimiter):
-        if not raw_entry.strip():
-            continue
-        match = pattern.fullmatch(raw_entry.strip())
-        if match is None or not {"token", "site"} <= set(match.groupdict()):
-            raise PackedSiteMismatchError(
-                f"modification entry does not match the declared token/site pattern: {raw_entry!r}"
+
+    delimiter: str
+    entry_pattern: str
+    site_base: int
+    case_sensitive: bool
+    unknown_policy: UnknownModificationPolicy
+    entries: tuple[ModificationMapEntry, ...]
+
+    def transform(self, row: tuple[str, ...], /) -> SequenceValue:
+        sequence, modifications = row
+        stripped = "".join(character for character in sequence if character.isalpha())
+        pattern = re.compile(self.entry_pattern)
+        labels: ModificationLabels = {}
+        unknown_tokens: dict[int, str] = {}
+        unknown_token_list: list[str] = []
+        for raw_entry in modifications.split(self.delimiter):
+            if not raw_entry.strip():
+                continue
+            match = pattern.fullmatch(raw_entry.strip())
+            if match is None or not {"token", "site"} <= set(match.groupdict()):
+                raise PackedSiteMismatchError(
+                    f"modification entry does not match the declared token/site pattern: {raw_entry!r}"
+                )
+            raw_token = match.group("token").strip()
+            location = _embedded_location(match.group("site"), stripped, self.site_base)
+            entry = _matched_entry(
+                self.entries,
+                raw_token,
+                location,
+                case_sensitive=self.case_sensitive,
             )
-        raw_token = match.group("token").strip()
-        location = _embedded_location(match.group("site"), stripped, config.site_base)
-        entry = _matched_entry(
-            config.entries,
-            raw_token,
-            location,
-            case_sensitive=config.case_sensitive,
+            if entry is not None:
+                location.record_label(labels, entry.accession or entry.name)
+                continue
+            _apply_unknown_policy(
+                self.unknown_policy,
+                raw_token,
+                location,
+                len(stripped),
+                unknown_tokens,
+                unknown_token_list,
+            )
+        return SequenceValue(
+            value=render_proforma(stripped, labels, unknown_tokens),
+            unknown_tokens=tuple(unknown_token_list),
         )
-        if entry is not None:
-            location.record_label(labels, entry.accession or entry.name)
-            continue
-        _apply_unknown_policy(
-            config.unknown_policy,
-            raw_token,
-            location,
-            len(stripped),
-            unknown_tokens,
-            unknown_token_list,
-        )
-    return SequenceValue(
-        value=render_proforma(stripped, labels, unknown_tokens),
-        unknown_tokens=tuple(unknown_token_list),
-    )
 
 
 # ----------------------------------------------------- independently configured computations
@@ -592,39 +587,6 @@ class TokenRegexStripper:
             sequence.strip(_TERM_MARKERS), re.compile(self.token_pattern), self.token_position
         )
         return SequenceValue("".join(residues))
-
-
-@dataclass(frozen=True, slots=True)
-class TokenRegexNormalizer:
-    """Normalize the supplied inline-token sequence, not a physical source column."""
-
-    rules: TokenRegexModificationConfig
-
-    def transform(self, row: tuple[str, ...], /) -> SequenceValue:
-        (sequence,) = row
-        return normalize_token_regex(sequence, self.rules)
-
-
-@dataclass(frozen=True, slots=True)
-class SiteListNormalizer:
-    """Normalize all three declared sequence/name/site inputs."""
-
-    rules: SiteListModificationConfig
-
-    def transform(self, row: tuple[str, ...], /) -> SequenceValue:
-        sequence, modifications, sites = row
-        return normalize_site_list(sequence, modifications, sites, self.rules)
-
-
-@dataclass(frozen=True, slots=True)
-class EmbeddedSiteListNormalizer:
-    """Normalize a supplied sequence and its embedded modification/site entries."""
-
-    rules: EmbeddedSiteListModificationConfig
-
-    def transform(self, row: tuple[str, ...], /) -> SequenceValue:
-        sequence, modifications = row
-        return normalize_embedded_site_list(sequence, modifications, self.rules)
 
 
 @dataclass(frozen=True, slots=True)

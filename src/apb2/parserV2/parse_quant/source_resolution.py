@@ -49,7 +49,6 @@ from apb2.parserV2.parse_quant.parameters.level import (
     JsonValue,
 )
 from apb2.parserV2.parse_quant.parameters.measurements import (
-    LayerValueConfig,
     WorkingMeasurementLayer,
 )
 from apb2.parserV2.parse_quant.parameters.source import (
@@ -119,9 +118,6 @@ class SourcePlanResolver:
         read = self._read_plan(evidence, obs_source, var_source, layers)
         self._require_aggregatable(evidence, read, layers)
         decomposer, decomposition_json = self._decomposition(layers, obs_source, var_source)
-        layer_values = tuple(
-            LayerValueConfig(layer_name=layer.name, value=layer.value) for layer in layers.retained
-        )
         validator = LayerContractValidator(
             primary_layer_name=working.measurements.primary_layer_name,
             required_names=layers.required_names,
@@ -138,7 +134,9 @@ class SourcePlanResolver:
                 "obs": obs_json,
                 "var": var_json,
                 "duplicate_mode": working.measurements.duplicate_mode,
-                "layer_values": layer_values,
+                "layer_values": [
+                    {"layer_name": layer.name, "value": layer.value} for layer in layers.retained
+                ],
                 "layer_contract": {
                     "primary_layer_name": validator.primary_layer_name,
                     "required_names": validator.required_names,
@@ -155,7 +153,8 @@ class SourcePlanResolver:
             var=var,
             duplicates=duplicate_policy_for(working.measurements.duplicate_mode),
             layer_parsers={
-                value.layer_name: make_layer_parser(value, numbers) for value in layer_values
+                layer.name: make_layer_parser(layer.name, layer.value, numbers)
+                for layer in layers.retained
             },
             layer_validator=validator,
             provenance={

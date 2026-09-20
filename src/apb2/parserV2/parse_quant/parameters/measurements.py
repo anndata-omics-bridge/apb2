@@ -53,14 +53,6 @@ type LayerValueDeclaration = (
 
 
 @dataclass(frozen=True, slots=True)
-class LayerValueConfig:
-    """One retained layer and the declaration configuring its value parser."""
-
-    layer_name: str
-    value: LayerValueDeclaration
-
-
-@dataclass(frozen=True, slots=True)
 class WorkingMeasurementLayer:
     """One named measurement and its canonical value declaration."""
 

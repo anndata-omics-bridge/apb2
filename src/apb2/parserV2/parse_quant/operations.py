@@ -29,7 +29,6 @@ from apb2.parserV2.parse_quant.contracts import (
     DuplicatePolicy,
     LayerValueParser,
 )
-from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation
 from apb2.parserV2.parse_quant.duplicates import (
     AggregateNumericDuplicates,
     ErrorOnDuplicates,
@@ -47,7 +46,7 @@ from apb2.parserV2.parse_quant.parameters.axis import (
 from apb2.parserV2.parse_quant.parameters.level import JsonValue, QuantificationLevel
 from apb2.parserV2.parse_quant.parameters.measurements import (
     DuplicateMode,
-    LayerValueConfig,
+    LayerValueDeclaration,
     PlainNumericLayerDeclaration,
     RegexNumericLayerDeclaration,
     WorkingMeasurements,
@@ -121,22 +120,15 @@ _DUPLICATE_POLICIES: Mapping[DuplicateMode, DuplicatePolicy] = {
 """One policy per executable duplicate mode; schema 0.8 declares no others."""
 
 
-def _notation(config: NumericTextFormat, /) -> NumberNotation:
-    return NumberNotation(
-        decimal_mark=config.decimal_mark,
-        thousands_marks=config.thousands_marks,
-    )
-
-
 def make_axis_coercer(
     logical_type: AxisLogicalType,
     number_format: NumericTextFormat,
 ) -> AxisValueCoercer:
     """Construct the coercion one logical type names under this source's number notation."""
     if logical_type == "integer":
-        return IntegerAxisCoercer(notation=_notation(number_format))
+        return IntegerAxisCoercer(notation=number_format)
     if logical_type == "number":
-        return NumberAxisCoercer(notation=_notation(number_format))
+        return NumberAxisCoercer(notation=number_format)
     if logical_type == "boolean":
         return BooleanAxisCoercer()
     return StringAxisCoercer()
@@ -147,23 +139,23 @@ def duplicate_policy_for(mode: DuplicateMode) -> DuplicatePolicy:
     return _DUPLICATE_POLICIES[mode]
 
 
-def make_layer_parser(config: LayerValueConfig, numbers: NumericTextFormat) -> LayerValueParser:
+def make_layer_parser(
+    layer_name: str, value: LayerValueDeclaration, numbers: NumericTextFormat
+) -> LayerValueParser:
     """Configure raw presence and canonical parsing together from one layer declaration."""
-    value = config.value
-    notation = _notation(numbers)
     if isinstance(value, PlainNumericLayerDeclaration):
         return PlainNumericLayerParser(
-            layer_name=config.layer_name,
+            layer_name=layer_name,
             missing_values=value.missing_values,
-            number_format=notation,
+            number_format=numbers,
             numeric_type=value.type,
         )
     if isinstance(value, RegexNumericLayerDeclaration):
         return RegexNumericLayerParser(
-            layer_name=config.layer_name,
+            layer_name=layer_name,
             missing_values=value.missing_values,
             pattern=value.pattern,
-            number_format=notation,
+            number_format=numbers,
             numeric_type=value.type,
         )
     return FactorLayerParser(categories=value.categories)

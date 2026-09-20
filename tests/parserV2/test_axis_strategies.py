@@ -28,7 +28,6 @@ from apb2.parserV2.parse_quant.contracts import (
     AxisValueCoercer,
     ColumnComputer,
 )
-from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation
 from apb2.parserV2.parse_quant.modifications import (
     EmbeddedSiteListNormalizer,
     ModificationLabels,
@@ -40,19 +39,14 @@ from apb2.parserV2.parse_quant.modifications import (
     TokenRegexNormalizer,
     TokenRegexStripper,
     UnknownModificationError,
-    normalize_embedded_site_list,
-    normalize_site_list,
-    normalize_token_regex,
     render_proforma,
 )
 from apb2.parserV2.parse_quant.parameters.axis import (
-    EmbeddedSiteListModificationConfig,
     ModificationMapEntry,
     ModificationTokenPosition,
-    SiteListModificationConfig,
-    TokenRegexModificationConfig,
     UnknownModificationPolicy,
 )
+from apb2.parserV2.parse_quant.parameters.source import NumericTextFormat
 
 OXIDATION = ModificationMapEntry(
     token="ox",
@@ -73,8 +67,8 @@ ACETYL = ModificationMapEntry(
     mass_delta=42.010565,
 )
 
-DOT_NUMBERS = NumberNotation(decimal_mark=".", thousands_marks=())
-COMMA_NUMBERS = NumberNotation(decimal_mark=",", thousands_marks=(".", " "))
+DOT_NUMBERS = NumericTextFormat(decimal_mark=".", thousands_marks=())
+COMMA_NUMBERS = NumericTextFormat(decimal_mark=",", thousands_marks=(".", " "))
 
 
 def token_regex(
@@ -83,10 +77,9 @@ def token_regex(
     position: ModificationTokenPosition = "after_residue",
     policy: UnknownModificationPolicy = "preserve",
     entries: tuple[ModificationMapEntry, ...] = (OXIDATION, ACETYL),
-) -> TokenRegexModificationConfig:
+) -> TokenRegexNormalizer:
     """The same settings consumed by the compiler and sequence algorithm."""
-    return TokenRegexModificationConfig(
-        kind="token_regex",
+    return TokenRegexNormalizer(
         token_pattern=pattern,
         token_position=position,
         case_sensitive=False,
@@ -99,9 +92,8 @@ def site_list(
     *,
     site_base: int = 1,
     policy: UnknownModificationPolicy = "preserve",
-) -> SiteListModificationConfig:
-    return SiteListModificationConfig(
-        kind="site_list",
+) -> SiteListNormalizer:
+    return SiteListNormalizer(
         delimiter=";",
         site_base=site_base,
         case_sensitive=False,
@@ -119,9 +111,8 @@ def site_list(
     )
 
 
-def embedded_site_list() -> EmbeddedSiteListModificationConfig:
-    return EmbeddedSiteListModificationConfig(
-        kind="embedded_site_list",
+def embedded_site_list() -> EmbeddedSiteListNormalizer:
+    return EmbeddedSiteListNormalizer(
         delimiter=";",
         entry_pattern=r"^(?P<token>.+?)\s+\((?P<site>[^)]+)\)$",
         site_base=1,
@@ -399,7 +390,7 @@ def test_sequence_mapping_preserves_other_columns_and_first_seen_diagnostics() -
     frame = pl.DataFrame(
         {"Sequence": ["M(second)", "M(first)", "M(second)", "M(third)"], "_result": [4, 3, 2, 1]}
     )
-    computer = SequenceColumn("Sequence", ("Sequence",), TokenRegexNormalizer(token_regex()))
+    computer = SequenceColumn("Sequence", ("Sequence",), token_regex())
     result, tokens = computer.compute(frame)
     assert result.to_dict(as_series=False) == {
         "Sequence": ["M-[second]", "M-[first]", "M-[second]", "M-[third]"],
@@ -416,7 +407,7 @@ def test_site_mapping_distinguishes_all_inputs_and_preserves_order() -> None:
             "Sites": ["2", "1", "2", "1"],
         }
     )
-    computer = SequenceColumn("P", ("Sequence", "Mods", "Sites"), SiteListNormalizer(site_list()))
+    computer = SequenceColumn("P", ("Sequence", "Mods", "Sites"), site_list())
     result, tokens = computer.compute(frame)
     assert result["P"].to_list() == [
         "MM[UNIMOD:35]",
@@ -438,13 +429,13 @@ def test_plain_stripping_keeps_unicode_letters_and_handles_empty_frames() -> Non
 
 
 def test_an_inline_token_becomes_a_localized_proforma_modification() -> None:
-    result = normalize_token_regex("PEPM(ox)IDE", token_regex())
+    result = token_regex().transform(("PEPM(ox)IDE",))
 
     assert result.value == "PEPM[UNIMOD:35]IDE"
 
 
 def test_a_terminal_token_renders_before_the_sequence() -> None:
-    result = normalize_token_regex("_(ac)PEPTIDE_", token_regex())
+    result = token_regex().transform(("_(ac)PEPTIDE_",))
 
     assert result.value == "[UNIMOD:1]-PEPTIDE"
 
@@ -465,7 +456,7 @@ def test_a_before_residue_vendor_attaches_the_token_to_what_follows() -> None:
         ),
     )
 
-    result = normalize_token_regex("PEPoxMIDE", rules)
+    result = rules.transform(("PEPoxMIDE",))
 
     assert result.value == "PEPM[UNIMOD:35]IDE"
 
@@ -473,7 +464,7 @@ def test_a_before_residue_vendor_attaches_the_token_to_what_follows() -> None:
 def test_a_numeric_token_matches_on_mass_target_and_position() -> None:
     rules = token_regex(pattern=r"\[([^\]]+)\]")
 
-    result = normalize_token_regex("PEPM[15.9949]IDE", rules)
+    result = rules.transform(("PEPM[15.9949]IDE",))
 
     assert result.value == "PEPM[UNIMOD:35]IDE"
 
@@ -492,7 +483,7 @@ def test_an_unknown_token_follows_the_declared_policy(
 ) -> None:
     rules = token_regex(policy=policy)
 
-    result = normalize_token_regex("PEPM(weird)IDE", rules)
+    result = rules.transform(("PEPM(weird)IDE",))
 
     assert result.value == expected
     assert result.unknown_tokens == unknown_tokens
@@ -500,17 +491,17 @@ def test_an_unknown_token_follows_the_declared_policy(
 
 def test_an_unknown_token_can_be_declared_an_error() -> None:
     with pytest.raises(UnknownModificationError, match="weird"):
-        normalize_token_regex("PEPM(weird)IDE", token_regex(policy="error"))
+        token_regex(policy="error").transform(("PEPM(weird)IDE",))
 
 
 def test_parallel_site_lists_are_paired_index_wise() -> None:
-    result = normalize_site_list("PEPMIDE", "Oxidation@M", "4", site_list())
+    result = site_list().transform(("PEPMIDE", "Oxidation@M", "4"))
 
     assert result.value == "PEPM[UNIMOD:35]IDE"
 
 
 def test_a_preserved_unknown_site_list_token_is_returned_for_reporting() -> None:
-    result = normalize_site_list("PEPMIDE", "Mystery@M", "4", site_list())
+    result = site_list().transform(("PEPMIDE", "Mystery@M", "4"))
 
     assert result.value == "PEPM[Mystery@M]IDE"
     assert result.unknown_tokens == ("Mystery@M",)
@@ -518,52 +509,46 @@ def test_a_preserved_unknown_site_list_token_is_returned_for_reporting() -> None
 
 def test_site_zero_is_the_n_terminus_whatever_the_site_base_is() -> None:
     for base in (0, 1):
-        result = normalize_site_list("PEPMIDE", "Oxidation@M", "0", site_list(site_base=base))
+        result = site_list(site_base=base).transform(("PEPMIDE", "Oxidation@M", "0"))
         assert result.value.startswith("[UNIMOD:35]-")
 
 
 def test_a_site_list_of_mismatched_length_is_a_vendor_file_defect() -> None:
     with pytest.raises(PackedSiteMismatchError, match="length mismatch"):
-        normalize_site_list("PEPMIDE", "Oxidation@M;Oxidation@M", "4", site_list())
+        site_list().transform(("PEPMIDE", "Oxidation@M;Oxidation@M", "4"))
     with pytest.raises(PackedSiteMismatchError, match="non-integer"):
-        normalize_site_list("PEPMIDE", "Oxidation@M", "x", site_list())
+        site_list().transform(("PEPMIDE", "Oxidation@M", "x"))
 
 
 def test_an_empty_modification_list_leaves_the_bare_sequence() -> None:
-    result = normalize_site_list("PEPMIDE", "", "", site_list())
+    result = site_list().transform(("PEPMIDE", "", ""))
 
     assert result.value == "PEPMIDE"
 
 
 def test_embedded_sites_localize_residue_and_terminal_modifications() -> None:
-    result = normalize_embedded_site_list(
-        "PEPMIDE", "Acetyl (Protein N-term); Oxidation (M4)", embedded_site_list()
-    )
+    result = embedded_site_list().transform(("PEPMIDE", "Acetyl (Protein N-term); Oxidation (M4)"))
 
     assert result.value == "[UNIMOD:1]-PEPM[UNIMOD:35]IDE"
 
 
 def test_an_embedded_site_must_point_to_the_declared_residue() -> None:
     with pytest.raises(PackedSiteMismatchError, match="points to"):
-        normalize_embedded_site_list("PEPMIDE", "Oxidation (M3)", embedded_site_list())
+        embedded_site_list().transform(("PEPMIDE", "Oxidation (M3)"))
 
 
 def test_two_modifications_on_one_residue_concatenate() -> None:
-    result = normalize_token_regex(
-        "PEPM(ox)(ac)IDE",
-        token_regex(entries=(OXIDATION, replace(ACETYL, position="Anywhere", target=("M",)))),
-    )
+    result = token_regex(
+        entries=(OXIDATION, replace(ACETYL, position="Anywhere", target=("M",)))
+    ).transform(("PEPM(ox)(ac)IDE",))
 
     assert result.value == "PEPM[UNIMOD:35][UNIMOD:1]IDE"
 
 
 def test_known_labels_precede_last_unknown_without_losing_diagnostics() -> None:
     config = site_list()
-    result = normalize_site_list(
-        "PEPMIDE",
-        "mystery;ac;first;Oxidation@M;last;tail",
-        "0;0;4;4;4;8",
-        replace(config, entries=(*config.entries, ACETYL)),
+    result = replace(config, entries=(*config.entries, ACETYL)).transform(
+        ("PEPMIDE", "mystery;ac;first;Oxidation@M;last;tail", "0;0;4;4;4;8")
     )
     assert result.value == "[UNIMOD:1][mystery]-PEPM[UNIMOD:35][last]IDE-[tail]"
     assert result.unknown_tokens == ("mystery", "first", "last", "tail")
@@ -579,7 +564,7 @@ def test_normalization_returns_one_column_and_explicit_diagnostics_in_row_order(
     computer = SequenceColumn(
         name="ProForma_peptidoform",
         inputs=("Modified_Sequence",),
-        operation=TokenRegexNormalizer(token_regex()),
+        operation=token_regex(),
     )
     sequences = pl.Series("vendor sequence", ["PEPM(ox)IDE", "PEPM(weird)IDE", "PEPM(ox)IDE", None])
     result, tokens = computer.compute(sequences.rename("Modified_Sequence").to_frame())
@@ -594,7 +579,7 @@ def test_normalization_returns_one_column_and_explicit_diagnostics_in_row_order(
 
 
 def test_a_site_list_normalizer_consumes_its_three_inputs_in_order() -> None:
-    normalizer = SiteListNormalizer(site_list())
+    normalizer = site_list()
     assert isinstance(normalizer, SiteListNormalizer)
     computer = SequenceColumn("ProForma_peptidoform", ("Sequence", "Mods", "Sites"), normalizer)
     result, _ = computer.compute(
@@ -604,7 +589,7 @@ def test_a_site_list_normalizer_consumes_its_three_inputs_in_order() -> None:
 
 
 def test_an_embedded_site_normalizer_consumes_its_two_inputs_in_order() -> None:
-    normalizer = EmbeddedSiteListNormalizer(embedded_site_list())
+    normalizer = embedded_site_list()
     assert isinstance(normalizer, EmbeddedSiteListNormalizer)
     result = normalizer.transform(("PEPMIDE", "Oxidation (M4)"))
     assert result.value == "PEPM[UNIMOD:35]IDE"
@@ -612,9 +597,9 @@ def test_an_embedded_site_normalizer_consumes_its_two_inputs_in_order() -> None:
 
 def test_all_normalizers_satisfy_the_sequence_column_owned_contract() -> None:
     normalizers: tuple[SequenceOperation, ...] = (
-        TokenRegexNormalizer(token_regex()),
-        SiteListNormalizer(site_list()),
-        EmbeddedSiteListNormalizer(embedded_site_list()),
+        token_regex(),
+        site_list(),
+        embedded_site_list(),
     )
     assert isinstance(normalizers[0], TokenRegexNormalizer)
     for normalizer, row in zip(

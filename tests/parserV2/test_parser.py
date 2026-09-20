@@ -31,7 +31,6 @@ from apb2.parserV2.parse_quant.contracts import (
     RawValuePresence,
     SelectedAxisColumn,
 )
-from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation
 from apb2.parserV2.parse_quant.data.parsed import FinalLayerTable, ObsFinal, ParsedLevel, VarFinal
 from apb2.parserV2.parse_quant.data.raw import (
     DecomposedDataRaw,
@@ -51,7 +50,6 @@ from apb2.parserV2.parse_quant.operations import (
 from apb2.parserV2.parse_quant.parameters.axis import AxisKeyPlan, AxisSourcePlan
 from apb2.parserV2.parse_quant.parameters.measurements import (
     DuplicateMode,
-    LayerValueConfig,
     PlainNumericLayerDeclaration,
 )
 from apb2.parserV2.parse_quant.parameters.source import (
@@ -66,13 +64,11 @@ from apb2.parserV2.parse_quant.parser import (
 )
 
 DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
-DOT_NUMBERS = NumberNotation(decimal_mark=".", thousands_marks=())
+DOT_NUMBERS = NumericTextFormat(decimal_mark=".", thousands_marks=())
 
 
 def numeric_layer_parser(name: str) -> LayerValueParser:
-    return make_layer_parser(
-        LayerValueConfig(name, PlainNumericLayerDeclaration(missing_values=())), DOT
-    )
+    return make_layer_parser(name, PlainNumericLayerDeclaration(missing_values=()), DOT)
 
 
 def layer_validator(primary: str) -> LayerSetValidator:

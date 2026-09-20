@@ -16,7 +16,7 @@ import pandas as pd
 import polars as pl
 import pytest
 
-from apb2.parserV2.parse_quant.contracts import ParsedLevelWriter
+from apb2.parserV2.parse_quant.contracts import LayerValueParser, ParsedLevelWriter
 from apb2.parserV2.parse_quant.data.parsed import (
     AuxiliaryLayerRole,
     CategoricalLayerSemantics,
@@ -51,7 +51,6 @@ from apb2.parserV2.parse_quant.layer_validation import LayerContractValidator
 from apb2.parserV2.parse_quant.operations import make_layer_parser
 from apb2.parserV2.parse_quant.parameters.measurements import (
     FactorLayerDeclaration,
-    LayerValueConfig,
     PlainNumericLayerDeclaration,
     RegexNumericLayerDeclaration,
 )
@@ -302,22 +301,20 @@ def block(*columns: list[object]) -> pl.DataFrame:
 
 
 def canonical_values(
-    config: LayerValueConfig,
+    parser: LayerValueParser,
     values: pl.DataFrame,
-    numbers: NumericTextFormat = DOT,
 ) -> pl.DataFrame:
     layer = FinalLayerTable(
-        layer_name=config.layer_name,
+        layer_name="L",
         var_key_columns=(),
         values=values,
     )
-    parser = make_layer_parser(config, numbers)
     return parser.parse(layer).values
 
 
 def test_plain_numeric_encoding_reads_numbers_and_blanks_out_the_sentinel() -> None:
-    encoder = LayerValueConfig(
-        layer_name="Intensity", value=PlainNumericLayerDeclaration(missing_values=(0.0,))
+    encoder = make_layer_parser(
+        "Intensity", PlainNumericLayerDeclaration(missing_values=(0.0,)), DOT
     )
 
     encoded = canonical_values(encoder, block(["12.5", "0", "", None]))
@@ -328,11 +325,11 @@ def test_plain_numeric_encoding_reads_numbers_and_blanks_out_the_sentinel() -> N
 
 
 def test_a_localized_number_is_read_under_the_notation_it_was_written_in() -> None:
-    encoder = LayerValueConfig(
-        layer_name="Intensity", value=PlainNumericLayerDeclaration(missing_values=())
+    encoder = make_layer_parser(
+        "Intensity", PlainNumericLayerDeclaration(missing_values=()), GROUPED
     )
 
-    encoded = canonical_values(encoder, block(["100.000.000", "1.234,5", None]), GROUPED)
+    encoded = canonical_values(encoder, block(["100.000.000", "1.234,5", None]))
 
     assert encoded.get_column("obs_0").to_list() == [100000000.0, 1234.5, None]
 
@@ -345,9 +342,7 @@ def test_a_token_a_plain_numeric_layer_cannot_hold_becomes_missing_and_is_report
     Refusing the file would convert nothing; the encoded-layer contract is what decides
     whether enough values survived, and this reports the tokens that did not.
     """
-    encoder = LayerValueConfig(
-        layer_name="Intensity", value=PlainNumericLayerDeclaration(missing_values=())
-    )
+    encoder = make_layer_parser("Intensity", PlainNumericLayerDeclaration(missing_values=()), DOT)
 
     encoded = canonical_values(encoder, block(["12.5", "not a number", "-", "NA"]))
 
@@ -356,9 +351,7 @@ def test_a_token_a_plain_numeric_layer_cannot_hold_becomes_missing_and_is_report
 
 def test_an_already_numeric_column_is_not_sent_through_its_own_text_form() -> None:
     """A float32 round-tripped through text is not the value it was; numbers stay numbers."""
-    encoder = LayerValueConfig(
-        layer_name="Intensity", value=PlainNumericLayerDeclaration(missing_values=())
-    )
+    encoder = make_layer_parser("Intensity", PlainNumericLayerDeclaration(missing_values=()), DOT)
     values = pl.DataFrame({"obs_0": pl.Series([1268453.25], dtype=pl.Float32)})
 
     encoded = canonical_values(encoder, values)
@@ -367,11 +360,10 @@ def test_an_already_numeric_column_is_not_sent_through_its_own_text_form() -> No
 
 
 def test_regex_encoding_extracts_the_number_and_treats_no_match_as_missing() -> None:
-    encoder = LayerValueConfig(
-        layer_name="AScore",
-        value=RegexNumericLayerDeclaration(
-            missing_values=(0.0,), pattern=r":(-?\d+(?:\.\d+)?)(?:;|$)"
-        ),
+    encoder = make_layer_parser(
+        "AScore",
+        RegexNumericLayerDeclaration(missing_values=(0.0,), pattern=r":(-?\d+(?:\.\d+)?)(?:;|$)"),
+        DOT,
     )
 
     encoded = canonical_values(
@@ -382,9 +374,8 @@ def test_regex_encoding_extracts_the_number_and_treats_no_match_as_missing() -> 
 
 
 def test_integer_encoding_accepts_whole_values_null_nan_and_unreadable_tokens() -> None:
-    encoder = LayerValueConfig(
-        layer_name="MS_MS_Count",
-        value=PlainNumericLayerDeclaration(missing_values=(), type="integer"),
+    encoder = make_layer_parser(
+        "MS_MS_Count", PlainNumericLayerDeclaration(missing_values=(), type="integer"), DOT
     )
 
     encoded = canonical_values(encoder, block([1, 2.0, None, float("nan"), "unreadable"]))
@@ -397,9 +388,8 @@ def test_integer_encoding_accepts_whole_values_null_nan_and_unreadable_tokens() 
 
 @pytest.mark.parametrize("invalid", [1.5, float("inf"), float("-inf")])
 def test_integer_encoding_rejects_fractional_and_infinite_values(invalid: float) -> None:
-    encoder = LayerValueConfig(
-        layer_name="MS_MS_Count",
-        value=PlainNumericLayerDeclaration(missing_values=(), type="integer"),
+    encoder = make_layer_parser(
+        "MS_MS_Count", PlainNumericLayerDeclaration(missing_values=(), type="integer"), DOT
     )
 
     with pytest.raises(
@@ -410,11 +400,10 @@ def test_integer_encoding_rejects_fractional_and_infinite_values(invalid: float)
 
 
 def test_integer_validation_bounds_reported_examples() -> None:
-    encoder = LayerValueConfig(
-        layer_name="Spectral_Count",
-        value=RegexNumericLayerDeclaration(
-            missing_values=(), pattern=r"value=(\S+)", type="integer"
-        ),
+    encoder = make_layer_parser(
+        "Spectral_Count",
+        RegexNumericLayerDeclaration(missing_values=(), pattern=r"value=(\S+)", type="integer"),
+        DOT,
     )
 
     with pytest.raises(LayerValueError) as error:
@@ -424,9 +413,10 @@ def test_integer_validation_bounds_reported_examples() -> None:
 
 
 def test_factor_encoding_maps_declared_labels_and_codes_the_rest_as_unknown() -> None:
-    encoder = LayerValueConfig(
-        layer_name="Match_Type",
-        value=FactorLayerDeclaration(categories=(("unmatched", 0), ("MS/MS", 1), ("MBR", 2))),
+    encoder = make_layer_parser(
+        "Match_Type",
+        FactorLayerDeclaration(categories=(("unmatched", 0), ("MS/MS", 1), ("MBR", 2))),
+        DOT,
     )
 
     encoded = canonical_values(encoder, block(["MBR", "MS/MS", "surprise", None]))
@@ -436,9 +426,7 @@ def test_factor_encoding_maps_declared_labels_and_codes_the_rest_as_unknown() ->
 
 
 def test_an_encoder_preserves_the_shape_and_the_column_order_it_was_given() -> None:
-    encoder = LayerValueConfig(
-        layer_name="Intensity", value=PlainNumericLayerDeclaration(missing_values=())
-    )
+    encoder = make_layer_parser("Intensity", PlainNumericLayerDeclaration(missing_values=()), DOT)
     values = block(["1"], ["2"], ["3"])
 
     encoded = canonical_values(encoder, values)

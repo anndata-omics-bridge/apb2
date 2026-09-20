@@ -27,6 +27,9 @@ _COMPUTATIONS: dict[type, str] = {
     JoinNonemptyColumn: "join_nonempty",
     ProformaIonColumn: "proforma_ion",
     ProformaFragmentColumn: "proforma_fragment",
+    TokenRegexNormalizer: "token_regex",
+    SiteListNormalizer: "site_list",
+    EmbeddedSiteListNormalizer: "embedded_site_list",
 }
 
 PLAN_JSON_KEY = "plan_json"
@@ -82,7 +85,7 @@ def _sequence_snapshot(value: SequenceColumn | TokenRegexStripper) -> dict[str, 
     if isinstance(
         operation, TokenRegexNormalizer | SiteListNormalizer | EmbeddedSiteListNormalizer
     ):
-        kind, payload = "proforma_sequence", {"normalization": operation.rules}
+        kind, payload = "proforma_sequence", {"normalization": operation}
     elif isinstance(operation, TokenRegexStripper):
         syntax = {
             "kind": "token_regex",

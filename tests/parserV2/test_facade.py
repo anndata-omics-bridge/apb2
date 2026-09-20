@@ -36,8 +36,6 @@ from apb2.parserV2.parse_quant.modifications import (
 )
 from apb2.parserV2.parse_quant.parameters.axis import (
     AxisKeyPlan,
-    SiteListModificationConfig,
-    TokenRegexModificationConfig,
 )
 from apb2.parserV2.parse_quant.parameters.measurements import (
     FactorLayerDeclaration,
@@ -308,14 +306,14 @@ def test_a_modification_derived_key_pulls_every_source_that_can_change_it() -> N
     path = Path("src/apb2/parserV2/vendor_parse_rules/documents/alphadia/v2/rules.json")
     facade = ParseRuleFacade(load_rule_document(path), "ion", _EVIDENCES[0])
     modifications = tuple(
-        column.operation.rules
+        column.operation
         for column in facade.working_parameters.var.computed
         if isinstance(column, SequenceColumn) and isinstance(column.operation, SiteListNormalizer)
     )
 
     assert len(modifications) == 1
     config = modifications[0]
-    assert isinstance(config, SiteListModificationConfig)
+    assert isinstance(config, SiteListNormalizer)
     assert config.entries
     assert {entry.accession for entry in config.entries} == {
         "UNIMOD:1",
@@ -334,9 +332,9 @@ def test_a_token_regex_rule_resolves_its_accessions_at_projection() -> None:
         if isinstance(column, SequenceColumn) and isinstance(column.operation, TokenRegexNormalizer)
     )
     assert isinstance(column.operation, TokenRegexNormalizer)
-    config = column.operation.rules
+    config = column.operation
 
-    assert isinstance(config, TokenRegexModificationConfig)
+    assert isinstance(config, TokenRegexNormalizer)
     assert column.inputs == ("Modified_Sequence",)
     assert {entry.token for entry in config.entries} >= {"ac", "ox"}
     assert all(entry.name for entry in config.entries)

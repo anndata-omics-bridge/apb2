@@ -1,7 +1,7 @@
 """Reading values as numbers under the notation they were written in.
 
-Two boundaries need this and must agree: raw presence, which compares a value against a
-declared missing sentinel, and AnnData encoding, which turns the value into a float. Both
+Two phases need this and must agree: raw presence, which compares a value against a
+declared missing sentinel, and canonical value parsing, which turns the value into a float. Both
 receive whatever the reader produced — text a vendor localized, or a number the file already
 typed — and both must answer the same way about the same cell.
 
@@ -12,9 +12,9 @@ float32*, which is not the value pandas would have widened. Numbers stay numbers
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import polars as pl
+
+from apb2.parserV2.parse_quant.parameters.source import NumericTextFormat
 
 _BOOLEAN_SPELLINGS = {
     "true": "1",
@@ -31,18 +31,10 @@ would lose values these rules were written to keep.
 """
 
 
-@dataclass(frozen=True, slots=True)
-class NumberNotation:
-    """How the tokens being read were written down."""
-
-    decimal_mark: str
-    thousands_marks: tuple[str, ...]
-
-
 def as_numbers(
     values: pl.Expr,
     dtype: pl.DataType,
-    notation: NumberNotation,
+    notation: NumericTextFormat,
 ) -> pl.Expr:
     """Read one column expression as numbers under its declared physical dtype and notation."""
     if dtype.is_numeric():

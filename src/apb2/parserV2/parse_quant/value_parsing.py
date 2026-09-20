@@ -7,7 +7,6 @@ from dataclasses import dataclass
 import polars as pl
 from loguru import logger
 
-from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation, absent, as_numbers, blank
 from apb2.parserV2.parse_quant.data.parsed import (
     AuxiliaryLayerRole,
     CategoricalLayerSemantics,
@@ -17,6 +16,8 @@ from apb2.parserV2.parse_quant.data.parsed import (
     QuantitativeLayerSemantics,
 )
 from apb2.parserV2.parse_quant.errors import LayerValueError
+from apb2.parserV2.parse_quant.numeric_text import absent, as_numbers, blank
+from apb2.parserV2.parse_quant.parameters.source import NumericTextFormat
 
 UNKNOWN_CATEGORY_CODE = -1
 _EXAMPLE_LIMIT = 5
@@ -28,7 +29,7 @@ class PlainNumericLayerParser:
 
     layer_name: str
     missing_values: tuple[float, ...]
-    number_format: NumberNotation
+    number_format: NumericTextFormat
     numeric_type: NumericLayerType
 
     def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr:
@@ -99,7 +100,7 @@ class RegexNumericLayerParser:
     layer_name: str
     missing_values: tuple[float, ...]
     pattern: str
-    number_format: NumberNotation
+    number_format: NumericTextFormat
     numeric_type: NumericLayerType
 
     def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr:

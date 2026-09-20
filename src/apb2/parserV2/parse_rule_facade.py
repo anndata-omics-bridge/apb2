@@ -53,10 +53,7 @@ from apb2.parserV2.parse_quant.operations import (
 )
 from apb2.parserV2.parse_quant.parameters.axis import (
     AxisColumnSelection,
-    EmbeddedSiteListModificationConfig,
     ModificationMapEntry,
-    SiteListModificationConfig,
-    TokenRegexModificationConfig,
 )
 from apb2.parserV2.parse_quant.parameters.level import (
     JsonValue,
@@ -127,16 +124,6 @@ from apb2.parserV2.vendor_parse_rules.schema.measurements import (
     layer_required,
 )
 from apb2.parserV2.vendor_parse_rules.schema.rule import LongRule, WideRule
-
-
-def _layer_roles(
-    layers: Sequence[Layer],
-) -> dict[str, JsonValue]:
-    roles = sorted({role for layer in layers for role in layer.roles})
-    projected: dict[str, JsonValue] = {
-        role: [layer.name for layer in layers if role in layer.roles] for role in roles
-    }
-    return projected
 
 
 class ParseRuleFacade:
@@ -456,37 +443,28 @@ class ParseRuleFacade:
         )
         if isinstance(syntax, SiteListSyntax):
             return SiteListNormalizer(
-                SiteListModificationConfig(
-                    kind="site_list",
-                    delimiter=syntax.delimiter,
-                    site_base=syntax.site_base,
-                    case_sensitive=column.case_sensitive,
-                    unknown_policy=column.unknown_policy,
-                    entries=entries,
-                )
-            )
-        if isinstance(syntax, EmbeddedSiteListSyntax):
-            return EmbeddedSiteListNormalizer(
-                EmbeddedSiteListModificationConfig(
-                    kind="embedded_site_list",
-                    delimiter=syntax.delimiter,
-                    entry_pattern=syntax.entry_pattern,
-                    site_base=syntax.site_base,
-                    case_sensitive=column.case_sensitive,
-                    unknown_policy=column.unknown_policy,
-                    entries=entries,
-                )
-            )
-        assert isinstance(syntax, TokenRegexSyntax)
-        return TokenRegexNormalizer(
-            TokenRegexModificationConfig(
-                kind="token_regex",
-                token_pattern=syntax.token_pattern,
-                token_position=syntax.token_position,
+                delimiter=syntax.delimiter,
+                site_base=syntax.site_base,
                 case_sensitive=column.case_sensitive,
                 unknown_policy=column.unknown_policy,
                 entries=entries,
             )
+        if isinstance(syntax, EmbeddedSiteListSyntax):
+            return EmbeddedSiteListNormalizer(
+                delimiter=syntax.delimiter,
+                entry_pattern=syntax.entry_pattern,
+                site_base=syntax.site_base,
+                case_sensitive=column.case_sensitive,
+                unknown_policy=column.unknown_policy,
+                entries=entries,
+            )
+        assert isinstance(syntax, TokenRegexSyntax)
+        return TokenRegexNormalizer(
+            token_pattern=syntax.token_pattern,
+            token_position=syntax.token_position,
+            case_sensitive=column.case_sensitive,
+            unknown_policy=column.unknown_policy,
+            entries=entries,
         )
 
     @staticmethod
@@ -501,7 +479,6 @@ class ParseRuleFacade:
             "column_roles": {
                 role: entry.name for entry in rule.columns.var for role in entry.roles
             },
-            "layer_roles": _layer_roles(rule.measurements.layers),
             "schema_version": rule.schema_version,
             "software_name": rule.software_name,
             "shape": rule.shape,
