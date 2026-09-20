@@ -41,14 +41,13 @@ from apb2.parserV2.parse_quant.data.raw import (
     VarRaw,
 )
 from apb2.parserV2.parse_quant.data.source import LevelSourceTable
+from apb2.parserV2.parse_quant.operations import (
+    WorkingAxisConfiguration,
+    WorkingParseConfiguration,
+)
 from apb2.parserV2.parse_quant.parameters.axis import (
-    AxisColumnDeclaration,
     AxisColumnSelection,
     AxisKeyPlan,
-    WorkingAxisConfiguration,
-)
-from apb2.parserV2.parse_quant.parameters.level import (
-    WorkingParseConfiguration,
 )
 from apb2.parserV2.parse_quant.parameters.measurements import (
     PlainNumericLayerDeclaration,
@@ -251,38 +250,34 @@ def test_a_working_configuration_derives_presence_and_canonical_values() -> None
         source_layout=LongSourceLayout(),
         obs=WorkingAxisConfiguration(
             final_key_columns=("sample",),
-            columns=AxisColumnDeclaration(
-                required_selections=(
-                    AxisColumnSelection(name="sample", source="run", logical_type="string"),
-                ),
-                optional_selections=(),
-                computed=(),
-                declared_order=("sample",),
+            required_selections=(
+                AxisColumnSelection(name="sample", source="run", logical_type="string"),
             ),
+            optional_selections=(),
+            computed=(),
+            declared_order=("sample",),
         ),
         var=WorkingAxisConfiguration(
             final_key_columns=("ProForma_ion",),
-            columns=AxisColumnDeclaration(
-                required_selections=(),
-                optional_selections=(),
-                computed=(),
-                declared_order=(),
-            ),
+            required_selections=(),
+            optional_selections=(),
+            computed=(),
+            declared_order=(),
         ),
         measurements=WorkingMeasurements(
             primary_layer_name="Intensity",
             duplicate_mode="keep_first",
             layers=(layer,),
-            required_names=("Intensity",),
+            required_names=frozenset({"Intensity"}),
         ),
         provenance={"software_name": "AlphaDIA"},
     )
 
     assert working.measurements.required_layers[0] is layer
     assert layer.value == PlainNumericLayerDeclaration(missing_values=(0.0,))
-    assert working.measurements.optional_layers == ()
+    assert working.measurements.required_layers == working.measurements.layers
     # Optionality is a separate collection, never a flag on the record.
-    assert not hasattr(working.obs.columns.required_selections[0], "required")
+    assert not hasattr(working.obs.required_selections[0], "required")
 
 
 @pytest.mark.parametrize(
@@ -354,83 +349,61 @@ def test_working_measurements_derives_all_views_from_one_ordered_collection() ->
         primary_layer_name="Quantity",
         duplicate_mode="error",
         layers=(first, primary, last),
-        required_names=("Quantity", "Last"),
+        required_names=frozenset({"Quantity", "Last"}),
     )
 
-    assert measurements.authored_layers() == (first, primary, last)
-    assert measurements.authored_order == ("First", "Quantity", "Last")
+    assert measurements.layers == (first, primary, last)
     assert measurements.required_layers == (primary, last)
-    assert measurements.optional_layers == (first,)
-    assert measurements.required_sources() == ("quantity", "last")
 
 
 @pytest.mark.parametrize(
-    ("layers", "required_names", "message"),
+    ("layers", "primary", "message"),
     [
-        ((), ("Quantity",), "not among"),
+        ([], "Quantity", "at least 1 item"),
         (
-            (
-                WorkingMeasurementLayer(
-                    name="Quantity",
-                    source="first",
-                    value=PlainNumericLayerDeclaration(missing_values=()),
-                ),
-                WorkingMeasurementLayer(
-                    name="Quantity",
-                    source="second",
-                    value=PlainNumericLayerDeclaration(missing_values=()),
-                ),
-            ),
-            ("Quantity",),
+            [{"name": "Quantity", "source": "first"}, {"name": "Quantity", "source": "second"}],
+            "Quantity",
             "must be unique",
         ),
-        (
-            (
-                WorkingMeasurementLayer(
-                    name="Quantity",
-                    source="quantity",
-                    value=PlainNumericLayerDeclaration(missing_values=()),
-                ),
-            ),
-            (),
-            "must be required",
-        ),
-        (
-            (
-                WorkingMeasurementLayer(
-                    name="Quantity",
-                    source="quantity",
-                    value=PlainNumericLayerDeclaration(missing_values=()),
-                ),
-            ),
-            ("Quantity", "Unknown"),
-            "not declared",
-        ),
-        (
-            (
-                WorkingMeasurementLayer(
-                    name="Quantity",
-                    source="quantity",
-                    value=PlainNumericLayerDeclaration(missing_values=()),
-                ),
-            ),
-            ("Quantity", "Quantity"),
-            "required measurement names must be unique",
-        ),
+        ([{"name": "Quantity", "source": "quantity"}], "Unknown", "matches no layer"),
     ],
 )
-def test_working_measurements_rejects_inconsistent_construction(
-    layers: tuple[WorkingMeasurementLayer, ...],
-    required_names: tuple[str, ...],
+def test_invalid_measurements_are_rejected_at_the_authored_boundary(
+    layers: list[dict[str, str]],
+    primary: str,
     message: str,
 ) -> None:
+    from parserV2 import synthetic
+
+    document = synthetic.document(
+        shape="long",
+        base={
+            "axis": {"obs_keys": ["sample"], "var_keys": ["Feature"]},
+            "columns": {
+                "obs": [{"name": "sample", "source": "Run"}],
+                "var": [{"name": "Feature", "source": "Feature"}],
+            },
+            "measurements": {"primary_layer": primary, "layers": layers},
+        },
+        levels={"ion": {}},
+    )
     with pytest.raises(ValueError, match=message):
-        WorkingMeasurements(
-            primary_layer_name="Quantity",
-            duplicate_mode="error",
-            layers=layers,
-            required_names=required_names,
+        synthetic.facade(document)
+
+
+def test_primary_layer_is_required_even_without_an_authored_required_flag() -> None:
+    from parserV2 import synthetic
+
+    facade = synthetic.facade(
+        synthetic.long_document(
+            obs_select={"sample": "run"},
+            var_select={"Feature": "feature"},
+            layers=[{"name": "Quantity", "source": "Quantity", "required": False}],
         )
+    )
+    measurements = facade.working_parameters.measurements
+    assert measurements.required_names == {"Quantity"}
+    assert measurements.required_layers == measurements.layers
 
 
 def test_source_compilation_returns_one_executable_strategy_not_a_resolved_graph() -> None:

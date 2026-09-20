@@ -29,9 +29,13 @@ from apb2.parserV2.parse_quant.duplicates import AggregateNumericDuplicates
 from apb2.parserV2.parse_quant.errors import IncompatibleSourceError
 from apb2.parserV2.parse_quant.fragments import PositionalFragmentTableSeparator
 from apb2.parserV2.parse_quant.layer_validation import LayerContractValidator
+from apb2.parserV2.parse_quant.modifications import (
+    SequenceColumn,
+    SiteListNormalizer,
+    TokenRegexNormalizer,
+)
 from apb2.parserV2.parse_quant.parameters.axis import (
     AxisKeyPlan,
-    ProformaSequenceColumnConfig,
     SiteListModificationConfig,
     TokenRegexModificationConfig,
 )
@@ -136,7 +140,9 @@ def test_every_packaged_level_projects_working_parameters(
     assert working.level == level
     assert working.obs.final_key_columns
     assert working.var.final_key_columns
-    assert working.measurements.primary_layer_name in working.measurements.authored_order
+    assert working.measurements.primary_layer_name in {
+        layer.name for layer in working.measurements.layers
+    }
     assert working.measurements.primary_layer_name in {
         layer.name for layer in working.measurements.required_layers
     }
@@ -302,9 +308,9 @@ def test_a_modification_derived_key_pulls_every_source_that_can_change_it() -> N
     path = Path("src/apb2/parserV2/vendor_parse_rules/documents/alphadia/v2/rules.json")
     facade = ParseRuleFacade(load_rule_document(path), "ion", _EVIDENCES[0])
     modifications = tuple(
-        column.normalization
-        for column in facade.working_parameters.var.columns.computed
-        if isinstance(column, ProformaSequenceColumnConfig)
+        column.operation.rules
+        for column in facade.working_parameters.var.computed
+        if isinstance(column, SequenceColumn) and isinstance(column.operation, SiteListNormalizer)
     )
 
     assert len(modifications) == 1
@@ -324,10 +330,11 @@ def test_a_token_regex_rule_resolves_its_accessions_at_projection() -> None:
     facade = ParseRuleFacade(load_rule_document(path), "ion", _EVIDENCES[0])
     column = next(
         column
-        for column in facade.working_parameters.var.columns.computed
-        if isinstance(column, ProformaSequenceColumnConfig)
+        for column in facade.working_parameters.var.computed
+        if isinstance(column, SequenceColumn) and isinstance(column.operation, TokenRegexNormalizer)
     )
-    config = column.normalization
+    assert isinstance(column.operation, TokenRegexNormalizer)
+    config = column.operation.rules
 
     assert isinstance(config, TokenRegexModificationConfig)
     assert column.inputs == ("Modified_Sequence",)
@@ -829,7 +836,7 @@ def test_resolution_reuses_each_retained_layer_declaration_without_copying_it() 
     values = {
         config["layer_name"]: config["value"] for config in snapshot(resolved)["layer_values"]
     }
-    for layer in facade.working_parameters.measurements.authored_layers():
+    for layer in facade.working_parameters.measurements.layers:
         assert values[layer.name] == as_json_value(layer.value)
     assert values["Quantity"] == as_json_value(PlainNumericLayerDeclaration(missing_values=(0.0,)))
     assert values["Plain"] == as_json_value(PlainNumericLayerDeclaration(missing_values=()))

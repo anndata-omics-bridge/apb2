@@ -6,7 +6,28 @@ import json
 from collections.abc import Mapping, Sequence, Set
 from dataclasses import fields, is_dataclass
 
+from apb2.parserV2.parse_quant.axis_columns import (
+    CoalesceColumn,
+    JoinNonemptyColumn,
+    ProformaFragmentColumn,
+    ProformaIonColumn,
+)
+from apb2.parserV2.parse_quant.modifications import (
+    EmbeddedSiteListNormalizer,
+    PlainSequenceStripper,
+    SequenceColumn,
+    SiteListNormalizer,
+    TokenRegexNormalizer,
+    TokenRegexStripper,
+)
 from apb2.parserV2.parse_quant.parameters.level import JsonValue
+
+_COMPUTATIONS: dict[type, str] = {
+    CoalesceColumn: "coalesce",
+    JoinNonemptyColumn: "join_nonempty",
+    ProformaIonColumn: "proforma_ion",
+    ProformaFragmentColumn: "proforma_fragment",
+}
 
 PLAN_JSON_KEY = "plan_json"
 """The provenance key the serialized plan is stored under, beside ``rule_json``."""
@@ -24,8 +45,16 @@ def as_json_value(value: object) -> JsonValue:
     """Return the JSON form of one plan value without interpreting it."""
     if value is None or isinstance(value, bool | int | float | str):
         return value
+    if isinstance(value, SequenceColumn):
+        return as_json_value(_sequence_snapshot(value))
     if is_dataclass(value) and not isinstance(value, type):
-        return {field.name: as_json_value(getattr(value, field.name)) for field in fields(value)}
+        result: dict[str, JsonValue] = {}
+        if type(value) in _COMPUTATIONS:
+            result["kind"] = _COMPUTATIONS[type(value)]
+        result.update(
+            {field.name: as_json_value(getattr(value, field.name)) for field in fields(value)}
+        )
+        return result
     if isinstance(value, Mapping):
         return {_text(key): as_json_value(item) for key, item in value.items()}
     if isinstance(value, Set):
@@ -37,6 +66,28 @@ def as_json_value(value: object) -> JsonValue:
     raise TypeError(
         f"a resolved plan holds a {type(value).__name__}, which has no JSON form: {value!r}"
     )
+
+
+def _sequence_snapshot(value: SequenceColumn) -> dict[str, object]:
+    """Document an executable sequence operation without another runtime record."""
+    operation = value.operation
+    payload: Mapping[str, object]
+    if isinstance(
+        operation, TokenRegexNormalizer | SiteListNormalizer | EmbeddedSiteListNormalizer
+    ):
+        kind, payload = "proforma_sequence", {"normalization": operation.rules}
+    elif isinstance(operation, PlainSequenceStripper | TokenRegexStripper):
+        syntax: dict[str, object] = {"kind": "plain_sequence"}
+        if isinstance(operation, TokenRegexStripper):
+            syntax = {
+                "kind": "token_regex",
+                "token_pattern": operation.token_pattern,
+                "token_position": operation.token_position,
+            }
+        kind, payload = "stripped_sequence", {"syntax": syntax}
+    else:
+        raise TypeError(f"sequence operation has no plan JSON form: {type(operation).__name__}")
+    return {"kind": kind, "name": value.name, "inputs": value.inputs, **payload}
 
 
 def _text(value: object) -> str:

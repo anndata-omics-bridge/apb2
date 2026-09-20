@@ -525,5 +525,8 @@ def test_source_only_rule_recognition_never_inspects_data_rows(
         raise AssertionError("rule recognition may inspect only source metadata and headers")
 
     monkeypatch.setattr(delimited_input, "_resolved_number_format", refuse_row_inspection)
+    from apb2.parserV2.parse_rule_facade import ParseRuleFacade
+
+    monkeypatch.setattr(ParseRuleFacade, "resolve_source", refuse_row_inspection)
 
     assert guess_packaged_software(SingleFile(path=data)) == "spectronaut"

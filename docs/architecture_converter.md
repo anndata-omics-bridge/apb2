@@ -31,7 +31,9 @@ Source compilation now returns an executable `ParseStrategy`, not a `ResolvedLev
 
 `Pydantic RuleDocument → facade → WorkingParseConfiguration → source evidence + SourcePlanResolver → ParseStrategy → bound Parser`
 
-The facade remains the schema adapter. Source resolution constructs existing axis operations, decomposers, duplicate policies, value parsers and layer validation directly. `operations.py` owns the retained operation constructors inside the parsing package; it imports no Pydantic or rule schema. The parent `parser_factory.py` only binds physical/prepared input and the writer.
+The facade remains the schema adapter and now constructs executable computed-column operations directly. `WorkingParseConfiguration` and its flat axis contract live in `parse_quant/operations.py`; source resolution prunes and schedules those same operations, without a `ComputedColumnConfig` family or reconstruction factory. Source-dependent coercion, decomposition, layer parsing and validation are constructed after binding. No parsing module imports Pydantic or the rule schema.
+
+Vendor guessing checks only headers and source metadata; it never compiles a strategy. Effective level detection binds each candidate once and retains its parser. Public `compile()` assembles the retained parsers, without repeating document projection or source resolution. `checks` is applied during that binding. Rule documents are validated directly, without a private shell proxy or a second long/wide recognition family. Their projected compiler contract owns header recognition. Measurement uniqueness and primary-layer validity are checked at the authored schema boundary, not again in an internal runtime constructor.
 
 The executable strategy owns its collaborators once. `Parser.parse()` reads once and invokes `strategy.parse(source)`; `Parser.convert(result, target)` only writes. Prepared input receives the read projection and both axes' raw key tuples, not the strategy graph. `plan_json` preserves the previous serialized decisions, including skipped declarations and both axis phases, but runtime never consumes it.
 
@@ -2336,15 +2338,16 @@ The facade projects var roles to `column_roles: role → logical column name` an
 longer contains Pydantic objects, but physical column matches, dialect evidence, dtypes, and
 optional-source presence are still unresolved.
 
-These storage-neutral working parameter values live in
-`parse_quant/parameters/working.py`. They belong to parsing even though
-`ParseRuleFacade` constructs them.
+Operation-bearing contracts live in `parse_quant/operations.py`; independent measurement and physical-source settings remain in `parse_quant/parameters/`. They belong to parsing even though `ParseRuleFacade` constructs them.
 
 ```python
 @dataclass(frozen=True, slots=True)
 class WorkingAxisConfiguration:
     final_key_columns: tuple[str, ...]
-    columns: AxisColumnDeclaration
+    required_selections: tuple[AxisColumnSelection, ...]
+    optional_selections: tuple[AxisColumnSelection, ...]
+    computed: tuple[ComputedOperation, ...]
+    declared_order: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -2359,8 +2362,8 @@ class WorkingMeasurementLayer:
 class WorkingMeasurements:
     primary_layer_name: str
     duplicate_mode: DuplicateMode
-    required_layers: tuple[WorkingMeasurementLayer, ...]
-    optional_layers: tuple[WorkingMeasurementLayer, ...]
+    layers: tuple[WorkingMeasurementLayer, ...]
+    required_names: frozenset[str]
 
 
 @dataclass(frozen=True, slots=True)
@@ -2381,7 +2384,7 @@ objects:
 | --- | --- | --- |
 | `InputContract` | projected single-table source and allowed format policies | physical source binder |
 | `SourceLayoutDeclaration` | long, wide, or packed-fragment structural declaration | source resolver |
-| `AxisColumnDeclaration` | selected, optional, typed, and computed axis declarations | dependency walk and runtime-plan compiler |
+| `ComputedOperation` | the executable column object, including explicit logical inputs | dependency walk and unchanged runtime parser |
 | `RawValuePresenceDeclaration` | null/blank and declared missing-sentinel evidence without a converted value contract | raw-presence config projector |
 | `AnnDataLayerEncodingDeclaration` | numeric, regex-numeric, or factor storage declaration for one layer | AnnData config projector |
 | `ModificationConfig` | plain values needed to construct one normalizer | modification-normalizer constructor |
@@ -2969,7 +2972,7 @@ The boundary ownership behind that tree is:
 | physical shape -> Parser algorithm | raw types in `parse_quant/data/raw.py` | `SourceDecomposer` and `FragmentTableSeparator` in `parse_quant/contracts.py` | `parse_quant/decomposition.py` and `fragments.py` |
 | Parser -> persistence | `ParsedLevel` in `parse_quant/data/parsed.py` | `ParsedLevelWriter` in `parse_quant/contracts.py` | `parse_quant/io/anndata_writer.py` or `parse_quant/io/parquet_writer.py` |
 | parsed result -> format-neutral persistence | `ParsedLevels` in `parse_quant/data/parsed.py` | `ParsedLevelsReader` and `ParsedLevelsWriter` in `parse_quant/io/formats.py` | h5ad/h5mu, Parquet, and DuckDB result adapters |
-| validated rule -> compilation | `WorkingParseConfiguration` in `parse_quant/parameters/level.py` | no Protocol: one stable plain compiler contract | parent-level `parse_rule_facade.py` |
+| validated rule -> compilation | `WorkingParseConfiguration` in `parse_quant/operations.py` | no Protocol: one Pydantic-free semantic compiler contract | parent-level `parse_rule_facade.py` |
 
 `BoundInputReader`, `ParsedLevelWriter`, `SourceDecomposer`, `FragmentTableSeparator`,
 `AxisValueCoercer`, `ColumnComputer`, `RawValuePresence`, and

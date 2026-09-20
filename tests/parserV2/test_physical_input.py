@@ -522,7 +522,13 @@ def test_every_cached_vendor_export_resolves_to_one_unambiguous_reading(
     # A document with several levels shares one binding, so the predicate that decides a
     # dialect is "does any level recognize this header" -- the same question vendor
     # detection asks.
-    evidence = bound.evidence(document.matches)
+    candidates = tuple(
+        ParseRuleFacade.from_declared_rule(document, level).working_parameters
+        for level in document.levels
+    )
+    evidence = bound.evidence(
+        lambda header: any(rule.accepts_header(header) for rule in candidates)
+    )
 
     assert evidence.columns == pair.header()
     if isinstance(evidence, FrameSourceEvidence):

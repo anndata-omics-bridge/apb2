@@ -1,42 +1,22 @@
-"""What one rules.json answers: its levels, their effective rules, and header recognition.
-
-``RuleDocument`` is the public API over one loaded file. It retains its validated ``_shell``
-and reads through it rather than copying its members into a second field set, because two
-copies of one fact are how two answers to one question start to drift.
-
-Two rules.json keys read search parameters, and ``rule()`` is where both act:
-``requires_search_parameters`` gates the level (Sage declares one level per
-``combine_charge_states`` setting, so without the evidence there is no telling which of them
-a file is) and ``search_parameter_overrides`` patches ``measurements.primary_layer`` (DIA-NN's
-acquisition mode decides which column carries the quantity). The patch goes into the payload
-*before* validation, so a rule is validated once and is applicable by construction.
-
-``SearchParameterEvidence`` is deliberately smaller than any parameter-file model: schema 0.8
-permits exactly two condition fields, this package owns that vocabulary, and the outer
-application translates its own parameter model into this value before entering Parser V2.
-"""
+"""Load, compose and validate rule documents; physical recognition belongs to parsing."""
 
 from __future__ import annotations
 
-import re
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, model_validator
 
 from apb2.parserV2.vendor_parse_rules.schema.annotation import SampleAnnotation
-from apb2.parserV2.vendor_parse_rules.schema.axis import ColumnGroup
 from apb2.parserV2.vendor_parse_rules.schema.base import (
     LEVELS,
     ModelBase,
     QuantificationLevel,
     SchemaVersion,
 )
-from apb2.parserV2.vendor_parse_rules.schema.fragments import ColumnLabeledFragments
 from apb2.parserV2.vendor_parse_rules.schema.input import Input
-from apb2.parserV2.vendor_parse_rules.schema.measurements import layer_required
 from apb2.parserV2.vendor_parse_rules.schema.parameters import (
     ConditionValue,
     SearchParameterField,
@@ -46,10 +26,6 @@ from apb2.parserV2.vendor_parse_rules.schema.rule import (
     WideRule,
     validate_rule,
 )
-
-_SYNTHESIZED = frozenset({"stripped_sequence"})
-
-type AxisName = Literal["obs", "var"]
 
 type JsonDict = dict[str, object]
 """A raw rules.json fragment: dicts merge without models, presence is key membership.
@@ -79,109 +55,11 @@ class SearchParameterEvidence:
 
     def observed(self, requested: Iterable[SearchParameterField]) -> dict[str, ConditionValue]:
         """The requested fields' values, for comparison against a declared condition."""
-        known = {field.name for field in fields(self)}
-        return {name: getattr(self, name) for name in requested if name in known}
-
-
-# ------------------------------------------------------------------------ header recognition
-
-
-def synthesized_columns(rule: LongRule | WideRule) -> frozenset[str]:
-    """Columns Parser V2 creates itself, which must never be required of the input."""
-    return _SYNTHESIZED
-
-
-class LongRecognition:
-    """Header recognition for a long rule: every source is an exact column name."""
-
-    __slots__ = ("_rule", "required_headers")
-
-    def __init__(self, rule: LongRule) -> None:
-        self._rule = rule
-        expected = {
-            column.source
-            for group in (rule.columns.obs, rule.columns.var)
-            for column in group
-            if column.source is not None and column.required
+        values: dict[SearchParameterField, ConditionValue] = {
+            "acquisition_method": self.acquisition_method,
+            "combine_charge_states": self.combine_charge_states,
         }
-        expected.update(
-            layer.source
-            for layer in rule.measurements.layers
-            if layer_required(rule.measurements.primary_layer, layer)
-        )
-        self.required_headers: frozenset[str] = frozenset(expected - synthesized_columns(rule))
-
-    def column_groups(self) -> tuple[tuple[AxisName, ColumnGroup], ...]:
-        return (("obs", self._rule.columns.obs), ("var", self._rule.columns.var))
-
-    def layer_source_columns(self, header: Iterable[str]) -> set[str]:
-        """Layer sources are exact column names in a long rule."""
-        del header
-        return {layer.source for layer in self._rule.measurements.layers}
-
-    def matches(self, headers: Iterable[str]) -> bool:
-        """Whether raw input headers satisfy the rule's required sources."""
-        header_set = set(headers)
-        if not _fragment_label_present(self._rule, header_set):
-            return False
-        return self.required_headers.issubset(header_set)
-
-
-class WideRecognition:
-    """Header recognition for a wide rule: layer sources are sample-capturing regexes."""
-
-    __slots__ = ("_required_var", "_rule")
-
-    def __init__(self, rule: WideRule) -> None:
-        self._rule = rule
-        self._required_var = frozenset(
-            {
-                column.source
-                for column in rule.columns.var
-                if column.source is not None and column.required
-            }
-            - synthesized_columns(rule)
-        )
-
-    def column_groups(self) -> tuple[tuple[AxisName, ColumnGroup], ...]:
-        return (("var", self._rule.columns.var),)
-
-    def layer_source_columns(self, header: Iterable[str]) -> set[str]:
-        """Expand each layer's header regex over the real header."""
-        names = list(header)
-        matched: set[str] = set()
-        for layer in self._rule.measurements.layers:
-            compiled = re.compile(layer.source)
-            matched.update(name for name in names if compiled.match(name) is not None)
-        return matched
-
-    def matches(self, headers: Iterable[str]) -> bool:
-        """Whether raw input headers satisfy the rule's required sources."""
-        header_set = set(headers)
-        if not _fragment_label_present(self._rule, header_set):
-            return False
-        for layer in self._rule.measurements.layers:
-            if layer_required(self._rule.measurements.primary_layer, layer) and not any(
-                re.compile(layer.source).match(header) for header in header_set
-            ):
-                return False
-        return self._required_var.issubset(header_set)
-
-
-type Recognition = LongRecognition | WideRecognition
-
-
-def recognition_for(rule: LongRule | WideRule) -> Recognition:
-    """Read the rule's shape once and return the recognition it names."""
-    if isinstance(rule, LongRule):
-        return LongRecognition(rule)
-    return WideRecognition(rule)
-
-
-def _fragment_label_present(rule: LongRule | WideRule, header_set: set[str]) -> bool:
-    if isinstance(rule.fragments, ColumnLabeledFragments):
-        return rule.fragments.label_column in header_set
-    return True
+        return {name: values[name] for name in requested}
 
 
 # ------------------------------------------------------------------------ the effective rule
@@ -189,17 +67,10 @@ def _fragment_label_present(rule: LongRule | WideRule, header_set: set[str]) -> 
 
 @dataclass(frozen=True, slots=True)
 class EffectiveRule:
-    """One level's validated declaration, its table's input policy, and its recognition.
-
-    All three travel together so projection is a total function of one value: the input
-    declaration is the same for every level of a table and is not copied onto
-    ``RuleDocument``, and rebuilding the recognition elsewhere is how two answers to one
-    question start to drift.
-    """
+    """One level's validated declaration and its table's input policy."""
 
     input: Input
     declaration: LongRule | WideRule
-    recognition: Recognition
     preparation: str | None = None
 
 
@@ -221,8 +92,8 @@ class _RuleTableSchema(ModelBase):
     prepare: _PreparationSchema | None = None
 
 
-class _RuleDocumentSchema(ModelBase):
-    """One parsed rules.json, as a shell around raw dict fragments — private on purpose.
+class RuleDocument(ModelBase):
+    """One rules.json, with raw fragments validated after base/level composition.
 
     The fragments stay raw dicts through the base-times-level merge — merging dicts needs no
     models, presence is key membership — and cross the single typed boundary,
@@ -239,42 +110,21 @@ class _RuleDocumentSchema(ModelBase):
     tables: list[_RuleTableSchema] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def _unique_level_ownership(self) -> _RuleDocumentSchema:
+    def _unique_level_ownership(self) -> RuleDocument:
         levels = [level for table in self.tables for level in table.levels]
         if len(levels) != len(set(levels)):
             raise ValueError("each quantification level must belong to exactly one table")
         return self
 
-
-class RuleDocument:
-    """One rules.json: what it describes, which levels it declares, and their rules."""
-
-    __slots__ = ("_shell",)
-
-    def __init__(self, shell: _RuleDocumentSchema) -> None:
-        self._shell = shell
-
-    @property
-    def path(self) -> Path:
-        return self._shell.path
-
-    @property
-    def software_name(self) -> str:
-        return self._shell.software_name
-
-    @property
-    def software_version_pattern(self) -> str:
-        return self._shell.software_version_pattern
-
     @property
     def levels(self) -> tuple[QuantificationLevel, ...]:
-        declared = {level for table in self._shell.tables for level in table.levels}
+        declared = {level for table in self.tables for level in table.levels}
         return tuple(level for level in LEVELS if level in declared)
 
     @property
     def table_levels(self) -> tuple[tuple[QuantificationLevel, ...], ...]:
         """The level groups that share one input, in authored table order."""
-        return tuple(tuple(table.levels) for table in self._shell.tables)
+        return tuple(tuple(table.levels) for table in self.tables)
 
     def declared(self, level: QuantificationLevel) -> EffectiveRule:
         """The rule this file *declares* for ``level``, gates and overrides ignored.
@@ -295,38 +145,41 @@ class RuleDocument:
         Raises ``RuleNotApplicable`` — naming what went wrong — when the file has no such
         level, or when its parameter gate excludes this evidence.
         """
-        table = self._table_for(level)
-        payload = self._payload_for(level, table)
-        declared = self._effective(payload, table)
-        self._require_gate_admits(
-            declared.declaration.requires_search_parameters,
-            evidence,
-            level,
-        )
-        patched = _with_primary_layer_override(payload, evidence)
-        return declared if patched is payload else self._effective(patched, table)
-
-    def matches(self, headers: Iterable[str]) -> bool:
-        """Whether any level this file declares recognizes these headers.
-
-        Gates are not consulted: this answers "does this look like that vendor's export",
-        which is what a caller asks when it has no parameters yet — the question that decides
-        which vendor's parameter parser to run.
-        """
-        header_set = frozenset(headers)
-        return any(self.declared(level).recognition.matches(header_set) for level in self.levels)
+        effective = self.declared(level)
+        rule = effective.declaration
+        gate = rule.requires_search_parameters
+        observed = evidence.observed(gate)
+        if gate != observed:
+            raise RuleNotApplicable(
+                f"{self.software_name!r} level {level!r} requires search parameters {gate}, "
+                f"but the supplied evidence is {observed}"
+            )
+        primary_layers = {
+            override.primary_layer
+            for override in rule.search_parameter_overrides
+            if evidence.observed(override.when_search_parameters) == override.when_search_parameters
+        }
+        if len(primary_layers) > 1:
+            raise ValueError(
+                "matching search-parameter overrides disagree on primary_layer: "
+                f"{sorted(primary_layers)}"
+            )
+        if not primary_layers:
+            return effective
+        payload = rule.model_dump(mode="python")
+        payload["measurements"]["primary_layer"] = primary_layers.pop()
+        return replace(effective, declaration=validate_rule(payload))
 
     def _effective(self, payload: JsonDict, table: _RuleTableSchema) -> EffectiveRule:
         declaration = validate_rule(payload)
         return EffectiveRule(
             input=table.input,
             declaration=declaration,
-            recognition=recognition_for(declaration),
             preparation=table.prepare.how if table.prepare is not None else None,
         )
 
     def _table_for(self, level: QuantificationLevel) -> _RuleTableSchema:
-        for table in self._shell.tables:
+        for table in self.tables:
             if level in table.levels:
                 return table
         raise RuleNotApplicable(
@@ -337,91 +190,29 @@ class RuleDocument:
         """Compose one declared level over its own table's base."""
         level_fragment = table.levels[level]
         return {
-            "schema_version": self._shell.schema_version,
-            "file_version": self._shell.file_version,
-            "software_name": self._shell.software_name,
-            "software_version_pattern": self._shell.software_version_pattern,
+            "schema_version": self.schema_version,
+            "file_version": self.file_version,
+            "software_name": self.software_name,
+            "software_version_pattern": self.software_version_pattern,
             "quantification_level": level,
             "shape": table.input.shape,
             **(
-                {"sample_annotation": self._shell.sample_annotation.model_dump(mode="json")}
-                if self._shell.sample_annotation is not None
+                {"sample_annotation": self.sample_annotation.model_dump(mode="json")}
+                if self.sample_annotation is not None
                 else {}
             ),
             **_merge_fragments(table.base, level_fragment),
         }
 
-    def _require_gate_admits(
-        self,
-        gate: object,
-        evidence: SearchParameterEvidence,
-        level: QuantificationLevel,
-    ) -> None:
-        """Raise unless every gated parameter holds; the two outcomes read differently."""
-        if not gate:
-            return
-        if not isinstance(gate, dict):
-            raise ValueError(f"requires_search_parameters must be an object; got {gate!r}")
-        declared: dict[str, ConditionValue] = gate
-        if _condition_holds(declared, evidence):
-            return
-        observed = evidence.observed(_condition_fields(declared))
-        raise RuleNotApplicable(
-            f"{self.software_name!r} level {level!r} requires search parameters {declared}, "
-            f"but the supplied evidence is {observed}"
-        )
-
-
-def _with_primary_layer_override(payload: JsonDict, evidence: SearchParameterEvidence) -> JsonDict:
-    """Patch ``measurements.primary_layer`` when the evidence matches; validation follows."""
-    declared = payload.get("search_parameter_overrides")
-    if not isinstance(declared, list) or not declared:
-        return payload
-    primary_layers = {
-        override["primary_layer"]
-        for override in declared
-        if isinstance(override, dict)
-        and _condition_holds(override["when_search_parameters"], evidence)
-    }
-    if not primary_layers:
-        return payload
-    if len(primary_layers) > 1:
-        raise ValueError(
-            "matching search-parameter overrides disagree on primary_layer: "
-            f"{sorted(map(str, primary_layers))}"
-        )
-    measurements = payload.get("measurements")
-    if not isinstance(measurements, dict):
-        raise ValueError("measurements must be an object to carry a primary_layer override")
-    patched: JsonDict = {**measurements, "primary_layer": next(iter(primary_layers))}
-    return {**payload, "measurements": patched}
-
-
-def _condition_holds(condition: object, evidence: SearchParameterEvidence) -> bool:
-    """Whether every declared parameter equality holds for the supplied evidence."""
-    if not isinstance(condition, dict):
-        raise ValueError(f"search-parameter condition must be an object; got {condition!r}")
-    declared: dict[str, ConditionValue] = condition
-    return evidence.observed(_condition_fields(declared)) == declared
-
-
-def _condition_fields(condition: dict[str, ConditionValue]) -> tuple[SearchParameterField, ...]:
-    """The condition's keys, typed as the finite vocabulary the schema already accepted."""
-    permitted: tuple[SearchParameterField, ...] = (
-        "acquisition_method",
-        "combine_charge_states",
-    )
-    return tuple(name for name in permitted if name in condition)
-
 
 def make_rule_document(path: Path, payload: JsonDict) -> RuleDocument:
     """Validate one raw rules.json payload and return the document it describes."""
-    return RuleDocument(_RuleDocumentSchema.model_validate({"path": path, **payload}))
+    return RuleDocument.model_validate({"path": path, **payload})
 
 
 def document_json_schema() -> dict[str, object]:
     """Describe the authored document shell; effective rules validate merged fragments."""
-    schema = _RuleDocumentSchema.model_json_schema()
+    schema = RuleDocument.model_json_schema()
     schema["properties"].pop("path")
     schema["required"].remove("path")
     schema["title"] = "RuleDocument"

@@ -31,30 +31,36 @@ import json
 from collections.abc import Mapping, Sequence
 from typing import Literal
 
-from apb2.parserV2.parse_quant.parameters.axis import (
-    AxisColumnDeclaration,
-    AxisColumnSelection,
-    CoalesceColumnConfig,
-    ComputedColumnConfig,
-    EmbeddedSiteListModificationConfig,
-    JoinNonemptyColumnConfig,
-    ModificationConfig,
-    ModificationMapEntry,
-    PlainSequenceSyntaxConfig,
-    ProformaFragmentColumnConfig,
-    ProformaIonColumnConfig,
-    ProformaSequenceColumnConfig,
-    SiteListModificationConfig,
-    StrippedSequenceColumnConfig,
-    StrippingSyntaxConfig,
-    TokenRegexModificationConfig,
-    TokenRegexSyntaxConfig,
+from apb2.parserV2.parse_quant.axis_columns import (
+    CoalesceColumn,
+    JoinNonemptyColumn,
+    ProformaFragmentColumn,
+    ProformaIonColumn,
+)
+from apb2.parserV2.parse_quant.modifications import (
+    EmbeddedSiteListNormalizer,
+    PlainSequenceStripper,
+    SequenceColumn,
+    SequenceOperation,
+    SiteListNormalizer,
+    TokenRegexNormalizer,
+    TokenRegexStripper,
+)
+from apb2.parserV2.parse_quant.operations import (
+    ComputedOperation,
     WorkingAxisConfiguration,
+    WorkingParseConfiguration,
+)
+from apb2.parserV2.parse_quant.parameters.axis import (
+    AxisColumnSelection,
+    EmbeddedSiteListModificationConfig,
+    ModificationMapEntry,
+    SiteListModificationConfig,
+    TokenRegexModificationConfig,
 )
 from apb2.parserV2.parse_quant.parameters.level import (
     JsonValue,
     QuantificationLevel,
-    WorkingParseConfiguration,
 )
 from apb2.parserV2.parse_quant.parameters.measurements import (
     FactorLayerDeclaration,
@@ -327,26 +333,16 @@ class ParseRuleFacade:
     ) -> WorkingAxisConfiguration:
         """Project one axis. A wide rule has no obs group: its keys are header captures."""
         if group is None:
-            return WorkingAxisConfiguration(
-                final_key_columns=tuple(keys),
-                columns=AxisColumnDeclaration(
-                    required_selections=(),
-                    optional_selections=(),
-                    computed=(),
-                    declared_order=tuple(keys),
-                ),
-            )
+            return WorkingAxisConfiguration(tuple(keys), (), (), (), tuple(keys))
         return WorkingAxisConfiguration(
             final_key_columns=tuple(keys),
-            columns=AxisColumnDeclaration(
-                required_selections=ParseRuleFacade._project_selections(group, required=True),
-                optional_selections=ParseRuleFacade._project_selections(group, required=False),
-                computed=tuple(
-                    ParseRuleFacade._project_computed(column, rule)
-                    for column in computed_columns(group)
-                ),
-                declared_order=tuple(column.name for column in group),
+            required_selections=ParseRuleFacade._project_selections(group, required=True),
+            optional_selections=ParseRuleFacade._project_selections(group, required=False),
+            computed=tuple(
+                ParseRuleFacade._project_computed(column, rule)
+                for column in computed_columns(group)
             ),
+            declared_order=tuple(column.name for column in group),
         )
 
     @staticmethod
@@ -364,42 +360,25 @@ class ParseRuleFacade:
         )
 
     @staticmethod
-    def _project_computed(
-        column: ComputedColumn, rule: LongRule | WideRule
-    ) -> ComputedColumnConfig:
+    def _project_computed(column: ComputedColumn, rule: LongRule | WideRule) -> ComputedOperation:
         """Preserve the exact authored logical inputs and bind referenced configuration."""
         if isinstance(column, Coalesce):
-            return CoalesceColumnConfig(
-                kind="coalesce", name=column.name, inputs=tuple(column.inputs)
-            )
+            return CoalesceColumn(column.name, tuple(column.inputs))
         if isinstance(column, JoinNonempty):
-            return JoinNonemptyColumnConfig(
-                kind="join_nonempty",
-                name=column.name,
-                inputs=tuple(column.inputs),
-                separator=column.separator,
-            )
+            return JoinNonemptyColumn(column.name, tuple(column.inputs), column.separator)
         if isinstance(column, StrippedSequence):
-            return StrippedSequenceColumnConfig(
-                kind="stripped_sequence",
-                name=column.name,
-                inputs=tuple(column.inputs),
-                syntax=ParseRuleFacade._project_stripping(column, rule),
+            return SequenceColumn(
+                column.name, tuple(column.inputs), ParseRuleFacade._project_stripping(column, rule)
             )
         if isinstance(column, ProformaSequence):
-            return ProformaSequenceColumnConfig(
-                kind="proforma_sequence",
-                name=column.name,
-                inputs=tuple(column.inputs),
-                normalization=ParseRuleFacade._project_modifications(column, rule),
+            return SequenceColumn(
+                column.name,
+                tuple(column.inputs),
+                ParseRuleFacade._project_modifications(column, rule),
             )
         if isinstance(column, ProformaIon):
-            return ProformaIonColumnConfig(
-                kind="proforma_ion", name=column.name, inputs=tuple(column.inputs)
-            )
-        return ProformaFragmentColumnConfig(
-            kind="proforma_fragment", name=column.name, inputs=tuple(column.inputs)
-        )
+            return ProformaIonColumn(column.name, tuple(column.inputs))
+        return ProformaFragmentColumn(column.name, tuple(column.inputs))
 
     @staticmethod
     def _project_measurements(rule: LongRule | WideRule) -> WorkingMeasurements:
@@ -445,21 +424,17 @@ class ParseRuleFacade:
     @staticmethod
     def _project_stripping(
         column: StrippedSequence, rule: LongRule | WideRule
-    ) -> StrippingSyntaxConfig:
+    ) -> SequenceOperation:
         syntax = rule.sequence_syntax[column.syntax]
         if isinstance(syntax, TokenRegexSyntax):
-            return TokenRegexSyntaxConfig(
-                kind="token_regex",
-                token_pattern=syntax.token_pattern,
-                token_position=syntax.token_position,
-            )
+            return TokenRegexStripper(syntax.token_pattern, syntax.token_position)
         assert isinstance(syntax, PlainSequenceSyntax)
-        return PlainSequenceSyntaxConfig(kind="plain_sequence")
+        return PlainSequenceStripper()
 
     @staticmethod
     def _project_modifications(
         column: ProformaSequence, rule: LongRule | WideRule
-    ) -> ModificationConfig:
+    ) -> SequenceOperation:
         """Resolve only the explicitly referenced map of a normalization operation."""
         syntax = rule.sequence_syntax[column.syntax]
         entries = tuple(
@@ -477,32 +452,38 @@ class ParseRuleFacade:
             )
         )
         if isinstance(syntax, SiteListSyntax):
-            return SiteListModificationConfig(
-                kind="site_list",
-                delimiter=syntax.delimiter,
-                site_base=syntax.site_base,
-                case_sensitive=column.case_sensitive,
-                unknown_policy=column.unknown_policy,
-                entries=entries,
+            return SiteListNormalizer(
+                SiteListModificationConfig(
+                    kind="site_list",
+                    delimiter=syntax.delimiter,
+                    site_base=syntax.site_base,
+                    case_sensitive=column.case_sensitive,
+                    unknown_policy=column.unknown_policy,
+                    entries=entries,
+                )
             )
         if isinstance(syntax, EmbeddedSiteListSyntax):
-            return EmbeddedSiteListModificationConfig(
-                kind="embedded_site_list",
-                delimiter=syntax.delimiter,
-                entry_pattern=syntax.entry_pattern,
-                site_base=syntax.site_base,
+            return EmbeddedSiteListNormalizer(
+                EmbeddedSiteListModificationConfig(
+                    kind="embedded_site_list",
+                    delimiter=syntax.delimiter,
+                    entry_pattern=syntax.entry_pattern,
+                    site_base=syntax.site_base,
+                    case_sensitive=column.case_sensitive,
+                    unknown_policy=column.unknown_policy,
+                    entries=entries,
+                )
+            )
+        assert isinstance(syntax, TokenRegexSyntax)
+        return TokenRegexNormalizer(
+            TokenRegexModificationConfig(
+                kind="token_regex",
+                token_pattern=syntax.token_pattern,
+                token_position=syntax.token_position,
                 case_sensitive=column.case_sensitive,
                 unknown_policy=column.unknown_policy,
                 entries=entries,
             )
-        assert isinstance(syntax, TokenRegexSyntax)
-        return TokenRegexModificationConfig(
-            kind="token_regex",
-            token_pattern=syntax.token_pattern,
-            token_position=syntax.token_position,
-            case_sensitive=column.case_sensitive,
-            unknown_policy=column.unknown_policy,
-            entries=entries,
         )
 
     @staticmethod

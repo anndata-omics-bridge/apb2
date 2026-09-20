@@ -18,7 +18,8 @@ containers =
     apb2.parserV2
 layers =
     compile
-    detect_document | parser_factory
+    detect_document
+    parser_factory
     source_binding | prepare_source
     parse_rule_facade
     parse_quant | vendor_params | vendor_parse_rules | joins

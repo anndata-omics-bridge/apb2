@@ -53,23 +53,14 @@ from apb2.parserV2.parse_quant.modifications import (
 from apb2.parserV2.parse_quant.operations import (
     duplicate_policy_for,
     make_axis_coercer,
-    make_column_computer,
     make_layer_operations,
-    make_sequence_normalizer,
 )
 from apb2.parserV2.parse_quant.parameters.axis import (
     AxisKeyPlan,
     AxisLogicalType,
     AxisSourcePlan,
-    CoalesceColumnConfig,
     EmbeddedSiteListModificationConfig,
-    JoinNonemptyColumnConfig,
-    PlainSequenceSyntaxConfig,
-    ProformaFragmentColumnConfig,
-    ProformaIonColumnConfig,
-    ProformaSequenceColumnConfig,
     SiteListModificationConfig,
-    StrippedSequenceColumnConfig,
     TokenRegexModificationConfig,
 )
 from apb2.parserV2.parse_quant.parameters.measurements import (
@@ -96,6 +87,15 @@ from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.parser_factory import compile_level
 from apb2.parserV2.vendor_parse_rules.document import make_rule_document
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
+from apb2.parserV2.vendor_parse_rules.schema.axis import (
+    Coalesce,
+    ComputedColumn,
+    JoinNonempty,
+    ProformaFragment,
+    ProformaIon,
+    ProformaSequence,
+    StrippedSequence,
+)
 from apb2.parserV2.vendor_parse_rules.schema.base import LEVELS, SCHEMA_VERSION
 from parserV2 import synthetic
 from parserV2.fixtures import PackagedDocument, document_pairs, level_pairs
@@ -149,56 +149,80 @@ def test_every_executable_duplicate_mode_names_one_policy(mode: DuplicateMode) -
 @pytest.mark.parametrize(
     ("config", "expected"),
     [
-        (CoalesceColumnConfig(kind="coalesce", name="C", inputs=("a", "b")), CoalesceColumn),
+        (Coalesce(how="coalesce", name="C", inputs=["a", "b"]), CoalesceColumn),
         (
-            JoinNonemptyColumnConfig(
-                kind="join_nonempty", name="J", inputs=("a", "b"), separator=","
-            ),
+            JoinNonempty(how="join_nonempty", name="J", inputs=["a", "b"], separator=","),
             JoinNonemptyColumn,
         ),
         (
-            StrippedSequenceColumnConfig(
-                kind="stripped_sequence",
-                name="S",
-                inputs=("Sequence",),
-                syntax=PlainSequenceSyntaxConfig(kind="plain_sequence"),
+            StrippedSequence(
+                how="stripped_sequence",
+                inputs=["Sequence"],
+                syntax="plain",
             ),
             SequenceColumn,
         ),
         (
-            ProformaSequenceColumnConfig(
-                kind="proforma_sequence",
-                name="P",
-                inputs=("Modified_Sequence",),
-                normalization=TokenRegexModificationConfig(
-                    kind="token_regex",
-                    token_pattern=r"\(([^()]*)\)",
-                    token_position="after_residue",
-                    case_sensitive=False,
-                    unknown_policy="preserve",
-                    entries=(),
-                ),
+            ProformaSequence(
+                how="proforma_sequence",
+                inputs=["Modified_Sequence"],
+                syntax="tokens",
+                modification_map="basic",
             ),
             SequenceColumn,
         ),
         (
-            ProformaIonColumnConfig(kind="proforma_ion", name="I", inputs=("P", "Z")),
+            ProformaIon(how="proforma_ion", inputs=["P", "Z"]),
             ProformaIonColumn,
         ),
         (
-            ProformaFragmentColumnConfig(kind="proforma_fragment", name="F", inputs=("I", "L")),
+            ProformaFragment(how="proforma_fragment", inputs=["I", "L"]),
             ProformaFragmentColumn,
         ),
     ],
-    ids=lambda value: getattr(value, "kind", getattr(value, "__name__", "")),
+    ids=lambda value: getattr(value, "how", getattr(value, "__name__", "")),
 )
 def test_every_computed_column_declaration_names_one_computer(
-    config: object, expected: type
+    config: ComputedColumn, expected: type
 ) -> None:
-    computer = make_column_computer(config)  # pyright: ignore[reportArgumentType]
+    document = synthetic.document(
+        shape="long",
+        base={
+            "axis": {"obs_keys": ["sample"], "var_keys": [config.name]},
+            "columns": {
+                "obs": [{"name": "sample", "source": "Run"}],
+                "var": [
+                    {"name": name, "source": name, "type": "integer" if name == "Z" else "string"}
+                    for name in config.inputs
+                ]
+                + [config.model_dump(mode="json")],
+            },
+            "measurements": {
+                "primary_layer": "Quantity",
+                "layers": [{"name": "Quantity", "source": "Quantity"}],
+            },
+            "sequence_syntax": {
+                "plain": {"parser": "plain_sequence"},
+                "tokens": {"parser": "token_regex", "token_pattern": r"\(([^()]*)\)"},
+            },
+            "modification_maps": {"basic": [{"token": "ox", "accession": "UNIMOD:35"}]},
+        },
+        levels={"fragment": {}},
+    )
+    facade = ParseRuleFacade(document, "fragment", synthetic.NO_EVIDENCE)
+    computer = facade.working_parameters.var.computed[0]
 
     assert isinstance(computer, expected)
+    assert computer.inputs == tuple(config.inputs)
+    assert computer.name == config.name
     assert not hasattr(computer, "kind")
+    strategy = facade.resolve_source(
+        DelimitedSourceEvidence(("Run", "Quantity", *config.inputs), "\t", '"', "utf8", DOT)
+    )
+    assert strategy.var.key_phase.computers[0] is computer
+    assert (
+        synthetic.plan_snapshot(strategy)["var"]["key_phase"]["computers"][0]["kind"] == config.how
+    )
 
 
 @pytest.mark.parametrize(
@@ -302,9 +326,9 @@ def test_every_modification_declaration_names_one_normalizer() -> None:
         entries=(),
     )
 
-    from_site_list = make_sequence_normalizer(site_list)
-    from_token_regex = make_sequence_normalizer(token_regex)
-    from_embedded = make_sequence_normalizer(embedded)
+    from_site_list = SiteListNormalizer(site_list)
+    from_token_regex = TokenRegexNormalizer(token_regex)
+    from_embedded = EmbeddedSiteListNormalizer(embedded)
 
     assert isinstance(from_site_list, SiteListNormalizer)
     assert isinstance(from_token_regex, TokenRegexNormalizer)
@@ -546,7 +570,7 @@ def test_each_detection_selection_is_compiled_exactly_once(
     document = load_rule_document(pair.parser_v2_path)
     source = SingleFile(path=pair.required_data_path())
     compiled: list[str] = []
-    from apb2.parserV2 import compile as compilation
+    from apb2.parserV2 import detect_document as compilation
 
     original_compile = compilation.compile_level
 
@@ -560,15 +584,17 @@ def test_each_detection_selection_is_compiled_exactly_once(
 
     monkeypatch.setattr(compilation, "compile_level", record_compile)
 
-    ExplicitRuleCompiler(
+    compiler = ExplicitRuleCompiler(
         document,
         source,
         ("ion", "protein"),
         synthetic.NO_EVIDENCE,
         checks="standard",
-    ).compile()
+    )
+    compiler.compile()
+    compiler.compile()
 
-    assert compiled == ["ion", "protein"]
+    assert compiled.count("ion") == compiled.count("protein") == 1
 
 
 def test_collection_parser_has_no_persistence_api() -> None:
@@ -696,7 +722,7 @@ def test_every_packaged_level_accepts_a_header_built_from_its_own_requirements(
     exact = {
         selection.source
         for axis in (working.obs, working.var)
-        for selection in axis.columns.required_selections
+        for selection in axis.required_selections
     }
     accepts = working.accepts_header(header)
     assert accepts == (exact <= set(header) and accepts)

@@ -384,7 +384,7 @@
     }
   },
   "additionalProperties": false,
-  "description": "One parsed rules.json, as a shell around raw dict fragments \u2014 private on purpose.\n\nThe fragments stay raw dicts through the base-times-level merge \u2014 merging dicts needs no\nmodels, presence is key membership \u2014 and cross the single typed boundary,\n``validate_rule``, only once composed. Cross-block semantics are validated there:\nunknown keys and wrong types ride through the merge and are reported there with paths.",
+  "description": "One rules.json, with raw fragments validated after base/level composition.\n\nThe fragments stay raw dicts through the base-times-level merge \u2014 merging dicts needs no\nmodels, presence is key membership \u2014 and cross the single typed boundary,\n``validate_rule``, only once composed. Cross-block semantics are validated there:\nunknown keys and wrong types ride through the merge and are reported there with paths.",
   "properties": {
     "schema_version": {
       "$ref": "#/$defs/SchemaVersion"

@@ -45,6 +45,13 @@ class BoundTable:
             raise IncompatibleSourceError("multiple/prepared inputs require a preparation rule")
 
         suffix = path.suffix.lower()
+        extensions = {
+            extension for declared in contract.formats for extension in declared.extensions
+        }
+        if suffix == ".parquet" and ".parquet" not in extensions:
+            raise IncompatibleSourceError(f"{path} is Parquet but the rule is delimited")
+        if suffix != ".parquet" and extensions == {".parquet"}:
+            raise IncompatibleSourceError(f"{path} is not a Parquet file")
         claiming = tuple(declared for declared in contract.formats if suffix in declared.extensions)
         if not claiming and len(contract.formats) == 1:
             selected = contract.formats[0]

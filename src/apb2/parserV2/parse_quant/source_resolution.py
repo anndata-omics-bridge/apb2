@@ -7,6 +7,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Literal
 
+from apb2.parserV2.parse_quant.axis_columns import CoalesceColumn, JoinNonemptyColumn
 from apb2.parserV2.parse_quant.contracts import (
     AxisPhaseRuntimePlan,
     AxisRuntimePlan,
@@ -25,25 +26,27 @@ from apb2.parserV2.parse_quant.fragments import (
     PositionalFragmentTableSeparator,
 )
 from apb2.parserV2.parse_quant.layer_validation import LayerContractValidator
+from apb2.parserV2.parse_quant.modifications import (
+    EmbeddedSiteListNormalizer,
+    SequenceColumn,
+    SiteListNormalizer,
+    TokenRegexNormalizer,
+)
 from apb2.parserV2.parse_quant.operations import (
+    ComputedOperation,
+    WorkingAxisConfiguration,
+    WorkingParseConfiguration,
     duplicate_policy_for,
     make_axis_coercer,
-    make_column_computer,
     make_layer_operations,
 )
 from apb2.parserV2.parse_quant.parameters.axis import (
     AxisColumnSelection,
     AxisKeyPlan,
     AxisSourcePlan,
-    CoalesceColumnConfig,
-    ComputedColumnConfig,
-    JoinNonemptyColumnConfig,
-    ProformaSequenceColumnConfig,
-    WorkingAxisConfiguration,
 )
 from apb2.parserV2.parse_quant.parameters.level import (
     JsonValue,
-    WorkingParseConfiguration,
 )
 from apb2.parserV2.parse_quant.parameters.measurements import (
     LayerValueConfig,
@@ -89,7 +92,6 @@ class _ResolvedLayers:
     long_sources: tuple[LongRawLayerSource, ...]
     wide_plans: tuple[WideRawLayerPlan, ...]
     source_columns: frozenset[str]
-    plain_numeric_columns: frozenset[str]
 
 
 @dataclass(frozen=True, slots=True)
@@ -177,7 +179,7 @@ class SourcePlanResolver:
 
     def _accounted(self, var: AxisSourcePlan) -> frozenset[str]:
         """Names a permissive wide layer pattern must not mistake for a sample column."""
-        declaration = self._configuration.var.columns
+        declaration = self._configuration.var
         return frozenset(
             {
                 *declaration.declared_order,
@@ -198,7 +200,7 @@ class SourcePlanResolver:
         numbers: NumericTextFormat,
     ) -> tuple[AxisSourcePlan, AxisRuntimePlan, dict[str, object]]:
         """Resolve one axis: prune what this source cannot provide, then plan both phases."""
-        declaration = axis.columns
+        declaration = axis
         missing = [
             selection.source
             for selection in declaration.required_selections
@@ -230,10 +232,13 @@ class SourcePlanResolver:
         early_outputs = tuple(
             computer.name
             for computer in computers
-            if isinstance(computer, ProformaSequenceColumnConfig)
+            if isinstance(computer, SequenceColumn)
+            and isinstance(
+                computer.operation,
+                TokenRegexNormalizer | SiteListNormalizer | EmbeddedSiteListNormalizer,
+            )
         )
         closure = self._dependency_closure((*axis.final_key_columns, *early_outputs), computers)
-        self._require_output_phase_keeps_identity(axis.final_key_columns, closure, selections)
         source = AxisSourcePlan(
             keys=keys,
             payload_sources=self._ordered_unique(
@@ -259,35 +264,13 @@ class SourcePlanResolver:
             },
         )
 
-    def _require_output_phase_keeps_identity(
-        self,
-        final_keys: tuple[str, ...],
-        closure: frozenset[str],
-        selections: tuple[AxisColumnSelection, ...],
-    ) -> None:
-        """Metadata is materialized after the collision check, so it may not rewrite a key.
-
-        A selection or computation naming a final key must be inside the identity closure;
-        outside it, it would run after the check that just proved the keys are distinct.
-        """
-        offenders = sorted(
-            selection.name
-            for selection in selections
-            if selection.name in set(final_keys) and selection.name not in closure
-        )
-        if offenders:
-            raise ValueError(
-                f"{self._label()} materializes the axis key(s) {offenders} outside the "
-                "identity closure, which would overwrite them after validation"
-            )
-
     def _materializable(
         self,
-        declared: tuple[ComputedColumnConfig, ...],
+        declared: tuple[ComputedOperation, ...],
         selections: tuple[AxisColumnSelection, ...],
         synthesized: tuple[str, ...],
         skipped: set[str],
-    ) -> tuple[RawSources, tuple[ComputedColumnConfig, ...]]:
+    ) -> tuple[RawSources, tuple[ComputedOperation, ...]]:
         """Walk the declarations in order, binding each name to its physical closure.
 
         Reading the environment before rebinding is what lets a computed column consume a
@@ -297,7 +280,7 @@ class SourcePlanResolver:
         raw_sources: dict[str, tuple[str, ...]] = {name: (name,) for name in synthesized}
         for selection in selections:
             raw_sources[selection.name] = (selection.source,)
-        retained: list[ComputedColumnConfig] = []
+        retained: list[ComputedOperation] = []
         for computer in declared:
             resolved = self._prune_inputs(computer, raw_sources)
             if resolved is None:
@@ -312,7 +295,7 @@ class SourcePlanResolver:
     def _axis_key_plan(
         self,
         final_keys: tuple[str, ...],
-        computers: tuple[ComputedColumnConfig, ...],
+        computers: tuple[ComputedOperation, ...],
         raw_sources: RawSources,
         skipped: set[str],
     ) -> AxisKeyPlan:
@@ -364,9 +347,7 @@ class SourcePlanResolver:
                 f"{self._label()} requires layer source column(s) {missing} that this source "
                 "does not carry"
             )
-        retained = tuple(
-            layer for layer in measurements.authored_layers() if layer.source in present
-        )
+        retained = tuple(layer for layer in measurements.layers if layer.source in present)
         return _ResolvedLayers(
             retained=retained,
             required_names=tuple(layer.name for layer in retained if layer.name in required),
@@ -376,9 +357,6 @@ class SourcePlanResolver:
             ),
             wide_plans=(),
             source_columns=frozenset(layer.source for layer in retained),
-            plain_numeric_columns=frozenset(
-                layer.source for layer in retained if layer.supports_native_numeric_read()
-            ),
         )
 
     def _resolve_wide_layers(
@@ -394,7 +372,7 @@ class SourcePlanResolver:
         candidates = tuple(name for name in columns if name not in accounted)
         matches = {
             layer.name: self._match_samples(candidates, layer.source)
-            for layer in measurements.authored_layers()
+            for layer in measurements.layers
         }
         primary = measurements.primary_layer_name
         samples = self._ordered_unique(sample for _column, sample in matches[primary])
@@ -405,7 +383,7 @@ class SourcePlanResolver:
         required = {layer.name for layer in measurements.required_layers}
         retained: list[WorkingMeasurementLayer] = []
         plans: list[WideRawLayerPlan] = []
-        for layer in measurements.authored_layers():
+        for layer in measurements.layers:
             aligned = tuple(
                 WideRawLayerSource(source_column=column, sample=sample)
                 for column, sample in matches[layer.name]
@@ -427,12 +405,6 @@ class SourcePlanResolver:
             wide_plans=tuple(plans),
             source_columns=frozenset(
                 source.source_column for plan in plans for source in plan.sources
-            ),
-            plain_numeric_columns=frozenset(
-                source.source_column
-                for layer, plan in zip(retained, plans, strict=True)
-                if layer.supports_native_numeric_read()
-                for source in plan.sources
             ),
         )
 
@@ -475,11 +447,8 @@ class SourcePlanResolver:
             frozenset()
             if evidence.number_format.thousands_marks
             or self._configuration.measurements.duplicate_mode != "aggregate"
-            else frozenset(
-                column
-                for column in projected
-                if column in layers.plain_numeric_columns and column not in lexical
-            )
+            # The facade already rejects aggregate rules with non-plain numeric layers.
+            else layers.source_columns - lexical
         )
         return LevelReadPlan(
             projected_columns=projected,
@@ -599,26 +568,26 @@ class SourcePlanResolver:
 
     @staticmethod
     def _prune_inputs(
-        computer: ComputedColumnConfig, available: RawSources
-    ) -> ComputedColumnConfig | None:
+        computer: ComputedOperation, available: RawSources
+    ) -> ComputedOperation | None:
         """Drop the inputs this source cannot provide, or report the computation as blocked.
 
         Only the two combining operations survive a missing input: coalescing or joining the
         columns that are present is the operation the rule asked for. Everything else needs
         every input it declared.
         """
-        if isinstance(computer, CoalesceColumnConfig | JoinNonemptyColumnConfig):
+        if isinstance(computer, CoalesceColumn | JoinNonemptyColumn):
             kept = tuple(name for name in computer.inputs if name in available)
             if not kept:
                 return None
-            return replace(computer, inputs=kept)
+            return computer if kept == computer.inputs else replace(computer, inputs=kept)
         if any(name not in available for name in computer.inputs):
             return None
         return computer
 
     @staticmethod
     def _dependency_closure(
-        final_keys: tuple[str, ...], computers: tuple[ComputedColumnConfig, ...]
+        final_keys: tuple[str, ...], computers: tuple[ComputedOperation, ...]
     ) -> frozenset[str]:
         """Every declared name that must be materialized before identity can be checked."""
         by_name = {computer.name: computer for computer in computers}
@@ -637,7 +606,7 @@ class SourcePlanResolver:
     @staticmethod
     def _phase(
         selections: tuple[AxisColumnSelection, ...],
-        computers: tuple[ComputedColumnConfig, ...],
+        computers: tuple[ComputedOperation, ...],
         closure: frozenset[str],
         numbers: NumericTextFormat,
         *,
@@ -651,7 +620,7 @@ class SourcePlanResolver:
                 SelectedAxisColumn(s.name, s.source, make_axis_coercer(s.logical_type, numbers))
                 for s in selections
             ),
-            computers=tuple(make_column_computer(c) for c in computers),
+            computers=computers,
         ), {"selections": selections, "computers": computers}
 
     @staticmethod

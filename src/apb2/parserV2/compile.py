@@ -12,14 +12,11 @@ from apb2.parserV2.detect_document import (
     RuleUnavailableError,
     detect_rule_documents,
     guess_software,
-    search_parameter_evidence,
     select_document_levels,
     software_slug,
 )
 from apb2.parserV2.parse_quant.parameters.source import Folder, InputSource, SingleFile
 from apb2.parserV2.parse_quant.parser import ParserCollection
-from apb2.parserV2.parse_rule_facade import ParseRuleFacade
-from apb2.parserV2.parser_factory import compile_level
 from apb2.parserV2.vendor_params.parsers.shared.model import Parameters
 from apb2.parserV2.vendor_params.registry import parse_params
 from apb2.parserV2.vendor_parse_rules.document import RuleDocument, SearchParameterEvidence
@@ -31,8 +28,7 @@ type ValidationChecks = Literal["standard", "strict"]
 class ParseRuleCompiler:
     """Resolve vendor inputs once and compile their complete parser collection."""
 
-    __slots__ = ("_checks", "_detection", "_parameter_evidence", "_parameters")
-    _checks: ValidationChecks
+    __slots__ = ("_detection", "_parameters")
 
     def __init__(
         self,
@@ -68,7 +64,7 @@ class ParseRuleCompiler:
                 "explicit rule document"
             )
         parameters = parse_params(parameters_path, software=parameter_parser)
-        detection = detect_rule_documents(parameters, source, levels)
+        detection = detect_rule_documents(parameters, source, levels, checks=checks)
         if requested_software is not None and detection.software != requested_software:
             raise RuleUnavailableError(
                 f"software {requested_software!r} does not match the detected vendor "
@@ -76,8 +72,6 @@ class ParseRuleCompiler:
             )
         self._parameters = parameters
         self._detection = detection
-        self._parameter_evidence = search_parameter_evidence(parameters)
-        self._checks = checks
 
     @property
     def parameters(self) -> Parameters:
@@ -91,18 +85,13 @@ class ParseRuleCompiler:
 
     def compile(self) -> ParserCollection:
         """Compile every detected selection into one collection parser."""
-        return _compile_selections(
-            self._detection.levels,
-            self._parameter_evidence,
-            self._checks,
-        )
+        return ParserCollection(tuple(selection.parser for selection in self._detection.levels))
 
 
 class ExplicitRuleCompiler:
     """Compile caller-supplied rule documents without vendor auto-detection."""
 
-    __slots__ = ("_checks", "_parameter_evidence", "_selections")
-    _checks: ValidationChecks
+    __slots__ = ("_selections",)
 
     def __init__(
         self,
@@ -114,7 +103,9 @@ class ExplicitRuleCompiler:
         checks: ValidationChecks = "standard",
     ) -> None:
         levels = _validated_levels(requested_levels)
-        selections = select_document_levels(document, source, levels, parameter_evidence)
+        selections = select_document_levels(
+            document, source, levels, parameter_evidence, checks=checks
+        )
         if not selections:
             names = {
                 level: document.declared(level).input.file_name
@@ -126,8 +117,6 @@ class ExplicitRuleCompiler:
                 f"expected named tables: {names}"
             )
         self._selections = selections
-        self._parameter_evidence = parameter_evidence
-        self._checks = checks
 
     @property
     def selections(self) -> tuple[LevelSelection, ...]:
@@ -136,27 +125,7 @@ class ExplicitRuleCompiler:
 
     def compile(self) -> ParserCollection:
         """Compile every explicit selection into one collection parser."""
-        return _compile_selections(
-            self._selections,
-            self._parameter_evidence,
-            self._checks,
-        )
-
-
-def _compile_selections(
-    selections: tuple[LevelSelection, ...],
-    parameter_evidence: SearchParameterEvidence,
-    checks: ValidationChecks,
-) -> ParserCollection:
-    parsers = tuple(
-        compile_level(
-            ParseRuleFacade(selection.document, selection.level, parameter_evidence),
-            selection.source,
-            checks,
-        )
-        for selection in selections
-    )
-    return ParserCollection(parsers)
+        return ParserCollection(tuple(selection.parser for selection in self._selections))
 
 
 def _validated_levels(

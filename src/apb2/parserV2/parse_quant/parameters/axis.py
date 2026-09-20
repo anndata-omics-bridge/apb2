@@ -1,12 +1,12 @@
 """Axis parameters: what one small axis frame selects, computes, and calls its identity.
 
-Three questions, three groups of values. ``AxisColumnSelection`` and the computed-column
-configurations say how a declared column is materialized. ``AxisKeyPlan`` says which columns
+``AxisColumnSelection`` describes the physical source of one logical column. Computations
+are executable objects in the compiler contract, not configuration copies. ``AxisKeyPlan`` says which columns
 carry identity, at which of the three stages. ``ModificationConfig`` carries everything one
 modification normalizer needs, already resolved — the accession lookups happened during rule
 projection, so nothing here consults a registry or a Unimod file.
 
-Every value is a plain immutable record. ``kind`` tags support construction and provenance;
+Every value is a plain immutable record. Normalizer ``kind`` tags support provenance;
 normalizers reuse these settings directly but never dispatch on their tags.
 """
 
@@ -31,103 +31,6 @@ class AxisColumnSelection:
     name: str
     source: str
     logical_type: AxisLogicalType
-
-
-# ------------------------------------------------------------------------ computed columns
-
-
-@dataclass(frozen=True, slots=True)
-class CoalesceColumnConfig:
-    """Take the first non-null input value in declaration order."""
-
-    kind: Literal["coalesce"]
-    name: str
-    inputs: tuple[str, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class JoinNonemptyColumnConfig:
-    """Join the non-empty input values with a separator."""
-
-    kind: Literal["join_nonempty"]
-    name: str
-    inputs: tuple[str, ...]
-    separator: str
-
-
-@dataclass(frozen=True, slots=True)
-class StrippedSequenceColumnConfig:
-    """Strip the declared logical input using syntax only, without a modification map."""
-
-    kind: Literal["stripped_sequence"]
-    name: str
-    inputs: tuple[str, ...]
-    syntax: StrippingSyntaxConfig
-
-
-@dataclass(frozen=True, slots=True)
-class ProformaSequenceColumnConfig:
-    """Normalize the declared logical inputs using resolved modification settings."""
-
-    kind: Literal["proforma_sequence"]
-    name: str
-    inputs: tuple[str, ...]
-    normalization: ModificationConfig
-
-
-@dataclass(frozen=True, slots=True)
-class ProformaIonColumnConfig:
-    """Combine a peptidoform and a positive integer charge into a ProForma ion."""
-
-    kind: Literal["proforma_ion"]
-    name: str
-    inputs: tuple[str, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class ProformaFragmentColumnConfig:
-    """Combine a ProForma ion and a fragment label into a ProForma fragment."""
-
-    kind: Literal["proforma_fragment"]
-    name: str
-    inputs: tuple[str, ...]
-
-
-type ComputedColumnConfig = (
-    CoalesceColumnConfig
-    | JoinNonemptyColumnConfig
-    | StrippedSequenceColumnConfig
-    | ProformaSequenceColumnConfig
-    | ProformaIonColumnConfig
-    | ProformaFragmentColumnConfig
-)
-
-
-@dataclass(frozen=True, slots=True)
-class AxisColumnDeclaration:
-    """One axis's authored columns before any physical source is known.
-
-    Required and optional selections are separate collections rather than one collection of
-    flagged records: an axis key may never be optional, and source resolution prunes only
-    the optional side.
-    """
-
-    required_selections: tuple[AxisColumnSelection, ...]
-    optional_selections: tuple[AxisColumnSelection, ...]
-    computed: tuple[ComputedColumnConfig, ...]
-    declared_order: tuple[str, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class WorkingAxisConfiguration:
-    """One axis's final identity and projected column declarations."""
-
-    final_key_columns: tuple[str, ...]
-    columns: AxisColumnDeclaration
-
-    def required_sources(self) -> tuple[str, ...]:
-        """Return physical selection sources required to construct this axis."""
-        return tuple(selection.source for selection in self.columns.required_selections)
 
 
 # ---------------------------------------------------------------------------- axis identity
@@ -210,22 +113,3 @@ class EmbeddedSiteListModificationConfig:
 type ModificationConfig = (
     TokenRegexModificationConfig | SiteListModificationConfig | EmbeddedSiteListModificationConfig
 )
-
-
-@dataclass(frozen=True, slots=True)
-class PlainSequenceSyntaxConfig:
-    """Bare sequences: alphabetic characters carry residues."""
-
-    kind: Literal["plain_sequence"]
-
-
-@dataclass(frozen=True, slots=True)
-class TokenRegexSyntaxConfig:
-    """Inline token recognition without any modification lookup settings."""
-
-    kind: Literal["token_regex"]
-    token_pattern: str
-    token_position: ModificationTokenPosition
-
-
-type StrippingSyntaxConfig = PlainSequenceSyntaxConfig | TokenRegexSyntaxConfig

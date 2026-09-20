@@ -4,19 +4,21 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
 from apb2.parserV2.parse_quant.errors import IncompatibleSourceError
 from apb2.parserV2.parse_quant.parameters.source import (
     Folder,
-    FrameSourceEvidence,
     InputFiles,
     InputSource,
     PreparedTable,
     SingleFile,
 )
+from apb2.parserV2.parse_quant.parser import Parser
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
+from apb2.parserV2.parser_factory import compile_level
 from apb2.parserV2.prepare_source import (
     InputPreparationError,
     preparation_paths,
@@ -63,6 +65,7 @@ class LevelSelection:
     document: RuleDocument
     source_path: Path
     source: InputSource
+    parser: Parser = field(repr=False, compare=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,6 +137,8 @@ def detect_rule_documents(
     parameters: Parameters,
     source: InputSource,
     levels: Iterable[QuantificationLevel],
+    *,
+    checks: Literal["standard", "strict"] = "standard",
 ) -> DetectedRuleSet:
     """Identify one packaged rule per compatible requested level.
 
@@ -157,7 +162,9 @@ def detect_rule_documents(
                 name = document.declared(level).input.file_name
                 if name is not None:
                     expected_names[level].add(name)
-        for selection in select_document_levels(document, source, requested, evidence):
+        for selection in select_document_levels(
+            document, source, requested, evidence, checks=checks
+        ):
             matches[selection.level].append(selection)
 
     selected = _unique_level_matches(matches, requested)
@@ -180,6 +187,8 @@ def select_document_levels(
     source: InputSource,
     levels: Iterable[QuantificationLevel],
     evidence: SearchParameterEvidence,
+    *,
+    checks: Literal["standard", "strict"] = "standard",
 ) -> tuple[LevelSelection, ...]:
     """Select table groups before compiling, for packaged and explicit documents alike.
 
@@ -207,7 +216,7 @@ def select_document_levels(
         consumed.update(paths)
         table_matches: list[LevelSelection] = []
         for candidate in candidates:
-            observed = _detect_table_levels(document, table, evidence, candidate)
+            observed = _detect_table_levels(document, table, evidence, candidate, checks)
             consumed.update(match.source_path for match in observed.matches)
             if selected and _present_table_is_incompatible(observed):
                 raise RuleUnavailableError(
@@ -295,6 +304,7 @@ def _detect_table_levels(
     requested: tuple[QuantificationLevel, ...],
     evidence: SearchParameterEvidence,
     source: InputSource,
+    checks: Literal["standard", "strict"],
 ) -> _TableDetection:
     """Inspect requested levels that share one physical input."""
     matches: list[LevelSelection] = []
@@ -314,7 +324,12 @@ def _detect_table_levels(
             elif source.path.name == declared_name:
                 named_tables.add(source.path)
         try:
-            source_path = _matched_source_path(facade, source)
+            parser = compile_level(facade, source, checks)
+            source_path = (
+                source.path / declared_name
+                if isinstance(source, Folder) and declared_name is not None
+                else source.path
+            )
         except IncompatibleSourceError as error:
             incompatibilities.append(f"{level}: {error}")
             continue
@@ -324,6 +339,7 @@ def _detect_table_levels(
                 document=document,
                 source_path=source_path,
                 source=SingleFile(source_path) if isinstance(source, Folder) else source,
+                parser=parser,
             )
         )
     return _TableDetection(
@@ -376,36 +392,14 @@ def _document_matches(document: RuleDocument, source: InputSource) -> bool:
 
 def _source_matches(facade: ParseRuleFacade, source: InputSource) -> bool:
     try:
-        _matched_source_path(facade, source)
+        working = facade.working_parameters
+        if isinstance(source, PreparedTable):
+            return working.accepts_header(tuple(source.frame.columns))
+        bound = BoundTable(source, working.input)
+        observed = bound.recognition_evidence(working.accepts_header)
+        return working.accepts_header(observed.columns)
     except IncompatibleSourceError:
         return False
-    return True
-
-
-def _matched_source_path(facade: ParseRuleFacade, source: InputSource) -> Path:
-    """Return the concrete table path when one level accepts the source."""
-    working = facade.working_parameters
-    if isinstance(source, PreparedTable):
-        facade.resolve_source(
-            FrameSourceEvidence(
-                columns=tuple(source.frame.columns), dtypes=tuple(source.frame.schema.items())
-            )
-        )
-        return source.path
-    bound = BoundTable(source, working.input)
-    extensions = {
-        extension
-        for physical_format in working.input.formats
-        for extension in physical_format.extensions
-    }
-    suffix = bound.path.suffix.lower()
-    if suffix == ".parquet" and ".parquet" not in extensions:
-        raise IncompatibleSourceError(f"{bound.path} is Parquet but the rule is delimited")
-    if suffix != ".parquet" and extensions == {".parquet"}:
-        raise IncompatibleSourceError(f"{bound.path} is not a Parquet file")
-    observed = bound.recognition_evidence(working.accepts_header)
-    facade.resolve_source(observed)
-    return bound.path
 
 
 def _requested_levels(

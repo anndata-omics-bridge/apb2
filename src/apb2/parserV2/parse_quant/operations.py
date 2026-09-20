@@ -1,21 +1,18 @@
-"""Construct parser runtime collaborators from resolved rule declarations.
+"""The compiler's semantic input: source requirements and executable column operations.
 
-Every declarative discriminator selects behavior here, exactly once. Settings may retain tags
-for provenance; past this boundary nothing dispatches on what
-vendor, level, layout, value form, duplicate mode, or output format it is dealing with, because
-the answer has already become behaviour.
+The parent facade chooses computations from authored declarations, without retaining storage
+models. Source resolution binds these same objects to available inputs and execution phases.
+Only coercion and layer parsing still need construction here: their numeric notation comes
+from the physical source. Duplicate policies are immutable, stateless registry entries.
 
-Two kinds of dispatch appear below, and the difference is deliberate. Where a tag selects among
-stateless implementations, a table maps the tag to the instance. Where construction needs the
-declaration's own fields, one function per family narrows the closed union — which is the same
-single dispatch point, with exhaustiveness checked by the type checker instead of by a string
-key.
-
+These contracts compose inward settings and behavior, so they live here rather than in the
+independent parameters leaf. The parser itself consumes only the bound runtime collaborators.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 
 from apb2.parserV2.parse_quant.axis_columns import (
     BooleanAxisCoercer,
@@ -29,7 +26,6 @@ from apb2.parserV2.parse_quant.axis_columns import (
 )
 from apb2.parserV2.parse_quant.contracts import (
     AxisValueCoercer,
-    ColumnComputer,
     DuplicatePolicy,
     LayerValueParser,
     RawValuePresence,
@@ -44,35 +40,25 @@ from apb2.parserV2.parse_quant.duplicates import (
     RegexNumericRawValuePresence,
 )
 from apb2.parserV2.parse_quant.modifications import (
-    EmbeddedSiteListNormalizer,
-    PlainSequenceStripper,
     SequenceColumn,
-    SequenceOperation,
-    SiteListNormalizer,
-    TokenRegexNormalizer,
-    TokenRegexStripper,
 )
 from apb2.parserV2.parse_quant.parameters.axis import (
+    AxisColumnSelection,
     AxisLogicalType,
-    CoalesceColumnConfig,
-    ComputedColumnConfig,
-    EmbeddedSiteListModificationConfig,
-    JoinNonemptyColumnConfig,
-    ModificationConfig,
-    ProformaIonColumnConfig,
-    ProformaSequenceColumnConfig,
-    SiteListModificationConfig,
-    StrippedSequenceColumnConfig,
-    StrippingSyntaxConfig,
-    TokenRegexSyntaxConfig,
 )
+from apb2.parserV2.parse_quant.parameters.level import JsonValue, QuantificationLevel
 from apb2.parserV2.parse_quant.parameters.measurements import (
     DuplicateMode,
     LayerValueConfig,
     PlainNumericLayerDeclaration,
     RegexNumericLayerDeclaration,
+    WorkingMeasurements,
 )
-from apb2.parserV2.parse_quant.parameters.source import NumericTextFormat
+from apb2.parserV2.parse_quant.parameters.source import (
+    InputContract,
+    NumericTextFormat,
+    SourceLayoutDeclaration,
+)
 from apb2.parserV2.parse_quant.value_parsing import (
     FactorLayerParser,
     PlainNumericLayerParser,
@@ -80,6 +66,52 @@ from apb2.parserV2.parse_quant.value_parsing import (
 )
 
 # ----------------------------------------------------------------------------- registries
+
+type ComputedOperation = (
+    CoalesceColumn
+    | JoinNonemptyColumn
+    | SequenceColumn
+    | ProformaIonColumn
+    | ProformaFragmentColumn
+)
+
+
+@dataclass(frozen=True, slots=True)
+class WorkingAxisConfiguration:
+    """One axis's physical selections and already constructed computations."""
+
+    final_key_columns: tuple[str, ...]
+    required_selections: tuple[AxisColumnSelection, ...]
+    optional_selections: tuple[AxisColumnSelection, ...]
+    computed: tuple[ComputedOperation, ...]
+    declared_order: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class WorkingParseConfiguration:
+    """Pydantic-free source requirements and operations produced by the facade."""
+
+    level: QuantificationLevel
+    input: InputContract
+    source_layout: SourceLayoutDeclaration
+    obs: WorkingAxisConfiguration
+    var: WorkingAxisConfiguration
+    measurements: WorkingMeasurements
+    provenance: Mapping[str, JsonValue]
+    preparation: str | None = None
+
+    def accepts_header(self, header: tuple[str, ...]) -> bool:
+        """Whether all required physical sources occur in a candidate header."""
+        required = {
+            selection.source
+            for axis in (self.obs, self.var)
+            for selection in axis.required_selections
+        } | set(self.source_layout.packed_sources())
+        return required <= set(header) and all(
+            self.source_layout.has_layer_source(layer.source, header)
+            for layer in self.measurements.required_layers
+        )
+
 
 _DUPLICATE_POLICIES: Mapping[DuplicateMode, DuplicatePolicy] = {
     "error": ErrorOnDuplicates(),
@@ -113,45 +145,6 @@ def make_axis_coercer(
 def duplicate_policy_for(mode: DuplicateMode) -> DuplicatePolicy:
     """Select the policy one resolved duplicate mode names."""
     return _DUPLICATE_POLICIES[mode]
-
-
-def make_column_computer(config: ComputedColumnConfig) -> ColumnComputer:
-    """Construct the computed column one declaration describes."""
-    if isinstance(config, CoalesceColumnConfig):
-        return CoalesceColumn(name=config.name, inputs=config.inputs)
-    if isinstance(config, JoinNonemptyColumnConfig):
-        return JoinNonemptyColumn(
-            name=config.name, inputs=config.inputs, separator=config.separator
-        )
-    if isinstance(config, StrippedSequenceColumnConfig):
-        return SequenceColumn(
-            name=config.name, inputs=config.inputs, operation=make_sequence_stripper(config.syntax)
-        )
-    if isinstance(config, ProformaSequenceColumnConfig):
-        return SequenceColumn(
-            name=config.name,
-            inputs=config.inputs,
-            operation=make_sequence_normalizer(config.normalization),
-        )
-    if isinstance(config, ProformaIonColumnConfig):
-        return ProformaIonColumn(name=config.name, inputs=config.inputs)
-    return ProformaFragmentColumn(name=config.name, inputs=config.inputs)
-
-
-def make_sequence_stripper(config: StrippingSyntaxConfig) -> SequenceOperation:
-    """Construct residue extraction without looking up modification identities."""
-    if isinstance(config, TokenRegexSyntaxConfig):
-        return TokenRegexStripper(config.token_pattern, config.token_position)
-    return PlainSequenceStripper()
-
-
-def make_sequence_normalizer(config: ModificationConfig) -> SequenceOperation:
-    """Construct the normalizer one modification declaration describes."""
-    if isinstance(config, SiteListModificationConfig):
-        return SiteListNormalizer(rules=config)
-    if isinstance(config, EmbeddedSiteListModificationConfig):
-        return EmbeddedSiteListNormalizer(rules=config)
-    return TokenRegexNormalizer(rules=config)
 
 
 def make_layer_operations(

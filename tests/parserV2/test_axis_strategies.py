@@ -43,7 +43,6 @@ from apb2.parserV2.parse_quant.modifications import (
     normalize_token_regex,
     render_proforma,
 )
-from apb2.parserV2.parse_quant.operations import make_sequence_normalizer
 from apb2.parserV2.parse_quant.parameters.axis import (
     EmbeddedSiteListModificationConfig,
     ModificationMapEntry,
@@ -507,7 +506,7 @@ def test_normalization_returns_one_column_and_explicit_diagnostics_in_row_order(
     computer = SequenceColumn(
         name="ProForma_peptidoform",
         inputs=("Modified_Sequence",),
-        operation=make_sequence_normalizer(token_regex()),
+        operation=TokenRegexNormalizer(token_regex()),
     )
     sequences = pl.Series("vendor sequence", ["PEPM(ox)IDE", "PEPM(weird)IDE", "PEPM(ox)IDE", None])
     result = computer.compute((sequences,))
@@ -522,7 +521,7 @@ def test_normalization_returns_one_column_and_explicit_diagnostics_in_row_order(
 
 
 def test_a_site_list_normalizer_consumes_its_three_inputs_in_order() -> None:
-    normalizer = make_sequence_normalizer(site_list())
+    normalizer = SiteListNormalizer(site_list())
     assert isinstance(normalizer, SiteListNormalizer)
     computer = SequenceColumn("ProForma_peptidoform", ("Sequence", "Mods", "Sites"), normalizer)
     result = computer.compute(
@@ -536,7 +535,7 @@ def test_a_site_list_normalizer_consumes_its_three_inputs_in_order() -> None:
 
 
 def test_an_embedded_site_normalizer_consumes_its_two_inputs_in_order() -> None:
-    normalizer = make_sequence_normalizer(embedded_site_list())
+    normalizer = EmbeddedSiteListNormalizer(embedded_site_list())
     assert isinstance(normalizer, EmbeddedSiteListNormalizer)
     result = normalizer.transform(("PEPMIDE", "Oxidation (M4)"))
     assert result.value == "PEPM[UNIMOD:35]IDE"
@@ -544,9 +543,9 @@ def test_an_embedded_site_normalizer_consumes_its_two_inputs_in_order() -> None:
 
 def test_all_normalizers_satisfy_the_sequence_column_owned_contract() -> None:
     normalizers: tuple[SequenceOperation, ...] = (
-        make_sequence_normalizer(token_regex()),
-        make_sequence_normalizer(site_list()),
-        make_sequence_normalizer(embedded_site_list()),
+        TokenRegexNormalizer(token_regex()),
+        SiteListNormalizer(site_list()),
+        EmbeddedSiteListNormalizer(embedded_site_list()),
     )
     assert isinstance(normalizers[0], TokenRegexNormalizer)
     for normalizer, row in zip(

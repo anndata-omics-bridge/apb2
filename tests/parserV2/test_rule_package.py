@@ -13,10 +13,8 @@ from pydantic import ValidationError
 
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.vendor_parse_rules.document import (
-    LongRecognition,
     RuleNotApplicable,
     SearchParameterEvidence,
-    WideRecognition,
     make_rule_document,
 )
 from apb2.parserV2.vendor_parse_rules.loader import PACKAGED, load_rule_document
@@ -117,7 +115,7 @@ def test_entry_shaped_columns_project_roles_and_runtime_selections(tmp_path: Pat
     document = make_rule_document(tmp_path / "rules.json", payload)
     working = ParseRuleFacade(document, "ion", NO_EVIDENCE).working_parameters
 
-    assert working.var.columns.required_selections[0].logical_type == "integer"
+    assert working.var.required_selections[0].logical_type == "integer"
     assert working.provenance["column_roles"] == {
         "protein_assignment": "feature",
         "fasta_accessions": "feature",
@@ -235,28 +233,20 @@ def test_packaged_integer_measurements_are_exactly_the_declared_counts() -> None
 def test_recognition_rejects_a_header_missing_one_required_source(
     pair: PackagedDocument, level: QuantificationLevel
 ) -> None:
-    recognition = load_rule_document(pair.parser_v2_path).declared(level).recognition
+    working = ParseRuleFacade.from_declared_rule(
+        load_rule_document(pair.parser_v2_path), level
+    ).working_parameters
     header = pair.header()
-    if not header or not recognition.matches(header):
+    if not header or not working.accepts_header(header):
         pytest.skip(f"cached export for {pair.key} does not satisfy level {level!r}")
-    required = _required_source(recognition, header)
-
-    assert not recognition.matches(tuple(name for name in header if name != required))
-
-
-def _required_source(
-    recognition: LongRecognition | WideRecognition, header: tuple[str, ...]
-) -> str:
-    """One header column whose absence must make the level unrecognizable."""
-    if isinstance(recognition, LongRecognition):
-        return sorted(recognition.required_headers)[0]
-    var_sources = {
-        column.source
-        for _axis, group in recognition.column_groups()
-        for column in group
-        if column.source is not None and column.required
+    required = {
+        selection.source
+        for axis in (working.obs, working.var)
+        for selection in axis.required_selections
     }
-    return sorted(var_sources & set(header))[0]
+    assert required
+    for source in required:
+        assert not working.accepts_header(tuple(name for name in header if name != source))
 
 
 @pytest.mark.parametrize("pair", _DOCUMENT_CASES)
@@ -741,10 +731,10 @@ def test_column_labeled_recognition_requires_its_packed_label_column() -> None:
         }
     }
     document = make_rule_document(Path("rules.json"), payload)
-    recognition = document.declared("fragment").recognition
+    working = ParseRuleFacade.from_declared_rule(document, "fragment").working_parameters
 
-    assert recognition.matches(("Sample", "Feature", "Quantity", "Info"))
-    assert not recognition.matches(("Sample", "Feature", "Quantity"))
+    assert working.accepts_header(("Sample", "Feature", "Quantity", "Info"))
+    assert not working.accepts_header(("Sample", "Feature", "Quantity"))
 
 
 # ------------------------------------------------------------------------ published schema
