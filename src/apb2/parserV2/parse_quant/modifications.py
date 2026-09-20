@@ -2,8 +2,8 @@
 
 Two layers, and the boundary between them is the point of the module. Underneath is the pure
 sequence algorithm: take one vendor string — ``"PEPM[15.9949]TIDE"``, ``"_(ac)PEPTIDEM(ox)_"``,
-or a bare sequence beside parallel name and site columns — and produce the localized
-occurrences and their ProForma rendering. On top, SequenceColumn uses Polars to select
+or a bare sequence beside parallel name and site columns — and produce localized
+ProForma labels and their rendering. On top, SequenceColumn uses Polars to select
 distinct logical inputs, apply one pure transformation and align results with the frame.
 It returns one column and explicit diagnostics, never another operation's intermediate.
 
@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import math
 import re
-from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
@@ -61,89 +60,40 @@ class PackedSiteMismatchError(ValueError):
 
 
 @dataclass(frozen=True, slots=True)
-class ModificationOccurrence:
-    """One localized modification on a peptide.
+class SequenceValue:
+    """One computed sequence and its non-column diagnostics."""
 
-    ``sequence_index`` is 0-based into the stripped sequence and absent for a terminal or
-    unlocalized modification; ``position`` is what the ProForma renderer groups by.
-    """
-
-    name: str
-    accession: str
-    position: str
-    target_residue: str
-    sequence_index: int
-    source_token: str
-
-
-@dataclass(frozen=True, slots=True)
-class ModifiedSequence:
-    """A modified peptide as observed in one quantification result row."""
-
-    stripped_sequence: str
-    proforma_sequence: str
-    unknown_tokens: tuple[str, ...]
+    value: str
+    unknown_tokens: tuple[str, ...] = ()
 
 
 # ------------------------------------------------------------------------ ProForma rendering
 
 
-_NO_INDEX = -2
-"""Not a sequence position: a terminal or unlocalized occurrence has none."""
-
-
-def _grouped_labels(
-    occurrences: Sequence[ModificationOccurrence],
-    unknown_tokens: dict[int, str],
-    sequence_length: int,
-) -> tuple[list[str], list[str], dict[int, list[str]]]:
-    """Sort every label into the three places ProForma can put one.
-
-    Resolved occurrences carry an accession or a name; an unresolved token carries itself,
-    which is what the ``preserve`` policy means — the vendor's own spelling stays visible in
-    the sequence instead of disappearing.
-    """
-    nterm: list[str] = []
-    cterm: list[str] = []
-    by_residue: dict[int, list[str]] = {}
-    for occurrence in occurrences:
-        tag = occurrence.accession or occurrence.name
-        if occurrence.position == "N-term":
-            nterm.append(tag)
-        elif occurrence.position == "C-term":
-            cterm.append(tag)
-        elif occurrence.sequence_index != _NO_INDEX:
-            by_residue.setdefault(occurrence.sequence_index, []).append(tag)
-    for index, token in unknown_tokens.items():
-        if index == -1:
-            nterm.append(token)
-        elif index == sequence_length:
-            cterm.append(token)
-        else:
-            by_residue.setdefault(index, []).append(token)
-    return nterm, cterm, by_residue
+type LabelPosition = int | Literal["N-term", "C-term"]
+type ModificationLabels = dict[LabelPosition, list[str]]
 
 
 def render_proforma(
     stripped: str,
-    occurrences: Sequence[ModificationOccurrence],
+    labels: ModificationLabels,
     unknown_tokens: dict[int, str],
 ) -> str:
-    """Build a ProForma 2.0 string from a stripped sequence and its modifications.
-
-    Modifications on one residue concatenate (``M[Oxidation][Acetyl]``). The preferred label
-    is the accession when there is one, the name otherwise. ``unknown_tokens`` maps a
-    sequence index to the original vendor token, with ``-1`` for the N-terminus and
-    ``len(stripped)`` for the C-terminus.
-    """
-    nterm, cterm, by_residue = _grouped_labels(occurrences, unknown_tokens, len(stripped))
+    """Render known labels first, then the last preserved unknown at each position."""
+    labels = {position: list(tags) for position, tags in labels.items()}
+    for index, token in unknown_tokens.items():
+        position: LabelPosition = (
+            "N-term" if index == -1 else "C-term" if index == len(stripped) else index
+        )
+        labels.setdefault(position, []).append(token)
+    nterm, cterm = labels.get("N-term", []), labels.get("C-term", [])
     out: list[str] = []
     if nterm:
         out.append("[" + "][".join(nterm) + "]-")
     for index, residue in enumerate(stripped):
         out.append(residue)
-        if index in by_residue:
-            out.append("[" + "][".join(by_residue[index]) + "]")
+        if index in labels:
+            out.append("[" + "][".join(labels[index]) + "]")
     if cterm:
         out.append("-[" + "][".join(cterm) + "]")
     return "".join(out)
@@ -186,15 +136,8 @@ class ResidueLocation:
     def adjacent(self) -> AdjacentResidue | NoAdjacentResidue:
         return AdjacentResidue(self.residue)
 
-    def occurrence(self, entry: ModificationMapEntry, raw_token: str) -> ModificationOccurrence:
-        return ModificationOccurrence(
-            name=entry.name,
-            accession=entry.accession,
-            position="Anywhere",
-            target_residue=self.residue,
-            sequence_index=self.sequence_index,
-            source_token=raw_token,
-        )
+    def record_label(self, labels: ModificationLabels, label: str) -> None:
+        labels.setdefault(self.sequence_index, []).append(label)
 
     def record_unknown_token(
         self, unknown_tokens: dict[int, str], raw_token: str, sequence_length: int
@@ -216,15 +159,8 @@ class TerminalLocation:
     def adjacent(self) -> AdjacentResidue | NoAdjacentResidue:
         return AdjacentResidue(self.adjacent_residue)
 
-    def occurrence(self, entry: ModificationMapEntry, raw_token: str) -> ModificationOccurrence:
-        return ModificationOccurrence(
-            name=entry.name,
-            accession=entry.accession,
-            position=self.position,
-            target_residue=self.adjacent_residue,
-            sequence_index=_NO_INDEX,
-            source_token=raw_token,
-        )
+    def record_label(self, labels: ModificationLabels, label: str) -> None:
+        labels.setdefault(self.position, []).append(label)
 
     def record_unknown_token(
         self, unknown_tokens: dict[int, str], raw_token: str, sequence_length: int
@@ -244,15 +180,8 @@ class TerminalOnlyLocation:
     def adjacent(self) -> AdjacentResidue | NoAdjacentResidue:
         return NoAdjacentResidue()
 
-    def occurrence(self, entry: ModificationMapEntry, raw_token: str) -> ModificationOccurrence:
-        return ModificationOccurrence(
-            name=entry.name,
-            accession=entry.accession,
-            position=self.position,
-            target_residue="",
-            sequence_index=_NO_INDEX,
-            source_token=raw_token,
-        )
+    def record_label(self, labels: ModificationLabels, label: str) -> None:
+        labels.setdefault(self.position, []).append(label)
 
     def record_unknown_token(
         self, unknown_tokens: dict[int, str], raw_token: str, sequence_length: int
@@ -270,15 +199,8 @@ class UnlocalizedLocation:
     def adjacent(self) -> AdjacentResidue | NoAdjacentResidue:
         return NoAdjacentResidue()
 
-    def occurrence(self, entry: ModificationMapEntry, raw_token: str) -> ModificationOccurrence:
-        return ModificationOccurrence(
-            name=entry.name,
-            accession=entry.accession,
-            position="Anywhere",
-            target_residue="",
-            sequence_index=_NO_INDEX,
-            source_token=raw_token,
-        )
+    def record_label(self, labels: ModificationLabels, label: str) -> None:
+        del labels, label
 
     def record_unknown_token(
         self, unknown_tokens: dict[int, str], raw_token: str, sequence_length: int
@@ -446,13 +368,13 @@ def _tokenize(
 
 def normalize_token_regex(
     modified_sequence: str, config: TokenRegexModificationConfig
-) -> ModifiedSequence:
+) -> SequenceValue:
     """Normalize one inline-token sequence: strip, tokenize, resolve, render."""
     pattern = re.compile(config.token_pattern)
     sequence = modified_sequence.strip(_TERM_MARKERS)
     residues, pending = _tokenize(sequence, pattern, config.token_position)
     stripped = "".join(residues)
-    occurrences: list[ModificationOccurrence] = []
+    labels: ModificationLabels = {}
     unknown_tokens: dict[int, str] = {}
     unknown_token_list: list[str] = []
     for token in pending:
@@ -463,7 +385,7 @@ def normalize_token_regex(
             case_sensitive=config.case_sensitive,
         )
         if entry is not None:
-            occurrences.append(token.location.occurrence(entry, token.raw_token))
+            token.location.record_label(labels, entry.accession or entry.name)
             continue
         _apply_unknown_policy(
             config.unknown_policy,
@@ -473,9 +395,8 @@ def normalize_token_regex(
             unknown_tokens,
             unknown_token_list,
         )
-    return ModifiedSequence(
-        stripped_sequence=stripped,
-        proforma_sequence=render_proforma(stripped, occurrences, unknown_tokens),
+    return SequenceValue(
+        value=render_proforma(stripped, labels, unknown_tokens),
         unknown_tokens=tuple(unknown_token_list),
     )
 
@@ -505,7 +426,7 @@ def normalize_site_list(
     modifications: str,
     sites: str,
     config: SiteListModificationConfig,
-) -> ModifiedSequence:
+) -> SequenceValue:
     """Normalize a bare sequence plus its parallel modification and site columns."""
     stripped = "".join(character for character in sequence if character.isalpha())
     tokens = [token for token in modifications.split(config.delimiter) if token]
@@ -519,7 +440,7 @@ def normalize_site_list(
         (entry.token if config.case_sensitive else entry.token.lower()): entry
         for entry in config.entries
     }
-    occurrences: list[ModificationOccurrence] = []
+    labels: ModificationLabels = {}
     unknown_tokens: dict[int, str] = {}
     unknown_token_list: list[str] = []
     for raw_token, raw_site in zip(tokens, raw_sites, strict=True):
@@ -531,7 +452,7 @@ def normalize_site_list(
         key = raw_token if config.case_sensitive else raw_token.lower()
         entry = by_token.get(key)
         if entry is not None:
-            occurrences.append(location.occurrence(entry, raw_token))
+            location.record_label(labels, entry.accession or entry.name)
             continue
         _apply_unknown_policy(
             config.unknown_policy,
@@ -541,9 +462,8 @@ def normalize_site_list(
             unknown_tokens,
             unknown_token_list,
         )
-    return ModifiedSequence(
-        stripped_sequence=stripped,
-        proforma_sequence=render_proforma(stripped, occurrences, unknown_tokens),
+    return SequenceValue(
+        value=render_proforma(stripped, labels, unknown_tokens),
         unknown_tokens=tuple(unknown_token_list),
     )
 
@@ -575,11 +495,11 @@ def normalize_embedded_site_list(
     sequence: str,
     modifications: str,
     config: EmbeddedSiteListModificationConfig,
-) -> ModifiedSequence:
+) -> SequenceValue:
     """Normalize a bare sequence plus entries shaped like ``Oxidation (M5)``."""
     stripped = "".join(character for character in sequence if character.isalpha())
     pattern = re.compile(config.entry_pattern)
-    occurrences: list[ModificationOccurrence] = []
+    labels: ModificationLabels = {}
     unknown_tokens: dict[int, str] = {}
     unknown_token_list: list[str] = []
     for raw_entry in modifications.split(config.delimiter):
@@ -599,7 +519,7 @@ def normalize_embedded_site_list(
             case_sensitive=config.case_sensitive,
         )
         if entry is not None:
-            occurrences.append(location.occurrence(entry, raw_token))
+            location.record_label(labels, entry.accession or entry.name)
             continue
         _apply_unknown_policy(
             config.unknown_policy,
@@ -609,22 +529,13 @@ def normalize_embedded_site_list(
             unknown_tokens,
             unknown_token_list,
         )
-    return ModifiedSequence(
-        stripped_sequence=stripped,
-        proforma_sequence=render_proforma(stripped, occurrences, unknown_tokens),
+    return SequenceValue(
+        value=render_proforma(stripped, labels, unknown_tokens),
         unknown_tokens=tuple(unknown_token_list),
     )
 
 
 # ----------------------------------------------------- independently configured computations
-
-
-@dataclass(frozen=True, slots=True)
-class SequenceValue:
-    """One computed sequence and its non-column diagnostics."""
-
-    value: str
-    unknown_tokens: tuple[str, ...] = ()
 
 
 class SequenceOperation(Protocol):
@@ -691,8 +602,7 @@ class TokenRegexNormalizer:
 
     def transform(self, row: tuple[str, ...], /) -> SequenceValue:
         (sequence,) = row
-        normalized = normalize_token_regex(sequence, self.rules)
-        return SequenceValue(normalized.proforma_sequence, normalized.unknown_tokens)
+        return normalize_token_regex(sequence, self.rules)
 
 
 @dataclass(frozen=True, slots=True)
@@ -703,8 +613,7 @@ class SiteListNormalizer:
 
     def transform(self, row: tuple[str, ...], /) -> SequenceValue:
         sequence, modifications, sites = row
-        normalized = normalize_site_list(sequence, modifications, sites, self.rules)
-        return SequenceValue(normalized.proforma_sequence, normalized.unknown_tokens)
+        return normalize_site_list(sequence, modifications, sites, self.rules)
 
 
 @dataclass(frozen=True, slots=True)
@@ -715,8 +624,7 @@ class EmbeddedSiteListNormalizer:
 
     def transform(self, row: tuple[str, ...], /) -> SequenceValue:
         sequence, modifications = row
-        normalized = normalize_embedded_site_list(sequence, modifications, self.rules)
-        return SequenceValue(normalized.proforma_sequence, normalized.unknown_tokens)
+        return normalize_embedded_site_list(sequence, modifications, self.rules)
 
 
 @dataclass(frozen=True, slots=True)

@@ -9,7 +9,6 @@ mistaken for another.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
 
@@ -33,7 +32,7 @@ from apb2.parserV2.parse_quant.contracts import (
     SelectedAxisColumn,
 )
 from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation
-from apb2.parserV2.parse_quant.data.parsed import ObsFinal, ParsedLevel, VarFinal
+from apb2.parserV2.parse_quant.data.parsed import FinalLayerTable, ObsFinal, ParsedLevel, VarFinal
 from apb2.parserV2.parse_quant.data.raw import (
     DecomposedDataRaw,
     LayersRaw,
@@ -47,7 +46,7 @@ from apb2.parserV2.parse_quant.duplicates import DuplicateCellError
 from apb2.parserV2.parse_quant.layer_validation import LayerContractValidator
 from apb2.parserV2.parse_quant.operations import (
     duplicate_policy_for,
-    make_layer_operations,
+    make_layer_parser,
 )
 from apb2.parserV2.parse_quant.parameters.axis import AxisKeyPlan, AxisSourcePlan
 from apb2.parserV2.parse_quant.parameters.measurements import (
@@ -68,16 +67,12 @@ from apb2.parserV2.parse_quant.parser import (
 
 DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
 DOT_NUMBERS = NumberNotation(decimal_mark=".", thousands_marks=())
-NULL_ONLY, _ = make_layer_operations(
-    LayerValueConfig("Intensity", PlainNumericLayerDeclaration(missing_values=())), DOT
-)
 
 
 def numeric_layer_parser(name: str) -> LayerValueParser:
-    _, parser = make_layer_operations(
+    return make_layer_parser(
         LayerValueConfig(name, PlainNumericLayerDeclaration(missing_values=())), DOT
     )
-    return parser
 
 
 def layer_validator(primary: str) -> LayerSetValidator:
@@ -136,7 +131,6 @@ def parser_for(
     var: AxisSourcePlan,
     layers: tuple[tuple[str, str], ...] = (("Intensity", "intensity"),),
     duplicates: DuplicateMode = "error",
-    presence: Mapping[str, RawValuePresence] | None = None,
     writer: ParsedLevelWriter | None = None,
 ) -> Parser:
     class Reader:
@@ -159,7 +153,6 @@ def parser_for(
             obs=obs_plan,
             var=var_plan,
             duplicates=duplicate_policy_for(duplicates),
-            raw_value_presence=presence or {name: NULL_ONLY for name, _ in layers},
             layer_parsers={name: numeric_layer_parser(name) for name, _source in layers},
             layer_validator=layer_validator(layers[0][0]),
             provenance={"software_name": "Synthetic", "quantification_level": "ion"},
@@ -230,11 +223,15 @@ def test_parse_runs_its_collaborators_in_the_documented_order() -> None:
             calls.append("normalize")
             return frame, ("Mystery@M", "Mystery@M", "Other@C")
 
-    class Presence:
+    class Values:
         def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr:
             del dtype
             calls.append("present")
             return values.is_not_null()
+
+        def parse(self, layer: FinalLayerTable, /) -> FinalLayerTable:
+            calls.append("parse_values")
+            return numeric_layer_parser("Intensity").parse(layer)
 
     class Policy:
         def resolve(self, layer: RawLayerTable, presence: RawValuePresence, /) -> RawLayerTable:
@@ -253,8 +250,7 @@ def test_parse_runs_its_collaborators_in_the_documented_order() -> None:
                 key_phase=phase(SIMPLE_VAR_PLAN.key_phase.selections, (Normalizer(),)),
             ),
             duplicates=Policy(),
-            raw_value_presence={"Intensity": Presence()},
-            layer_parsers={"Intensity": numeric_layer_parser("Intensity")},
+            layer_parsers={"Intensity": Values()},
             layer_validator=layer_validator("Intensity"),
             provenance={},
             read=LevelReadPlan((), frozenset(), frozenset()),
@@ -270,6 +266,7 @@ def test_parse_runs_its_collaborators_in_the_documented_order() -> None:
         "normalize",
         "resolve",
         "present",
+        "parse_values",
     ]
     assert parsed.primary_layer_name == "Intensity"
     assert parsed.uns["unknown_mod_tokens"] == ["Mystery@M", "Other@C"]
@@ -297,7 +294,6 @@ def test_convert_writes_the_result_it_is_given_and_parses_nothing(tmp_path: Path
             obs=SIMPLE_OBS_PLAN,
             var=SIMPLE_VAR_PLAN,
             duplicates=duplicate_policy_for("error"),
-            raw_value_presence={},
             layer_parsers={},
             layer_validator=layer_validator("Intensity"),
             provenance={},
@@ -640,11 +636,6 @@ def test_a_final_variable_a_layer_never_measured_becomes_a_row_of_nulls() -> Non
             "score": [0.5, None],
         }
     )
-    presence = {
-        "Intensity": NULL_ONLY,
-        "Score": NULL_ONLY,
-    }
-
     parsed = parser_for(
         frame,
         obs_plan=SIMPLE_OBS_PLAN,
@@ -652,7 +643,6 @@ def test_a_final_variable_a_layer_never_measured_becomes_a_row_of_nulls() -> Non
         obs=SIMPLE_OBS,
         var=SIMPLE_VAR,
         layers=(("Intensity", "intensity"), ("Score", "score")),
-        presence=presence,
     ).parse()
 
     assert list(parsed.layers) == ["Intensity", "Score"]
@@ -759,7 +749,6 @@ def test_the_parser_holds_only_configured_behaviour() -> None:
         "obs",
         "var",
         "duplicates",
-        "raw_value_presence",
         "layer_parsers",
         "layer_validator",
         "provenance",
@@ -821,7 +810,6 @@ def test_a_computed_column_of_the_wrong_length_fails_at_the_boundary() -> None:
                 key_phase=phase(SIMPLE_VAR_PLAN.key_phase.selections, (Shrinking(),)),
             ),
             duplicates=duplicate_policy_for("error"),
-            raw_value_presence={"Intensity": NULL_ONLY},
             layer_parsers={"Intensity": numeric_layer_parser("Intensity")},
             layer_validator=layer_validator("Intensity"),
             provenance={},

@@ -54,7 +54,7 @@ type LayerValueDeclaration = (
 
 @dataclass(frozen=True, slots=True)
 class LayerValueConfig:
-    """One retained layer; both runtime operations consume its unchanged declaration."""
+    """One retained layer and the declaration configuring its value parser."""
 
     layer_name: str
     value: LayerValueDeclaration

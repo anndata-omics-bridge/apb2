@@ -20,9 +20,8 @@ from apb2.parserV2.parse_quant.duplicates import (
     DuplicateCellError,
     ErrorOnDuplicates,
     KeepFirstDuplicate,
-    NullOnlyRawValuePresence,
 )
-from apb2.parserV2.parse_quant.operations import duplicate_policy_for, make_layer_operations
+from apb2.parserV2.parse_quant.operations import duplicate_policy_for, make_layer_parser
 from apb2.parserV2.parse_quant.parameters.measurements import (
     DuplicateMode,
     FactorLayerDeclaration,
@@ -36,13 +35,13 @@ from apb2.parserV2.parse_quant.parameters.source import NumericTextFormat
 DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
 GROUPED = NumericTextFormat(decimal_mark=",", thousands_marks=(".",))
 
-NULL_ONLY, _ = make_layer_operations(
+NULL_ONLY = make_layer_parser(
     LayerValueConfig("L", PlainNumericLayerDeclaration(missing_values=())), DOT
 )
-ZERO_SENTINEL, _ = make_layer_operations(
+ZERO_SENTINEL = make_layer_parser(
     LayerValueConfig("L", PlainNumericLayerDeclaration(missing_values=(0.0,))), DOT
 )
-ASCORE, _ = make_layer_operations(
+ASCORE = make_layer_parser(
     LayerValueConfig(
         "L", RegexNumericLayerDeclaration(missing_values=(0.0,), pattern=r":(-?\d+(?:\.\d+)?)")
     ),
@@ -86,7 +85,7 @@ def test_null_only_presence_asks_nothing_of_the_value_itself() -> None:
 def test_no_sentinel_and_factor_declarations_keep_blank_text_present(
     value: LayerValueDeclaration,
 ) -> None:
-    presence, _ = make_layer_operations(LayerValueConfig("L", value), DOT)
+    presence = make_layer_parser(LayerValueConfig("L", value), DOT)
 
     assert presence_mask(presence, pl.Series("obs_0", ["", "  ", None])).to_list() == [
         True,
@@ -117,7 +116,7 @@ def test_a_nonblank_token_that_cannot_be_read_stays_present() -> None:
 
 
 def test_a_localized_sentinel_is_recognized_under_its_own_notation() -> None:
-    presence, _ = make_layer_operations(
+    presence = make_layer_parser(
         LayerValueConfig("L", PlainNumericLayerDeclaration(missing_values=(0.0, 1000.0))),
         GROUPED,
     )
@@ -365,12 +364,11 @@ def test_the_declared_mode_selects_one_stateless_policy() -> None:
     assert set(get_args(DuplicateMode.__value__)) == {"error", "keep_first", "aggregate"}
 
 
-def test_no_policy_or_presence_strategy_retains_its_discriminator() -> None:
+def test_no_duplicate_policy_retains_its_discriminator() -> None:
     for value in (
         ErrorOnDuplicates(),
         KeepFirstDuplicate(),
         AggregateNumericDuplicates(),
-        NullOnlyRawValuePresence(),
     ):
         assert not hasattr(value, "kind")
         assert not hasattr(value, "mode")

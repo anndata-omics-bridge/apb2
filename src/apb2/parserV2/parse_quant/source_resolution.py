@@ -38,7 +38,7 @@ from apb2.parserV2.parse_quant.operations import (
     WorkingParseConfiguration,
     duplicate_policy_for,
     make_axis_coercer,
-    make_layer_operations,
+    make_layer_parser,
 )
 from apb2.parserV2.parse_quant.parameters.axis import (
     AxisColumnSelection,
@@ -122,9 +122,6 @@ class SourcePlanResolver:
         layer_values = tuple(
             LayerValueConfig(layer_name=layer.name, value=layer.value) for layer in layers.retained
         )
-        operations = {
-            value.layer_name: make_layer_operations(value, numbers) for value in layer_values
-        }
         validator = LayerContractValidator(
             primary_layer_name=working.measurements.primary_layer_name,
             required_names=layers.required_names,
@@ -157,8 +154,9 @@ class SourcePlanResolver:
             obs=obs,
             var=var,
             duplicates=duplicate_policy_for(working.measurements.duplicate_mode),
-            raw_value_presence={name: pair[0] for name, pair in operations.items()},
-            layer_parsers={name: pair[1] for name, pair in operations.items()},
+            layer_parsers={
+                value.layer_name: make_layer_parser(value, numbers) for value in layer_values
+            },
             layer_validator=validator,
             provenance={
                 **working.provenance,

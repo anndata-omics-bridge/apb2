@@ -64,8 +64,8 @@ class SearchedModification(_Strict):
     """A modification declared in a search-engine parameter file.
 
     Part of the parameter schema, not of modification domain knowledge: it is parsed from a
-    vendor parameter file and carries no sequence localization — that is
-    ``ModificationOccurrence``, which the sequence normalizer builds.
+    vendor parameter file and carries no sequence localization; the sequence normalizer
+    handles localization independently.
     """
 
     name: str

@@ -84,7 +84,9 @@ class DuplicatePolicy(Protocol):
 
 
 class LayerValueParser(Protocol):
-    """Parse one aligned raw layer into its final canonical values and semantics."""
+    """One layer's settings for raw presence and final value parsing, in separate phases."""
+
+    def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr: ...
 
     def parse(self, layer: FinalLayerTable, /) -> FinalLayerTable: ...
 

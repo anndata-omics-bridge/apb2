@@ -37,6 +37,8 @@ Vendor guessing checks only headers and source metadata; it never compiles a str
 
 The executable strategy owns its collaborators once. `Parser.parse()` reads once and invokes `strategy.parse(source)`; `Parser.convert(result, target)` only writes. Prepared input receives the read projection and both axes' raw key tuples, not the strategy graph. `plan_json` preserves the previous serialized decisions, including skipped declarations and both axis phases, but runtime never consumes it.
 
+Each retained layer now has one configured value parser exposing both `present()` and `parse()`. Duplicate policies consume only its narrow `RawValuePresence` capability; occupancy checking still precedes duplicate reduction, and value parsing still follows alignment. No parallel presence-object mapping remains. Sequence normalizers record localized rendering labels directly and return `SequenceValue`, without intermediate occurrence records or a second result wrapper; independently declared stripping remains a separate computation.
+
 ## 1. Executive decision
 
 Parser V2 is a forward-only pipeline built from fully configured runtime strategies. A parser
@@ -1702,7 +1704,7 @@ Computations return `(frame, unknown_mod_tokens)`; the Series-based `ColumnCompu
 | `SequenceOperation` | Transform one explicitly supplied sequence tuple | token-regex stripping; token-regex/site-list/embedded-site normalization |
 | `AxisValueCoercer` | Validate and build one named selection expression | string, integer, number, boolean |
 | `ColumnComputer` | Materialize one declared computed column | coalesce, join-nonempty, stripped sequence, ProForma sequence, ProForma ion, ProForma fragment |
-| `RawValuePresence` | Mark raw layer scalars that semantically claim a cell without converting them | null-only, plain numeric, regex numeric |
+| `RawValuePresence` | Mark raw layer scalars that semantically claim a cell without converting them | factor, plain numeric and regex numeric layer parsers |
 | `DuplicatePolicy` | Resolve repeated values of each raw wide cell | error, keep first, numeric aggregate |
 | `ParsedLevelWriter` | Persist one parsed level | AnnData, Parquet |
 | `ParsedLevelsReader` | Read one APB2 result | h5ad, h5mu, Parquet dataset, DuckDB |
@@ -1799,7 +1801,7 @@ class Parser:
 | axis coercer | `axis_coercer_for(logical_type)` |
 | column computer | `make_column_computer(config)` |
 | duplicate policy | `duplicate_policy_for(resolved.duplicate_mode)` |
-| raw presence and canonical value parser | `make_layer_operations(config, resolved.number_format)` per retained layer |
+| raw presence and canonical value parser | one `make_layer_parser(config, resolved.number_format)` per retained layer |
 | parsed-level writer | output-bound constructor |
 | canonical layer checker | `make_layer_validator(resolved.layer_contract, checks)` |
 

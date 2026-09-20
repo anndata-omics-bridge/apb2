@@ -28,16 +28,12 @@ from apb2.parserV2.parse_quant.contracts import (
     AxisValueCoercer,
     DuplicatePolicy,
     LayerValueParser,
-    RawValuePresence,
 )
 from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation
 from apb2.parserV2.parse_quant.duplicates import (
     AggregateNumericDuplicates,
     ErrorOnDuplicates,
     KeepFirstDuplicate,
-    NullOnlyRawValuePresence,
-    PlainNumericRawValuePresence,
-    RegexNumericRawValuePresence,
 )
 from apb2.parserV2.parse_quant.modifications import (
     PlainSequenceStripper,
@@ -151,33 +147,23 @@ def duplicate_policy_for(mode: DuplicateMode) -> DuplicatePolicy:
     return _DUPLICATE_POLICIES[mode]
 
 
-def make_layer_operations(
-    config: LayerValueConfig, numbers: NumericTextFormat
-) -> tuple[RawValuePresence, LayerValueParser]:
-    """Select raw presence and canonical parsing once from the same layer declaration."""
+def make_layer_parser(config: LayerValueConfig, numbers: NumericTextFormat) -> LayerValueParser:
+    """Configure raw presence and canonical parsing together from one layer declaration."""
     value = config.value
     notation = _notation(numbers)
     if isinstance(value, PlainNumericLayerDeclaration):
-        presence = (
-            PlainNumericRawValuePresence(value.missing_values, notation)
-            if value.missing_values
-            else NullOnlyRawValuePresence()
-        )
-        return presence, PlainNumericLayerParser(
+        return PlainNumericLayerParser(
             layer_name=config.layer_name,
             missing_values=value.missing_values,
             number_format=notation,
             numeric_type=value.type,
         )
     if isinstance(value, RegexNumericLayerDeclaration):
-        return (
-            RegexNumericRawValuePresence(value.missing_values, value.pattern, notation),
-            RegexNumericLayerParser(
-                layer_name=config.layer_name,
-                missing_values=value.missing_values,
-                pattern=value.pattern,
-                number_format=notation,
-                numeric_type=value.type,
-            ),
+        return RegexNumericLayerParser(
+            layer_name=config.layer_name,
+            missing_values=value.missing_values,
+            pattern=value.pattern,
+            number_format=notation,
+            numeric_type=value.type,
         )
-    return NullOnlyRawValuePresence(), FactorLayerParser(categories=value.categories)
+    return FactorLayerParser(categories=value.categories)

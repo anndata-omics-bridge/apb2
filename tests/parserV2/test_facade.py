@@ -967,7 +967,6 @@ def test_a_resolved_plan_carries_every_field_the_compiler_destructures() -> None
         "obs",
         "var",
         "duplicates",
-        "raw_value_presence",
         "layer_parsers",
         "layer_validator",
         "provenance",

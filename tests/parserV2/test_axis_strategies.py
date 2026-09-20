@@ -7,6 +7,8 @@ algorithm produces exactly what the unchanged implementation produced on real ve
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import polars as pl
 import pytest
 
@@ -29,7 +31,7 @@ from apb2.parserV2.parse_quant.contracts import (
 from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation
 from apb2.parserV2.parse_quant.modifications import (
     EmbeddedSiteListNormalizer,
-    ModificationOccurrence,
+    ModificationLabels,
     PackedSiteMismatchError,
     PlainSequenceStripper,
     SequenceColumn,
@@ -285,16 +287,25 @@ def test_join_nonempty_skips_nulls_and_empty_strings_alike() -> None:
     assert computed["J"].to_list() == ["p,q", "q", "q", None]
 
 
-def test_a_stripping_column_consumes_the_sequence_directly() -> None:
-    sequence = pl.Series("Modified_Sequence", ["PEPM(ox)IDE"])
+@pytest.mark.parametrize(
+    ("sequence", "position", "expected"),
+    [
+        ("PEPM(ox)IDE", "after_residue", "PEPMIDE"),
+        ("_(ac)PEPTIDE_", "after_residue", "PEPTIDE"),
+        ("PEP(ox)MIDE", "before_residue", "PEPMIDE"),
+    ],
+)
+def test_a_stripping_column_consumes_the_sequence_directly(
+    sequence: str, position: ModificationTokenPosition, expected: str
+) -> None:
     computer = TokenRegexStripper(
         name="ProForma_peptide",
         inputs=("Modified_Sequence",),
         token_pattern=r"\(([^()]*)\)",
-        token_position="after_residue",
+        token_position=position,
     )
-    result, tokens = computer.compute(sequence.to_frame())
-    assert result[computer.name].to_list() == ["PEPMIDE"]
+    result, tokens = computer.compute(pl.DataFrame({"Modified_Sequence": [sequence]}))
+    assert result[computer.name].to_list() == [expected]
     assert tokens == ()
 
 
@@ -429,15 +440,13 @@ def test_plain_stripping_keeps_unicode_letters_and_handles_empty_frames() -> Non
 def test_an_inline_token_becomes_a_localized_proforma_modification() -> None:
     result = normalize_token_regex("PEPM(ox)IDE", token_regex())
 
-    assert result.stripped_sequence == "PEPMIDE"
-    assert result.proforma_sequence == "PEPM[UNIMOD:35]IDE"
+    assert result.value == "PEPM[UNIMOD:35]IDE"
 
 
 def test_a_terminal_token_renders_before_the_sequence() -> None:
     result = normalize_token_regex("_(ac)PEPTIDE_", token_regex())
 
-    assert result.stripped_sequence == "PEPTIDE"
-    assert result.proforma_sequence == "[UNIMOD:1]-PEPTIDE"
+    assert result.value == "[UNIMOD:1]-PEPTIDE"
 
 
 def test_a_before_residue_vendor_attaches_the_token_to_what_follows() -> None:
@@ -458,8 +467,7 @@ def test_a_before_residue_vendor_attaches_the_token_to_what_follows() -> None:
 
     result = normalize_token_regex("PEPoxMIDE", rules)
 
-    assert result.stripped_sequence == "PEPMIDE"
-    assert result.proforma_sequence == "PEPM[UNIMOD:35]IDE"
+    assert result.value == "PEPM[UNIMOD:35]IDE"
 
 
 def test_a_numeric_token_matches_on_mass_target_and_position() -> None:
@@ -467,7 +475,7 @@ def test_a_numeric_token_matches_on_mass_target_and_position() -> None:
 
     result = normalize_token_regex("PEPM[15.9949]IDE", rules)
 
-    assert result.proforma_sequence == "PEPM[UNIMOD:35]IDE"
+    assert result.value == "PEPM[UNIMOD:35]IDE"
 
 
 @pytest.mark.parametrize(
@@ -486,7 +494,7 @@ def test_an_unknown_token_follows_the_declared_policy(
 
     result = normalize_token_regex("PEPM(weird)IDE", rules)
 
-    assert result.proforma_sequence == expected
+    assert result.value == expected
     assert result.unknown_tokens == unknown_tokens
 
 
@@ -498,21 +506,20 @@ def test_an_unknown_token_can_be_declared_an_error() -> None:
 def test_parallel_site_lists_are_paired_index_wise() -> None:
     result = normalize_site_list("PEPMIDE", "Oxidation@M", "4", site_list())
 
-    assert result.stripped_sequence == "PEPMIDE"
-    assert result.proforma_sequence == "PEPM[UNIMOD:35]IDE"
+    assert result.value == "PEPM[UNIMOD:35]IDE"
 
 
 def test_a_preserved_unknown_site_list_token_is_returned_for_reporting() -> None:
     result = normalize_site_list("PEPMIDE", "Mystery@M", "4", site_list())
 
-    assert result.proforma_sequence == "PEPM[Mystery@M]IDE"
+    assert result.value == "PEPM[Mystery@M]IDE"
     assert result.unknown_tokens == ("Mystery@M",)
 
 
 def test_site_zero_is_the_n_terminus_whatever_the_site_base_is() -> None:
     for base in (0, 1):
         result = normalize_site_list("PEPMIDE", "Oxidation@M", "0", site_list(site_base=base))
-        assert result.proforma_sequence.startswith("[UNIMOD:35]-")
+        assert result.value.startswith("[UNIMOD:35]-")
 
 
 def test_a_site_list_of_mismatched_length_is_a_vendor_file_defect() -> None:
@@ -525,7 +532,7 @@ def test_a_site_list_of_mismatched_length_is_a_vendor_file_defect() -> None:
 def test_an_empty_modification_list_leaves_the_bare_sequence() -> None:
     result = normalize_site_list("PEPMIDE", "", "", site_list())
 
-    assert result.proforma_sequence == "PEPMIDE"
+    assert result.value == "PEPMIDE"
 
 
 def test_embedded_sites_localize_residue_and_terminal_modifications() -> None:
@@ -533,7 +540,7 @@ def test_embedded_sites_localize_residue_and_terminal_modifications() -> None:
         "PEPMIDE", "Acetyl (Protein N-term); Oxidation (M4)", embedded_site_list()
     )
 
-    assert result.proforma_sequence == "[UNIMOD:1]-PEPM[UNIMOD:35]IDE"
+    assert result.value == "[UNIMOD:1]-PEPM[UNIMOD:35]IDE"
 
 
 def test_an_embedded_site_must_point_to_the_declared_residue() -> None:
@@ -542,30 +549,30 @@ def test_an_embedded_site_must_point_to_the_declared_residue() -> None:
 
 
 def test_two_modifications_on_one_residue_concatenate() -> None:
-    rendered = render_proforma(
-        "PEPMIDE",
-        (
-            ModificationOccurrence(
-                name="Oxidation",
-                accession="UNIMOD:35",
-                position="Anywhere",
-                target_residue="M",
-                sequence_index=3,
-                source_token="ox",
-            ),
-            ModificationOccurrence(
-                name="Acetyl",
-                accession="UNIMOD:1",
-                position="Anywhere",
-                target_residue="M",
-                sequence_index=3,
-                source_token="ac",
-            ),
-        ),
-        {},
+    result = normalize_token_regex(
+        "PEPM(ox)(ac)IDE",
+        token_regex(entries=(OXIDATION, replace(ACETYL, position="Anywhere", target=("M",)))),
     )
 
-    assert rendered == "PEPM[UNIMOD:35][UNIMOD:1]IDE"
+    assert result.value == "PEPM[UNIMOD:35][UNIMOD:1]IDE"
+
+
+def test_known_labels_precede_last_unknown_without_losing_diagnostics() -> None:
+    config = site_list()
+    result = normalize_site_list(
+        "PEPMIDE",
+        "mystery;ac;first;Oxidation@M;last;tail",
+        "0;0;4;4;4;8",
+        replace(config, entries=(*config.entries, ACETYL)),
+    )
+    assert result.value == "[UNIMOD:1][mystery]-PEPM[UNIMOD:35][last]IDE-[tail]"
+    assert result.unknown_tokens == ("mystery", "first", "last", "tail")
+
+
+def test_rendering_keeps_terminal_labels_separate_from_negative_residue_indices() -> None:
+    labels: ModificationLabels = {"N-term": ["N"], "C-term": ["C"], -1: ["ignored"], 0: ["M"]}
+    assert render_proforma("PEP", labels, {-1: "unknown"}) == "[N][unknown]-P[M]EP-[C]"
+    assert labels["N-term"] == ["N"]
 
 
 def test_normalization_returns_one_column_and_explicit_diagnostics_in_row_order() -> None:

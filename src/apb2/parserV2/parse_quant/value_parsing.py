@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import polars as pl
 from loguru import logger
 
-from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation, as_numbers, blank
+from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation, absent, as_numbers, blank
 from apb2.parserV2.parse_quant.data.parsed import (
     AuxiliaryLayerRole,
     CategoricalLayerSemantics,
@@ -30,6 +30,14 @@ class PlainNumericLayerParser:
     missing_values: tuple[float, ...]
     number_format: NumberNotation
     numeric_type: NumericLayerType
+
+    def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr:
+        """Without sentinels blank text claims a cell; unreadable tokens always do."""
+        if not self.missing_values:
+            return ~absent(values, dtype)
+        numbers = as_numbers(values, dtype, self.number_format)
+        sentinel = numbers.is_in(self.missing_values).fill_null(False)
+        return ~(blank(values, dtype) | sentinel)
 
     def parse(self, layer: FinalLayerTable, /) -> FinalLayerTable:
         values = _value_block(layer)
@@ -94,6 +102,13 @@ class RegexNumericLayerParser:
     number_format: NumberNotation
     numeric_type: NumericLayerType
 
+    def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr:
+        """Inspect the numeric capture while retaining each original claiming token."""
+        extracted = values.cast(pl.String, strict=False).str.extract(self.pattern, 1)
+        numbers = as_numbers(extracted, pl.String(), self.number_format)
+        sentinel = numbers.is_in(self.missing_values).fill_null(False)
+        return ~(blank(values, dtype) | sentinel)
+
     def parse(self, layer: FinalLayerTable, /) -> FinalLayerTable:
         values = _value_block(layer)
         canonical = values.select(
@@ -119,6 +134,10 @@ class FactorLayerParser:
     """Replace declared category labels with their final integer codes."""
 
     categories: tuple[tuple[str, int], ...]
+
+    def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr:
+        """Every non-missing label claims a cell, including blank or unknown labels."""
+        return ~absent(values, dtype)
 
     def parse(self, layer: FinalLayerTable, /) -> FinalLayerTable:
         semantics = CategoricalLayerSemantics(

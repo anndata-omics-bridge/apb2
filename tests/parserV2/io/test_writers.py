@@ -48,7 +48,7 @@ from apb2.parserV2.parse_quant.io.parquet_writer import (
     ParquetWriter,
 )
 from apb2.parserV2.parse_quant.layer_validation import LayerContractValidator
-from apb2.parserV2.parse_quant.operations import make_layer_operations
+from apb2.parserV2.parse_quant.operations import make_layer_parser
 from apb2.parserV2.parse_quant.parameters.measurements import (
     FactorLayerDeclaration,
     LayerValueConfig,
@@ -311,7 +311,7 @@ def canonical_values(
         var_key_columns=(),
         values=values,
     )
-    _, parser = make_layer_operations(config, numbers)
+    parser = make_layer_parser(config, numbers)
     return parser.parse(layer).values
 
 

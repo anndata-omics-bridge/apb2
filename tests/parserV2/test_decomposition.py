@@ -18,7 +18,7 @@ from apb2.parserV2.parse_quant.decomposition import (
     LongSourceDecomposer,
     WideSourceDecomposer,
 )
-from apb2.parserV2.parse_quant.duplicates import KeepFirstDuplicate, NullOnlyRawValuePresence
+from apb2.parserV2.parse_quant.duplicates import KeepFirstDuplicate
 from apb2.parserV2.parse_quant.fragments import (
     ColumnLabeledFragmentTableSeparator,
     PackedLengthError,
@@ -30,6 +30,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
     WideRawLayerPlan,
     WideRawLayerSource,
 )
+from apb2.parserV2.parse_quant.value_parsing import FactorLayerParser
 
 
 def axis(raw: tuple[str, ...], payload: tuple[str, ...] = ()) -> AxisSourcePlan:
@@ -373,7 +374,7 @@ def test_wide_keep_first_preserves_file_order_for_equal_keys(
         obs=axis(("sample",)),
         var=axis(("Feature",)),
     ).decompose(table)
-    result = KeepFirstDuplicate().resolve(raw.layers.values[0], NullOnlyRawValuePresence())
+    result = KeepFirstDuplicate().resolve(raw.layers.values[0], FactorLayerParser(()))
     assert result.values.to_dict(as_series=False) == {
         "Feature": ["F1", "F2", None] if repetitions else [],
         "obs_0": [1, 2, 3] if repetitions else [],

@@ -31,7 +31,6 @@ from apb2.parserV2.parse_quant.contracts import (
     LayerSetValidator,
     LayerValueParser,
     ParsedLevelWriter,
-    RawValuePresence,
     SourceDecomposer,
 )
 from apb2.parserV2.parse_quant.data.layer_columns import observation_labels
@@ -121,7 +120,6 @@ class ParseStrategy:
     obs: AxisRuntimePlan
     var: AxisRuntimePlan
     duplicates: DuplicatePolicy
-    raw_value_presence: Mapping[str, RawValuePresence]
     layer_parsers: Mapping[str, LayerValueParser]
     layer_validator: LayerSetValidator
     provenance: dict[str, JsonValue]
@@ -277,17 +275,15 @@ class ParseStrategy:
     ) -> dict[str, FinalLayerTable]:
         layers: dict[str, FinalLayerTable] = {}
         for layer in raw.values:
+            parser = self.layer_parsers[layer.layer_name]
             mappable = self._retain_mappable_layer(layer, obs_map, var_map)
-            resolved = self.duplicates.resolve(
-                mappable,
-                self.raw_value_presence[layer.layer_name],
-            )
+            resolved = self.duplicates.resolve(mappable, parser)
             aligned = self._align_layer_keys(
                 resolved,
                 obs_map,
                 var_map,
             )
-            layers[layer.layer_name] = self.layer_parsers[layer.layer_name].parse(aligned)
+            layers[layer.layer_name] = parser.parse(aligned)
         return layers
 
     @staticmethod

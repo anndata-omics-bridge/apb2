@@ -17,13 +17,12 @@ before any of this runs.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import replace
 
 import polars as pl
 import polars.selectors as cs
 
 from apb2.parserV2.parse_quant.contracts import RawValuePresence
-from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation, absent, as_numbers, blank
 from apb2.parserV2.parse_quant.data.raw import RawLayerTable
 
 _EXAMPLE_LIMIT = 5
@@ -35,52 +34,6 @@ class DuplicateCellError(ValueError):
 
 class AggregateTypeError(TypeError):
     """A numeric aggregate received values that are not numbers."""
-
-
-def _sentinel(numbers: pl.Expr, missing_values: tuple[float, ...]) -> pl.Expr:
-    """Whether each readable number is one the vendor writes to mean "not measured"."""
-    if not missing_values:
-        return pl.lit(value=False)
-    return numbers.is_in(list(missing_values)).fill_null(value=False)
-
-
-class NullOnlyRawValuePresence:
-    """Only absence claims nothing: a factor label or a native number needs no interpretation.
-
-    ``NaN`` counts as absence because it is what a float column says instead of null; a
-    factor label, including an empty one, is a label and claims its cell.
-    """
-
-    __slots__ = ()
-
-    def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr:
-        return ~absent(values, dtype)
-
-
-@dataclass(frozen=True, slots=True)
-class PlainNumericRawValuePresence:
-    """Null, blank text, and the declared missing values claim nothing."""
-
-    missing_values: tuple[float, ...]
-    number_format: NumberNotation
-
-    def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr:
-        numbers = as_numbers(values, dtype, self.number_format)
-        return ~(blank(values, dtype) | _sentinel(numbers, self.missing_values))
-
-
-@dataclass(frozen=True, slots=True)
-class RegexNumericRawValuePresence:
-    """As plain numeric, but the comparable number is one capture of a structured token."""
-
-    missing_values: tuple[float, ...]
-    pattern: str
-    number_format: NumberNotation
-
-    def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr:
-        extracted = values.cast(pl.String, strict=False).str.extract(self.pattern, 1)
-        numbers = as_numbers(extracted, pl.String(), self.number_format)
-        return ~(blank(values, dtype) | _sentinel(numbers, self.missing_values))
 
 
 def _masked(layer: RawLayerTable, presence: RawValuePresence) -> pl.DataFrame:
