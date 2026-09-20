@@ -96,6 +96,23 @@ def parse(tmp_path: Path, built: RuleDocument, values: pl.DataFrame | None = Non
 
 
 @pytest.mark.parametrize("operation", [STRIP, NORMALIZE], ids=["strip", "normalize"])
+def test_missing_optional_sequence_input_blocks_its_operation(
+    operation: dict[str, Any],
+) -> None:
+    declaration = base([operation])
+    declaration["columns"]["var"][1]["required"] = False
+    var = (
+        synthetic.facade(document(declaration))
+        .resolve_source(delimited(("run", "id", "other sequence", "quantity")))
+        .var
+    )
+
+    assert var.skipped == {"Modified_Sequence", operation["name"]}
+    assert operation["name"] not in var.outputs
+    assert var.key_phase.computers == var.output_phase.computers == ()
+
+
+@pytest.mark.parametrize("operation", [STRIP, NORMALIZE], ids=["strip", "normalize"])
 def test_changing_the_declared_input_changes_the_values_consumed(
     operation: dict[str, Any],
     tmp_path: Path,

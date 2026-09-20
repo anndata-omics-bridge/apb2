@@ -29,16 +29,13 @@ from apb2.parserV2.parse_quant.contracts import (
 from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation
 from apb2.parserV2.parse_quant.modifications import (
     EmbeddedSiteListNormalizer,
-    EmbeddedSiteListRules,
     ModificationOccurrence,
     PackedSiteMismatchError,
     PlainSequenceStripper,
     SequenceColumn,
     SequenceOperation,
     SiteListNormalizer,
-    SiteListRules,
     TokenRegexNormalizer,
-    TokenRegexRules,
     TokenRegexStripper,
     UnknownModificationError,
     normalize_embedded_site_list,
@@ -79,44 +76,6 @@ DOT_NUMBERS = NumberNotation(decimal_mark=".", thousands_marks=())
 COMMA_NUMBERS = NumberNotation(decimal_mark=",", thousands_marks=(".", " "))
 
 
-def token_rules(
-    *,
-    pattern: str = r"\(([^()]*)\)",
-    position: ModificationTokenPosition = "after_residue",
-    policy: UnknownModificationPolicy = "preserve",
-    entries: tuple[ModificationMapEntry, ...] = (OXIDATION, ACETYL),
-) -> TokenRegexRules:
-    """The rules the pure algorithm reads: how tokens are written and what they mean."""
-    return TokenRegexRules(
-        token_pattern=pattern,
-        token_position=position,
-        case_sensitive=False,
-        unknown_policy=policy,
-        entries=entries,
-    )
-
-
-def site_rules(
-    *, site_base: int = 1, policy: UnknownModificationPolicy = "preserve"
-) -> SiteListRules:
-    return SiteListRules(
-        delimiter=";",
-        site_base=site_base,
-        case_sensitive=False,
-        unknown_policy=policy,
-        entries=(
-            ModificationMapEntry(
-                token="Oxidation@M",
-                name="Oxidation",
-                accession="UNIMOD:35",
-                target=("M",),
-                position="Anywhere",
-                mass_delta=15.994915,
-            ),
-        ),
-    )
-
-
 def token_regex(
     *,
     pattern: str = r"\(([^()]*)\)",
@@ -124,7 +83,7 @@ def token_regex(
     policy: UnknownModificationPolicy = "preserve",
     entries: tuple[ModificationMapEntry, ...] = (OXIDATION, ACETYL),
 ) -> TokenRegexModificationConfig:
-    """The declaration the compiler reads, from which those rules are built."""
+    """The same settings consumed by the compiler and sequence algorithm."""
     return TokenRegexModificationConfig(
         kind="token_regex",
         token_pattern=pattern,
@@ -403,21 +362,21 @@ def test_a_computer_preserves_its_input_length_and_row_order(
 
 
 def test_an_inline_token_becomes_a_localized_proforma_modification() -> None:
-    result = normalize_token_regex("PEPM(ox)IDE", token_rules())
+    result = normalize_token_regex("PEPM(ox)IDE", token_regex())
 
     assert result.stripped_sequence == "PEPMIDE"
     assert result.proforma_sequence == "PEPM[UNIMOD:35]IDE"
 
 
 def test_a_terminal_token_renders_before_the_sequence() -> None:
-    result = normalize_token_regex("_(ac)PEPTIDE_", token_rules())
+    result = normalize_token_regex("_(ac)PEPTIDE_", token_regex())
 
     assert result.stripped_sequence == "PEPTIDE"
     assert result.proforma_sequence == "[UNIMOD:1]-PEPTIDE"
 
 
 def test_a_before_residue_vendor_attaches_the_token_to_what_follows() -> None:
-    rules = token_rules(
+    rules = token_regex(
         pattern="[a-z]+",
         position="before_residue",
         entries=(
@@ -439,7 +398,7 @@ def test_a_before_residue_vendor_attaches_the_token_to_what_follows() -> None:
 
 
 def test_a_numeric_token_matches_on_mass_target_and_position() -> None:
-    rules = token_rules(pattern=r"\[([^\]]+)\]")
+    rules = token_regex(pattern=r"\[([^\]]+)\]")
 
     result = normalize_token_regex("PEPM[15.9949]IDE", rules)
 
@@ -458,7 +417,7 @@ def test_an_unknown_token_follows_the_declared_policy(
     expected: str,
     unknown_tokens: tuple[str, ...],
 ) -> None:
-    rules = token_rules(policy=policy)
+    rules = token_regex(policy=policy)
 
     result = normalize_token_regex("PEPM(weird)IDE", rules)
 
@@ -468,18 +427,18 @@ def test_an_unknown_token_follows_the_declared_policy(
 
 def test_an_unknown_token_can_be_declared_an_error() -> None:
     with pytest.raises(UnknownModificationError, match="weird"):
-        normalize_token_regex("PEPM(weird)IDE", token_rules(policy="error"))
+        normalize_token_regex("PEPM(weird)IDE", token_regex(policy="error"))
 
 
 def test_parallel_site_lists_are_paired_index_wise() -> None:
-    result = normalize_site_list("PEPMIDE", "Oxidation@M", "4", site_rules())
+    result = normalize_site_list("PEPMIDE", "Oxidation@M", "4", site_list())
 
     assert result.stripped_sequence == "PEPMIDE"
     assert result.proforma_sequence == "PEPM[UNIMOD:35]IDE"
 
 
 def test_a_preserved_unknown_site_list_token_is_returned_for_reporting() -> None:
-    result = normalize_site_list("PEPMIDE", "Mystery@M", "4", site_rules())
+    result = normalize_site_list("PEPMIDE", "Mystery@M", "4", site_list())
 
     assert result.proforma_sequence == "PEPM[Mystery@M]IDE"
     assert result.unknown_tokens == ("Mystery@M",)
@@ -487,54 +446,34 @@ def test_a_preserved_unknown_site_list_token_is_returned_for_reporting() -> None
 
 def test_site_zero_is_the_n_terminus_whatever_the_site_base_is() -> None:
     for base in (0, 1):
-        result = normalize_site_list("PEPMIDE", "Oxidation@M", "0", site_rules(site_base=base))
+        result = normalize_site_list("PEPMIDE", "Oxidation@M", "0", site_list(site_base=base))
         assert result.proforma_sequence.startswith("[UNIMOD:35]-")
 
 
 def test_a_site_list_of_mismatched_length_is_a_vendor_file_defect() -> None:
     with pytest.raises(PackedSiteMismatchError, match="length mismatch"):
-        normalize_site_list("PEPMIDE", "Oxidation@M;Oxidation@M", "4", site_rules())
+        normalize_site_list("PEPMIDE", "Oxidation@M;Oxidation@M", "4", site_list())
     with pytest.raises(PackedSiteMismatchError, match="non-integer"):
-        normalize_site_list("PEPMIDE", "Oxidation@M", "x", site_rules())
+        normalize_site_list("PEPMIDE", "Oxidation@M", "x", site_list())
 
 
 def test_an_empty_modification_list_leaves_the_bare_sequence() -> None:
-    result = normalize_site_list("PEPMIDE", "", "", site_rules())
+    result = normalize_site_list("PEPMIDE", "", "", site_list())
 
     assert result.proforma_sequence == "PEPMIDE"
 
 
 def test_embedded_sites_localize_residue_and_terminal_modifications() -> None:
-    config = embedded_site_list()
-    rules = EmbeddedSiteListRules(
-        delimiter=config.delimiter,
-        entry_pattern=config.entry_pattern,
-        site_base=config.site_base,
-        case_sensitive=config.case_sensitive,
-        unknown_policy=config.unknown_policy,
-        entries=config.entries,
-    )
-
     result = normalize_embedded_site_list(
-        "PEPMIDE", "Acetyl (Protein N-term); Oxidation (M4)", rules
+        "PEPMIDE", "Acetyl (Protein N-term); Oxidation (M4)", embedded_site_list()
     )
 
     assert result.proforma_sequence == "[UNIMOD:1]-PEPM[UNIMOD:35]IDE"
 
 
 def test_an_embedded_site_must_point_to_the_declared_residue() -> None:
-    config = embedded_site_list()
-    rules = EmbeddedSiteListRules(
-        delimiter=config.delimiter,
-        entry_pattern=config.entry_pattern,
-        site_base=config.site_base,
-        case_sensitive=config.case_sensitive,
-        unknown_policy=config.unknown_policy,
-        entries=config.entries,
-    )
-
     with pytest.raises(PackedSiteMismatchError, match="points to"):
-        normalize_embedded_site_list("PEPMIDE", "Oxidation (M3)", rules)
+        normalize_embedded_site_list("PEPMIDE", "Oxidation (M3)", embedded_site_list())
 
 
 def test_two_modifications_on_one_residue_concatenate() -> None:

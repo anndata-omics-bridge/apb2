@@ -30,8 +30,11 @@ import polars as pl
 from apb2.parserV2.parse_quant.data.computed import ColumnComputation
 from apb2.parserV2.parse_quant.errors import ColumnComputationError
 from apb2.parserV2.parse_quant.parameters.axis import (
+    EmbeddedSiteListModificationConfig,
     ModificationMapEntry,
     ModificationTokenPosition,
+    SiteListModificationConfig,
+    TokenRegexModificationConfig,
     UnknownModificationPolicy,
 )
 
@@ -454,41 +457,9 @@ def _tokenize(
     return residues, pending
 
 
-@dataclass(frozen=True, slots=True)
-class TokenRegexRules:
-    """How one vendor writes inline modification tokens, and what they resolve to."""
-
-    token_pattern: str
-    token_position: ModificationTokenPosition
-    case_sensitive: bool
-    unknown_policy: UnknownModificationPolicy
-    entries: tuple[ModificationMapEntry, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class SiteListRules:
-    """How one vendor writes parallel modification-name and site columns."""
-
-    delimiter: str
-    site_base: int
-    case_sensitive: bool
-    unknown_policy: UnknownModificationPolicy
-    entries: tuple[ModificationMapEntry, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class EmbeddedSiteListRules:
-    """How one vendor embeds each modification's site in its modification token."""
-
-    delimiter: str
-    entry_pattern: str
-    site_base: int
-    case_sensitive: bool
-    unknown_policy: UnknownModificationPolicy
-    entries: tuple[ModificationMapEntry, ...]
-
-
-def normalize_token_regex(modified_sequence: str, config: TokenRegexRules) -> ModifiedSequence:
+def normalize_token_regex(
+    modified_sequence: str, config: TokenRegexModificationConfig
+) -> ModifiedSequence:
     """Normalize one inline-token sequence: strip, tokenize, resolve, render."""
     pattern = re.compile(config.token_pattern)
     sequence = _strip_terminal_markers(modified_sequence)
@@ -525,7 +496,9 @@ def normalize_token_regex(modified_sequence: str, config: TokenRegexRules) -> Mo
 # ------------------------------------------------------------------- parallel name/site lists
 
 
-def _site_location(site: int, config: SiteListRules, stripped: str) -> ModificationLocation:
+def _site_location(
+    site: int, config: SiteListModificationConfig, stripped: str
+) -> ModificationLocation:
     """Map one vendor site value to a ProForma position and a 0-based residue index.
 
     Site ``0`` is the N-terminus by convention, independent of ``site_base``: a 1-based
@@ -544,7 +517,7 @@ def normalize_site_list(
     sequence: str,
     modifications: str,
     sites: str,
-    config: SiteListRules,
+    config: SiteListModificationConfig,
 ) -> ModifiedSequence:
     """Normalize a bare sequence plus its parallel modification and site columns."""
     stripped = "".join(character for character in sequence if character.isalpha())
@@ -614,7 +587,7 @@ def _embedded_location(site: str, stripped: str, site_base: int) -> Modification
 def normalize_embedded_site_list(
     sequence: str,
     modifications: str,
-    config: EmbeddedSiteListRules,
+    config: EmbeddedSiteListModificationConfig,
 ) -> ModifiedSequence:
     """Normalize a bare sequence plus entries shaped like ``Oxidation (M5)``."""
     stripped = "".join(character for character in sequence if character.isalpha())
@@ -700,7 +673,7 @@ class TokenRegexStripper:
 class TokenRegexNormalizer:
     """Normalize the supplied inline-token sequence, not a physical source column."""
 
-    rules: TokenRegexRules
+    rules: TokenRegexModificationConfig
 
     def transform(self, row: tuple[str, ...], /) -> SequenceValue:
         (sequence,) = row
@@ -712,7 +685,7 @@ class TokenRegexNormalizer:
 class SiteListNormalizer:
     """Normalize all three declared sequence/name/site inputs."""
 
-    rules: SiteListRules
+    rules: SiteListModificationConfig
 
     def transform(self, row: tuple[str, ...], /) -> SequenceValue:
         sequence, modifications, sites = row
@@ -724,7 +697,7 @@ class SiteListNormalizer:
 class EmbeddedSiteListNormalizer:
     """Normalize a supplied sequence and its embedded modification/site entries."""
 
-    rules: EmbeddedSiteListRules
+    rules: EmbeddedSiteListModificationConfig
 
     def transform(self, row: tuple[str, ...], /) -> SequenceValue:
         sequence, modifications = row

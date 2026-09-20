@@ -19,6 +19,7 @@ from apb2.parserV2.parse_quant.errors import IncompatibleSourceError
 from apb2.parserV2.parse_quant.parameters.axis import (
     AxisKeyPlan,
     CoalesceColumnConfig,
+    JoinNonemptyColumnConfig,
     ProformaIonColumnConfig,
     ProformaSequenceColumnConfig,
     SiteListModificationConfig,
@@ -468,8 +469,14 @@ def test_pruning_removes_exactly_the_chain_a_missing_optional_blocks() -> None:
 
     # ``join_nonempty`` keeps the inputs it has, so only the absent name is skipped.
     assert var.skipped == frozenset({"Extra"})
-    assert [computer.name for computer in var.output_phase.computers] == ["Joined", "Downstream"]
-    assert var.output_phase.computers[1].inputs == ("Joined",)
+    assert var.output_phase.computers == (
+        JoinNonemptyColumnConfig(
+            kind="join_nonempty", name="Joined", inputs=("Feature", "Charge"), separator="-"
+        ),
+        JoinNonemptyColumnConfig(
+            kind="join_nonempty", name="Downstream", inputs=("Joined",), separator="+"
+        ),
+    )
 
 
 def test_a_blocked_sequence_operation_removes_itself_and_its_consumers() -> None:
@@ -508,6 +515,30 @@ def test_a_missing_dependency_of_a_final_key_makes_the_level_incompatible() -> N
 
     with pytest.raises(IncompatibleSourceError, match="Charge"):
         facade.resolve_source(delimited(("Sample", "Feature", "Quantity")))
+
+
+@pytest.mark.parametrize("how", ["coalesce", "join_nonempty"])
+def test_combining_operations_with_no_surviving_inputs_are_skipped(how: str) -> None:
+    document = synthetic.long_document(
+        obs_select={"Sample": "Sample"},
+        var_select={"Feature": "Feature"},
+        var_optional={"First": "First", "Second": "Second"},
+        computed=[
+            {
+                "name": "Merged",
+                "inputs": ["First", "Second"],
+                "how": how,
+                **({"separator": "|"} if how == "join_nonempty" else {}),
+            }
+        ],
+    )
+    var = (
+        synthetic.facade(document).resolve_source(delimited(("Sample", "Feature", "Quantity"))).var
+    )
+
+    assert var.skipped == {"First", "Second", "Merged"}
+    assert var.output_phase.computers == ()
+    assert "Merged" not in var.outputs
 
 
 def test_a_non_injective_coalesce_is_planned_and_left_for_the_parser_to_catch() -> None:

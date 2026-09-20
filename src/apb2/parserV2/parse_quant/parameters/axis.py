@@ -6,8 +6,8 @@ carry identity, at which of the three stages. ``ModificationConfig`` carries eve
 modification normalizer needs, already resolved — the accession lookups happened during rule
 projection, so nothing here consults a registry or a Unimod file.
 
-Every value is a plain immutable record. ``kind`` tags exist only so the composition root can
-construct behaviour once; no computation receives one.
+Every value is a plain immutable record. ``kind`` tags support construction and provenance;
+normalizers reuse these settings directly but never dispatch on their tags.
 """
 
 from __future__ import annotations

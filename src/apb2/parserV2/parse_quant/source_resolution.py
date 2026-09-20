@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from apb2.parserV2.parse_quant.errors import IncompatibleSourceError
 from apb2.parserV2.parse_quant.parameters.axis import (
@@ -545,14 +545,7 @@ class SourcePlanResolver:
             kept = tuple(name for name in computer.inputs if name in available)
             if not kept:
                 return None
-            if isinstance(computer, CoalesceColumnConfig):
-                return CoalesceColumnConfig(kind="coalesce", name=computer.name, inputs=kept)
-            return JoinNonemptyColumnConfig(
-                kind="join_nonempty",
-                name=computer.name,
-                inputs=kept,
-                separator=computer.separator,
-            )
+            return replace(computer, inputs=kept)
         if any(name not in available for name in computer.inputs):
             return None
         return computer

@@ -1,8 +1,8 @@
-"""The composition root: every tag consumed once, and nothing carries one afterwards.
+"""The composition root: each tag selects behavior once; settings retain provenance.
 
 What these tests are for is the claim the whole architecture rests on — that after compilation
-no object knows what vendor, level, layout, encoding, duplicate mode, or output format it came
-from. So they check the registries for coverage, the constructed graph for tags, and
+no algorithm dispatches on vendor, level, layout, encoding, duplicate mode, or output format.
+So they check registry coverage, runtime behavior, canonical settings identity, and
 the compiler objects for the ordering and skipping behaviour a multi-level caller relies on.
 """
 
@@ -45,6 +45,7 @@ from apb2.parserV2.parse_quant.fragments import (
 )
 from apb2.parserV2.parse_quant.layer_validation import LayerContractValidator
 from apb2.parserV2.parse_quant.modifications import (
+    EmbeddedSiteListNormalizer,
     SequenceColumn,
     SiteListNormalizer,
     TokenRegexNormalizer,
@@ -54,6 +55,7 @@ from apb2.parserV2.parse_quant.parameters.axis import (
     AxisLogicalType,
     AxisSourcePlan,
     CoalesceColumnConfig,
+    EmbeddedSiteListModificationConfig,
     JoinNonemptyColumnConfig,
     PlainSequenceSyntaxConfig,
     ProformaFragmentColumnConfig,
@@ -301,16 +303,29 @@ def test_every_modification_declaration_names_one_normalizer() -> None:
         unknown_policy="preserve",
         entries=(),
     )
+    embedded = EmbeddedSiteListModificationConfig(
+        kind="embedded_site_list",
+        delimiter=";",
+        entry_pattern=r"^(?P<token>.+?)\s+\((?P<site>[^)]+)\)$",
+        site_base=1,
+        case_sensitive=False,
+        unknown_policy="preserve",
+        entries=(),
+    )
 
     from_site_list = make_sequence_normalizer(site_list)
     from_token_regex = make_sequence_normalizer(token_regex)
+    from_embedded = make_sequence_normalizer(embedded)
 
     assert isinstance(from_site_list, SiteListNormalizer)
     assert isinstance(from_token_regex, TokenRegexNormalizer)
+    assert isinstance(from_embedded, EmbeddedSiteListNormalizer)
     assert not hasattr(from_site_list, "sources")
     assert not hasattr(from_token_regex, "sources")
-    assert not hasattr(from_site_list.rules, "kind")
-    assert not hasattr(from_token_regex.rules, "kind")
+    assert not hasattr(from_embedded, "sources")
+    assert from_site_list.rules is site_list
+    assert from_token_regex.rules is token_regex
+    assert from_embedded.rules is embedded
 
 
 def test_every_separation_declaration_names_one_separator() -> None:

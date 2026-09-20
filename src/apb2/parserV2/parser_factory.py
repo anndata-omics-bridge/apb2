@@ -1,7 +1,7 @@
 """Construct parser runtime collaborators from resolved rule declarations.
 
-Every declarative discriminator is consumed here, exactly once, and the object that comes back
-carries no tag. That is the whole point of the module: past this boundary nothing asks what
+Every declarative discriminator selects behavior here, exactly once. Settings may retain tags
+for provenance; past this boundary nothing dispatches on what
 vendor, level, layout, value form, duplicate mode, or output format it is dealing with, because
 the answer has already become behaviour.
 
@@ -64,14 +64,11 @@ from apb2.parserV2.parse_quant.io.formats import ParsedLevelFormatWriter
 from apb2.parserV2.parse_quant.layer_validation import LayerContractValidator
 from apb2.parserV2.parse_quant.modifications import (
     EmbeddedSiteListNormalizer,
-    EmbeddedSiteListRules,
     PlainSequenceStripper,
     SequenceColumn,
     SequenceOperation,
     SiteListNormalizer,
-    SiteListRules,
     TokenRegexNormalizer,
-    TokenRegexRules,
     TokenRegexStripper,
 )
 from apb2.parserV2.parse_quant.parameters.axis import (
@@ -190,35 +187,10 @@ def make_sequence_stripper(config: StrippingSyntaxConfig) -> SequenceOperation:
 def make_sequence_normalizer(config: ModificationConfig) -> SequenceOperation:
     """Construct the normalizer one modification declaration describes."""
     if isinstance(config, SiteListModificationConfig):
-        return SiteListNormalizer(
-            rules=SiteListRules(
-                delimiter=config.delimiter,
-                site_base=config.site_base,
-                case_sensitive=config.case_sensitive,
-                unknown_policy=config.unknown_policy,
-                entries=config.entries,
-            ),
-        )
+        return SiteListNormalizer(rules=config)
     if isinstance(config, EmbeddedSiteListModificationConfig):
-        return EmbeddedSiteListNormalizer(
-            rules=EmbeddedSiteListRules(
-                delimiter=config.delimiter,
-                entry_pattern=config.entry_pattern,
-                site_base=config.site_base,
-                case_sensitive=config.case_sensitive,
-                unknown_policy=config.unknown_policy,
-                entries=config.entries,
-            ),
-        )
-    return TokenRegexNormalizer(
-        rules=TokenRegexRules(
-            token_pattern=config.token_pattern,
-            token_position=config.token_position,
-            case_sensitive=config.case_sensitive,
-            unknown_policy=config.unknown_policy,
-            entries=config.entries,
-        ),
-    )
+        return EmbeddedSiteListNormalizer(rules=config)
+    return TokenRegexNormalizer(rules=config)
 
 
 def make_layer_operations(
