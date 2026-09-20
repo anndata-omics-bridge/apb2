@@ -140,8 +140,8 @@ The specification stays close to V5. These are the only intentional changes:
 | Numeric aggregate compatibility is checked during compilation | V5 allowed aggregate construction and specified a runtime rejection for string/factor values | Reject a rule/read-plan combination that cannot satisfy the strategy before parsing a large source; retain a runtime guard for malformed data |
 | Numeric aggregate leaves a cell null when it has no semantically present scalar | V5 retained pandas' `0.0` result for a physically present but all-missing group while also requiring a no-contribution cell to stay missing | A wide `RawLayerTable` deliberately carries values, not a physical-cell ledger; null versus absent contribution cannot be recovered after pivot. The null result is information-honest and avoids reintroducing provenance solely to manufacture zero |
 | Schema 0.3 removes `keep_all_as_raw_table` from `DuplicateMode` | V5 retained the legacy declaration but required compilation to fail because no final result contract existed | A clean schema must not validate an unexecutable mode; removing it deletes a dead registry path and keeps `ParsedLevel` singular |
-| Sequence computations consume exact logical input-series tuples and return `ColumnComputation` | An implicit normalizer produced both stripped and normalized intermediate columns | Honor authored dependencies, allow independent execution, and carry diagnostics outside the column namespace |
-| `ColumnComputer` receives only its configured input-series tuple; source resolution prunes computations blocked by absent optional inputs | V5 passed the complete axis frame and a `skipped` set into every computed-column strategy | Name the smallest capability, consume optionality once, and remove runtime absence branches from every computer |
+| Sequence computations select their declared inputs with Polars and return a frame plus diagnostics | An implicit normalizer produced both stripped and normalized intermediate columns | Honor authored dependencies, allow independent execution, and carry diagnostics outside the column namespace |
+| `ColumnComputer` applies named Polars expressions to the axis frame; source resolution prunes computations blocked by absent optional inputs | V5 passed a `skipped` set into every computed-column strategy | Consume optionality once and let Polars own table execution without runtime absence branches |
 | Duplicate resolution receives one configured `RawValuePresence` per layer | V5 deferred all missing-sentinel interpretation to the writer, so `keep_first` could retain a sentinel such as AlphaDIA's `0` and discard a later real value | Determine only whether a raw scalar claims a cell; do not convert or replace the scalar, preserving late encoding and Parquet values |
 | `ParseRuleFacade.resolve_source(SourceEvidence)` replaces `resolve_header(header)` | V5 expected a column-name sequence to produce numeric formats, read dtypes, and Parquet compatibility decisions | Pass the exact physical evidence required for one atomic resolved plan and remove hidden compiler side channels |
 | Vendor-parameter parsing retains the `vendor_params` name and lives in the independent `parserV2/vendor_params/` child; top-level `api.py` translates its complete `Parameters` record to rule-owned `SearchParameterEvidence` | The first specification placed `vendor_params` beside `parserV2` and required a second outer composition layer | Give applications one public in-memory boundary without renaming the established parameter model, and keep both `parse_quant` and `vendor_parse_rules` independent of it |
@@ -1637,11 +1637,11 @@ class FragmentTableSeparator(Protocol):
 class AxisValueCoercer(Protocol):
     def coerce(
         self,
-        values: pl.Series,
+        frame: pl.DataFrame,
         *,
         name: str,
         source: str,
-    ) -> pl.Series: ...
+    ) -> pl.Expr: ...
 
 
 class ColumnComputer(Protocol):
@@ -1650,13 +1650,13 @@ class ColumnComputer(Protocol):
 
     def compute(
         self,
-        columns: tuple[pl.Series, ...],
+        frame: pl.DataFrame,
         /,
-    ) -> ColumnComputation: ...
+    ) -> tuple[pl.DataFrame, tuple[str, ...]]: ...
 
 
 class RawValuePresence(Protocol):
-    def present(self, values: pl.Series, /) -> pl.Series: ...
+    def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr: ...
 
 
 class DuplicatePolicy(Protocol):
@@ -1688,26 +1688,19 @@ class AnnDataLayerContractChecker(Protocol):
     def check(self, encoded: Mapping[str, pl.DataFrame], /) -> None: ...
 ```
 
-`SequenceColumn` implements the ordinary `ColumnComputer` contract. Its configured `SequenceOperation` transforms one tuple of supplied sequence values into one `SequenceValue`; token-regex/plain stripping and token-regex/site-list/embedded-site normalization are independent implementations. Per-operation memoization never shares an implicit result between computations.
+`SequenceColumn` implements the ordinary `ColumnComputer` contract. Polars selects distinct declared input tuples, invokes the pure `SequenceOperation` through a typed struct UDF, and restores row order through an ordered join. Token-regex stripping and token-regex/site-list/embedded-site normalization retain their scientific scalar algorithms; plain residue stripping is a native Polars Unicode-letter expression. No Python row cache or output list is maintained and no result is shared implicitly between operations.
 
-`ColumnComputation(values, unknown_mod_tokens)` separates the output series from diagnostic metadata. Under `unknown_policy="preserve"`, unresolved tokens remain in ProForma and are collected once in first-observed order into `ParsedLevel.uns["unknown_mod_tokens"]`; no diagnostic column is injected into the axis. Normalization and its dependencies run before invalid-key filtering even when the normalized column is metadata, preserving diagnostics and errors from discarded rows. Writers retain their existing parser-namespace persistence.
+Computations return `(frame, unknown_mod_tokens)`; the Series-based `ColumnComputation` envelope is removed. Under `unknown_policy="preserve"`, unresolved tokens remain in ProForma and are collected once in first-observed order into `ParsedLevel.uns["unknown_mod_tokens"]`; no diagnostic column is injected into the final axis. Normalization and its dependencies run before invalid-key filtering even when the normalized column is metadata, preserving diagnostics and errors from discarded rows. Writers retain their existing parser-namespace persistence.
 
-`RawValuePresence.present()` returns a non-null Boolean series with the same length and row order as
-its input. It may inspect tokens but may not return converted measurement values.
-
-Every axis series returned by `AxisValueCoercer` or inside `ColumnComputer`'s result
-has the same length and row order as its input series; the orchestrator assigns declared output
-names. `AnnDataLayerEncoder.encode()` returns the same row count, column count, column order, and
-column names as its value-only input frame, changing only scalar representation and dtypes. These
-shape contracts are checked at each collaborator boundary.
+`RawValuePresence.present()` returns a non-null Boolean expression identifying raw cell occupancy, never converted measurements. Axis coercers validate and return named expressions evaluated together against the immutable physical frame. Computations apply native frame operations in authored dependency order; Polars enforces expression shape. The parser no longer extracts Series, assigns them back individually, or implements a separate axis-length checker.
 
 | Protocol | Exact question it answers | Implementations |
 | --- | --- | --- |
 | `BoundInputReader` | Read one already bound source using one resolved level projection | delimited table, Parquet table; later file-set reader only when a declared file set exists |
 | `SourceDecomposer` | Convert one physical table shape to common raw axes and wide raw layers | long, wide, delimiter-fragment composition |
 | `FragmentTableSeparator` | Turn one packed fragment table into scalar-long rows | positional labels, column-derived labels |
-| `SequenceOperation` | Transform one explicitly supplied sequence tuple | plain/token-regex stripping; token-regex/site-list/embedded-site normalization |
-| `AxisValueCoercer` | Coerce one selected axis series to one declared logical type | string, integer, number, boolean |
+| `SequenceOperation` | Transform one explicitly supplied sequence tuple | token-regex stripping; token-regex/site-list/embedded-site normalization |
+| `AxisValueCoercer` | Validate and build one named selection expression | string, integer, number, boolean |
 | `ColumnComputer` | Materialize one declared computed column | coalesce, join-nonempty, stripped sequence, ProForma sequence, ProForma ion, ProForma fragment |
 | `RawValuePresence` | Mark raw layer scalars that semantically claim a cell without converting them | null-only, plain numeric, regex numeric |
 | `DuplicatePolicy` | Resolve repeated values of each raw wide cell | error, keep first, numeric aggregate |
@@ -2862,7 +2855,8 @@ They verify scaling rather than enforce machine-independent CI thresholds:
 
 - modification normalization scales with distinct `VarRaw` rows, not measurement row count;
 - other axis computation scales with small axis rows;
-- duplicate resolution remains vectorized over wide Polars frames;
+- duplicate resolution null-masks absent values in wide Polars frames, then uses native first/count/sum aggregations; error mode counts and selects in one grouping, without per-cell presence structs;
+- layer summaries reduce columns natively and gather a bounded deterministic finite-cell sample without flattening the full matrix; AnnData conversion uses one Arrow table conversion, preserving nullable and categorical representations;
 - Parquet allocates no numeric layer matrix;
 - only `AnnDataWriter` allocates one final `n_obs × n_var` array per encoded layer;
 - peak memory across raw, resolved, and final layer frames is measured explicitly.
@@ -2915,7 +2909,6 @@ apb2/src/apb2/parserV2/
 │   │   ├── layer_columns.py    # positional layer-column naming invariant
 │   │   ├── numeric_text.py     # storage-neutral numeric-token interpretation
 │   │   ├── source.py           # LevelSourceTable
-│   │   ├── computed.py         # one computed column and diagnostic metadata
 │   │   ├── raw.py              # raw axes/layers, decomposition result, key map
 │   │   └── parsed.py           # final axes/layers, ParsedLevel, and ParsedLevels
 │   ├── io/

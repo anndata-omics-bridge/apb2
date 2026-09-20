@@ -47,6 +47,13 @@ def as_json_value(value: object) -> JsonValue:
         return value
     if isinstance(value, SequenceColumn):
         return as_json_value(_sequence_snapshot(value))
+    if isinstance(value, PlainSequenceStripper):
+        return {
+            "kind": "stripped_sequence",
+            "name": value.name,
+            "inputs": list(value.inputs),
+            "syntax": {"kind": "plain_sequence"},
+        }
     if is_dataclass(value) and not isinstance(value, type):
         result: dict[str, JsonValue] = {}
         if type(value) in _COMPUTATIONS:
@@ -76,14 +83,12 @@ def _sequence_snapshot(value: SequenceColumn) -> dict[str, object]:
         operation, TokenRegexNormalizer | SiteListNormalizer | EmbeddedSiteListNormalizer
     ):
         kind, payload = "proforma_sequence", {"normalization": operation.rules}
-    elif isinstance(operation, PlainSequenceStripper | TokenRegexStripper):
-        syntax: dict[str, object] = {"kind": "plain_sequence"}
-        if isinstance(operation, TokenRegexStripper):
-            syntax = {
-                "kind": "token_regex",
-                "token_pattern": operation.token_pattern,
-                "token_position": operation.token_position,
-            }
+    elif isinstance(operation, TokenRegexStripper):
+        syntax = {
+            "kind": "token_regex",
+            "token_pattern": operation.token_pattern,
+            "token_position": operation.token_position,
+        }
         kind, payload = "stripped_sequence", {"syntax": syntax}
     else:
         raise TypeError(f"sequence operation has no plan JSON form: {type(operation).__name__}")

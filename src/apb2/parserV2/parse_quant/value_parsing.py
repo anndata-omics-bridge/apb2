@@ -33,53 +33,48 @@ class PlainNumericLayerParser:
 
     def parse(self, layer: FinalLayerTable, /) -> FinalLayerTable:
         values = _value_block(layer)
-        columns = tuple(values.columns)
-        if not columns:
+        if not values.width:
             canonical = values
         else:
-            number_labels = _temporary_labels("_number", len(columns), reserved=columns)
-            mask_labels = _temporary_labels(
-                "_unreadable", len(columns), reserved=(*columns, *number_labels)
+            prepared = values.select(
+                pl.struct(
+                    pl.col(column).alias("raw"),
+                    as_numbers(pl.col(column), dtype, self.number_format).alias("number"),
+                    blank(pl.col(column), dtype).alias("blank"),
+                ).alias(column)
+                for column, dtype in values.schema.items()
             )
-            prepared = values.with_columns(
-                [
-                    as_numbers(pl.col(column), values.schema[column], self.number_format).alias(
-                        label
+            unreadable = (
+                prepared.select(
+                    pl.concat_list(
+                        pl.all()
+                        .struct.field("raw")
+                        .cast(pl.String)
+                        .filter(
+                            ~pl.all().struct.field("blank")
+                            & pl.all().struct.field("number").is_null()
+                        )
+                        .unique(maintain_order=True)
+                        .head(_EXAMPLE_LIMIT)
+                        .implode()
                     )
-                    for column, label in zip(columns, number_labels, strict=True)
-                ]
-            ).with_columns(
-                [
-                    (
-                        ~blank(pl.col(column), values.schema[column])
-                        & pl.col(number_label).is_null()
-                    ).alias(mask_label)
-                    for column, number_label, mask_label in zip(
-                        columns, number_labels, mask_labels, strict=True
-                    )
-                ]
+                    .list.explode(empty_as_null=False)
+                    .unique()
+                    .sort()
+                )
+                .to_series()
+                .to_list()
             )
-            unreadable = [
-                str(token)
-                for column, mask_label in zip(columns, mask_labels, strict=True)
-                for token in prepared.get_column(column)
-                .filter(prepared.get_column(mask_label))
-                .unique(maintain_order=True)
-                .head(_EXAMPLE_LIMIT)
-            ]
             if unreadable:
                 logger.warning(
                     "layer {!r} declares numeric values; {} distinct unreadable token(s) "
                     "became missing, examples={}",
                     self.layer_name,
-                    len(set(unreadable)),
-                    sorted(set(unreadable))[:_EXAMPLE_LIMIT],
+                    len(unreadable),
+                    unreadable[:_EXAMPLE_LIMIT],
                 )
             canonical = prepared.select(
-                [
-                    _masked(pl.col(label), self.missing_values).alias(column)
-                    for column, label in zip(columns, number_labels, strict=True)
-                ]
+                _masked(pl.all().struct.field("number"), self.missing_values).name.keep()
             )
         return _parsed_layer(
             layer,
@@ -102,17 +97,14 @@ class RegexNumericLayerParser:
     def parse(self, layer: FinalLayerTable, /) -> FinalLayerTable:
         values = _value_block(layer)
         canonical = values.select(
-            [
-                _masked(
-                    as_numbers(
-                        pl.col(column).cast(pl.String, strict=False).str.extract(self.pattern, 1),
-                        pl.String(),
-                        self.number_format,
-                    ),
-                    self.missing_values,
-                ).alias(column)
-                for column in values.columns
-            ]
+            _masked(
+                as_numbers(
+                    pl.all().cast(pl.String, strict=False).str.extract(self.pattern, 1),
+                    pl.String(),
+                    self.number_format,
+                ),
+                self.missing_values,
+            ).name.keep()
         )
         return _parsed_layer(
             layer,
@@ -136,17 +128,13 @@ class FactorLayerParser:
         mapping = dict(self.categories)
         values = _value_block(layer)
         canonical = values.select(
-            [
-                pl.col(column)
-                .cast(pl.String, strict=False)
-                .replace_strict(
-                    mapping,
-                    default=UNKNOWN_CATEGORY_CODE,
-                    return_dtype=pl.Int64,
-                )
-                .alias(column)
-                for column in values.columns
-            ]
+            pl.all()
+            .cast(pl.String, strict=False)
+            .replace_strict(
+                mapping,
+                default=UNKNOWN_CATEGORY_CODE,
+                return_dtype=pl.Int64,
+            )
         )
         return _parsed_layer(
             layer,
@@ -157,7 +145,7 @@ class FactorLayerParser:
 
 
 def _value_block(layer: FinalLayerTable, /) -> pl.DataFrame:
-    return layer.values.select(layer.values.columns[len(layer.var_key_columns) :])
+    return layer.values.select(pl.exclude(layer.var_key_columns))
 
 
 def _parsed_layer(
@@ -190,44 +178,25 @@ def _validate_numeric_type(
     numeric_type: NumericLayerType,
     /,
 ) -> pl.DataFrame:
-    if numeric_type == "number":
+    if numeric_type == "number" or not values.width:
         return values
-    examples: list[float] = []
-    for column in values.get_columns():
-        invalid = (
-            column.is_not_null()
-            & ~column.is_nan().fill_null(False)
-            & (~column.is_finite().fill_null(False) | (column != column.floor()).fill_null(False))
+    invalid = (
+        pl.all().is_not_null()
+        & ~pl.all().is_nan().fill_null(False)
+        & (~pl.all().is_finite().fill_null(False) | (pl.all() != pl.all().floor()).fill_null(False))
+    )
+    examples = (
+        values.select(
+            pl.concat_list(pl.all().filter(invalid).head(_EXAMPLE_LIMIT).implode())
+            .list.explode(empty_as_null=False)
+            .head(_EXAMPLE_LIMIT)
         )
-        examples.extend(column.filter(invalid).head(_EXAMPLE_LIMIT - len(examples)).to_list())
-        if len(examples) == _EXAMPLE_LIMIT:
-            break
+        .to_series()
+        .to_list()
+    )
     if examples:
         raise LayerValueError(
             f"integer layer {layer_name!r} contains fractional or infinite values; "
             f"examples={examples}"
         )
-    return values.select(
-        [
-            pl.when(pl.col(name).is_nan())
-            .then(None)
-            .otherwise(pl.col(name))
-            .cast(pl.Int64, strict=True)
-            .alias(name)
-            for name in values.columns
-        ]
-    )
-
-
-def _temporary_labels(
-    prefix: str,
-    count: int,
-    *,
-    reserved: tuple[str, ...],
-) -> tuple[str, ...]:
-    taken = set(reserved)
-    while True:
-        labels = tuple(f"{prefix}_{index}" for index in range(count))
-        if not taken.intersection(labels):
-            return labels
-        prefix += "_"
+    return values.select(pl.all().fill_nan(None).cast(pl.Int64, strict=True))

@@ -41,7 +41,6 @@ from apb2.parserV2.parse_quant.modifications import (
 from apb2.parserV2.parse_quant.observation_groups import group_observations
 from apb2.parserV2.parse_quant.parameters.source import Folder, InputSource, SingleFile
 from apb2.parserV2.parse_quant.parser import (
-    AxisShapeError,
     CanonicalKeyCollisionError,
     ParserCollection,
 )
@@ -94,7 +93,6 @@ _EXPECTED_CONVERSION_FAILURES = (
     AggregateTypeError,
     AmbiguousDialectError,
     AxisCoercionError,
-    AxisShapeError,
     CanonicalKeyCollisionError,
     ColumnComputationError,
     DuplicateCellError,

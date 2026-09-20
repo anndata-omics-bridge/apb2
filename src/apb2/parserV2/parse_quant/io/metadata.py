@@ -371,14 +371,16 @@ def logical_table_metadata(frame: pl.DataFrame, /) -> dict[str, JsonValue]:
 
 def column_descriptions(frame: pl.DataFrame, /) -> list[dict[str, JsonValue]]:
     """Describe logical columns without exposing table values or physical storage names."""
-    return [
-        {
-            "name": name,
-            "dtype": _public_dtype_name(frame.schema[name]),
-            "null_count": frame.get_column(name).null_count(),
-        }
-        for name in frame.columns
-    ]
+    return (
+        frame.null_count()
+        .unpivot(variable_name="name", value_name="null_count")
+        .with_columns(
+            pl.Series(
+                "dtype", [_public_dtype_name(dtype) for dtype in frame.dtypes], dtype=pl.String
+            )
+        )
+        .to_dicts()
+    )
 
 
 def _public_dtype_name(dtype: pl.DataType, /) -> str:

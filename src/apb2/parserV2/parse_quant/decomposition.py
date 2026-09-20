@@ -54,8 +54,9 @@ def _axis_frame(frame: pl.DataFrame, plan: AxisSourcePlan) -> pl.DataFrame:
     implementation may report that; it must never answer with a second identity row.
     """
     keys = plan.keys.raw_key_columns
-    columns = [*keys, *(name for name in plan.payload_sources if name not in set(keys))]
-    return frame.select(columns).unique(subset=list(keys), keep="first", maintain_order=True)
+    return frame.select(pl.col(keys), pl.col(plan.payload_sources).exclude(keys)).unique(
+        subset=keys, keep="first", maintain_order=True
+    )
 
 
 def _ordered_by_axis(

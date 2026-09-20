@@ -53,17 +53,16 @@ class LayerContractValidator:
 
 
 def _value_block(layer: FinalLayerTable, /) -> pl.DataFrame:
-    return layer.values.select(layer.values.columns[len(layer.var_key_columns) :])
+    return layer.values.select(pl.exclude(layer.var_key_columns))
 
 
 def _occupancy(values: pl.DataFrame, /) -> float:
     cells = values.height * values.width
     if not cells:
         return 0.0
-    usable = sum(
-        int((column.is_not_null() & ~column.is_nan().fill_null(value=True)).sum())
-        if column.dtype.is_float()
-        else int(column.is_not_null().sum())
-        for column in values.get_columns()
+    usable = (
+        values.fill_nan(None)
+        .select(pl.sum_horizontal(pl.all().is_not_null().cast(pl.UInt64).sum()))
+        .item()
     )
     return usable / cells

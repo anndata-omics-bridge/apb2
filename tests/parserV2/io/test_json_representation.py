@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from typing import Any, cast
 
+import numpy as np
 import polars as pl
 import pytest
 
@@ -691,6 +692,52 @@ def test_derived_nonfinite_moments_remain_valid_json() -> None:
 
     statistics = cast(dict[str, Any], representation["statistics"])
     assert statistics["standard_deviation"] is None
+    json.dumps(representation, allow_nan=False)
+
+
+@pytest.mark.parametrize("width", [0, 1, 7])
+@pytest.mark.parametrize("height", [0, 17])
+@pytest.mark.parametrize("limit", [1, 4, 100])
+def test_native_summaries_match_finite_column_major_sample(
+    width: int, height: int, limit: int
+) -> None:
+    rng = np.random.default_rng(42)
+    values = pl.DataFrame(
+        {
+            f"sample_{index}": pl.Series(
+                rng.choice(
+                    np.array(
+                        [None, float("nan"), float("inf"), -float("inf"), 0.0, -3.0, 1.0, 8.0],
+                        dtype=object,
+                    ),
+                    size=height,
+                ).tolist(),
+                dtype=pl.Float32 if index % 2 else pl.Float64,
+            )
+            for index in range(width)
+        }
+    )
+    representation = quantitative_representation(
+        values, observation_limit=2, quantile_sample_limit=limit
+    )
+    statistics = cast(dict[str, Any], representation["statistics"])
+    flattened = values.to_numpy().flatten(order="F")
+    finite = flattened[np.isfinite(flattened)]
+    count = min(len(finite), limit)
+    sample = finite[[i * (len(finite) - 1) // max(count - 1, 1) for i in range(count)]]
+    assert statistics["total_count"] == values.height * width
+    assert statistics["finite_count"] == len(finite)
+    assert statistics["quartile_sample_count"] == count
+    for name, probability in (("first_quartile", 0.25), ("median", 0.5), ("third_quartile", 0.75)):
+        assert statistics[name] == (
+            pytest.approx(np.quantile(sample, probability)) if count else None
+        )
+    assert statistics["mean"] == (pytest.approx(finite.mean()) if len(finite) else None)
+    assert statistics["standard_deviation"] == (
+        pytest.approx(finite.std(ddof=1)) if len(finite) > 1 else None
+    )
+    observations = cast(dict[str, Any], representation["observation_summaries"])
+    assert observations["emitted_count"] == min(width, 2)
     json.dumps(representation, allow_nan=False)
 
 

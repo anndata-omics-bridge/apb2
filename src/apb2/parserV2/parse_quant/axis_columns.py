@@ -1,13 +1,4 @@
-"""Axis leaf algorithms: coerce one selected series, or compute one declared column.
-
-Everything here runs on a small axis frame — one row per distinct raw key — never on the
-source table, which is why a per-value check can afford to report the tokens that failed.
-
-Each class is configured once and asks nothing afterwards. A coercer knows one logical type;
-a computer knows its output name and its exact ordered inputs and receives exactly those
-series. Neither reads a rule, a ``how``, or an optionality flag: source resolution pruned the
-operations this file cannot run before any of these objects existed.
-"""
+"""Native Polars expressions for declared axis selections and computations."""
 
 from __future__ import annotations
 
@@ -15,7 +6,6 @@ from dataclasses import dataclass
 
 import polars as pl
 
-from apb2.parserV2.parse_quant.data.computed import ColumnComputation
 from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation, as_numbers
 from apb2.parserV2.parse_quant.errors import ColumnComputationError
 
@@ -36,35 +26,33 @@ class AxisCoercionError(ValueError):
     """One selected axis column holds values its declared logical type cannot read."""
 
 
-def _require_valid(values: pl.Series, invalid: pl.Series, name: str, source: str) -> None:
+def _require_valid(frame: pl.DataFrame, invalid: pl.Expr, name: str, source: str) -> None:
     """Report the tokens one coercion could not read, bounded and with examples."""
-    count = int(invalid.sum())
+    count = frame.select(invalid.sum()).item()
     if not count:
         return
     examples = (
-        values.filter(invalid).cast(pl.String).unique(maintain_order=True).head(_EXAMPLE_LIMIT)
+        frame.select(
+            pl.col(source)
+            .filter(invalid)
+            .cast(pl.String)
+            .unique(maintain_order=True)
+            .head(_EXAMPLE_LIMIT)
+        )
+        .to_series()
+        .to_list()
     )
     raise AxisCoercionError(
         f"cannot convert column {name!r} from vendor source {source!r}: "
-        f"{count} invalid non-missing value(s); examples={examples.to_list()}"
-    )
-
-
-def _read_numbers(values: pl.Series, notation: NumberNotation) -> pl.Series:
-    """Evaluate the shared physical-number grammar for one small axis series."""
-    return (
-        values.to_frame()
-        .select(as_numbers(pl.col(values.name), values.dtype, notation).alias(values.name))
-        .to_series()
+        f"{count} invalid non-missing value(s); examples={examples}"
     )
 
 
 class StringAxisCoercer:
     """Keep identifier text exactly as the vendor wrote it."""
 
-    def coerce(self, values: pl.Series, *, name: str, source: str) -> pl.Series:
-        del name, source
-        return values.cast(pl.String)
+    def coerce(self, frame: pl.DataFrame, *, name: str, source: str) -> pl.Expr:
+        return pl.col(source).cast(pl.String).alias(name)
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,11 +61,11 @@ class NumberAxisCoercer:
 
     notation: NumberNotation
 
-    def coerce(self, values: pl.Series, *, name: str, source: str) -> pl.Series:
-        parsed = _read_numbers(values, self.notation)
-        invalid = values.is_not_null() & ~parsed.is_finite().fill_null(value=False)
-        _require_valid(values, invalid, name, source)
-        return parsed
+    def coerce(self, frame: pl.DataFrame, *, name: str, source: str) -> pl.Expr:
+        parsed = as_numbers(pl.col(source), frame.schema[source], self.notation)
+        invalid = pl.col(source).is_not_null() & ~parsed.is_finite().fill_null(value=False)
+        _require_valid(frame, invalid, name, source)
+        return parsed.alias(name)
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,22 +74,23 @@ class IntegerAxisCoercer:
 
     notation: NumberNotation
 
-    def coerce(self, values: pl.Series, *, name: str, source: str) -> pl.Series:
-        parsed = _read_numbers(values, self.notation)
+    def coerce(self, frame: pl.DataFrame, *, name: str, source: str) -> pl.Expr:
+        parsed = as_numbers(pl.col(source), frame.schema[source], self.notation)
         finite = parsed.is_finite().fill_null(value=False)
         integral = (parsed % 1 == 0).fill_null(value=False)
         in_range = ((parsed >= _INT64_MIN) & (parsed <= _INT64_MAX)).fill_null(value=False)
-        invalid = values.is_not_null() & ~(finite & integral & in_range)
-        _require_valid(values, invalid, name, source)
-        return parsed.cast(pl.Int64, strict=False)
+        invalid = pl.col(source).is_not_null() & ~(finite & integral & in_range)
+        _require_valid(frame, invalid, name, source)
+        return parsed.cast(pl.Int64, strict=False).alias(name)
 
 
 class BooleanAxisCoercer:
     """Read the exact canonical boolean spellings, and nothing else."""
 
-    def coerce(self, values: pl.Series, *, name: str, source: str) -> pl.Series:
+    def coerce(self, frame: pl.DataFrame, *, name: str, source: str) -> pl.Expr:
         parsed = (
-            values.cast(pl.String)
+            pl.col(source)
+            .cast(pl.String)
             .str.strip_chars()
             .str.to_lowercase()
             .replace_strict(
@@ -110,18 +99,9 @@ class BooleanAxisCoercer:
                 return_dtype=pl.Boolean,
             )
         )
-        invalid = values.is_not_null() & parsed.is_null()
-        _require_valid(values, invalid, name, source)
-        return parsed
-
-
-def _require_arity(name: str, inputs: tuple[str, ...], columns: tuple[pl.Series, ...]) -> None:
-    """A computer receives exactly its configured inputs, in order — or it refuses to run."""
-    if len(columns) != len(inputs):
-        raise ColumnComputationError(
-            f"computed column {name!r} declares inputs {list(inputs)} but received "
-            f"{len(columns)} series"
-        )
+        invalid = pl.col(source).is_not_null() & parsed.is_null()
+        _require_valid(frame, invalid, name, source)
+        return parsed.alias(name)
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,12 +111,9 @@ class CoalesceColumn:
     name: str
     inputs: tuple[str, ...]
 
-    def compute(self, columns: tuple[pl.Series, ...], /) -> ColumnComputation:
-        _require_arity(self.name, self.inputs, columns)
-        result = columns[0].cast(pl.String)
-        for values in columns[1:]:
-            result = result.zip_with(result.is_not_null(), values.cast(pl.String))
-        return ColumnComputation(result)
+    def compute(self, frame: pl.DataFrame, /) -> tuple[pl.DataFrame, tuple[str, ...]]:
+        expression = pl.coalesce(pl.col(self.inputs).cast(pl.String)).alias(self.name)
+        return frame.with_columns(expression), ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,27 +124,11 @@ class JoinNonemptyColumn:
     inputs: tuple[str, ...]
     separator: str
 
-    def compute(self, columns: tuple[pl.Series, ...], /) -> ColumnComputation:
-        _require_arity(self.name, self.inputs, columns)
-        frame = pl.DataFrame(
-            [values.cast(pl.String).alias(f"_{index}") for index, values in enumerate(columns)]
-        )
-        present = [
-            pl.when(pl.col(f"_{index}").is_not_null() & (pl.col(f"_{index}") != ""))
-            .then(pl.col(f"_{index}"))
-            .otherwise(None)
-            for index in range(len(columns))
-        ]
+    def compute(self, frame: pl.DataFrame, /) -> tuple[pl.DataFrame, tuple[str, ...]]:
+        present = pl.col(self.inputs).cast(pl.String).replace("", None)
         joined = pl.concat_str(present, separator=self.separator, ignore_nulls=True)
-        empty = pl.all_horizontal(
-            [
-                pl.col(f"_{index}").is_null() | (pl.col(f"_{index}") == "")
-                for index in range(len(columns))
-            ]
-        )
-        return ColumnComputation(
-            frame.select(pl.when(empty).then(None).otherwise(joined).alias(self.name)).to_series()
-        )
+        expression = pl.when(pl.all_horizontal(present.is_null())).then(None).otherwise(joined)
+        return frame.with_columns(expression.alias(self.name)), ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -177,19 +138,22 @@ class ProformaIonColumn:
     name: str
     inputs: tuple[str, ...]
 
-    def compute(self, columns: tuple[pl.Series, ...], /) -> ColumnComputation:
-        _require_arity(self.name, self.inputs, columns)
-        sequences, charges = columns
-        if charges.is_null().any():
+    def compute(self, frame: pl.DataFrame, /) -> tuple[pl.DataFrame, tuple[str, ...]]:
+        sequences, charges = (pl.col(name) for name in self.inputs)
+        if frame.select(charges.is_null().any()).item():
             raise ColumnComputationError(f"cannot derive {self.name!r} from a missing charge")
         nonpositive = charges <= 0
-        if nonpositive.any():
-            examples = charges.filter(nonpositive).unique(maintain_order=True).head(_EXAMPLE_LIMIT)
+        examples = frame.select(
+            charges.filter(nonpositive).unique(maintain_order=True).head(_EXAMPLE_LIMIT)
+        )
+        if examples.height:
             raise ColumnComputationError(
                 f"cannot derive {self.name!r}: charge must be positive; "
-                f"examples={examples.to_list()}"
+                f"examples={examples.to_series().to_list()}"
             )
-        return ColumnComputation(sequences.cast(pl.String) + "/" + charges.cast(pl.String))
+        return frame.with_columns(
+            pl.concat_str(sequences, charges, separator="/").alias(self.name)
+        ), ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -199,7 +163,5 @@ class ProformaFragmentColumn:
     name: str
     inputs: tuple[str, ...]
 
-    def compute(self, columns: tuple[pl.Series, ...], /) -> ColumnComputation:
-        _require_arity(self.name, self.inputs, columns)
-        ion, label = columns
-        return ColumnComputation(ion.cast(pl.String) + "/" + label.cast(pl.String))
+    def compute(self, frame: pl.DataFrame, /) -> tuple[pl.DataFrame, tuple[str, ...]]:
+        return frame.with_columns(pl.concat_str(self.inputs, separator="/").alias(self.name)), ()

@@ -210,30 +210,8 @@ def _canonical_layer_values(
     if isinstance(semantics, QuantitativeLayerSemantics):
         if semantics.logical_type == "number":
             return values
-        return values.select(
-            [_integer_column(values, name, missing=None).alias(name) for name in values.columns]
-        )
-    return values.select(
-        [
-            _integer_column(values, name, missing=semantics.missing_code).alias(name)
-            for name in values.columns
-        ]
-    )
-
-
-def _integer_column(
-    values: pl.DataFrame,
-    name: str,
-    /,
-    *,
-    missing: int | None,
-) -> pl.Expr:
-    expression = pl.col(name)
-    if values.schema[name].is_float():
-        expression = pl.when(expression.is_nan()).then(missing).otherwise(expression)
-    if missing is not None:
-        expression = expression.fill_null(missing)
-    return expression.cast(pl.Int64, strict=True)
+        return values.fill_nan(None).cast(pl.Int64, strict=True)
+    return values.fill_nan(None).fill_null(semantics.missing_code).cast(pl.Int64, strict=True)
 
 
 def _primary_layer_name(metadata: Mapping[str, object]) -> str:
@@ -375,22 +353,15 @@ def _feature_relations(
         coordinates = _coordinate_frame(stored.varp[physical_name])
         source_offset, source_size = offsets[annotation_names[annotation_table]]
         target_offset, target_size = offsets[level_names[target_level]]
-        rows = coordinates.get_column("row")
-        columns = coordinates.get_column("column")
+        rows, columns = pl.col("row"), pl.col("column")
         source_valid = (rows >= source_offset) & (rows < source_offset + source_size)
         target_valid = (columns >= target_offset) & (columns < target_offset + target_size)
-        if not (source_valid & target_valid).all():
+        if not coordinates.select((source_valid & target_valid).all()).item():
             raise InvalidResultError(
                 f"feature relation {name!r} has values outside its declared modality blocks"
             )
         restored_coordinates = restore_table_schema(
-            pl.DataFrame(
-                {
-                    "row": rows - source_offset,
-                    "column": columns - target_offset,
-                    "value": coordinates.get_column("value"),
-                }
-            ),
+            coordinates.with_columns(row=rows - source_offset, column=columns - target_offset),
             storage_entry,
         )
         result[name] = FeatureRelation(

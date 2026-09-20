@@ -32,7 +32,6 @@ from apb2.parserV2.parse_quant.contracts import (
     RawValuePresence,
     SelectedAxisColumn,
 )
-from apb2.parserV2.parse_quant.data.computed import ColumnComputation
 from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation
 from apb2.parserV2.parse_quant.data.parsed import ObsFinal, ParsedLevel, VarFinal
 from apb2.parserV2.parse_quant.data.raw import (
@@ -62,7 +61,6 @@ from apb2.parserV2.parse_quant.parameters.source import (
     NumericTextFormat,
 )
 from apb2.parserV2.parse_quant.parser import (
-    AxisShapeError,
     CanonicalKeyCollisionError,
     Parser,
     ParseStrategy,
@@ -228,9 +226,9 @@ def test_parse_runs_its_collaborators_in_the_documented_order() -> None:
         name = "Feature"
         inputs: tuple[str, ...] = ("Feature",)
 
-        def compute(self, columns: tuple[pl.Series, ...], /) -> ColumnComputation:
+        def compute(self, frame: pl.DataFrame, /) -> tuple[pl.DataFrame, tuple[str, ...]]:
             calls.append("normalize")
-            return ColumnComputation(columns[0], ("Mystery@M", "Mystery@M", "Other@C"))
+            return frame, ("Mystery@M", "Mystery@M", "Other@C")
 
     class Presence:
         def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr:
@@ -446,8 +444,10 @@ def test_an_injective_coalesce_of_the_same_shape_parses_normally() -> None:
 
 
 @pytest.mark.parametrize("mode", ["error", "keep_first", "aggregate"])
+@pytest.mark.parametrize("key_name", ["Key", "first"])
 def test_a_canonical_collision_is_reported_under_every_duplicate_policy(
     mode: DuplicateMode,
+    key_name: str,
 ) -> None:
     frame = pl.DataFrame(
         {
@@ -457,18 +457,18 @@ def test_a_canonical_collision_is_reported_under_every_duplicate_policy(
             "intensity": [1.0, 2.0],
         }
     )
-    var = axis_source(("first", "second"), ("First", "Second"), ("Key",))
+    var = axis_source(("first", "second"), ("First", "Second"), (key_name,))
     var_plan = AxisRuntimePlan(
         keys=var.keys,
         key_phase=phase(
             (selected("First", "first"), selected("Second", "second")),
-            (CoalesceColumn(name="Key", inputs=("First", "Second")),),
+            (CoalesceColumn(name=key_name, inputs=("First", "Second")),),
         ),
         output_phase=phase(),
-        outputs=("Key",),
+        outputs=(key_name,),
     )
 
-    with pytest.raises(CanonicalKeyCollisionError):
+    with pytest.raises(CanonicalKeyCollisionError, match="1 value") as error:
         parser_for(
             frame,
             obs_plan=SIMPLE_OBS_PLAN,
@@ -477,6 +477,9 @@ def test_a_canonical_collision_is_reported_under_every_duplicate_policy(
             var=var,
             duplicates=mode,
         ).parse()
+    assert f"'final': {{'{key_name}': 'K'}}" in str(error.value)
+    assert "'raw': {'first': 'K', 'second': None}" in str(error.value)
+    assert "'raw': {'first': None, 'second': 'K'}" in str(error.value)
 
 
 def test_a_repeated_raw_key_reaches_the_duplicate_policy_instead() -> None:
@@ -547,9 +550,8 @@ def test_a_nan_key_is_the_same_absence_as_a_null_key() -> None:
 class _LenientNumber:
     """A number coercion that admits NaN, so the parser's own normalization is visible."""
 
-    def coerce(self, values: pl.Series, *, name: str, source: str) -> pl.Series:
-        del name, source
-        return values.cast(pl.Float64, strict=False)
+    def coerce(self, frame: pl.DataFrame, *, name: str, source: str) -> pl.Expr:
+        return pl.col(source).cast(pl.Float64, strict=False).alias(name)
 
 
 # ------------------------------------------------------------------------------- validity
@@ -590,12 +592,9 @@ def test_an_incomplete_final_key_removes_its_axis_row_and_its_layer_cells() -> N
 class _BlankToNull:
     """A string coercion that reads a blank cell as the absence it is."""
 
-    def coerce(self, values: pl.Series, *, name: str, source: str) -> pl.Series:
-        del name, source
-        text = values.cast(pl.String)
-        return pl.select(
-            pl.when(text.is_null() | (text == "")).then(None).otherwise(text)
-        ).to_series()
+    def coerce(self, frame: pl.DataFrame, *, name: str, source: str) -> pl.Expr:
+        text = pl.col(source).cast(pl.String)
+        return pl.when(text.is_null() | (text == "")).then(None).otherwise(text).alias(name)
 
 
 def test_an_observation_whose_key_is_incomplete_loses_its_value_column() -> None:
@@ -776,9 +775,8 @@ def test_the_parser_holds_only_configured_behaviour() -> None:
 
 def test_a_coercion_that_changes_the_row_count_fails_at_the_boundary() -> None:
     class Shrinking:
-        def coerce(self, values: pl.Series, *, name: str, source: str) -> pl.Series:
-            del name, source
-            return values.head(1)
+        def coerce(self, frame: pl.DataFrame, *, name: str, source: str) -> pl.Expr:
+            return pl.col(source).head(1).alias(name)
 
     var_plan = AxisRuntimePlan(
         keys=SIMPLE_VAR.keys,
@@ -789,7 +787,7 @@ def test_a_coercion_that_changes_the_row_count_fails_at_the_boundary() -> None:
         outputs=("Feature",),
     )
 
-    with pytest.raises(AxisShapeError, match="row order"):
+    with pytest.raises(pl.exceptions.InvalidOperationError):
         parser_for(
             SIMPLE_FRAME,
             obs_plan=SIMPLE_OBS_PLAN,
@@ -804,8 +802,8 @@ def test_a_computed_column_of_the_wrong_length_fails_at_the_boundary() -> None:
         name = "Feature"
         inputs: tuple[str, ...] = ("Feature",)
 
-        def compute(self, columns: tuple[pl.Series, ...], /) -> ColumnComputation:
-            return ColumnComputation(columns[0].head(1))
+        def compute(self, frame: pl.DataFrame, /) -> tuple[pl.DataFrame, tuple[str, ...]]:
+            return frame.with_columns(pl.col(self.inputs[0]).head(1).alias(self.name)), ()
 
     parser = Parser(
         input_reader=_ReaderOf(SIMPLE_FRAME),
@@ -832,7 +830,7 @@ def test_a_computed_column_of_the_wrong_length_fails_at_the_boundary() -> None:
         writer=Writer(),
     )
 
-    with pytest.raises(AxisShapeError, match="axis operation"):
+    with pytest.raises(pl.exceptions.InvalidOperationError):
         parser.parse()
 
 

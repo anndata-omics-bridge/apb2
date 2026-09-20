@@ -3,13 +3,12 @@
 Two layers, and the boundary between them is the point of the module. Underneath is the pure
 sequence algorithm: take one vendor string — ``"PEPM[15.9949]TIDE"``, ``"_(ac)PEPTIDEM(ox)_"``,
 or a bare sequence beside parallel name and site columns — and produce the localized
-occurrences and their ProForma rendering. On top, SequenceColumn consumes logical input
-series and invokes one configured stripping or normalization operation per distinct input.
+occurrences and their ProForma rendering. On top, SequenceColumn uses Polars to select
+distinct logical inputs, apply one pure transformation and align results with the frame.
 It returns one column and explicit diagnostics, never another operation's intermediate.
 
-Memoization is not an optimization detail, it is why normalization belongs on the var axis:
-normalizing is a pure function of the source values, so a column with fifty thousand distinct
-sequences tokenizes fifty thousand times whatever the measurement count is.
+Each operation transforms its own distinct inputs; no Python row cache or cross-operation
+intermediate is shared. Native expressions handle plain residue stripping.
 
 Map lookup uses the tuple ``(mass_delta, target, position)``, not mass alone, so Acetyl on a
 protein N-terminus and Acetyl on a lysine stay distinguishable at the same mass. The entries
@@ -27,8 +26,6 @@ from typing import Literal, Protocol
 
 import polars as pl
 
-from apb2.parserV2.parse_quant.data.computed import ColumnComputation
-from apb2.parserV2.parse_quant.errors import ColumnComputationError
 from apb2.parserV2.parse_quant.parameters.axis import (
     EmbeddedSiteListModificationConfig,
     ModificationMapEntry,
@@ -646,12 +643,17 @@ class SequenceOperation(Protocol):
     def transform(self, row: tuple[str, ...], /) -> SequenceValue: ...
 
 
+@dataclass(frozen=True, slots=True)
 class PlainSequenceStripper:
-    """Retain residues from a bare sequence without modification lookup."""
+    """Select residues with a native Unicode-letter expression, without modification lookup."""
 
-    def transform(self, row: tuple[str, ...], /) -> SequenceValue:
-        (sequence,) = row
-        return SequenceValue("".join(character for character in sequence if character.isalpha()))
+    name: str
+    inputs: tuple[str, ...]
+
+    def compute(self, frame: pl.DataFrame, /) -> tuple[pl.DataFrame, tuple[str, ...]]:
+        (source,) = self.inputs
+        expression = pl.col(source).cast(pl.String).fill_null("").str.replace_all(r"[^\p{L}]", "")
+        return frame.with_columns(expression.alias(self.name)), ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -707,30 +709,43 @@ class EmbeddedSiteListNormalizer:
 
 @dataclass(frozen=True, slots=True)
 class SequenceColumn:
-    """Compute exactly one declared column, memoizing only within this operation."""
+    """Map a pure sequence parser over distinct inputs using Polars, then align the result."""
 
     name: str
     inputs: tuple[str, ...]
     operation: SequenceOperation
 
-    def compute(self, columns: tuple[pl.Series, ...], /) -> ColumnComputation:
-        if len(columns) != len(self.inputs):
-            raise ColumnComputationError(
-                f"computed column {self.name!r} declares inputs {list(self.inputs)} but "
-                f"received {len(columns)} series"
-            )
-        rows = zip(
-            *([value or "" for value in column.cast(pl.String).to_list()] for column in columns),
-            strict=True,
+    def compute(self, frame: pl.DataFrame, /) -> tuple[pl.DataFrame, tuple[str, ...]]:
+        inputs = frame.select(
+            pl.col(name).cast(pl.String).fill_null("").alias(str(index))
+            for index, name in enumerate(self.inputs)
         )
-        memo: dict[tuple[str, ...], SequenceValue] = {}
-        values: list[str] = []
-        unknown: dict[str, None] = {}
-        for row in rows:
-            result = memo.get(row)
-            if result is None:
-                result = self.operation.transform(row)
-                memo[row] = result
-            values.append(result.value)
-            unknown.update(dict.fromkeys(result.unknown_tokens))
-        return ColumnComputation(pl.Series(self.name, values, dtype=pl.String), tuple(unknown))
+        parsed = inputs.unique(maintain_order=True).with_columns(
+            pl.struct(pl.all())
+            .map_elements(
+                self._transform,
+                return_dtype=pl.Struct({"value": pl.String, "unknown_tokens": pl.List(pl.String)}),
+            )
+            .alias("_result")
+        )
+        values = inputs.join(parsed, on=inputs.columns, how="left", maintain_order="left").select(
+            pl.col("_result").struct.field("value").alias(self.name)
+        )
+        unknown = (
+            parsed.select(
+                pl.col("_result")
+                .struct.field("unknown_tokens")
+                .explode(empty_as_null=False)
+                .drop_nulls()
+                .unique(maintain_order=True)
+            )
+            .to_series()
+            .to_list()
+        )
+        return frame.with_columns(values), tuple(unknown)
+
+    def _transform(self, row: dict[str, str]) -> dict[str, str | tuple[str, ...]]:
+        result = self.operation.transform(
+            tuple(row[str(index)] for index in range(len(self.inputs)))
+        )
+        return {"value": result.value, "unknown_tokens": result.unknown_tokens}

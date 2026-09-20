@@ -10,6 +10,8 @@ from typing import cast
 
 import pandas as pd
 import polars as pl
+import polars.selectors as cs
+import pyarrow as pa
 from anndata import AnnData
 from mudata import MuData
 from scipy import sparse
@@ -59,7 +61,7 @@ class MuDataLevelError(InvalidResultError):
 
 def _layer_value_block(layer: FinalLayerTable, /) -> pl.DataFrame:
     """Return observation values without the layer's leading variable keys."""
-    return layer.values.select(layer.values.columns[len(layer.var_key_columns) :])
+    return layer.values.select(pl.exclude(layer.var_key_columns))
 
 
 class AnnDataWriter:
@@ -151,9 +153,7 @@ class AnnDataWriter:
 
     @staticmethod
     def _payload_frame(frame: pl.DataFrame, index: pd.Index[str]) -> pd.DataFrame:
-        payload = pd.DataFrame(
-            {name: AnnDataWriter._pandas_column(frame.get_column(name)) for name in frame.columns}
-        )
+        payload = _pandas_frame(frame)
         payload.index = index
         return payload
 
@@ -181,72 +181,87 @@ class AnnDataWriter:
         """
         return _make_axis_frame(frame, key_columns)
 
-    @staticmethod
-    def _pandas_column(values: pl.Series) -> pd.Series:
-        return _pandas_column(values)
-
-    @staticmethod
-    def _storage_index(
-        frame: pl.DataFrame,
-        columns: Mapping[str, pd.Series],
-        key_columns: tuple[str, ...],
-    ) -> pd.Index:
-        """The one string index AnnData stores, without making it the identity.
-
-        A single string key is already such a string, and the index is built from the column
-        itself so the two are the same values in the same dtype — which is what lets AnnData
-        store an index that shares its name with a column. Anything else — a number, a
-        boolean, several keys — becomes a canonical JSON array of ``[logical type, text]``
-        pairs, so an embedded separator, a string ``"1"``, and an integer ``1`` stay
-        distinguishable. Parsing never joins or groups on this value.
-        """
-        return _storage_index(frame, columns, key_columns)
-
 
 def _make_axis_frame(frame: pl.DataFrame, key_columns: tuple[str, ...]) -> pd.DataFrame:
-    columns = {name: _pandas_column(frame.get_column(name)) for name in frame.columns}
-    table = pd.DataFrame(columns)
-    table.index = _storage_index(frame, columns, key_columns)
+    table = _pandas_frame(frame)
+    table.index = _storage_index(frame, table, key_columns)
     return table
 
 
-def _pandas_column(values: pl.Series) -> pd.Series:
-    dtype = values.dtype
-    if dtype == pl.Boolean:
-        return pd.Series(values.to_list(), dtype="boolean")
-    if dtype.is_integer():
-        return pd.Series(values.to_list(), dtype="Int64")
-    if dtype.is_float():
-        return pd.Series(values.to_numpy(), dtype="float64")
-    if dtype == pl.Categorical or isinstance(dtype, pl.Enum):
-        return values.to_pandas()
-    if (dtype == pl.String or dtype == pl.Null) and (values.drop_nulls().n_unique() < values.len()):
-        return values.cast(pl.Categorical).to_pandas()
-    return pd.Series(values.to_list(), dtype="string")
+def _pandas_frame(frame: pl.DataFrame) -> pd.DataFrame:
+    """Convert through Arrow once, preserving AnnData's nullable and categorical types."""
+    repeated = (
+        frame.select(cs.string() | cs.by_dtype(pl.Null))
+        .select(pl.all().drop_nulls().n_unique() < pl.len())
+        .unpivot()
+        .filter(pl.col("value").cast(pl.Boolean))
+        .select("variable")
+        .to_series()
+        .to_list()
+    )
+    return (
+        frame.with_columns(
+            cs.integer().cast(pl.Int64),
+            cs.float().cast(pl.Float64),
+            (cs.binary() | cs.by_dtype(pl.Null)).cast(pl.String),
+            (
+                ~(
+                    cs.integer()
+                    | cs.float()
+                    | cs.boolean()
+                    | cs.categorical()
+                    | cs.enum()
+                    | cs.string()
+                    | cs.binary()
+                    | cs.by_dtype(pl.Null)
+                )
+            ).map_elements(str, return_dtype=pl.String),
+        )
+        .with_columns(pl.col(repeated).cast(pl.Categorical))
+        .to_pandas(
+            types_mapper={
+                pa.bool_(): pd.BooleanDtype(),
+                pa.int64(): pd.Int64Dtype(),
+                pa.string(): pd.StringDtype(),
+                pa.large_string(): pd.StringDtype(),
+            }.get
+        )
+    )
 
 
 def _storage_index(
     frame: pl.DataFrame,
-    columns: Mapping[str, pd.Series],
+    columns: pd.DataFrame,
     key_columns: tuple[str, ...],
 ) -> pd.Index:
+    """Encode typed keys without iterating over table rows; these are storage labels only."""
     if len(key_columns) == 1 and frame.schema[key_columns[0]] == pl.String:
         return pd.Index(columns[key_columns[0]], name=KEY_SEPARATOR.join(key_columns))
     name = KEY_SEPARATOR.join(key_columns)
     while name in columns:
         name += f"{KEY_SEPARATOR}key"
-    types = [str(frame.schema[column]) for column in key_columns]
-    labels = [
-        json.dumps(
-            [
-                [logical, None if value is None else str(value)]
-                for logical, value in zip(types, row, strict=True)
-            ],
-            separators=(",", ":"),
-            ensure_ascii=False,
+    pairs: list[pl.Expr] = []
+    for column, dtype in frame.select(key_columns).schema.items():
+        text = pl.col(column).cast(pl.String)
+        if dtype == pl.Boolean:
+            text = text.replace({"true": "True", "false": "False"})
+        elif not (
+            isinstance(dtype, (pl.String, pl.Null, pl.Categorical, pl.Enum)) or dtype.is_integer()
+        ):
+            # Persisted labels use Python's scalar spelling (not Polars' float formatting).
+            text = pl.col(column).map_elements(str, return_dtype=pl.String)
+        quoted = (
+            pl.struct(text.alias("v"))
+            .struct.json_encode()
+            .str.strip_prefix('{"v":')
+            .str.strip_suffix("}")
         )
-        for row in frame.select(list(key_columns)).rows()
-    ]
+        pairs.append(pl.concat_str(pl.lit("[" + json.dumps(str(dtype)) + ","), quoted, pl.lit("]")))
+    labels = (
+        frame.select(pl.concat_str(pl.lit("["), pl.concat_str(pairs, separator=","), pl.lit("]")))
+        .to_series()
+        .to_numpy()
+    )
     return pd.Index(labels, name=name)
 
 

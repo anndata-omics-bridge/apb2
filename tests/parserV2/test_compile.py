@@ -46,6 +46,7 @@ from apb2.parserV2.parse_quant.fragments import (
 from apb2.parserV2.parse_quant.layer_validation import LayerContractValidator
 from apb2.parserV2.parse_quant.modifications import (
     EmbeddedSiteListNormalizer,
+    PlainSequenceStripper,
     SequenceColumn,
     SiteListNormalizer,
     TokenRegexNormalizer,
@@ -160,7 +161,7 @@ def test_every_executable_duplicate_mode_names_one_policy(mode: DuplicateMode) -
                 inputs=["Sequence"],
                 syntax="plain",
             ),
-            SequenceColumn,
+            PlainSequenceStripper,
         ),
         (
             ProformaSequence(

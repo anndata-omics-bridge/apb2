@@ -17,12 +17,12 @@ before any of this runs.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import polars as pl
+import polars.selectors as cs
 
 from apb2.parserV2.parse_quant.contracts import RawValuePresence
-from apb2.parserV2.parse_quant.data.layer_columns import presence_labels
 from apb2.parserV2.parse_quant.data.numeric_text import NumberNotation, absent, as_numbers, blank
 from apb2.parserV2.parse_quant.data.raw import RawLayerTable
 
@@ -83,41 +83,14 @@ class RegexNumericRawValuePresence:
         return ~(blank(values, dtype) | _sentinel(numbers, self.missing_values))
 
 
-@dataclass(frozen=True, slots=True)
-class _MaskedLayer:
-    """One raw layer beside its presence masks, for the length of one resolution."""
-
-    frame: pl.DataFrame
-    keys: list[str]
-    values: tuple[str, ...]
-    masks: tuple[str, ...]
-
-    def grouped(self, aggregations: list[pl.Expr]) -> pl.DataFrame:
-        """Reduce each raw-key group, keeping the groups in the order they first appeared."""
-        return self.frame.group_by(self.keys, maintain_order=True).agg(aggregations)
-
-
-def _masked(layer: RawLayerTable, presence: RawValuePresence) -> _MaskedLayer:
-    """Ask the layer's presence strategy which of its scalars claim their cells."""
-    keys = list(layer.raw_var_key_columns)
-    values = tuple(layer.values.columns[len(keys) :])
-    masks = presence_labels(len(values), reserved=layer.values.columns)
-    frame = layer.values.with_columns(
-        [
-            presence.present(pl.col(value), layer.values.schema[value]).alias(mask)
-            for value, mask in zip(values, masks, strict=True)
-        ]
-    )
-    return _MaskedLayer(frame=frame, keys=keys, values=values, masks=masks)
-
-
-def _first_present(masked: _MaskedLayer) -> pl.DataFrame:
-    """The first claiming scalar of each cell, copied through unchanged."""
-    return masked.grouped(
-        [
-            pl.col(value).filter(pl.col(mask)).first().alias(value)
-            for value, mask in zip(masked.values, masked.masks, strict=True)
-        ]
+def _masked(layer: RawLayerTable, presence: RawValuePresence) -> pl.DataFrame:
+    """Null out absent scalars, retaining the original dtype and every claiming token."""
+    return layer.values.with_columns(
+        pl.when(presence.present(pl.col(name), dtype))
+        .then(pl.col(name))
+        .otherwise(None)
+        .alias(name)
+        for name, dtype in layer.values.select(pl.exclude(layer.raw_var_key_columns)).schema.items()
     )
 
 
@@ -128,23 +101,23 @@ class ErrorOnDuplicates:
 
     def resolve(self, layer: RawLayerTable, presence: RawValuePresence, /) -> RawLayerTable:
         masked = _masked(layer, presence)
-        counts = masked.grouped([pl.col(mask).sum().alias(mask) for mask in masked.masks])
-        offending = counts.filter(
-            pl.any_horizontal([pl.col(mask) > 1 for mask in masked.masks])
-            if masked.masks
-            else pl.lit(value=False)
+        keys = layer.raw_var_key_columns
+        duplicate = "_duplicate"
+        while duplicate in masked.columns:
+            duplicate += "_"
+        values = pl.exclude(keys)
+        resolved = masked.group_by(keys, maintain_order=True).agg(
+            values.first(ignore_nulls=True),
+            pl.any_horizontal(pl.lit(False), values.count() > 1).alias(duplicate),
         )
+        offending = resolved.filter(pl.col(duplicate))
         if offending.height:
-            examples = offending.select(masked.keys).head(_EXAMPLE_LIMIT).to_dicts()
+            examples = offending.select(keys).head(_EXAMPLE_LIMIT).to_dicts()
             raise DuplicateCellError(
                 f"layer {layer.layer_name!r}: {offending.height} raw key(s) claim one "
                 f"measurement cell more than once; examples: {examples}"
             )
-        return RawLayerTable(
-            layer_name=layer.layer_name,
-            raw_var_key_columns=layer.raw_var_key_columns,
-            values=_first_present(masked),
-        )
+        return replace(layer, values=resolved.drop(duplicate))
 
 
 class KeepFirstDuplicate:
@@ -153,10 +126,11 @@ class KeepFirstDuplicate:
     __slots__ = ()
 
     def resolve(self, layer: RawLayerTable, presence: RawValuePresence, /) -> RawLayerTable:
-        return RawLayerTable(
-            layer_name=layer.layer_name,
-            raw_var_key_columns=layer.raw_var_key_columns,
-            values=_first_present(_masked(layer, presence)),
+        return replace(
+            layer,
+            values=_masked(layer, presence)
+            .group_by(layer.raw_var_key_columns, maintain_order=True)
+            .first(ignore_nulls=True),
         )
 
 
@@ -167,24 +141,15 @@ class AggregateNumericDuplicates:
 
     def resolve(self, layer: RawLayerTable, presence: RawValuePresence, /) -> RawLayerTable:
         masked = _masked(layer, presence)
-        self._require_numeric(layer, masked)
-        summed = masked.grouped(
-            [
-                pl.when(pl.col(mask).any())
-                .then(pl.col(value).filter(pl.col(mask)).sum())
-                .otherwise(None)
-                .alias(value)
-                for value, mask in zip(masked.values, masked.masks, strict=True)
-            ]
+        self._require_numeric(layer)
+        values = pl.exclude(layer.raw_var_key_columns)
+        summed = masked.group_by(layer.raw_var_key_columns, maintain_order=True).agg(
+            pl.when(values.count() > 0).then(values.sum()).otherwise(None)
         )
-        return RawLayerTable(
-            layer_name=layer.layer_name,
-            raw_var_key_columns=layer.raw_var_key_columns,
-            values=summed,
-        )
+        return replace(layer, values=summed)
 
     @staticmethod
-    def _require_numeric(layer: RawLayerTable, masked: _MaskedLayer) -> None:
+    def _require_numeric(layer: RawLayerTable) -> None:
         """Defence in depth: compilation rejects a plan that cannot deliver numbers.
 
         A malformed file can still deliver text where the rule promised numbers, and summing
@@ -192,12 +157,12 @@ class AggregateNumericDuplicates:
         one.
         """
         offenders = sorted(
-            name
-            for name in masked.values
-            if not (masked.frame.schema[name].is_numeric() or masked.frame.schema[name] == pl.Null)
+            layer.values.select(
+                ~(cs.by_name(layer.raw_var_key_columns) | cs.numeric() | cs.by_dtype(pl.Null))
+            ).columns
         )
         if offenders:
             raise AggregateTypeError(
                 f"layer {layer.layer_name!r} aggregates duplicate cells, which needs numeric "
-                f"values; these columns hold {masked.frame.schema[offenders[0]]}: {offenders}"
+                f"values; these columns hold {layer.values.schema[offenders[0]]}: {offenders}"
             )

@@ -367,9 +367,7 @@ class ParseRuleFacade:
         if isinstance(column, JoinNonempty):
             return JoinNonemptyColumn(column.name, tuple(column.inputs), column.separator)
         if isinstance(column, StrippedSequence):
-            return SequenceColumn(
-                column.name, tuple(column.inputs), ParseRuleFacade._project_stripping(column, rule)
-            )
+            return ParseRuleFacade._project_stripping(column, rule)
         if isinstance(column, ProformaSequence):
             return SequenceColumn(
                 column.name,
@@ -424,12 +422,16 @@ class ParseRuleFacade:
     @staticmethod
     def _project_stripping(
         column: StrippedSequence, rule: LongRule | WideRule
-    ) -> SequenceOperation:
+    ) -> PlainSequenceStripper | SequenceColumn:
         syntax = rule.sequence_syntax[column.syntax]
         if isinstance(syntax, TokenRegexSyntax):
-            return TokenRegexStripper(syntax.token_pattern, syntax.token_position)
+            return SequenceColumn(
+                column.name,
+                tuple(column.inputs),
+                TokenRegexStripper(syntax.token_pattern, syntax.token_position),
+            )
         assert isinstance(syntax, PlainSequenceSyntax)
-        return PlainSequenceStripper()
+        return PlainSequenceStripper(column.name, tuple(column.inputs))
 
     @staticmethod
     def _project_modifications(

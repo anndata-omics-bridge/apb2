@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import datetime as dt
 import json
 from collections.abc import Mapping
 from pathlib import Path
@@ -776,6 +777,62 @@ def test_a_multi_column_key_index_survives_embedded_separators(tmp_path: Path) -
         '[["String","a"],["String","b_c"]]',
     ]
     assert stored.var.index.name == "First_Second"
+
+
+def test_bulk_axis_conversion_preserves_scalar_spelling_and_json_escaping() -> None:
+    frame = pl.DataFrame(
+        {
+            "string": ['a"\\\n\t雪', "other"],
+            "bool": [True, False],
+            "float": [1e-5, -0.0],
+            "int": [2, -3],
+            "datetime": [
+                dt.datetime(2020, 1, 2, 3, 4, 5),
+                dt.datetime(2020, 1, 2, 3, 4, 5, 123000),
+            ],
+            "null": [None, None],
+        }
+    )
+    keys = frame.select(pl.exclude("null"))
+    parsed = level(
+        var=frame,
+        var_keys=tuple(keys.columns),
+        layers={"Intensity": keys.with_columns(obs_0=pl.lit(1.0), obs_1=pl.lit(2.0))},
+    )
+    with pytest.warns(pl.exceptions.PolarsInefficientMapWarning):
+        converted = AnnDataWriter().to_anndata(parsed).var
+    expected = [
+        json.dumps(
+            [
+                [str(dtype), None if value is None else str(value)]
+                for dtype, value in zip(keys.dtypes, row, strict=True)
+            ],
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        for row in keys.iter_rows()
+    ]
+    assert converted.index.tolist() == expected
+    assert converted["datetime"].tolist() == ["2020-01-02 03:04:05", "2020-01-02 03:04:05.123000"]
+    assert converted["bool"].dtype == pd.BooleanDtype()
+    assert converted["int"].dtype == pd.Int64Dtype()
+
+
+def test_bulk_axis_conversion_preserves_empty_typed_columns() -> None:
+    frame = pl.DataFrame(
+        schema={"key": pl.String, "flag": pl.Boolean, "count": pl.Int32, "value": pl.Float32}
+    )
+    parsed = level(
+        var=frame,
+        var_keys=("key",),
+        layers={
+            "Intensity": frame.select("key").with_columns(obs_0=pl.lit(1.0), obs_1=pl.lit(2.0))
+        },
+    )
+    converted = AnnDataWriter().to_anndata(parsed).var
+    assert isinstance(converted, pd.DataFrame)
+    assert converted.empty
+    assert converted.dtypes.astype(str).tolist() == ["string", "boolean", "Int64", "float64"]
 
 
 def test_a_string_one_and_an_integer_one_do_not_become_the_same_index(

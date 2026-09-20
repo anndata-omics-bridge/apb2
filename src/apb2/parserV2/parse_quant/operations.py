@@ -40,6 +40,7 @@ from apb2.parserV2.parse_quant.duplicates import (
     RegexNumericRawValuePresence,
 )
 from apb2.parserV2.parse_quant.modifications import (
+    PlainSequenceStripper,
     SequenceColumn,
 )
 from apb2.parserV2.parse_quant.parameters.axis import (
@@ -71,6 +72,7 @@ type ComputedOperation = (
     CoalesceColumn
     | JoinNonemptyColumn
     | SequenceColumn
+    | PlainSequenceStripper
     | ProformaIonColumn
     | ProformaFragmentColumn
 )

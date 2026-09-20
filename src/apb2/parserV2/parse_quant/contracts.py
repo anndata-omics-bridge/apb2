@@ -8,10 +8,10 @@ actually uses and has at least two real implementations.
 Concrete providers do not import these Protocols to claim conformance. Strict structural
 typing proves it where ``compile.py`` performs the wiring.
 
-Shape laws, checked at each collaborator boundary rather than trusted:
+Execution laws:
 
-- every series a coercer or computer returns has its input's length and row order;
-  the orchestrator assigns the declared output name and collects diagnostic metadata;
+- axis selections are Polars expressions; computations preserve frame rows and columns
+  while assigning their declared output and returning explicit diagnostic metadata;
 - ``RawValuePresence.present`` returns a Boolean expression that evaluates to one non-null mask
   value per input row, in input order, and never a converted measurement value;
 - a duplicate policy preserves the raw var-key columns and the input group order.
@@ -26,7 +26,6 @@ from typing import Protocol
 
 import polars as pl
 
-from apb2.parserV2.parse_quant.data.computed import ColumnComputation
 from apb2.parserV2.parse_quant.data.parsed import FinalLayerTable, ParsedLevel
 from apb2.parserV2.parse_quant.data.raw import DecomposedDataRaw, RawLayerTable
 from apb2.parserV2.parse_quant.data.source import LevelSourceTable
@@ -52,16 +51,15 @@ class FragmentTableSeparator(Protocol):
 
 
 class AxisValueCoercer(Protocol):
-    """Coerce one selected axis series to one declared logical type."""
+    """Build and validate an expression selecting one declared logical column."""
 
-    def coerce(self, values: pl.Series, *, name: str, source: str) -> pl.Series: ...
+    def coerce(self, frame: pl.DataFrame, *, name: str, source: str) -> pl.Expr: ...
 
 
 class ColumnComputer(Protocol):
     """Materialize one declared computed column from its exact ordered inputs.
 
-    Both fields are read-only: the orchestrator selects ``inputs`` from the frame and
-    assigns the result to ``name``, and never writes either.
+    The operation owns its named expressions; the parser never extracts or reassembles Series.
     """
 
     @property
@@ -70,7 +68,7 @@ class ColumnComputer(Protocol):
     @property
     def inputs(self) -> tuple[str, ...]: ...
 
-    def compute(self, columns: tuple[pl.Series, ...], /) -> ColumnComputation: ...
+    def compute(self, frame: pl.DataFrame, /) -> tuple[pl.DataFrame, tuple[str, ...]]: ...
 
 
 class RawValuePresence(Protocol):

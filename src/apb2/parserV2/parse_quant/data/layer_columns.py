@@ -14,7 +14,6 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 _OBSERVATION_PREFIX = "obs"
-_PRESENCE_PREFIX = "_present"
 _SEPARATOR = "_"
 
 
@@ -36,15 +35,6 @@ def observation_labels(count: int, reserved: Iterable[str]) -> tuple[str, ...]:
         StorageLabelError: No collision-free prefix can be found.
     """
     return _positional(_OBSERVATION_PREFIX, count, reserved)
-
-
-def presence_labels(count: int, reserved: Iterable[str]) -> tuple[str, ...]:
-    """``count`` labels for the Boolean presence columns one duplicate resolution needs.
-
-    A different convention from the value labels because they live in the same frame for the
-    length of one grouping and must not be mistaken for values.
-    """
-    return _positional(_PRESENCE_PREFIX, count, reserved)
 
 
 def _positional(prefix: str, count: int, reserved: Iterable[str]) -> tuple[str, ...]:

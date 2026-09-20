@@ -218,8 +218,11 @@ def test_numeric_aggregate_sums_only_the_claiming_values() -> None:
     ]
 
 
-def test_a_cell_with_nothing_present_stays_null_instead_of_becoming_zero() -> None:
-    repeated = layer(pl.DataFrame({"Feature": ["F1", "F1"], "obs_0": [0.0, None]}))
+@pytest.mark.parametrize("missing", [0.0, None, float("nan")])
+def test_a_cell_with_nothing_present_stays_null_instead_of_becoming_zero(
+    missing: float | None,
+) -> None:
+    repeated = layer(pl.DataFrame({"Feature": ["F1", "F1"], "obs_0": [missing, None]}))
 
     resolved = AggregateNumericDuplicates().resolve(repeated, ZERO_SENTINEL)
 
@@ -248,8 +251,10 @@ def test_numeric_aggregate_accepts_a_layer_that_resolved_to_no_values_at_all() -
     [ErrorOnDuplicates(), KeepFirstDuplicate(), AggregateNumericDuplicates()],
     ids=lambda policy: type(policy).__name__,
 )
+@pytest.mark.parametrize("empty", [False, True])
 def test_every_policy_keeps_the_keys_the_group_order_and_the_layer_name(
     policy: DuplicatePolicy,
+    empty: bool,
 ) -> None:
     values = layer(
         pl.DataFrame(
@@ -261,13 +266,15 @@ def test_every_policy_keeps_the_keys_the_group_order_and_the_layer_name(
         ),
         keys=("Feature", "Charge"),
     )
+    if empty:
+        values.values = values.values.head(0)
 
     resolved = policy.resolve(values, NULL_ONLY)
 
     assert resolved.layer_name == "L"
     assert resolved.raw_var_key_columns == ("Feature", "Charge")
     assert resolved.values.columns == ["Feature", "Charge", "obs_0"]
-    assert resolved.values.get_column("Feature").to_list() == ["F2", "F1", "F3"]
+    assert resolved.values.get_column("Feature").to_list() == ([] if empty else ["F2", "F1", "F3"])
 
 
 @pytest.mark.parametrize(
@@ -312,6 +319,41 @@ def test_a_layer_with_no_observation_columns_resolves_to_its_keys() -> None:
 
     assert resolved.values.to_dicts() == [{"Feature": "F1"}]
     assert ErrorOnDuplicates().resolve(values, NULL_ONLY).values.height == 1
+    assert AggregateNumericDuplicates().resolve(values, NULL_ONLY).values.height == 1
+
+
+@pytest.mark.parametrize(
+    "policy", [ErrorOnDuplicates(), KeepFirstDuplicate(), AggregateNumericDuplicates()]
+)
+@pytest.mark.parametrize(
+    "names",
+    [
+        ("Feature", "value", "present", "_present_0"),
+        ("_duplicate", "_duplicate_", "_duplicate__", "value"),
+    ],
+)
+def test_internal_names_do_not_collide_with_keys_or_measurement_columns(
+    policy: DuplicatePolicy,
+    names: tuple[str, str, str, str],
+) -> None:
+    key, first, second, third = names
+    values = layer(
+        pl.DataFrame(
+            {
+                key: ["F2", "F1", "F2"],
+                first: [None, 2.5, 3.0],
+                second: [4, None, None],
+                third: [None, None, 8.0],
+            }
+        ),
+        keys=(key,),
+    )
+    resolved = policy.resolve(values, NULL_ONLY).values
+    assert resolved.schema == values.values.schema
+    assert resolved.to_dicts() == [
+        {key: "F2", first: 3.0, second: 4, third: 8.0},
+        {key: "F1", first: 2.5, second: None, third: None},
+    ]
 
 
 def test_the_declared_mode_selects_one_stateless_policy() -> None:

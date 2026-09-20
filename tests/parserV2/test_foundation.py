@@ -25,7 +25,6 @@ from apb2.parserV2.parse_quant.contracts import (
     SelectedAxisColumn,
     SourceDecomposer,
 )
-from apb2.parserV2.parse_quant.data.computed import ColumnComputation
 from apb2.parserV2.parse_quant.data.parsed import (
     FinalLayerTable,
     ObsFinal,
@@ -466,17 +465,16 @@ class _Separator:
 
 
 class _Coercer:
-    def coerce(self, values: pl.Series, *, name: str, source: str) -> pl.Series:
-        del name, source
-        return values
+    def coerce(self, frame: pl.DataFrame, *, name: str, source: str) -> pl.Expr:
+        return pl.col(source).alias(name)
 
 
 class _Computer:
     name = "ProForma_ion"
     inputs: tuple[str, ...] = ("ProForma_peptidoform", "Charge")
 
-    def compute(self, columns: tuple[pl.Series, ...], /) -> ColumnComputation:
-        return ColumnComputation(columns[0])
+    def compute(self, frame: pl.DataFrame, /) -> tuple[pl.DataFrame, tuple[str, ...]]:
+        return frame.with_columns(pl.col(self.inputs[0]).alias(self.name)), ()
 
 
 class _Presence:
@@ -508,7 +506,8 @@ def test_the_intended_collaborators_satisfy_their_client_owned_contracts() -> No
 
     assert reader.read().frame.height == 1
     assert separator.separate(LevelSourceTable(frame=pl.DataFrame({"a": [1]}))).frame.height == 1
-    assert coercer.coerce(pl.Series("x", [1]), name="x", source="x").to_list() == [1]
+    frame = pl.DataFrame({"x": [1]})
+    assert frame.select(coercer.coerce(frame, name="x", source="x")).to_series().to_list() == [1]
     assert computer.inputs == ("ProForma_peptidoform", "Charge")
     presence_values = pl.Series("x", [1.0, None])
     assert presence_values.to_frame().select(

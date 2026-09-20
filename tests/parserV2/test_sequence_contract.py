@@ -332,9 +332,9 @@ def test_memoization_is_local_to_each_operation() -> None:
     operation = Counting()
     first = SequenceColumn("first", ("Sequence",), operation)
     second = SequenceColumn("second", ("Sequence",), operation)
-    values = (pl.Series("s", ["ACMK", "PEPTIDE", "ACMK"]),)
-    assert first.compute(values).values.to_list() == ["ACMK", "PEPTIDE", "ACMK"]
-    assert second.compute(values).values.to_list() == ["ACMK", "PEPTIDE", "ACMK"]
+    values = pl.DataFrame({"Sequence": ["ACMK", "PEPTIDE", "ACMK"]})
+    assert first.compute(values)[0]["first"].to_list() == ["ACMK", "PEPTIDE", "ACMK"]
+    assert second.compute(values)[0]["second"].to_list() == ["ACMK", "PEPTIDE", "ACMK"]
     assert operation.calls == [("ACMK",), ("PEPTIDE",), ("ACMK",), ("PEPTIDE",)]
 
 
@@ -352,14 +352,16 @@ def test_independent_stripping_handles_vendor_syntax_terminals_and_nulls(
     modified: str,
 ) -> None:
     computer = SequenceColumn("Peptide", ("Sequence",), TokenRegexStripper(pattern, position))
-    result = computer.compute((pl.Series("sequence", [modified, None, ""]),))
-    assert result.values.to_list() == ["PEPMIDE", "", ""]
-    assert result.unknown_mod_tokens == ()
+    result, tokens = computer.compute(pl.DataFrame({"Sequence": [modified, None, ""]}))
+    assert result["Peptide"].to_list() == ["PEPMIDE", "", ""]
+    assert tokens == ()
 
 
 def test_plain_stripping_preserves_site_list_residue_semantics() -> None:
-    computer = SequenceColumn("Peptide", ("Sequence",), PlainSequenceStripper())
-    assert computer.compute((pl.Series("sequence", ["_PEP.MIDE_", None]),)).values.to_list() == [
+    computer = PlainSequenceStripper("Peptide", ("Sequence",))
+    assert computer.compute(pl.DataFrame({"Sequence": ["_PEP.MIDE_", None]}))[0][
+        "Peptide"
+    ].to_list() == [
         "PEPMIDE",
         "",
     ]

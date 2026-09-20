@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import polars as pl
+import polars.selectors as cs
 
 from apb2.parserV2.parse_quant.data.parsed import (
     AnnotationTable,
@@ -80,7 +81,7 @@ def validate_parsed_level(name: str, parsed: ParsedLevel, /) -> None:
         _validate_layer_values(
             name,
             layer_name,
-            layer.values.select(layer.values.columns[len(layer.var_key_columns) :]),
+            layer.values.select(pl.exclude(layer.var_key_columns)),
             layer.semantics,
         )
     _validate_aligned(name, "obsm", parsed.obsm, parsed.obs.frame.height)
@@ -97,33 +98,25 @@ def _validate_layer_values(
     /,
 ) -> None:
     if isinstance(semantics, QuantitativeLayerSemantics):
-        nonnumeric = [
-            name
-            for name, dtype in values.schema.items()
-            if dtype != pl.Null and not dtype.is_numeric()
-        ]
+        nonnumeric = values.select(~(cs.numeric() | cs.by_dtype(pl.Null))).columns
         if nonnumeric:
             raise InvalidResultError(
                 f"level {level!r} quantitative layer {layer!r} is not numeric in "
                 f"column(s) {nonnumeric}"
             )
-        if semantics.logical_type == "integer":
-            for column in values.get_columns():
-                if (
-                    column.dtype.is_float()
-                    and (
-                        column.is_not_null()
-                        & ~column.is_nan().fill_null(False)
-                        & (column != column.floor()).fill_null(False)
-                    ).any()
-                ):
-                    raise InvalidResultError(
-                        f"level {level!r} integer layer {layer!r} contains fractional values"
-                    )
+        if (
+            semantics.logical_type == "integer"
+            and values.select(
+                pl.any_horizontal(
+                    pl.lit(False), (cs.float().fill_nan(None) != cs.float().floor()).any()
+                )
+            ).item()
+        ):
+            raise InvalidResultError(
+                f"level {level!r} integer layer {layer!r} contains fractional values"
+            )
         return
-    noninteger = [
-        name for name, dtype in values.schema.items() if dtype != pl.Null and not dtype.is_integer()
-    ]
+    noninteger = values.select(~(cs.integer() | cs.by_dtype(pl.Null))).columns
     if noninteger:
         raise InvalidResultError(
             f"level {level!r} categorical layer {layer!r} is not integer-coded in "
@@ -134,12 +127,12 @@ def _validate_layer_values(
         raise InvalidResultError(
             f"level {level!r} categorical layer {layer!r} reuses its missing code"
         )
-    for column in values.get_columns():
-        invalid = column.is_not_null() & ~column.is_in([*valid, semantics.missing_code])
-        if invalid.any():
-            raise InvalidResultError(
-                f"level {level!r} categorical layer {layer!r} contains undeclared codes"
-            )
+    if values.select(
+        pl.any_horizontal(pl.lit(False), (~pl.all().is_in([*valid, semantics.missing_code])).any())
+    ).item():
+        raise InvalidResultError(
+            f"level {level!r} categorical layer {layer!r} contains undeclared codes"
+        )
 
 
 def _validate_axis_keys(
@@ -152,11 +145,7 @@ def _validate_axis_keys(
         raise InvalidResultError(f"level {level!r} {role} has no authored key columns")
     _require_columns(level, f"{role} keys", frame, key_columns)
     keys = frame.select(list(key_columns))
-    missing = [
-        pl.col(name).is_null() | (pl.col(name).is_nan() if dtype.is_float() else pl.lit(False))
-        for name, dtype in keys.schema.items()
-    ]
-    if keys.select(pl.any_horizontal(missing).any()).item():
+    if keys.fill_nan(None).select(pl.any_horizontal(pl.all().is_null()).any()).item():
         raise InvalidResultError(f"level {level!r} {role} contains an incomplete key")
     if keys.is_duplicated().any():
         raise InvalidResultError(f"level {level!r} {role} contains a duplicate key")
@@ -203,9 +192,9 @@ def _validate_pairwise(
             raise InvalidResultError(
                 f"level {level!r} {slot}[{name!r}] repeats a matrix coordinate"
             )
-        positions = frame.select("row", "column").unpivot().get_column("value")
+        positions = pl.col("row", "column")
         invalid = positions.is_null() | (positions < 0) | (positions >= axis_size)
-        if invalid.any():
+        if frame.select(pl.any_horizontal(invalid.any())).item():
             raise InvalidResultError(
                 f"level {level!r} {slot}[{name!r}] has a coordinate outside [0, {axis_size})"
             )
@@ -242,13 +231,12 @@ def _validate_feature_relation(
         )
     if frame.select(pl.struct("row", "column").is_duplicated().any()).item():
         raise InvalidResultError(f"feature relation {name!r} repeats a matrix coordinate")
-    source = frame.get_column("row")
-    target = frame.get_column("column")
-    if not source.dtype.is_integer() or not target.dtype.is_integer():
+    if frame.select(cs.by_name("row", "column") & cs.integer()).width != 2:
         raise InvalidResultError(f"feature relation {name!r} coordinates must be integers")
+    source, target = pl.col("row"), pl.col("column")
     invalid_source = source.is_null() | (source < 0) | (source >= source_size)
     invalid_target = target.is_null() | (target < 0) | (target >= target_size)
-    if invalid_source.any() or invalid_target.any():
+    if frame.select(pl.any_horizontal(invalid_source, invalid_target).any()).item():
         raise InvalidResultError(
             f"feature relation {name!r} has a coordinate outside its source or target axis"
         )

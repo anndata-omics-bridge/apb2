@@ -48,9 +48,7 @@ def _require_aligned(frame: pl.DataFrame, packed: tuple[str, ...]) -> None:
         ~pl.all_horizontal([pl.col(name).list.len() == first for name in packed[1:]])
     )
     if mismatched.height:
-        lengths = {
-            name: mismatched.get_column(name).list.len().head(3).to_list() for name in packed
-        }
+        lengths = mismatched.select(pl.col(packed).list.len()).head(3).to_dict(as_series=False)
         raise PackedLengthError(
             f"{mismatched.height} row(s) pack different numbers of fragment scalars across "
             f"{list(packed)}; first rows hold {lengths}"

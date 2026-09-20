@@ -67,10 +67,6 @@ class CanonicalKeyCollisionError(ValueError):
     """
 
 
-class AxisShapeError(ValueError):
-    """One axis collaborator returned a series that does not line up with its input."""
-
-
 class ParserCollection:
     """Compiled level parsers that produce one canonical ``ParsedLevels`` value."""
 
@@ -214,39 +210,17 @@ class ParseStrategy:
     ) -> tuple[pl.DataFrame, tuple[str, ...]]:
         """Select from immutable physical values, then compute through logical inputs."""
         result = frame
-        for selected in phase.selections:
-            values = physical.get_column(selected.source)
-            coerced = selected.coercer.coerce(
-                values,
-                name=selected.name,
-                source=selected.source,
+        if phase.selections:
+            selected = physical.select(
+                column.coercer.coerce(physical, name=column.name, source=column.source)
+                for column in phase.selections
             )
-            result = result.with_columns(
-                ParseStrategy._same_shape(coerced, result.height, selected.name).alias(
-                    selected.name
-                )
-            )
+            result = result.with_columns(selected)
         unknown: dict[str, None] = {}
         for computer in phase.computers:
-            inputs = tuple(result.get_column(name) for name in computer.inputs)
-            computed = computer.compute(inputs)
-            unknown.update(dict.fromkeys(computed.unknown_mod_tokens))
-            result = result.with_columns(
-                ParseStrategy._same_shape(computed.values, result.height, computer.name).alias(
-                    computer.name
-                )
-            )
+            result, tokens = computer.compute(result)
+            unknown.update(dict.fromkeys(tokens))
         return result, tuple(unknown)
-
-    @staticmethod
-    def _same_shape(values: pl.Series, height: int, name: str) -> pl.Series:
-        """Every axis operation returns its input's length and row order, or it is a defect."""
-        if values.len() != height:
-            raise AxisShapeError(
-                f"axis operation for {name!r} returned {values.len()} row(s) for {height} "
-                "input row(s); length and row order must be preserved"
-            )
-        return values
 
     @staticmethod
     def _normalized_keys(keys: pl.DataFrame) -> pl.DataFrame:
@@ -255,73 +229,37 @@ class ParseStrategy:
         A key column's dtype is exactly what its declared logical type coerced it to, so
         reading the dtype here is reading that declaration, not sniffing the data.
         """
-        return keys.with_columns(
-            [
-                pl.when(pl.col(name).is_nan()).then(None).otherwise(pl.col(name)).alias(name)
-                for name, dtype in keys.schema.items()
-                if dtype.is_float()
-            ]
-        )
+        return keys.fill_nan(None)
 
     @staticmethod
     def _valid_final_key_rows(final_keys: pl.DataFrame) -> pl.Series:
         """Which rows have every component of their authored final key."""
         if not final_keys.columns:
-            return pl.Series("_valid", [True] * final_keys.height, dtype=pl.Boolean)
+            return final_keys.select(pl.repeat(True, pl.len()).alias("_valid")).to_series()
         return final_keys.select(
-            pl.all_horizontal([pl.col(name).is_not_null() for name in final_keys.columns]).alias(
-                "_valid"
-            )
+            pl.all_horizontal(pl.all().is_not_null()).alias("_valid")
         ).to_series()
 
     @staticmethod
     def _require_injective_key_mapping(mapping: RawToFinalKeyMap) -> None:
         """Distinct raw identities must stay distinct once they are canonicalized.
 
-        Both halves are copied into positionally named columns first, because a raw key and a
-        final key may well share a name — a rule may select ``Charge`` from a column called
-        ``Charge`` — and the comparison has to keep them apart.
+        Decomposition already made raw keys unique. Repeated valid final keys therefore
+        identify collisions directly; nested evidence keeps overlapping column names apart.
         """
-        valid = ParseStrategy._valid_final_key_rows(mapping.final_keys)
-        final = mapping.final_keys.filter(valid)
-        raw = mapping.raw_keys.filter(valid)
-        final_columns = [f"final_{index}" for index in range(final.width)]
-        raw_columns = [f"raw_{index}" for index in range(raw.width)]
-        pairs = pl.DataFrame(
-            [
-                *(
-                    final.get_column(name).rename(label)
-                    for name, label in zip(final.columns, final_columns, strict=True)
-                ),
-                *(
-                    raw.get_column(name).rename(label)
-                    for name, label in zip(raw.columns, raw_columns, strict=True)
-                ),
-            ]
-        ).unique(maintain_order=True)
-        collisions = (
-            pairs.group_by(final_columns, maintain_order=True).len().filter(pl.col("len") > 1)
+        duplicated = (
+            ParseStrategy._valid_final_key_rows(mapping.final_keys)
+            & mapping.final_keys.is_duplicated()
         )
-        if not collisions.height:
+        if not duplicated.any():
             return
-        evidence = (
-            collisions.head(_EXAMPLE_LIMIT)
-            .join(pairs, on=final_columns, how="left")
-            .drop("len")
-            .rename(
-                dict(
-                    zip(
-                        [*final_columns, *raw_columns],
-                        [*mapping.final_keys.columns, *mapping.raw_keys.columns],
-                        strict=True,
-                    )
-                )
-            )
-        )
+        evidence = pl.DataFrame(
+            {"final": mapping.final_keys.to_struct(), "raw": mapping.raw_keys.to_struct()}
+        ).filter(duplicated)
         raise CanonicalKeyCollisionError(
-            f"{collisions.height} value(s) of the final key "
+            f"{evidence.n_unique(subset='final')} value(s) of the final key "
             f"{list(mapping.final_keys.columns)} were produced by more than one raw identity; "
-            f"the raw evidence behind the first of them is: {evidence.to_dicts()}"
+            f"examples of final keys and their raw evidence: {evidence.head(_EXAMPLE_LIMIT).to_dicts()}"
         )
 
     @staticmethod
@@ -366,13 +304,18 @@ class ParseStrategy:
         """
         keys = list(layer.raw_var_key_columns)
         value_columns = layer.values.columns[len(keys) :]
-        kept_columns = [
-            label
-            for label, usable in zip(
-                value_columns, ParseStrategy._valid_final_key_rows(obs.final_keys), strict=True
+        kept_columns = (
+            pl.DataFrame(
+                {
+                    "label": value_columns,
+                    "valid": ParseStrategy._valid_final_key_rows(obs.final_keys),
+                }
             )
-            if usable
-        ]
+            .filter(pl.col("valid"))
+            .select("label")
+            .to_series()
+            .to_list()
+        )
         usable_var = var.raw_keys.filter(ParseStrategy._valid_final_key_rows(var.final_keys))
         rows = layer.values.join(
             usable_var.unique(maintain_order=True),
@@ -408,14 +351,8 @@ class ParseStrategy:
         )
         value_columns = layer.values.columns[len(keys) :]
         labels = observation_labels(len(value_columns), reserved=final_keys.columns)
-        values = pl.DataFrame(
-            [
-                *(final_keys.get_column(name) for name in final_keys.columns),
-                *(
-                    joined.get_column(column).rename(label)
-                    for column, label in zip(value_columns, labels, strict=True)
-                ),
-            ]
+        values = final_keys.hstack(
+            joined.select(value_columns).rename(dict(zip(value_columns, labels, strict=True)))
         )
         return FinalLayerTable(
             layer_name=layer.layer_name,
