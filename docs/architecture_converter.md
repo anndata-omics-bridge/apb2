@@ -27,17 +27,17 @@ The current rule storage version is schema `0.8`; [How rules-driven conversion w
 
 ## Current source-compilation boundary
 
-Source compilation now returns an executable `ParseStrategy`, not a `ResolvedLevelPlan` configuration graph. This revision supersedes earlier resolved-DTO and factory listings in the historical decision tables and implementation supplement; the scientific pipeline, public compiler API and result contracts are unchanged.
+Source compilation now returns an executable `ParseStrategy`, not a `ResolvedLevelPlan` configuration graph. The descriptions and sketches below reflect the implementation at `b6ef79b`, checked on 2026-09-21; explicitly historical migration sections describe earlier decisions.
 
 `Pydantic RuleDocument → facade → WorkingParseConfiguration → source evidence + SourcePlanResolver → ParseStrategy → bound Parser`
 
-The facade remains the schema adapter and now constructs executable computed-column operations directly. `WorkingParseConfiguration` and its flat axis contract live in `parse_quant/operations.py`; source resolution prunes and schedules those same operations, without a `ComputedColumnConfig` family or reconstruction factory. Source-dependent coercion, decomposition, layer parsing and validation are constructed after binding. No parsing module imports Pydantic or the rule schema.
+The facade remains the schema adapter and now constructs executable computed-column operations directly. `WorkingParseConfiguration` and its flat axis contract live in `parse_quant/operations.py`; source resolution prunes inputs and schedules those operations, without a `ComputedColumnConfig` family or reconstruction factory. Source-dependent coercion, decomposition, layer parsing and validation are constructed after binding. No parsing module imports Pydantic or the rule schema.
 
 Vendor guessing checks only headers and source metadata; it never compiles a strategy. Effective level detection binds each candidate once and retains its parser. Public `compile()` assembles the retained parsers, without repeating document projection or source resolution. `checks` is applied during that binding. Rule documents are validated directly, without a private shell proxy or a second long/wide recognition family. Their projected compiler contract owns header recognition. Measurement uniqueness and primary-layer validity are checked at the authored schema boundary, not again in an internal runtime constructor.
 
 The executable strategy owns its collaborators once. `Parser.parse()` reads once and invokes `strategy.parse(source)`; `Parser.convert(result, target)` only writes. Prepared input receives the read projection and both axes' raw key tuples, not the strategy graph. `plan_json` preserves the previous serialized decisions, including skipped declarations and both axis phases, but runtime never consumes it.
 
-Each retained layer now has one configured value parser exposing both `present()` and `parse()`. Duplicate policies consume only its narrow `RawValuePresence` capability; occupancy checking still precedes duplicate reduction, and value parsing still follows alignment. No parallel presence-object mapping remains. Sequence normalizers record localized rendering labels directly and return `SequenceValue`, without intermediate occurrence records or a second result wrapper; independently declared stripping remains a separate computation.
+Each retained layer now has one configured value parser exposing both `present()` and `parse()`. Duplicate policies consume only its narrow `RawValuePresence` capability to identify populated raw cells before duplicate reduction; value parsing follows alignment, and measurement occupancy validation follows value parsing. No parallel presence-object mapping remains. Sequence normalizers record localized rendering labels directly and return `SequenceValue`, without intermediate occurrence records or a second result wrapper; independently declared stripping remains a separate computation.
 
 Normalizers own their immutable settings and scalar algorithms directly, without separate modification-configuration records or forwarding functions. Locations answer residue matching directly rather than allocating adjacent-residue wrappers. Source resolution constructs layer parsers from the retained declarations without `LayerValueConfig` repacking and is the sole producer of resolved layer-role metadata. `NumericTextFormat` is shared unchanged by source evidence and value/axis parsing; the numeric helper lives directly in `parse_quant`, preserving the independent `data` and `parameters` leaves. The saved-plan serializer preserves the existing JSON shape without retaining those deleted runtime wrappers.
 
@@ -73,20 +73,14 @@ variable-key columns | observation value columns
 ```
 
 It does not create pandas indexes, NumPy/SciPy matrices, or AnnData objects.
-`ParquetWriter` writes the parsed frames directly. `AnnDataWriter` alone performs layer encoding,
-orientation change, NumPy allocation, pandas-index construction, AnnData contract checks, and
-AnnData I/O. When the CLI omits `LEVEL`, existing parsers still return one `ParsedLevel` each;
-`ParsedLevels` collects them and `MuDataWriter` loops over the corresponding configured
-`AnnDataWriter` values to assemble `MuData(axis=0)`. MuData is therefore storage composition, not
-a multi-level parsing algorithm. The same `ParsedLevels` value is the result-I/O boundary:
+`ParseStrategy` parses aligned layers into canonical numeric values or category codes and validates their occupancy before returning. `ParquetWriter` writes those frames directly; `AnnDataWriter` performs only structural projection, orientation change, array allocation, pandas-index construction, validation and AnnData I/O. When the CLI omits `LEVEL`, `ParserCollection` collects ordinary per-level results into `ParsedLevels`; `MuDataWriter` reuses one stateless `AnnDataWriter` to assemble `MuData(axis=0)`. MuData is storage composition, not a multi-level parsing algorithm. The same `ParsedLevels` value is the result-I/O boundary:
 
 ```python
 parsed = reader_for(input_format).read(source)
 writer_for(output_format).write(parsed, target)
 ```
 
-Parquet and DuckDB preserve the Polars result exactly. AnnData and MuData deliberately project raw
-layer strings to configured numeric/factor matrices. No format crossing bypasses `ParsedLevels`.
+Parquet and DuckDB preserve the Polars result exactly. AnnData and MuData project the already-canonical values into physical matrices and persist their semantics for readback. No format crossing bypasses `ParsedLevels`.
 
 The identity model uses explicit columns rather than temporary integer IDs:
 
@@ -131,9 +125,9 @@ The specification stays close to V5. These are the only intentional changes:
 | Specification decision | V5 design replaced or clarified | Motivation |
 | --- | --- | --- |
 | `Parser.convert(parsed, target)` writes an already parsed result | V5 showed `parsed = parser.parse()` followed by `parser.convert(target)`, while `convert()` called `parse()` again | Prevent a hidden second read and parse; make `parse()` and `convert()` exactly the two operations requested |
-| `WorkingParseConfiguration` | V5 called the pre-source value `ResolvedParseConfiguration` | Reserve *resolved* for `ResolvedLevelPlan`, where physical source evidence is actually resolved |
-| `EffectiveRule` carries the document-level `Input` beside the composed level declaration and recognition | V5 called `project_effective_rule(document.rule(...))` even though `rule()` returned only the level rule, leaving no source for `InputContract` | Make the projection a total function of its argument and avoid a second facade lookup into `RuleDocument` |
-| `ResolvedLevelPlan` also carries retained modification configs, duplicate mode, and provenance; the facade drops separate duplicate/provenance getters | V5 required the compiler to combine one resolved plan with additional field-like facade calls and did not expose modification configs at all | Make source resolution return one complete parser-construction value, close the missing dependency, and remove two indirections |
+| `WorkingParseConfiguration` | V5 called the pre-source value `ResolvedParseConfiguration` | Distinguish authored requirements and ready computations from the source-bound executable `ParseStrategy` |
+| `EffectiveRule` carries table-local `Input` and optional preparation beside the composed level declaration | V5 called `project_effective_rule(document.rule(...))` even though `rule()` returned only the level rule, leaving no source for `InputContract` | Make the projection a total function of its argument and avoid a second facade lookup into `RuleDocument` |
+| `ParseStrategy` carries runtime collaborators, read plan and provenance; there is no resolved configuration graph | V5 required combining resolved settings and separate facade getters before constructing operations | Bind executable operations once; persist a JSON snapshot without reconstructing runtime from it |
 | `LevelReadPlan` partitions every projected delimited column into `text_sources` or `native_numeric_sources` | V5 used only `string_sources` and left other columns to dataframe inference | Preserve lexical evidence where required and eliminate inference-window failures for plain numeric layers |
 | The main graph expands the packed-fragment path | V5 explained separator-to-long reuse in section 3 but hid it behind the main `SourceDecomposer` arrow | Make the controlling overview agree with the executable sequence |
 | Input-policy schema is small and explicit | V5 gave a localized Spectronaut example but left the storage types implicit | Keep shared format defaults in code; rules declare only extension hints, an optional exact folder file name, and observed detection exceptions |
@@ -145,12 +139,12 @@ The specification stays close to V5. These are the only intentional changes:
 | Numeric aggregate leaves a cell null when it has no semantically present scalar | V5 retained pandas' `0.0` result for a physically present but all-missing group while also requiring a no-contribution cell to stay missing | A wide `RawLayerTable` deliberately carries values, not a physical-cell ledger; null versus absent contribution cannot be recovered after pivot. The null result is information-honest and avoids reintroducing provenance solely to manufacture zero |
 | Schema 0.3 removes `keep_all_as_raw_table` from `DuplicateMode` | V5 retained the legacy declaration but required compilation to fail because no final result contract existed | A clean schema must not validate an unexecutable mode; removing it deletes a dead registry path and keeps `ParsedLevel` singular |
 | Sequence computations select their declared inputs with Polars and return a frame plus diagnostics | An implicit normalizer produced both stripped and normalized intermediate columns | Honor authored dependencies, allow independent execution, and carry diagnostics outside the column namespace |
-| `ColumnComputer` applies named Polars expressions to the axis frame; source resolution prunes computations blocked by absent optional inputs | V5 passed a `skipped` set into every computed-column strategy | Consume optionality once and let Polars own table execution without runtime absence branches |
-| Duplicate resolution receives one configured `RawValuePresence` per layer | V5 deferred all missing-sentinel interpretation to the writer, so `keep_first` could retain a sentinel such as AlphaDIA's `0` and discard a later real value | Determine only whether a raw scalar claims a cell; do not convert or replace the scalar, preserving late encoding and Parquet values |
+| `ColumnComputer` applies named Polars expressions to the axis frame; source resolution prunes unavailable optional inputs and computations | V5 passed a `skipped` set into every computed-column strategy | Consume optionality once and let Polars own table execution without runtime absence branches |
+| Duplicate policies consume the layer parser's narrow `RawValuePresence` capability | V5 deferred missing-sentinel interpretation to the writer, so `keep_first` could retain a sentinel and discard a real value | Determine raw occupancy before reduction; parse retained values after alignment, identically for every backend |
 | `ParseRuleFacade.resolve_source(SourceEvidence)` replaces `resolve_header(header)` | V5 expected a column-name sequence to produce numeric formats, read dtypes, and Parquet compatibility decisions | Pass the exact physical evidence required for one atomic resolved plan and remove hidden compiler side channels |
-| Vendor-parameter parsing retains the `vendor_params` name and lives in the independent `parserV2/vendor_params/` child; top-level `api.py` translates its complete `Parameters` record to rule-owned `SearchParameterEvidence` | The first specification placed `vendor_params` beside `parserV2` and required a second outer composition layer | Give applications one public in-memory boundary without renaming the established parameter model, and keep both `parse_quant` and `vendor_parse_rules` independent of it |
+| Vendor-parameter parsing retains the `vendor_params` name and lives in the independent `parserV2/vendor_params/` child; `detect_document.search_parameter_evidence()` translates its complete `Parameters` record to rule-owned `SearchParameterEvidence` | The first specification placed `vendor_params` beside `parserV2` and required a second outer composition layer | Give applications one public in-memory boundary without renaming the established parameter model, and keep both `parse_quant` and `vendor_parse_rules` independent of it |
 | Parser V2 owns its boundary errors: rule applicability in `vendor_parse_rules/document.py`, shared parse/source errors in `parse_quant/errors.py`, and strategy-local errors beside their raiser | V5 named error categories but did not assign them to the folder dependency graph; importing the existing top-level `apb2.errors` would be an upward dependency | Keep catchable errors at the boundary that defines their meaning without creating a generic cross-package error module |
-| `parserV2` has an explicit directed import graph: `parse_quant/data` owns pipeline values, `parse_quant/parameters` owns working and source-resolved parameters, `parse_quant/io` owns parsed-result adapters and depends only on `data`, `parse_quant/contracts.py` owns Parser-consumed Protocols, source readers remain parent modules, parent-level `parse_rule_facade.py` translates `RuleDocument` into parameters, and the inward-only `vendor_parse_rules/schema/` child owns Pydantic storage declarations | V5 named implementation areas but did not assign concrete modules or prohibit child-to-parent and cyclic/excess sibling imports | Make directory nesting express dependency direction: a module owned by one child moves into that child; sibling edges are one-way and limited to one direct target, while genuine multi-child composition stays in the parent |
+| `parserV2` has an explicit directed import graph: `parse_quant/data` owns pipeline values, `parse_quant/parameters` owns independent declarations and evidence, `operations.py` owns operation-bearing working contracts, `parse_quant/io` owns parsed-result adapters and depends only on `data`, `parse_quant/contracts.py` owns Parser-consumed Protocols, source readers remain parent modules, parent-level `parse_rule_facade.py` translates `RuleDocument` into parameters, and the inward-only `vendor_parse_rules/schema/` child owns Pydantic storage declarations | V5 named implementation areas but did not assign concrete modules or prohibit child-to-parent and cyclic/excess sibling imports | Make directory nesting express dependency direction: a module owned by one child moves into that child; sibling edges are one-way and limited to one direct target, while genuine multi-child composition stays in the parent |
 | One-class private helpers are private methods; module-level `make_*` and `*_for` names are reserved for construction and selection | V5 showed several one-client parser and writer helpers as free functions | Put implementation details with their sole owner, reduce module namespace and forwarding code, and keep the construction boundary visible |
 | Omitted CLI level compiles resolved selections into one `ParserCollection`, returns canonical `ParsedLevels`, and delegates persistence to the selected result writer | The initial specification explicitly excluded multi-level assembly | Match APB's compound-conversion contract without coupling parsing to one container: internal parser per level, one public collection parser, one storage-neutral value, one selected writer |
 | Result I/O operates on `ParsedLevels` through format-selected readers and writers | V5 specified only parser-owned one-level writing | Give later tools and `apb2 reformat` one storage-neutral boundary; keep `Parser.convert()` unchanged because Parser still owns one level |
@@ -178,24 +172,27 @@ flowchart TB
     SCALAR["LevelSourceTable<br/>scalar-long fragment rows"]
     REUSE(["LongSourceDecomposer.decompose()<br/>same implementation as direct long"])
     RAW["DecomposedDataRaw<br/>ObsRaw + VarRaw + wide RawLayerTables"]
-    PREPO(["Parser._prepare_obs()"])
-    PREPV(["Parser._prepare_var()"])
+    PREPO(["ParseStrategy._prepare_obs()"])
+    PREPV(["ParseStrategy._prepare_var()"])
     OBS["ObsFinal<br/>final obs frame + authored key columns"]
     VAR["VarFinal<br/>final var frame + authored key columns"]
     OMAP["RawToFinalKeyMap<br/>temporary obs relation"]
     VMAP["RawToFinalKeyMap<br/>temporary var relation"]
     RAWL["RawLayerTable<br/>raw var keys + obs value columns"]
-    FILTER(["Parser._retain_mappable_layer()"])
+    FILTER(["ParseStrategy._retain_mappable_layer()"])
     MAPL["RawLayerTable<br/>unmappable rows and columns removed"]
     DEDUPOP(["DuplicatePolicy.resolve(layer, presence)"])
     DEDUP["RawLayerTable<br/>one value per raw cell"]
-    ALIGN(["Parser._align_layer_keys()"])
-    LFINAL["FinalLayerTable<br/>final var keys + ordered obs values"]
+    ALIGN(["ParseStrategy._align_layer_keys()"])
+    ALIGNED["FinalLayerTable<br/>aligned raw values"]
+    VALUES(["LayerValueParser.parse(aligned)"])
+    LFINAL["FinalLayerTable<br/>canonical values + roles + semantics"]
+    VALIDATE(["LayerContractValidator.validate(layers)"])
     RESULT["ParsedLevel<br/>final axes + final layer tables + primary name + uns"]
     CONVERT(["Parser.convert(parsed, target)"])
     WRITER(["ParsedLevelWriter.write()"])
     PARQUET["Parquet dataset<br/>native Polars values"]
-    ENCODE(["AnnData encoders + contract check<br/>transpose + array allocation"])
+    ENCODE(["AnnData structural projection<br/>transpose + array allocation"])
     ADATA["AnnData<br/>X + layers + obs + var + uns"]
 
     BOUND --> READ --> SOURCE
@@ -211,15 +208,15 @@ flowchart TB
     OMAP -.->|"valid obs rows and order"| MAPL
     VMAP -.->|"valid var rows"| MAPL
     MAPL --> DEDUPOP --> DEDUP
-    DEDUP --> ALIGN --> LFINAL
+    DEDUP --> ALIGN --> ALIGNED --> VALUES --> LFINAL
     OMAP -.->|"final obs order"| LFINAL
     VMAP -.->|"final var keys and order"| LFINAL
     OBS -->|"compose"| RESULT
     VAR -->|"compose"| RESULT
-    LFINAL -->|"compose"| RESULT
+    LFINAL --> VALIDATE -->|"compose"| RESULT
     RESULT --> CONVERT --> WRITER
-    WRITER -->|"ParquetWriter"| PARQUET
-    WRITER -->|"AnnDataWriter"| ENCODE --> ADATA
+    WRITER -->|"ParquetLevelsWriter"| PARQUET
+    WRITER -->|"AnnDataWriter via format writer"| ENCODE --> ADATA
 ```
 
 Persisted-result crossing is a second, storage-only pipeline:
@@ -243,7 +240,7 @@ The required order is:
 ```text
 select one effective rule and one physical source
     -> bind the source and inspect its header
-    -> resolve one level plan atomically against delimited dialect or Parquet schema evidence
+    -> resolve one executable strategy against delimited, workbook or native-frame evidence
     -> read only the level's transitive physical source closure
     -> decompose long, wide, or delimiter-packed physical shape
     -> construct distinct small ObsRaw and VarRaw tables with explicit raw_key_columns
@@ -253,6 +250,8 @@ select one effective rule and one physical source
     -> remove layer rows or columns that cannot map to valid final keys
     -> resolve repeated raw measurement cells column-wise
     -> align raw var keys and obs column order to the validated final axes
+    -> parse aligned layers into canonical numbers or category codes
+    -> validate canonical layer names and measurement occupancy
     -> discard temporary raw-to-final maps
     -> return ParsedLevel
     -> serialize only when the caller supplies that ParsedLevel to convert()
@@ -262,7 +261,7 @@ Omitting the CLI level changes only the outer composition:
 
 ```text
 ParseRuleCompiler(data, parameters_path, requested_levels)
-    -> parameter parsing and rule detection in the constructor
+    -> parameter parsing, rule detection and per-level strategy binding in the constructor
     -> compile() -> ParserCollection
     -> ParserCollection.parse() -> ParsedLevels({level: parsed_level, ...}, {})
     -> write_parsed_levels(parsed, target)
@@ -270,8 +269,7 @@ ParseRuleCompiler(data, parameters_path, requested_levels)
     -> atomic result plus APB JSON representation
 ```
 
-Each selected parser still performs its own ordinary single-level read and parse. Sharing a full
-source read across levels is a separate performance design and is not implied by MuData output.
+Each direct-input parser performs its own projected read and parse. A requested prepared table group is read and joined once, then shared through per-level `PreparedInputReader` projections. That sharing belongs to source preparation, not MuData output.
 
 ### 2.1 Dependency direction
 
@@ -329,20 +327,17 @@ The computational modules—`parser.py`, `decomposition.py`, `fragments.py`, `ax
 `anndata`, pandas, NumPy, nor PyArrow storage APIs. Physical source readers live directly in
 `parse_quant/`; all parsed-result readers, writers, metadata, validation, and format selection live
 in `parse_quant/io/`. Their backend dependencies remain confined to those modules.
-`io/formats.py` composes the result adapters. `io/` imports only storage-neutral values and scalar
-interpretation from `data/`; it never imports `parameters/` or a module directly in `parse_quant/`.
+`io/formats.py` composes the result adapters. `io/` imports only storage-neutral result values from `data/`; it never imports `parameters/` or a module directly in `parse_quant/`.
 
 `parse_rule_facade.py` therefore cannot live inside `vendor_parse_rules`. It is a parent-level
-module because it consumes `vendor_parse_rules.RuleDocument` and produces values from
-`parse_quant.parameters`. `compile.py` is the other parent-level module because it composes the
-rule child and the parse child. Adapter modules do not bridge those children: source readers that
+module because it consumes `vendor_parse_rules.RuleDocument` and produces working contracts and operations from `parse_quant`, using independent `parameters` records for plain settings. Public compilers, detection and the level factory also belong in the parent because they compose these independent children. Adapter modules do not bridge those children: source readers that
 compose `data/` and `parameters/` belong directly in `parse_quant/`, while parsed-result adapters
 that need only `data/` belong in `parse_quant/io/`.
 
 Those adapter modules import only the exact downward data modules required by their signatures,
 plus their external framework. They do not import Parser, raw parse state, runtime strategies,
 parsing parameters, or `parse_quant/contracts.py`. Structural typing proves conformance to the
-client-owned Protocols when `compile.py` performs the wiring.
+client-owned Protocols where the source resolver and level factory perform the wiring.
 
 ## 3. Identity and join columns
 
@@ -370,7 +365,7 @@ The three sets mean:
 | Field | Meaning | Lifetime |
 | --- | --- | --- |
 | `raw_key_columns` | Physical reader columns, resolved wide-header captures, or separator outputs whose complete tuple distinguishes raw source identity before logical coercion and key computation | `ObsRaw`, `VarRaw`, raw layers, temporary key map |
-| `key_input_columns` | Direct logical inputs of the authored final key after key-phase materialization, or the selected key itself | Local axis-preparation frame only |
+| `key_input_columns` | Direct logical inputs of the authored final key after key-phase materialization, or the selected key itself | Recorded in the plan snapshot; values remain local to axis preparation |
 | `final_key_columns` | Authored `axis.obs_keys` or `axis.var_keys` | `ObsFinal`, `VarFinal`, final layers, output adapters |
 
 The dependency walk obeys these rules:
@@ -391,8 +386,7 @@ The dependency walk obeys these rules:
 9. No computed operation is assumed globally injective or non-injective. The observed mapping is
    validated after execution.
 
-Every value that can affect final identity must be in the raw-key closure. Payload metadata may
-change public obs or var columns, but it must never change final identity.
+Every value that can affect final identity must be in the raw-key closure. Payload metadata may change public obs or var columns, but it must never change final identity. Execution follows the compiled column operations; it does not read `key_input_columns` to discover dependencies.
 
 ### 3.2 Generic examples, not special cases
 
@@ -500,7 +494,7 @@ resolution. It:
 
 1. derives `ObsRaw` from primary-layer sample captures in stable header order;
 2. derives `VarRaw` from complete raw var-key tuples in stable source-row order;
-3. excludes selected and computed var-column names before matching permissive layer patterns;
+3. consumes mappings already resolved with selected and computed var-column names excluded from permissive layer patterns;
 4. selects each layer's resolved physical columns and places their sample-aligned values after the
    raw var-key columns;
 5. represents several physical columns claiming one sample as repeated rows so the same
@@ -569,51 +563,47 @@ labelled `frag_0`, `frag_1`, and `frag_2`.
 
 ## 5. Parser algorithm
 
-The top-level strategy shows the complete call sequence. Helper methods expose the obs, var, and
-layer sub-algorithms without hiding them behind a broad transformation object.
+The bound `Parser` owns I/O; `ParseStrategy` owns the complete shared algorithm. Both are configured dataclasses, and neither repeats schema dispatch.
 
 ```python
+@dataclass(frozen=True, slots=True)
 class Parser:
-    def __init__(
-        self,
-        *,
-        level: QuantificationLevel,
-        input_reader: BoundInputReader,
-        decomposer: SourceDecomposer,
-        obs_plan: AxisRuntimePlan,
-        var_plan: AxisRuntimePlan,
-        duplicates: DuplicatePolicy,
-        raw_value_presence: Mapping[str, RawValuePresence],
-        layer_parsers: Mapping[str, LayerValueParser],
-        layer_validator: LayerSetValidator,
-        writer: ParsedLevelWriter,
-        provenance: Mapping[str, JsonValue],
-    ) -> None:
-        self.level = level
-        self._input = input_reader
-        self._decomposer = decomposer
-        self._obs_plan = obs_plan
-        self._var_plan = var_plan
-        self._duplicates = duplicates
-        self._raw_value_presence = dict(raw_value_presence)
-        self._layer_parsers = dict(layer_parsers)
-        self._layer_validator = layer_validator
-        self._writer = writer
-        self._provenance = dict(provenance)
+    input_reader: BoundInputReader
+    strategy: ParseStrategy
+    writer: ParsedLevelWriter
+
+    @property
+    def level(self) -> QuantificationLevel:
+        return self.strategy.level
 
     def parse(self) -> ParsedLevel:
-        """Read one bound source and return one parsed level."""
-        source = self._input.read()
-        raw = self._decomposer.decompose(source)
+        return self.strategy.parse(self.input_reader.read())
 
+    def convert(self, parsed: ParsedLevel, target: Path, /) -> None:
+        self.writer.write(parsed, target)
+
+
+@dataclass(frozen=True, slots=True)
+class ParseStrategy:
+    level: QuantificationLevel
+    read: LevelReadPlan
+    decomposer: SourceDecomposer
+    obs: AxisRuntimePlan
+    var: AxisRuntimePlan
+    duplicates: DuplicatePolicy
+    layer_parsers: Mapping[str, LayerValueParser]
+    layer_validator: LayerSetValidator
+    provenance: dict[str, JsonValue]
+
+    def parse(self, source: LevelSourceTable) -> ParsedLevel:
+        raw = self.decomposer.decompose(source)
         obs, obs_map = self._prepare_obs(raw.obs)
         var, var_map, unknown_mod_tokens = self._prepare_var(raw.var)
         layers = self._prepare_layers(raw.layers, obs_map, var_map)
-        self._layer_validator.validate(layers)
-        uns = dict(self._provenance)
+        self.layer_validator.validate(layers)
+        uns = dict(self.provenance)
         if unknown_mod_tokens:
-            uns[_UNKNOWN_MOD_TOKENS] = list(unknown_mod_tokens)
-
+            uns["unknown_mod_tokens"] = list(unknown_mod_tokens)
         return ParsedLevel(
             obs=obs,
             var=var,
@@ -626,36 +616,27 @@ class Parser:
             varp={},
         )
 
-    def convert(self, parsed: ParsedLevel, target: Path, /) -> None:
-        """Write a result the caller already has. This never parses anything."""
-        self._writer.write(parsed, target)
-
-    def _prepare_obs(self, raw: ObsRaw) -> tuple[ObsFinal, RawToFinalKeyMap]:
-        frame, mapping, _diagnostics = self._prepare_axis(
-            raw.frame, raw.raw_key_columns, self._obs_plan
-        )
-        return ObsFinal(frame=frame, key_columns=self._obs_plan.keys.final_key_columns), mapping
-
-    def _prepare_var(self, raw: VarRaw) -> tuple[VarFinal, RawToFinalKeyMap, tuple[str, ...]]:
-        frame, mapping, unknown_mod_tokens = self._prepare_axis(
-            raw.frame, raw.raw_key_columns, self._var_plan
-        )
-        return (
-            VarFinal(frame=frame, key_columns=self._var_plan.keys.final_key_columns),
-            mapping,
-            unknown_mod_tokens,
-        )
+    def _prepare_layers(
+        self, raw: LayersRaw, obs_map: RawToFinalKeyMap, var_map: RawToFinalKeyMap
+    ) -> dict[str, FinalLayerTable]:
+        layers: dict[str, FinalLayerTable] = {}
+        for layer in raw.values:
+            parser = self.layer_parsers[layer.layer_name]
+            mappable = self._retain_mappable_layer(layer, obs_map, var_map)
+            resolved = self.duplicates.resolve(mappable, parser)
+            aligned = self._align_layer_keys(resolved, obs_map, var_map)
+            layers[layer.layer_name] = parser.parse(aligned)
+        return layers
 ```
 
-`convert()` never calls `parse()`. This makes repeated reads impossible unless the caller explicitly
-requests another parse.
+`convert()` never calls `parse()`. `_prepare_obs()` and `_prepare_var()` apply the same axis routine using `self.obs` and `self.var`, returning the final axis and temporary map; var preparation also returns modification diagnostics.
 
 ### 5.1 Axis preparation
 
-Obs and var share one staged algorithm. Each selection reads the unmodified physical frame and binds a logical name; computers then consume exact logical inputs and return one column plus explicit diagnostics. No modification pre-pass supplies hidden columns.
+Obs and var share one staged algorithm. Each selection reads the unmodified physical frame and binds a logical name; computers then consume exact logical inputs and return an updated frame plus explicit diagnostics. No modification pre-pass supplies hidden columns.
 
 ```python
-class Parser:
+class ParseStrategy:
     @staticmethod
     def _prepare_axis(
         raw: pl.DataFrame,
@@ -668,23 +649,23 @@ class Parser:
         ``unique`` on the final keys: a repeated valid final key means two raw identities
         collapsed, which is an error rather than a deduplication.
         """
-        working, early_tokens = Parser._materialize_axis_columns(raw, raw, plan.key_phase)
+        working, early_tokens = ParseStrategy._materialize_axis_columns(raw, raw, plan.key_phase)
 
         mapping = RawToFinalKeyMap(
             # Read from the frame as it arrived: a declared column may carry the name of the
             # physical column it was selected from, and materializing it would then replace
             # the raw values this map exists to hold.
             raw_keys=raw.select(list(raw_key_columns)),
-            final_keys=Parser._normalized_keys(working.select(list(plan.keys.final_key_columns))),
+            final_keys=ParseStrategy._normalized_keys(working.select(list(plan.keys.final_key_columns))),
         )
-        Parser._require_injective_key_mapping(mapping)
+        ParseStrategy._require_injective_key_mapping(mapping)
 
-        valid = Parser._valid_final_key_rows(mapping.final_keys)
-        final_rows, output_tokens = Parser._materialize_axis_columns(
+        valid = ParseStrategy._valid_final_key_rows(mapping.final_keys)
+        final_rows, output_tokens = ParseStrategy._materialize_axis_columns(
             working.filter(valid), raw.filter(valid), plan.output_phase
         )
         return (
-            Parser._finalize_axis_frame(final_rows, outputs=plan.outputs),
+            ParseStrategy._finalize_axis_frame(final_rows, outputs=plan.outputs),
             mapping,
             tuple(dict.fromkeys((*early_tokens, *output_tokens))),
         )
@@ -695,7 +676,7 @@ does not silently call `unique()` on the final keys. A repeated valid final key 
 keys is an error. Rows with missing final-key components stay only in the temporary mapping so the
 corresponding raw layer rows or obs value columns can be removed.
 
-The runtime plan is fully configured. `Parser._materialize_axis_columns()` iterates concrete
+The runtime plan is fully configured. `ParseStrategy._materialize_axis_columns()` iterates concrete
 selections and computers; it does not inspect a `how`, logical type, vendor, layout, level, or
 optional-source flag. The private calls in this algorithm are static methods because they use only
 their explicit arguments and have one class client. Supplement H states the complete placement
@@ -703,7 +684,7 @@ rule; a helper is not made public merely to shorten this class.
 
 ### 5.2 Layer filtering, resolution, and alignment
 
-`Parser._retain_mappable_layer()` removes:
+`ParseStrategy._retain_mappable_layer()` removes:
 
 - raw var rows whose map row has a missing final-var-key component;
 - raw obs value columns whose map row has a missing final-obs-key component.
@@ -711,17 +692,16 @@ rule; a helper is not made public merely to shorten this class.
 This is fixed validity filtering, not a policy. The duplicate policy then sees only cells that can
 enter the result while still grouping by raw keys.
 
-`Parser._align_layer_keys()` is the only operation that returns `FinalLayerTable`. It:
+`ParseStrategy._align_layer_keys()` constructs the aligned layer, still carrying raw scalars; the selected layer parser then returns its canonical replacement. Alignment:
 
 1. uses the valid variable map in `VarFinal` order as the left spine and joins raw layer rows to it,
    inserting null value rows for final variables absent from that layer;
 2. replaces them with the authored final var-key columns;
 3. orders rows exactly like `VarFinal.frame`;
-4. selects and orders a complete value-column set exactly like valid `ObsFinal.frame` rows,
-   inserting null columns for observations absent from that layer;
+4. keeps the complete valid observation-column order established by decomposition and validity filtering; missing measurements already have null columns;
 5. assigns unique storage column names where a multi-column obs identity cannot itself be a Polars
    column name;
-6. copies layer scalar values without encoding them.
+6. copies raw layer scalar values without interpreting them; `LayerValueParser.parse()` runs next and attaches canonical values, role and semantics.
 
 The generated storage column names are positional labels only. They are unique and disjoint from
 the var-key column namespace, but they are not observation identity. `ObsFinal.frame` and
@@ -746,8 +726,8 @@ Downstream APB tools use the public result facade rather than importing adapter 
 ```python
 from apb2.result_facade import observation_labels, quantitative_layer_values
 
-observation_labels(count: int, reserved: Iterable[str]) -> tuple[str, ...]
-quantitative_layer_values(parsed: ParsedLevel, layer_name: str, /) -> pl.DataFrame
+def observation_labels(count: int, reserved: Iterable[str]) -> tuple[str, ...]: ...
+def quantitative_layer_values(parsed: ParsedLevel, layer_name: str, /) -> pl.DataFrame: ...
 ```
 
 The label helper establishes the collision-free positional observation columns used by wide layer tables. The value helper returns the already-canonical quantitative value block directly; it performs no interpretation or conversion.
@@ -783,95 +763,45 @@ target.parquet/
             ...
 ```
 
-`manifest.json` version 4 records level and table order, axis keys, each layer's var keys and role,
+`manifest.json` version 5 records level and table order, axis keys, each layer's var keys and role,
 primary layers, both provenance scopes, every table's ordered logical Polars schema, and explicit
 logical-to-physical names. A user-authored name is never interpolated into a path without that
 mapping. `ParquetReader` accepts this APB2 dataset only; a vendor `.parquet` file is not a result.
 
 ### 6.2 AnnData
 
-`AnnDataWriter` owns every lossy or backend-specific operation:
+`AnnDataWriter` owns physical representation, not scientific value parsing. The following excerpt shows the matrix projection inside `to_anndata_for_level()`; the full method also writes aligned/pairwise slots and storage metadata.
 
 ```python
-class AnnDataWriter:
-    def to_anndata(self, parsed: ParsedLevel, /) -> AnnData:
-        encoded: dict[str, pl.DataFrame] = {}
-        for name, layer in parsed.layers.items():
-            n_key_columns = len(layer.var_key_columns)
-            value_columns = layer.values.columns[n_key_columns:]
-            raw_values = layer.values.select(value_columns)
-            encoded[name] = self._encoders[name].encode(raw_values)
-
-        occupancy_candidates: dict[str, pl.DataFrame] = {}
-        for name, layer in parsed.layers.items():
-            occupancy_candidates.update(
-                layer.role.occupancy_candidates(name, encoded[name])
-            )
-
-        self._contract.check(encoded, occupancy_candidates)
-        arrays = {
-            name: frame.to_numpy().astype(np.float64, copy=False).T
-            for name, frame in encoded.items()
-        }
-
-        obs = self._make_axis_frame(parsed.obs.frame, parsed.obs.key_columns)
-        var = self._make_axis_frame(parsed.var.frame, parsed.var.key_columns)
-
-        adata = AnnData(
-            X=arrays[parsed.primary_layer_name],
-            obs=obs,
-            var=var,
-            layers=arrays,
-        )
-        _write_parse_namespace(adata, parsed.uns)
-        return adata
-
-    def write(self, parsed: ParsedLevel, target: Path, /) -> None:
-        _write_atomically(target, self.to_anndata(parsed).write_h5ad)
+validate_parsed_level(level_name, parsed)
+arrays = {
+    name: layer.values.select(pl.exclude(layer.var_key_columns)).to_numpy().T
+    for name, layer in parsed.layers.items()
+}
+layer_names = safe_names(parsed.layers, prefix="layer", suffix="")
+adata = AnnData(
+    X=arrays[parsed.primary_layer_name],
+    obs=self._make_axis_frame(parsed.obs.frame, parsed.obs.key_columns),
+    var=self._make_axis_frame(parsed.var.frame, parsed.var.key_columns),
+    layers={
+        layer_names[name]: values
+        for name, values in arrays.items()
+        if name != parsed.primary_layer_name
+    },
+)
 ```
 
-`_write_parse_namespace()` writes `{ "parse": parsed.uns }` below the APB-owned top-level key
-`"apb"`. Parsing never replaces that top-level namespace with its own fields: `apb` may also
-contain sibling namespaces owned by other APB tools.
+The primary layer is stored only in `X`; other matrices use safe names in `layers`. `_write_level_namespaces()` and `_write_namespaces()` persist parse provenance alongside other tool namespaces below `uns["apb"]`, with reconstruction information in `storage`. `_write_atomically()` publishes the completed result.
 
-`AnnDataWriter._make_axis_frame()` converts Polars to pandas and normalizes extension dtypes to values
-supported by AnnData/HDF5. It retains every authored key as an ordinary column. For one string key,
-the existing value is used as the storage index when safe. For one nonstring key or for several
-keys, it creates a collision-free string representation of the complete typed key tuple. The
-representation is a canonical JSON array of `[logical_type, scalar_text]` pairs, not separator
-concatenation; JSON escaping and the type tag distinguish values such as embedded separators,
-strings, integers, and booleans. This string is an AnnData storage requirement only; parsing never
-uses it for joins, grouping, or identity.
+`AnnDataWriter._make_axis_frame()` delegates to the shared I/O helper. That helper converts Polars through Arrow to pandas, preserves supported nullable/categorical representations, and retains every authored key as an ordinary column. One string key can serve directly as the storage index; other keys use a collision-free canonical JSON array of typed scalar pairs. Storage labels never enter parsing joins or identity.
 
-`_make_axis_frame()` remains a private static method because it has one class client.
-`_write_parse_namespace()` and `_write_atomically()` are module-private functions because both
-AnnData and MuData writing use them. They remain in `parse_quant/io/anndata_writer.py`; neither belongs
-in `data/` or `parameters/`, because either child would then need to import upward to use it.
+Plain numeric interpretation, regex extraction, missing-sentinel handling and factor mapping already ran in `parse_quant/value_parsing.py`. Numeric layers carry `QuantitativeLayerSemantics`; categorical layers carry their category map and missing code in `CategoricalLayerSemantics`. No writer constructs an encoder from rules or saved plans.
 
-AnnData encoders implement:
-
-- plain numeric conversion plus blank-token and missing-sentinel handling;
-- regex numeric extraction plus blank-token and localized-number conversion;
-- factor-label mapping through the authored category map, retaining the current `-1` code for a
-  null or unknown label.
-
-The writer encodes every retained layer. The encoded-layer checker evaluates required-layer and
-occupancy contracts after encoding, when a failed numeric interpretation is visible. These checks
-do not run for Parquet.
-
-For the existing occupancy policy, a measurement layer is suspicious only when it is below
-`empty_ratio` while a measurement sibling reaches `populated_ratio`. The checker first verifies
-that the complete encoded mapping contains the primary and every resolved required name, including
-any required auxiliary layer. Standard occupancy checking raises for the primary and warns for
-other suspicious measurement layers; strict checking raises for every suspicious measurement
-layer. Auxiliary layers remain encoded, required when declared, and written, but neither contribute
-occupancy evidence nor undergo an occupancy comparison. If no measurement sibling is populated,
-occupancy alone does not distinguish an empty experiment from a parse failure and does not invent
-that conclusion.
+`LayerContractValidator` checks required names and relative measurement occupancy during parsing, before any backend is selected. A layer is suspicious below `empty_ratio` only when a measurement sibling reaches `populated_ratio`; standard checks raise for the primary and warn for other suspicious measurements, while strict checks raise for all. Auxiliary layers remain required when declared and serialized, but do not contribute occupancy evidence. Writers separately validate the canonical result's structure and values; they do not rerun the scientific occupancy policy.
 
 ### 6.3 MuData
 
-`ParsedLevels` is the output-boundary collection, not another parsed-data model:
+`ParsedLevels` is the output-boundary collection, not another parsed-data model. Its core fields are shown here; Supplement A includes its optional metadata and annotation extensions:
 
 ```python
 @dataclass(slots=True)
@@ -880,10 +810,9 @@ class ParsedLevels:
     uns: dict[str, JsonValue]
 ```
 
-`MuDataWriter` holds the configured `AnnDataWriter` for each included level. It iterates the
-canonical level order, calls `to_anndata()` for each `ParsedLevel`, prefixes only the AnnData
+`MuDataWriter` constructs one stateless `AnnDataWriter` and reuses it in canonical level order. It calls `to_anndata_for_level()` for each `ParsedLevel`, prefixes only the AnnData
 storage `var_names` (`ion:`, `pfm:`, `pep:`, `prt:`, `frg:`), constructs `MuData(modalities,
-axis=0)` under MuData's non-pulling update semantics, writes shared provenance to
+axis=0)`, writes shared provenance to
 `mdata.uns["apb"]["parse"]`, and
 atomically writes `.h5mu`. The authored unprefixed key remains an ordinary modality `.var` column.
 
@@ -930,11 +859,7 @@ dependency even though APB2 does not import it directly.
 
 h5ad/h5mu store tool namespaces directly below `uns["apb"]`. MuData owns common provenance and each embedded AnnData owns its rules, roles and results. H5AD composes disjoint root and level mappings recursively; a conflicting leaf fails before publication. Generic ownership paths in `storage` reconstruct both contributions, including empty mappings, without copying values or recognizing tool names. The descriptor also records logical names, schemas, axis keys, safe physical keys and matrix locations. The primary matrix is only in `X`; additional matrices are in `layers`. Parquet and DuckDB manifests use root `apb` and per-level `apb`. The [metadata specification](metadata_specification.md) owns current versions and compatibility rules. The representation reuses the persistence projection and shows combined metadata once for H5AD, separate root/modality metadata otherwise. An h5 reader is deliberately not a general third-party AnnData importer.
 
-The h5 collection writers reconstruct the standard matrix encoders and occupancy contract from
-the stored `plan_json`. They do not reload `rules.json`, import its Pydantic models, or resolve a
-source again. A result already read from h5 is marked as matrix-projected, so a second h5 write
-uses numeric identity encoding and is idempotent—including factor layers that are now numeric
-codes.
+The h5 collection writers consume canonical values and explicit layer semantics directly. They do not read `plan_json` to reconstruct encoders or occupancy checks, reload rules, or resolve a source. Readback uses stored semantics to restore integer and categorical codes; category labels are not encoded a second time.
 
 ### 6.6 Fidelity laws
 
@@ -954,35 +879,25 @@ read(write(parsed)) == ann_data_projection(parsed)
 ann_data_projection(ann_data_projection(parsed)) == ann_data_projection(parsed)
 ```
 
-Raw numeric strings and factor labels are intentionally not recoverable after that projection.
-Crossing from h5 into Parquet or DuckDB preserves the represented projected values exactly.
+Vendor numeric spellings and factor labels were interpreted during parsing, not during h5 projection. The remaining projection is structural: matrix orientation, backend-compatible metadata and missing-value representation; h5 numeric matrices can merge null with NaN. Stored semantics restore integer/category types and preserve category mappings. Crossing from h5 into Parquet or DuckDB preserves that represented result, not the original vendor tokens.
 
 ## 7. Architectural roles and construction
 
-1. `RuleDocument` is the public API over one loaded `rules.json`. It retains its private `_shell`,
-   accesses shell members through properties and methods, composes base plus level, and applies
-   search-parameter gates and overrides.
-2. `ParseRuleFacade` projects one document, level, and rule-owned parameter evidence value into a storage-model-free
-   working rule, then resolves all source-evidence-dependent decisions atomically.
-3. `ParseRuleCompiler` is the composition root. It binds the physical source, observes its dialect
-   or schema evidence, requests one resolved level plan, constructs runtime strategies through
-   registries, and injects one writer.
-4. `Parser` is one fully configured level strategy. It orchestrates narrow collaborators and
-   returns `ParsedLevel`.
-5. `ParquetWriter` and `AnnDataWriter` are output adapters implementing the workflow-owned
-   `ParsedLevelWriter` contract.
-6. `MuDataWriter` is the concrete compound-output adapter. The parent composition root gives it
-   the configured `AnnDataWriter` for every included level; parsing does not see it.
-7. `io/formats.py` is the result-I/O composition boundary. It selects immutable h5ad, h5mu,
-   Parquet, or DuckDB readers and writers and owns the storage-only `reformat` use case.
+1. `RuleDocument` is the validated Pydantic document itself. It composes table-local base and level declarations and evaluates parameter gates and overrides; no private shell proxy or recognition model remains.
+2. `ParseRuleFacade` adapts one effective rule into Pydantic-free requirements and ready computed-column operations. Source resolution delegates to `SourcePlanResolver`.
+3. `ParseRuleCompiler` resolves parameters and compatible levels during construction. Detection uses `parser_factory.compile_level()` to bind candidates; accepted selections retain their parser. Public `compile()` only assembles those parsers into a collection.
+4. `SourcePlanResolver` binds observed columns, notation and dtypes into one `ParseStrategy`, including axis phases, decomposition, duplicate policy, layer parsers and validation.
+5. `Parser` binds a reader, strategy and writer. `ParseStrategy` executes the shared pipeline without physical I/O.
+6. `ParsedLevelFormatWriter` is the one-level writer injected by the factory. Direct `AnnDataWriter` and `ParquetWriter` also satisfy that capability; `MuDataWriter` consumes a collection and reuses one stateless `AnnDataWriter`.
+7. `io/formats.py` selects result readers/writers and owns storage-only reformatting. Writers receive neither rules nor a reconstructed parsing strategy.
 
 ```mermaid
 classDiagram
     class RuleDocument {
-        -_RuleDocumentSchema _shell
+        +Path path
+        +list tables
         +declared(level) EffectiveRule
         +rule(level, parameter_evidence) EffectiveRule
-        +matches(headers) bool
     }
 
     class SearchParameterEvidence
@@ -1000,8 +915,16 @@ classDiagram
     }
 
     class Parser {
+        +BoundInputReader input_reader
+        +ParseStrategy strategy
+        +ParsedLevelWriter writer
         +parse() ParsedLevel
         +convert(parsed, target) None
+    }
+
+    class ParseStrategy {
+        +LevelReadPlan read
+        +parse(source) ParsedLevel
         -_prepare_obs(raw) tuple
         -_prepare_var(raw) tuple
         -_prepare_layers(raw, obs_map, var_map) dict
@@ -1028,7 +951,7 @@ classDiagram
     }
     class RawValuePresence {
         <<protocol>>
-        +present(values) pl.Series
+        +present(values, dtype) pl.Expr
     }
     class ParsedLevelWriter {
         <<protocol>>
@@ -1042,14 +965,23 @@ classDiagram
         <<protocol>>
         +write(parsed, target) None
     }
-    class AnnDataLayerEncoder {
+    class LayerValueParser {
         <<protocol>>
-        +encode(values) pl.DataFrame
+        +present(values, dtype) pl.Expr
+        +parse(layer) FinalLayerTable
     }
-    class AnnDataLayerContractChecker {
+    class LayerSetValidator {
         <<protocol>>
-        +check(encoded) None
+        +validate(layers) None
     }
+    class SourcePlanResolver
+    class ParserCollection
+    class LevelSelection
+    class LayerContractValidator
+    class PlainNumericLayerParser
+    class RegexNumericLayerParser
+    class FactorLayerParser
+    class ParsedLevelFormatWriter
 
     class LongSourceDecomposer
     class WideSourceDecomposer
@@ -1080,18 +1012,26 @@ classDiagram
     ParseRuleFacade ..> RuleDocument : consumes during projection
     ParseRuleFacade ..> SearchParameterEvidence : consumes
     RuleDocument ..> SearchParameterEvidence : evaluates gates and overrides
-    ParseRuleCompiler *-- ParseRuleFacade
-    ParseRuleCompiler --> Parser : constructs
+    ParseRuleFacade ..> SourcePlanResolver : delegates
+    SourcePlanResolver --> ParseStrategy : constructs
+    ParseRuleCompiler o-- LevelSelection : retains accepted detection
+    LevelSelection o-- Parser
+    ParseRuleCompiler --> ParserCollection : assembles
+    ParserCollection o-- Parser
     Parser *-- BoundInputReader
-    Parser *-- SourceDecomposer
-    Parser *-- DuplicatePolicy
-    Parser *-- RawValuePresence : one per layer
+    Parser *-- ParseStrategy
+    ParseStrategy *-- SourceDecomposer
+    ParseStrategy *-- DuplicatePolicy
+    ParseStrategy *-- LayerValueParser : one per layer
+    ParseStrategy *-- LayerSetValidator
+    DuplicatePolicy ..> RawValuePresence : consumes only presence
     Parser *-- ParsedLevelWriter
-    Parser --> ParsedLevel : returns
+    ParseStrategy --> ParsedLevel : returns
     SourceDecomposer <|.. LongSourceDecomposer
     SourceDecomposer <|.. WideSourceDecomposer
     SourceDecomposer <|.. DelimitedFragmentSourceDecomposer
     DelimitedFragmentSourceDecomposer *-- FragmentTableSeparator
+    ParsedLevelWriter <|.. ParsedLevelFormatWriter
     ParsedLevelWriter <|.. AnnDataWriter
     ParsedLevelWriter <|.. ParquetWriter
     ParsedLevelsReader <|.. H5adReader
@@ -1102,9 +1042,15 @@ classDiagram
     ParsedLevelsWriter <|.. H5muWriter
     ParsedLevelsWriter <|.. ParquetLevelsWriter
     ParsedLevelsWriter <|.. DuckDBWriter
-    AnnDataWriter *-- AnnDataLayerEncoder
-    AnnDataWriter *-- AnnDataLayerContractChecker
-    MuDataWriter *-- AnnDataWriter : one configured writer per level
+    LayerValueParser <|.. PlainNumericLayerParser
+    LayerValueParser <|.. RegexNumericLayerParser
+    LayerValueParser <|.. FactorLayerParser
+    RawValuePresence <|.. PlainNumericLayerParser
+    RawValuePresence <|.. RegexNumericLayerParser
+    RawValuePresence <|.. FactorLayerParser
+    LayerSetValidator <|.. LayerContractValidator
+    MuDataWriter ..> AnnDataWriter : reuses one stateless instance
+    H5muWriter ..> MuDataWriter
     MuDataWriter --> ParsedLevels : writes
     ParsedLevels *-- ParsedLevel : one or more
     DecomposedDataRaw *-- ObsRaw
@@ -1125,16 +1071,21 @@ complete runtime Protocol inventory with every implementation family.
 ### 7.1 Package and module boundaries
 
 The class diagram deliberately does not encode file placement. This separate diagram is the
-controlling import graph for `parserV2`:
+package-level view of the current import direction; `.importlinter` is the exhaustive module contract:
 
 ```mermaid
 flowchart TB
     subgraph PACKAGE["parserV2/"]
         subgraph ROOT_MODULES["modules directly in parserV2/ — cross-child composition"]
-            DETECTION["detect_document.py<br/>header-only packaged-rule selection"]
-            FACADE["parse_rule_facade.py<br/>RuleDocument -> parsing parameters"]
-            COMPILE["compile.py<br/>only runtime composition root"]
+            DETECTION["detect_document.py<br/>recognition + candidate parser selection"]
+            FACADE["parse_rule_facade.py<br/>schema adaptation + computed operations"]
+            COMPILE["compile.py<br/>public compilers + collection assembly"]
+            FACTORY["parser_factory.py<br/>strategy + bound reader/writer"]
+            BINDING["source_binding.py<br/>physical evidence + reader binding"]
+            PREPARE["prepare_source.py<br/>declared multi-file preparation"]
         end
+
+        JOINS["joins/<br/>independent AlphaDIA and MaxQuant functions"]
 
         subgraph PARAM_PACKAGE["vendor_params/ — never imports up or sideways"]
             PARAM_REGISTRY["registry.py<br/>software-name dispatch"]
@@ -1153,6 +1104,11 @@ flowchart TB
         subgraph PARSE_PACKAGE["parse_quant/ — directed children; io -> data only"]
             DELIMITED_INPUT["delimited_input.py<br/>physical text -> LevelSourceTable"]
             PARQUET_INPUT["parquet_input.py<br/>physical Parquet -> LevelSourceTable"]
+            EXCEL_INPUT["excel_input.py<br/>named-sheet evidence + projected read"]
+            PREPARED_INPUT["prepared_input.py<br/>shared frame -> level projection"]
+            RESOLVER["source_resolution.py<br/>plain requirements + evidence -> strategy"]
+            OPERATIONS["operations.py<br/>working contracts + source-dependent factories"]
+            SNAPSHOT["plan_json.py<br/>serialize decisions only"]
             subgraph RESULT_IO_PACKAGE["io/ — parsed-result storage boundary"]
                 RESULT_IO["formats.py<br/>format registry + reformat use case"]
                 ANNDATA_READER["anndata_reader.py<br/>h5ad/h5mu -> ParsedLevels"]
@@ -1166,9 +1122,9 @@ flowchart TB
             RAW_DATA["data/raw.py<br/>raw axes, layers, key map"]
             PARSED_DATA["data/parsed.py<br/>final axes, slots, ParsedLevel(s)"]
             NUMERIC_TEXT["numeric_text.py<br/>shared numeric expressions"]
-            PARAMETERS["parameters/<br/>working and source-resolved values"]
+            PARAMETERS["parameters/<br/>independent declarations + evidence + source plans"]
             CONTRACTS["contracts.py<br/>Parser-consumed Protocols and runtime plans"]
-            PARSE["Parser, decomposers, columns,<br/>modifications, duplicate policies"]
+            PARSE["Parser + ParseStrategy; decomposition,<br/>axis operations, duplicates, value parsing + validation"]
         end
     end
 
@@ -1176,31 +1132,44 @@ flowchart TB
     POLARS["Polars"]
     STORAGE["pandas + NumPy + AnnData<br/>or PyArrow/Parquet storage APIs"]
 
-    CONVERSION --> DETECTION
+    CONVERSION["apb2/api.py + command workflow"]
     CONVERSION --> COMPILE
-    CONVERSION --> FACADE
-    CONVERSION --> PARAM_REGISTRY
-    CONVERSION --> PARAM_FOUNDATION
-    CONVERSION --> RULES
-    DETECTION --> COMPILE
-    DETECTION --> FACADE
-    DETECTION --> PARAM_FOUNDATION
-    DETECTION --> RULES
-    COMPILE --> FACADE
-    COMPILE --> DELIMITED_INPUT
-    COMPILE --> PARQUET_INPUT
+    CONVERSION --> RESULT_IO
+    COMPILE --> DETECTION
+    COMPILE --> PARAM_REGISTRY
     COMPILE --> PARSE
     COMPILE --> PARAMETERS
-    COMPILE --> CONTRACTS
-    COMPILE --> ANNDATA_WRITER
-    COMPILE --> PARQUET_WRITER
-    COMPILE --> ERRORS
-    CONVERSION --> RESULT_IO
-
+    COMPILE --> RULES
+    DETECTION --> FACADE
+    DETECTION --> FACTORY
+    DETECTION --> BINDING
+    DETECTION --> PREPARE
+    DETECTION --> PARAM_FOUNDATION
+    DETECTION --> RULES
+    FACTORY --> FACADE
+    FACTORY --> BINDING
+    FACTORY --> PREPARE
+    FACTORY --> PREPARED_INPUT
+    FACTORY --> PARSE
+    FACTORY --> RESULT_IO
+    BINDING --> DELIMITED_INPUT
+    BINDING --> PARQUET_INPUT
+    BINDING --> EXCEL_INPUT
+    BINDING --> PARAMETERS
+    PREPARE --> JOINS
+    PREPARE --> PARAMETERS
     FACADE --> RULES
+    FACADE --> OPERATIONS
+    FACADE --> RESOLVER
+    FACADE --> PARSE
     FACADE --> PARAMETERS
-    FACADE --> ERRORS
     FACADE --> PARAM_FOUNDATION
+    RESOLVER --> OPERATIONS
+    RESOLVER --> PARSE
+    RESOLVER --> PARAMETERS
+    RESOLVER --> SNAPSHOT
+    OPERATIONS --> PARSE
+    OPERATIONS --> PARAMETERS
     PARAM_REGISTRY --> VENDOR_PARSERS
     VENDOR_PARSERS --> PARAM_FOUNDATION
     DELIMITED_INPUT --> SOURCE_DATA
@@ -1208,17 +1177,22 @@ flowchart TB
     DELIMITED_INPUT --> ERRORS
     PARQUET_INPUT --> SOURCE_DATA
     PARQUET_INPUT --> PARAMETERS
+    EXCEL_INPUT --> SOURCE_DATA
+    EXCEL_INPUT --> PARAMETERS
+    PREPARED_INPUT --> SOURCE_DATA
+    PREPARED_INPUT --> PARAMETERS
     PARSE --> SOURCE_DATA
     PARSE --> RAW_DATA
     PARSE --> PARSED_DATA
     PARSE --> PARAMETERS
     PARSE --> CONTRACTS
+    PARSE --> NUMERIC_TEXT
+    NUMERIC_TEXT --> PARAMETERS
     CONTRACTS --> SOURCE_DATA
     CONTRACTS --> RAW_DATA
     CONTRACTS --> PARSED_DATA
+    CONTRACTS --> PARAMETERS
     ANNDATA_WRITER --> PARSED_DATA
-    PARSE --> NUMERIC_TEXT
-    NUMERIC_TEXT --> PARAMETERS
     ANNDATA_READER --> PARSED_DATA
     PARQUET_WRITER --> PARSED_DATA
     PARQUET_READER --> PARSED_DATA
@@ -1243,44 +1217,17 @@ flowchart TB
     DUCKDB_IO --> STORAGE
 ```
 
-Every project-internal arrow either stays at one directory level, points from a parent module into a
-child package, or is the declared `parse_quant.io -> parse_quant.data` sibling edge. No child imports
-upward, the sibling graph is acyclic, and each child directly targets at most one sibling.
-`compile.py` may import the rule and parse children because construction and dependency injection
-are its one responsibility. `parse_rule_facade.py` is the parent-level bridge between those two
-child packages: it
-imports the rule document and parsing parameter values, performs no parsing or I/O, and keeps the
-children independent.
+Every project-internal dependency either stays at one module level, descends into a child, or follows the single `parse_quant.io -> parse_quant.data` sibling edge. The facade may depend on the independent rule, parsing and vendor-parameter children because it is their parent-level adapter; neither child imports it or another sibling.
 
-Top-level `apb2/api.py` is a thin public in-memory convenience. It binds the source, parses typed parameters, detects resolved level selections, compiles them, and calls `ParserCollection.parse()`. It does not write, group observations, mutate provenance, embed parameter JSON, or translate CLI errors. `detect_document.py` combines header-only source inspection with rule compatibility and parameter evidence. File-to-file grouping, naming, writing, summaries, and error translation live under `apb2.command`; `apb2/cli.py` imports that command workflow. No child package imports `api.py`.
+Top-level `apb2/api.py` exposes public imports, including `ParseRuleCompiler`. The compiler resolves parameters and detection; `detect_document.py` retains accepted candidate parsers; `parser_factory.py` binds their I/O. Grouping, output naming, writing, summaries and CLI error translation belong to `apb2.command`, not parsing.
 
-Physical source readers sit directly in `parse_quant/` because they consume source parameters as
-well as parse-owned data. Parsed-result I/O sits in the `io/` child and depends only on the `data/`
-child. Computation modules do not import it. `io/anndata_reader.py` and `io/anndata_writer.py` alone import pandas, NumPy, SciPy,
-AnnData, or MuData; `io/duckdb.py` alone imports DuckDB and triggers the dynamic Polars-to-PyArrow
-interchange. `io/formats.py` is above these adapters and is the only result-format registry.
+Source readers live directly in `parse_quant` because they consume both `data` and `parameters`. Result adapters live in `io` and depend only on `data`; they never import source parameters, raw state, rule models or computational strategies. Backend-specific pandas, array, AnnData/MuData, Arrow and DuckDB handling stays in result I/O.
 
-`BoundInputReader` and `ParsedLevelWriter` belong in `parse_quant/contracts.py` because `Parser` is
-the client that exercises both capabilities. Concrete readers and writers satisfy those Protocols
-structurally. Reader modules import only their `data/source.py`, exact source-parameter children,
-and the shared parse-owned `errors.py` when binding/inspection can fail;
-writer/result-reader modules import only the parsed data value, sibling I/O metadata/validation, and
-their physical backend. They do not import Parser, raw state, decomposition, rules, or vendor
-parameters. `compile.py` performs parser-owned writer wiring; `io/formats.py` performs
-collection-adapter selection. `LevelSourceTable`, raw states, `ParsedLevel`, and `ParsedLevels`
-form one parsing-owned data model under `parse_quant/data`, separated into source, raw, and parsed
-lifecycle modules.
+`BoundInputReader` and `ParsedLevelWriter` belong to the parser-owned contracts module. `ParseStrategy` consumes decomposition, axis, duplicate and canonical-layer contracts there; providers conform structurally. Source-dependent construction lives in `SourcePlanResolver` and `operations.py`; the level factory binds the finished strategy, and `io/formats.py` selects collection adapters.
 
-`ParseRuleFacade` lives in parent-level `parse_rule_facade.py`. It consumes a validated
-`RuleDocument` and returns working or source-resolved values from `parse_quant/parameters`.
-`parse_quant` never imports the facade, document, or Pydantic schema, while `vendor_parse_rules`
-never imports the facade or parsing parameters. Placing the facade under `vendor_parse_rules/`
-would require a child-to-sibling import and is therefore forbidden.
+`WorkingParseConfiguration` and its operation-bearing axis records live in `operations.py`; independent inputs, evidence and layer declarations live in `parameters`. The facade projects the validated document into these plain contracts and existing behavior objects, retaining no Pydantic model.
 
-There is no Builder. Construction is one fixed compilation sequence supplied with complete inputs.
-`make_<thing>()` functions construct configured runtime objects. `<thing>_for()` functions select
-existing stateless implementations. A registry lookup is the only permitted dispatch point for a
-declaration discriminator.
+There is no Builder and no requirement to route every constructor through a registry. Local type matches consume declarations at their projection/construction boundary; stateless duplicate policies and result formats use registries. Runtime execution does not re-dispatch on vendor, layout or authored computation tags.
 
 ## 8. Public API
 
@@ -1298,7 +1245,7 @@ parsed = parser.parse()
 write_parsed_levels(parsed, Path("ion.h5ad"))
 ```
 
-The constructor owns physical source binding, parameter-parser selection, typed parameter parsing, packaged-rule detection, and canonical level selection. `compile()` consumes the resolved selections exactly once and returns one `ParserCollection`. The collection exposes `parse()` only; persistence remains `write_parsed_levels(parsed, target)` and no storage declaration enters compilation.
+The constructor owns physical source binding, parameter-parser selection, typed parameter parsing, packaged-rule detection, and canonical level selection. `compile()` returns a `ParserCollection` over retained parsers; repeated calls do not repeat detection, projection or source resolution. The collection exposes `parse()` only; persistence remains `write_parsed_levels(parsed, target)` and no storage declaration enters compilation.
 
 Persisted results use the collection boundary even when they contain one level:
 
@@ -1318,7 +1265,7 @@ level, software, parameter, strictness, FASTA, or annotation option.
 
 The implementation must preserve these invariants:
 
-- schema `0.4` keeps `axis` identity-only, stores primary/duplicates/layers under `measurements`, declares obs/var columns as ordered entries, validates semantic-role ownership from packaged policy, and admits only executable duplicate modes;
+- schema `0.8` keeps `axis` identity-only, stores primary/duplicates/layers under `measurements`, declares obs/var columns as ordered entries, validates semantic-role ownership from packaged policy, and admits only executable duplicate modes;
 - one generic key-plan derivation compiles every axis of every effective rule;
 - level-specific physical projection occurs during reading and before decomposition;
 - delimiter-packed fragments are separated before and then reuse ordinary long decomposition;
@@ -1326,16 +1273,13 @@ The implementation must preserve these invariants:
   index or temporary integer code;
 - `ObsRaw` and `VarRaw` contain one stable-first row per complete raw-key tuple;
 - raw layers are wide DataFrames with raw var-key columns first and obs values in raw obs order;
-- a layer-specific presence strategy may compute only a Boolean mask for duplicate resolution;
-  retained raw scalar values remain unencoded;
+- duplicate policies consume the layer parser's Boolean presence expression; selected raw scalars remain uninterpreted until alignment, then the same parser produces canonical values;
 - raw duplicates are resolved before final-key alignment and only by equal raw keys;
 - different raw keys that collapse to one valid final key raise `CanonicalKeyCollisionError`;
 - `ObsFinal`, `VarFinal`, and `FinalLayerTable` retain authored final keys as ordinary columns;
 - temporary key maps are discarded before `ParsedLevel` is returned;
-- parsing never coerces a layer for AnnData, creates a matrix, constructs a pandas index, or writes
-  a backend object;
-- Parquet and DuckDB preserve parsed Polars values; AnnData/MuData alone own encoding and array
-  allocation;
+- parsing converts aligned raw values into backend-neutral numeric/category values, but never creates a matrix, pandas index or backend object;
+- Parquet and DuckDB preserve canonical Polars values; AnnData/MuData alone own matrix projection and array allocation;
 - result adapters operate on `ParsedLevels`; every crossing goes through that value and never
   through a backend-to-backend shortcut;
 - runtime strategies contain no Pydantic rule, vendor selector, level selector, layout switch,
@@ -1345,8 +1289,7 @@ The implementation must preserve these invariants:
 - FASTA annotation remains outside this refactor.
 
 This is the smallest forward model that retains the information needed for correct duplicate
-diagnostics, efficient axis computation, backend-neutral Parquet output, and late AnnData
-serialization. Implementation details and verification obligations follow in the supplement.
+diagnostics, efficient axis computation, backend-neutral canonical values, and late AnnData serialization. Implementation details and verification obligations follow in the supplement.
 
 ## Supplement
 
@@ -1501,14 +1444,41 @@ class VarFinal:
     # ("ProForma_ion",)
 
 
-@dataclass(frozen=True, slots=True)
 class MeasurementLayerRole:
-    """A quantitative layer that participates in matrix occupancy checks."""
+    def occupancy_candidates(self, name: str, values: pl.DataFrame, /) -> dict[str, pl.DataFrame]:
+        return {name: values}
+
+    def accepts_primary_layer(self) -> bool:
+        return True
+
+    def persisted_name(self) -> Literal["measurement"]:
+        return "measurement"
+
+
+class AuxiliaryLayerRole:
+    def occupancy_candidates(self, name: str, values: pl.DataFrame, /) -> dict[str, pl.DataFrame]:
+        return {}
+
+    def accepts_primary_layer(self) -> bool:
+        return False
+
+    def persisted_name(self) -> Literal["auxiliary"]:
+        return "auxiliary"
 
 
 @dataclass(frozen=True, slots=True)
-class AuxiliaryLayerRole:
-    """A numeric diagnostic layer that is exempt from matrix occupancy checks."""
+class QuantitativeLayerSemantics:
+    logical_type: NumericLayerType = "number"
+
+
+@dataclass(frozen=True, slots=True)
+class CategoricalLayerSemantics:
+    categories: tuple[tuple[str, int], ...]
+    missing_code: int = -1
+    # Construction rejects category codes that reuse missing_code.
+
+
+type FinalLayerSemantics = QuantitativeLayerSemantics | CategoricalLayerSemantics
 
 
 type FinalLayerRole = MeasurementLayerRole | AuxiliaryLayerRole
@@ -1532,6 +1502,9 @@ class FinalLayerTable:
 
     role: FinalLayerRole = field(default_factory=MeasurementLayerRole)
     # MeasurementLayerRole()
+
+    semantics: FinalLayerSemantics = field(default_factory=QuantitativeLayerSemantics)
+    # QuantitativeLayerSemantics(logical_type="number")
 
 
 @dataclass(slots=True)
@@ -1563,6 +1536,8 @@ class ParsedLevel:
     varp: dict[str, pl.DataFrame]
     # sparse coordinates with exactly: row | column | value
 
+    metadata: dict[str, JsonValue] = field(default_factory=dict)
+
 
 @dataclass(slots=True)
 class ParsedLevels:
@@ -1570,8 +1545,14 @@ class ParsedLevels:
     # {"ion": ion_level, "protein": protein_level}
 
     uns: dict[str, JsonValue]
-    # shared result provenance, distinct from each ParsedLevel.uns
+    # shared parse provenance, distinct from each ParsedLevel.uns
+
+    metadata: dict[str, JsonValue] = field(default_factory=dict)
+    annotation_tables: dict[str, AnnotationTable] = field(default_factory=dict)
+    feature_relations: dict[str, FeatureRelation] = field(default_factory=dict)
 ```
+
+`AnnotationTable` holds a keyed annotation frame and metadata; `FeatureRelation` holds annotation/level names, coordinates and metadata. Vendor parsing leaves these collection extensions empty; the metadata specification describes their persistence.
 
 Every `obsm` frame has the same row count and order as `obs.frame`; every `varm` frame aligns to
 `var.frame`. Pairwise frames use zero-based final-axis positions, contain unique coordinates, and
@@ -1585,7 +1566,7 @@ used during computation remain in a local working frame and are not alignment st
 signatures consume them:
 
 ```python
-class Parser:
+class ParseStrategy:
     @staticmethod
     def _retain_mappable_layer(
         layer: RawLayerTable,
@@ -1623,8 +1604,7 @@ duplicated as text, or collides with a var-key column name. Semantic identity re
 
 ### B. Runtime Protocols and plans
 
-Protocols are defined with the workflow that consumes them. Each has at least two real or agreed
-implementations and names the smallest capability the client exercises.
+Protocols name capabilities owned by the workflow that consumes them. `LayerSetValidator` currently has one production implementation, `LayerContractValidator`; tests can inject a validator without importing it into the strategy.
 
 ```python
 class BoundInputReader(Protocol):
@@ -1685,15 +1665,17 @@ class ParsedLevelsWriter(Protocol):
     def write(self, parsed: ParsedLevels, target: Path, /) -> None: ...
 
 
-class AnnDataLayerEncoder(Protocol):
-    def encode(self, values: pl.DataFrame, /) -> pl.DataFrame: ...
+class LayerValueParser(Protocol):
+    def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr: ...
+
+    def parse(self, layer: FinalLayerTable, /) -> FinalLayerTable: ...
 
 
-class AnnDataLayerContractChecker(Protocol):
-    def check(self, encoded: Mapping[str, pl.DataFrame], /) -> None: ...
+class LayerSetValidator(Protocol):
+    def validate(self, layers: Mapping[str, FinalLayerTable], /) -> None: ...
 ```
 
-`SequenceColumn` implements the ordinary `ColumnComputer` contract. Polars selects distinct declared input tuples, invokes the pure `SequenceOperation` through a typed struct UDF, and restores row order through an ordered join. Token-regex stripping and token-regex/site-list/embedded-site normalization retain their scientific scalar algorithms; plain residue stripping is a native Polars Unicode-letter expression. No Python row cache or output list is maintained and no result is shared implicitly between operations.
+`SequenceColumn` implements the ordinary `ColumnComputer` contract. Polars selects distinct declared input tuples, invokes the pure `SequenceOperation` through a typed struct UDF, and restores row order through an ordered join. Plain residue stripping is a native Polars Unicode-letter expression. Token-regex stripping uses native expressions when pattern and placement permit, otherwise the existing scalar path; token-regex/site-list/embedded-site normalization retains scalar scientific parsing. No Python row cache or output list is maintained and no result is shared implicitly between operations.
 
 Computations return `(frame, unknown_mod_tokens)`; the Series-based `ColumnComputation` envelope is removed. Under `unknown_policy="preserve"`, unresolved tokens remain in ProForma and are collected once in first-observed order into `ParsedLevel.uns["unknown_mod_tokens"]`; no diagnostic column is injected into the final axis. Normalization and its dependencies run before invalid-key filtering even when the normalized column is metadata, preserving diagnostics and errors from discarded rows. Writers retain their existing parser-namespace persistence.
 
@@ -1701,7 +1683,7 @@ Computations return `(frame, unknown_mod_tokens)`; the Series-based `ColumnCompu
 
 | Protocol | Exact question it answers | Implementations |
 | --- | --- | --- |
-| `BoundInputReader` | Read one already bound source using one resolved level projection | delimited table, Parquet table; later file-set reader only when a declared file set exists |
+| `BoundInputReader` | Read one already bound source using one resolved level projection | delimited, Parquet, Excel and prepared-frame readers |
 | `SourceDecomposer` | Convert one physical table shape to common raw axes and wide raw layers | long, wide, delimiter-fragment composition |
 | `FragmentTableSeparator` | Turn one packed fragment table into scalar-long rows | positional labels, column-derived labels |
 | `SequenceOperation` | Transform one explicitly supplied sequence tuple | token-regex stripping; token-regex/site-list/embedded-site normalization |
@@ -1709,11 +1691,11 @@ Computations return `(frame, unknown_mod_tokens)`; the Series-based `ColumnCompu
 | `ColumnComputer` | Materialize one declared computed column | coalesce, join-nonempty, stripped sequence, ProForma sequence, ProForma ion, ProForma fragment |
 | `RawValuePresence` | Mark raw layer scalars that semantically claim a cell without converting them | factor, plain numeric and regex numeric layer parsers |
 | `DuplicatePolicy` | Resolve repeated values of each raw wide cell | error, keep first, numeric aggregate |
-| `ParsedLevelWriter` | Persist one parsed level | AnnData, Parquet |
+| `ParsedLevelWriter` | Persist one parsed level | injected format writer; direct AnnData and Parquet writers |
 | `ParsedLevelsReader` | Read one APB2 result | h5ad, h5mu, Parquet dataset, DuckDB |
 | `ParsedLevelsWriter` | Persist one APB2 result collection | h5ad, h5mu, Parquet dataset, DuckDB |
-| `AnnDataLayerEncoder` | Encode one layer value block for AnnData | plain numeric, regex numeric, factor |
-| `AnnDataLayerContractChecker` | Enforce encoded required/occupancy policy | standard, strict |
+| `LayerValueParser` | Interpret aligned values and attach semantics | plain numeric, regex numeric, factor |
+| `LayerSetValidator` | Check canonical required names and occupancy | `LayerContractValidator`, with standard/strict settings |
 
 `MuDataWriter` is not a `ParsedLevelWriter`: its input is `ParsedLevels`, not one `ParsedLevel`.
 The collection Protocol is justified by four physical reader/writer families and is owned by the
@@ -1751,16 +1733,15 @@ class AxisRuntimePlan:
 
 An optional selection that is present becomes an ordinary `SelectedAxisColumn`. An optional
 selection that is absent contributes its output name to the persisted axis snapshot's `skipped` list; source
-resolution also removes every computation blocked by that absence. The compiler constructs the
-runtime phases and retained `outputs` only from executable operations. No runtime object carries
-`required: bool`, a skipped-name set, or chooses behavior from presence.
+resolution removes blocked computations; coalesce/join-nonempty retain available inputs where possible. The resolver constructs the
+runtime phases and retained `outputs` only from executable operations. Executable axis phases carry no required flag or skipped-name set and do not recheck physical optionality.
 
 The key phase materializes final-identity dependencies plus diagnostic-producing normalizations and their dependencies. Early diagnostic computation does not make a metadata column an identity key. The output phase materializes remaining metadata after collision validation; it may not overwrite a final-key column.
 
-Parser's private static executor makes the narrow calls explicit:
+The strategy's private static executor makes the narrow calls explicit:
 
 ```python
-class Parser:
+class ParseStrategy:
     @staticmethod
     def _materialize_axis_columns(
         frame: pl.DataFrame,
@@ -1768,28 +1749,17 @@ class Parser:
         phase: AxisPhaseRuntimePlan,
         /,
     ) -> tuple[pl.DataFrame, tuple[str, ...]]:
-        """Select from immutable physical values, then compute through logical inputs."""
         result = frame
-        for selected in phase.selections:
-            values = physical.get_column(selected.source)
-            coerced = selected.coercer.coerce(
-                values,
-                name=selected.name,
-                source=selected.source,
+        if phase.selections:
+            selected = physical.select(
+                column.coercer.coerce(physical, name=column.name, source=column.source)
+                for column in phase.selections
             )
-            result = result.with_columns(
-                Parser._same_shape(coerced, result.height, selected.name).alias(selected.name)
-            )
+            result = result.with_columns(selected)
         unknown: dict[str, None] = {}
         for computer in phase.computers:
-            inputs = tuple(result.get_column(name) for name in computer.inputs)
-            computed = computer.compute(inputs)
-            unknown.update(dict.fromkeys(computed.unknown_mod_tokens))
-            result = result.with_columns(
-                Parser._same_shape(computed.values, result.height, computer.name).alias(
-                    computer.name
-                )
-            )
+            result, tokens = computer.compute(result)
+            unknown.update(dict.fromkeys(tokens))
         return result, tuple(unknown)
 ```
 
@@ -1797,58 +1767,31 @@ class Parser:
 
 | Runtime value | Construction or selection operation |
 | --- | --- |
-| input reader | source binding plus format-specific `make_reader(read_plan)` |
-| source decomposer | `make_source_decomposer(resolved.decomposition, resolved.obs.source, resolved.var.source)` |
-| fragment separator | `make_fragment_table_separator(config)` |
-| sequence operation | `make_sequence_stripper(config)` or `make_sequence_normalizer(config)`, injected into `SequenceColumn` |
-| axis coercer | `axis_coercer_for(logical_type)` |
-| column computer | `make_column_computer(config)` |
-| duplicate policy | `duplicate_policy_for(resolved.duplicate_mode)` |
-| raw presence and canonical value parser | one `make_layer_parser(config, resolved.number_format)` per retained layer |
-| parsed-level writer | output-bound constructor |
-| canonical layer checker | `make_layer_validator(resolved.layer_contract, checks)` |
+| input reader | `BoundTable.reader(evidence, strategy.read)`, or `PreparedInputReader` |
+| source decomposer | `SourcePlanResolver._decomposition()` constructs long/wide/packed composition directly |
+| fragment separator | `SourcePlanResolver._separator()` constructs the declared variant |
+| sequence operation | facade `_project_stripping()` / `_project_modifications()` construct configured behavior |
+| axis coercer | `make_axis_coercer(logical_type, numbers)` |
+| column computer | facade `_project_computed()`; same object survives source pruning/scheduling |
+| duplicate policy | `duplicate_policy_for(working.measurements.duplicate_mode)` |
+| layer presence and values | `make_layer_parser(layer.name, layer.value, numbers)` |
+| bound-parser writer | `ParsedLevelFormatWriter()` |
+| canonical layer checker | `LayerContractValidator(..., strict=checks == "strict")` |
 
-Registry dispatch appears only at the composition root:
+The duplicate registry contains ready stateless instances:
 
 ```python
-_SOURCE_DECOMPOSERS = {
-    "long": make_long_source_decomposer,
-    "wide": make_wide_source_decomposer,
-    "delimited_fragment": make_delimited_fragment_source_decomposer,
+_DUPLICATE_POLICIES: Mapping[DuplicateMode, DuplicatePolicy] = {
+    "error": ErrorOnDuplicates(),
+    "keep_first": KeepFirstDuplicate(),
+    "aggregate": AggregateNumericDuplicates(),
 }
 
-_FRAGMENT_SEPARATORS = {
-    "positional": make_positional_fragment_table_separator,
-    "column": make_column_labeled_fragment_table_separator,
-}
-
-_DUPLICATE_POLICIES = {
-    "error": ErrorOnDuplicates,
-    "keep_first": KeepFirstDuplicate,
-    "aggregate": AggregateNumericDuplicates,
-}
-
-_RAW_VALUE_PRESENCE = {
-    "null_only": make_null_only_presence,
-    "plain_numeric": make_plain_numeric_presence,
-    "regex_numeric": make_regex_numeric_presence,
-}
-
-_PARSED_LEVEL_WRITERS = {
-    "anndata": make_anndata_writer,
-    "parquet": make_parquet_writer,
-}
-
-_ANNDATA_LAYER_ENCODERS = {
-    "plain_numeric": make_plain_numeric_anndata_encoder,
-    "regex_numeric": make_regex_numeric_anndata_encoder,
-    "factor": make_factor_anndata_encoder,
-}
+def duplicate_policy_for(mode: DuplicateMode) -> DuplicatePolicy:
+    return _DUPLICATE_POLICIES[mode]
 ```
 
-Computed-column operations use the same one-registry form. After construction, no strategy
-retains the discriminator or repeats the selection. Schema 0.3 rejects the legacy
-`keep_all_as_raw_table` value because this architecture defines no raw-table result alternative.
+The facade consumes Pydantic variants with local type matches. Source resolution chooses decomposers and separators from plain layout declarations; `operations.py` constructs source-dependent coercers and layer parsers. No second configuration-to-computation factory or separate presence registry remains. Saved-plan tags are serialization labels, not runtime dispatch inputs.
 
 #### B.3 Type-role audit
 
@@ -1857,9 +1800,9 @@ retains the discriminator or repeats the selection. Schema 0.3 rejects the legac
 | `LevelSourceTable`, raw/final axes, raw/final layers, maps, `ParsedLevel` | name one pipeline invariant and carry concrete boundary data | DTOs intentionally have no invented behavior; functions consume the exact state they require |
 | `AxisKeyPlan`, runtime phase plans | keep mutually dependent ordered configuration together | immutable values, not services or strategies |
 | storage and working configuration unions | describe authored or resolved alternatives at the composition boundary | tags are legal here; behavior is constructed and the tags do not cross into computation |
-| eleven runtime Protocols | give a client the smallest substitutable capability with named second implementations | no Protocol exists for a single helper or one-representation record |
-| concrete decomposers, separators, normalizers, coercers, computers, policies, encoders, checkers, writers | implement one interchangeable algorithm | no mode field and no caller-side discrimination after construction |
-| `RuleDocument`, `ParseRuleFacade`, `ParseRuleCompiler`, `Parser` | respectively own document behavior, simplified rule access, runtime composition, and parse orchestration | they do not forward the same broad object through the pipeline |
+| runtime Protocols | name capabilities used at execution and I/O boundaries | structural implementation contracts, not additional configuration records |
+| concrete decomposers, separators, normalizers, coercers, computers, policies, value parsers, validators, writers | implement one interchangeable algorithm | no mode field and no caller-side discrimination after construction |
+| `RuleDocument`, `ParseRuleFacade`, `ParseRuleCompiler`, `Parser`, `ParseStrategy` | own storage validation, schema adaptation, public composition, bound I/O, and parse orchestration respectively | they do not forward the same broad object through the pipeline |
 
 `ParseRuleFacade` earns the name because it supplies one simplified interface over effective-rule
 composition, parameter resolution, dependency projection, and atomic physical-source resolution.
@@ -1872,95 +1815,75 @@ The rule package is a declarative storage boundary. Pydantic models validate wha
 they do not implement parsing behavior. Discriminators and shape validators are correct here and
 are consumed once when the facade and compiler construct runtime values.
 
-C.1–C.5 record the schema `0.3` migration that separated axis identity from measurement ownership. C.6 extends that design with the current schema `0.4` entry and role model.
+The live storage model is schema `0.8`. The before/after examples in C.2 and migration record in C.5 explain the older identity/measurement split; C.6 records the entry/role design retained and extended by current rules.
 
-#### C.1 `RuleDocument` retains `_shell`
+#### C.1 `RuleDocument` owns validated storage fields
 
 ```python
 @dataclass(frozen=True, slots=True)
 class EffectiveRule:
     input: Input
     declaration: LongRule | WideRule
-    recognition: Recognition
+    preparation: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class SearchParameterEvidence:
-    """The complete parameter vocabulary permitted in schema-0.3 conditions."""
-
     acquisition_method: Literal["DDA", "DIA", "unknown"]
     combine_charge_states: bool | None
 
+    def observed(self, requested: Iterable[SearchParameterField]) -> dict[str, ConditionValue]: ...
 
-class RuleDocument:
-    __slots__ = ("_shell",)
 
-    def __init__(self, shell: _RuleDocumentSchema) -> None:
-        self._shell = shell
-
-    @property
-    def path(self) -> Path: ...
-
-    @property
-    def software_name(self) -> str: ...
+class RuleDocument(ModelBase):
+    path: Path
+    schema_version: SchemaVersion
+    file_version: str
+    software_name: str
+    software_version_pattern: str
+    sample_annotation: SampleAnnotation | None = None
+    tables: list[_RuleTableSchema] = Field(min_length=1)
 
     @property
     def levels(self) -> tuple[QuantificationLevel, ...]: ...
 
+    @property
+    def table_levels(self) -> tuple[tuple[QuantificationLevel, ...], ...]: ...
+
     def declared(self, level: QuantificationLevel) -> EffectiveRule: ...
 
     def rule(
-        self,
-        level: QuantificationLevel,
-        evidence: SearchParameterEvidence,
+        self, level: QuantificationLevel, evidence: SearchParameterEvidence
     ) -> EffectiveRule: ...
-
-    def matches(self, headers: Iterable[str]) -> bool: ...
 ```
 
-`RuleDocument` accesses `_shell` members; it does not copy them into a second field set.
-`EffectiveRule` keeps the document-level physical input declaration, validated composed level
-declaration, and its recognition together so they cannot be rebuilt differently. The input value
-is the same validated schema value for every level of that document; it is not copied onto
-`RuleDocument`. `ParseRuleFacade` immediately projects the complete effective value into plain
-working configuration.
+`RuleDocument` is the Pydantic boundary, not a proxy around `_shell`. Each table owns `input`, raw `base` and `levels` fragments, and optional `prepare`; a level belongs to exactly one table. `EffectiveRule` carries that table's input/preparation with the validated level. Header recognition belongs to projected `WorkingParseConfiguration.accepts_header()`, not a second recognition model in the rule package.
 
 The lifecycle is:
 
 ```text
 rules.json
-    -> private _RuleDocumentSchema
-    -> merge base plus one level and apply a matching parameter override
-    -> validate one complete effective LongRule or WideRule
-    -> EffectiveRule(input, declaration, recognition)
-    -> project into WorkingParseConfiguration
+    -> validate RuleDocument and table groups
+    -> merge table-local base plus one level
+    -> validate effective LongRule or WideRule
+    -> evaluate parameter gates; revalidate if an override changes primary_layer
+    -> EffectiveRule(input, declaration, preparation)
+    -> facade projects WorkingParseConfiguration and constructs computations
 ```
 
-Search-parameter gates and overrides are `RuleDocument` behavior. The raw merge representation
-remains a private alias:
+Merge payloads remain ordinary dictionaries:
 
 ```python
 type JsonDict = dict[str, object]
 ```
 
-It must not become a wrapper class whose methods merely forward ordinary dict operations. The
-merge may use several focused functions when that reads more clearly than one nested loop, but all
-malformed values must reach the single effective-rule validation boundary with their authored
-paths intact.
+Malformed values retain authored paths through the effective-rule validation boundary. No wrapper class is needed for dictionary merging.
 
-`SearchParameterEvidence` is intentionally smaller than
-`parserV2.vendor_params.parsers.shared.model.Parameters`. Schema 0.3 permits only
-`acquisition_method` and `combine_charge_states` in `requires_search_parameters` and
-`when_search_parameters`; the schema owns that finite field vocabulary and rejects every other
-condition key. `ParseRuleCompiler` reads those two values from the complete
-`Parameters` model and constructs `SearchParameterEvidence`; the complete typed record remains on
-`ParseRuleCompiler.parameters` and is not embedded into parse provenance. `ParseRuleFacade` consumes only the evidence. Neither `parse_quant` nor
-`vendor_parse_rules` imports `vendor_params`, and the rule package imports no module above
-`parserV2/vendor_parse_rules`.
+`SearchParameterEvidence` contains only `acquisition_method` and `combine_charge_states`, the two fields allowed by schema conditions. `detect_document.search_parameter_evidence()` projects these from typed vendor `Parameters`; the complete record stays on `ParseRuleCompiler.parameters` and is not embedded in parse provenance. The facade consumes the small evidence value, keeping both child packages independent of vendor-parameter parsing.
 
 #### C.2 Identity and measurements are separate
 
-Schema 0.3 replaces the current mixed ownership:
+Historically, schema 0.3 replaced this mixed ownership:
 
 ```json
 {
@@ -2013,7 +1936,7 @@ Ownership is then literal:
 There is no obs-only or var-only duplicate policy. Axis stable-first metadata distinctness is a
 fixed operation. Canonical final-key collision is a fixed error.
 
-The storage models are:
+The identity and measurement portion of the storage model remains:
 
 ```python
 type DuplicateMode = Literal[
@@ -2058,15 +1981,15 @@ class _RuleCore(ModelBase):
     requires_search_parameters: dict[SearchParameterField, ConditionValue] = Field(
         default_factory=dict
     )
-    # columns, roles, modifications, fragments, gates, and provenance remain siblings
+    # columns, sequence_syntax, modification_maps, fragments and provenance are siblings
 ```
 
 Effective-rule validation requires unique layer names and exactly one layer named by
 `primary_layer`. A primary layer is required even when its authored `required` field is false:
 
 ```python
-def layer_required(rule: _RuleCore, layer: Layer) -> bool:
-    return layer.required or layer.name == rule.measurements.primary_layer
+def layer_required(primary_layer: str, layer: Layer) -> bool:
+    return layer.required or layer.name == primary_layer
 ```
 
 The existing axis/column invariants remain: authored keys are nonempty and unique, every key names
@@ -2096,56 +2019,36 @@ The override patches `measurements.primary_layer` before effective-rule validati
 | root `layers` | `measurements.layers` |
 | override `x_layer` | override `primary_layer` |
 
-#### C.3 Layer declarations remain raw during parsing
+#### C.3 Layer values remain raw until alignment
 
-The existing layer declaration features are retained under `measurements.layers`:
+The nested layer declarations remain under `measurements.layers`:
 
-- `name` and `source` identify the logical layer and physical exact column or wide regex;
-- `required` participates in source compatibility;
-- numeric layers default to `type: "number"`, may declare `type: "integer"`, and may declare `missing_values` and a one-capture `value_pattern`;
-- factor layers declare their category-to-code mapping.
+- `name` and `source` identify the logical layer and exact source column or wide regex
+- `required` and the primary-layer choice determine source compatibility
+- Numeric layers declare `encoding_mode: "numeric"`, logical `type`, missing values and nested `value_pattern`
+- Factor layers declare `encoding_mode: "factor"` and a category-to-code map
 
-These declarations do not authorize parser-side conversion. Facade projection separates physical
-source selection, backend-neutral raw-presence semantics, and
-`AnnDataLayerEncodingDeclaration`. Every parser uses raw presence when its duplicate policy needs
-to distinguish a declared missing value; a Parquet compile never constructs an encoder. An
-AnnData compile additionally constructs the late value encoder.
+The facade projects each into one `LayerValueDeclaration`; source resolution constructs one `LayerValueParser` per retained layer. Its `present()` supplies duplicate occupancy without converting claiming scalars. After duplicate reduction and final-axis alignment, `parse()` produces canonical numbers or category codes. Every output backend receives the same interpreted result.
 
-`columns.*.types` remains an axis-column declaration. It controls coercion on the small obs or var
-table. It is not a layer dtype declaration and does not cause the physical reader to eagerly parse
-localized layer values.
-
-For example, declarations such as:
+Axis types belong inline on sourced entries, for example:
 
 ```json
-{
-  "types": {
-    "EG_IsDecoy": "boolean",
-    "FG_Charge": "integer",
-    "FG_Mass": "number",
-    "FG_PrecMz": "number"
-  }
-}
+[
+  {"name": "EG_IsDecoy", "source": "EG.IsDecoy", "type": "boolean"},
+  {"name": "FG_Charge", "source": "FG.Charge", "type": "integer"},
+  {"name": "FG_Mass", "source": "FG.Mass", "type": "number"}
+]
 ```
 
-compile to `AxisValueCoercer` values applied after decomposition on `ObsRaw` or `VarRaw`. Their
-physical delimited sources remain text until then, preserving tokens for collision diagnostics and
-avoiding full-table parser failures caused by localized notation.
+These become `AxisValueCoercer` objects evaluated on small axis frames. Their delimited physical sources remain text until then, retaining lexical evidence for collision checks.
 
-`fragments.value_columns` remains an ordered list independent of `measurements.layers`. Header
-resolution must retain at least one declared packed value source. `label_output` must not collide
-with any projected physical source name.
+`fragments.value_columns` is an ordered list independent of `measurements.layers`. Resolution retains available packed sources in authored order and requires at least one; `label_output` cannot collide with physical sources.
 
-An effective rule using `measurements.duplicates.mode = "aggregate"` must declare only plain
-numeric layers with no `missing_values`, factor encoding, or regex-value extraction. Otherwise
-late encoding would change the values that should have been aggregated. Source resolution also
-requires resolved source columns to remain native numeric under the read plan. These conditions
-are checked before the parser is constructed; `AggregateNumericDuplicates` still guards its
-runtime dtype input. The current MaxQuant aggregate rule satisfies this restriction.
+Aggregate mode requires plain numeric layers without missing sentinels, factors or regex extraction. Source resolution additionally verifies native numeric read dtypes, so interpretation cannot change the contributions after summation. The runtime aggregate retains a dtype guard; the MaxQuant aggregate rule satisfies these restrictions.
 
 #### C.4 Physical input policy
 
-Schema 0.3 keeps physical input deliberately small. Ordinary format behavior is defined once in
+Schema 0.8 keeps physical input deliberately small. Ordinary format behavior is defined once in
 `vendor_parse_rules/schema/base_formats.py`, not copied into every vendor document:
 
 | Extension hint | Reader family | Shared delimiter | Shared encoding | Shared numeric notation |
@@ -2154,6 +2057,7 @@ Schema 0.3 keeps physical input deliberately small. Ordinary format behavior is 
 | `.txt` | delimited | tab | UTF-8 | decimal point, no thousands mark |
 | `.csv` | delimited | comma | UTF-8 | decimal point, no thousands mark |
 | `.parquet` | Parquet | not applicable | not applicable | native typed columns |
+| `.xlsx`, or `.txt` with `sheet_name` | named-sheet Excel reader | not applicable | workbook | bounded decimal probe |
 
 Rules declare only facts belonging to that vendor generation: its real extension hint, an exact
 folder file name when meaningful, and an exceptional detection policy when observed data requires
@@ -2173,13 +2077,17 @@ class DetectedNumberFormat(ModelBase):
 
 class Input(ModelBase):
     shape: Literal["long", "wide"]
-    extensions: list[Literal[".tsv", ".txt", ".csv", ".parquet"]] = Field(min_length=1)
+    extensions: list[SupportedExtension] = Field(min_length=1)
     file_name: str | None = Field(default=None, min_length=1)
+    sheet_name: str | None = Field(default=None, min_length=1)
+    encoding: DetectedEncoding | None = None
     delimiter: DetectedDelimiter | None = None
     numbers: DetectedNumberFormat | None = None
 ```
 
-The optional fields are honest only at this storage boundary. Absence means “use the shared base
+`DetectedEncoding` declares ordered `utf8`, `utf8-lossy` or `windows-1252` candidates. A named workbook sheet excludes text-format detection; `.xlsx` requires a sheet, and `.txt` may identify a cached workbook when a sheet is declared.
+
+The optional fields are honest at this storage boundary. Absence means “use the shared base
 format”; presence means “this rule explicitly enables bounded detection.” The facade consumes
 them and emits concrete candidate tuples. No parsing strategy receives `None` or a detection mode.
 
@@ -2192,8 +2100,7 @@ DIA-NN 1.8/1.9 therefore says only:
 }
 ```
 
-DIA-NN v2 uses `"extensions": [".parquet"]`. MaxQuant identifies the sole table it reads without
-inventing a role hierarchy:
+DIA-NN v2 uses `"extensions": [".parquet"]`. MaxQuant's direct ion table group identifies evidence separately from its higher-level preparation group:
 
 ```json
 "input": {
@@ -2222,8 +2129,7 @@ Only Spectronaut currently opts into delimiter and localized/grouped-number dete
 ```
 
 That exception exists because values such as `100,000,000.0` otherwise arrive as strings. Polars
-does not remove the need: its CSV inference also keeps that grouped token as text. No other current
-rule enables numeric detection.
+does not remove the need: its CSV inference also keeps that grouped token as text. No other packaged delimited rule enables numeric detection. Spectronaut v15 also declares encoding fallback; MSAngel and ProlineStudio use a named workbook sheet.
 
 Concrete paths remain caller values rather than rule fields:
 
@@ -2243,7 +2149,7 @@ class SingleFile:
 class DelimitedFile:
     path: Path
     delimiter: str
-    encoding: Literal["utf8", "utf8-lossy"]
+    encoding: TextEncoding
     numbers: NumericTextFormat
     quote_char: str = '"'
 
@@ -2253,13 +2159,28 @@ class Folder:
     path: Path
 
 
-type InputSource = SingleFile | DelimitedFile | Folder
+@dataclass(frozen=True, slots=True)
+class InputFiles:
+    path: Path
+    files: Mapping[str, Path]
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedTable:
+    path: Path
+    frame: pl.DataFrame
+    how: str
+    source_paths: tuple[Path, ...]
+    duration_seconds: float
+
+
+type InputSource = SingleFile | DelimitedFile | Folder | InputFiles | PreparedTable
 
 
 @dataclass(frozen=True, slots=True)
 class DelimitedFormatContract:
     extensions: tuple[str, ...]
-    encoding: Literal["utf8", "utf8-lossy"]
+    encoding_candidates: tuple[TextEncoding, ...]
     quote_char: str
     delimiter_candidates: tuple[str, ...]
     number_format_candidates: tuple[NumericTextFormat, ...]
@@ -2270,7 +2191,13 @@ class ParquetFormatContract:
     extensions: tuple[str, ...]
 
 
-type PhysicalFormatContract = DelimitedFormatContract | ParquetFormatContract
+@dataclass(frozen=True, slots=True)
+class ExcelFormatContract:
+    extensions: tuple[str, ...]
+    sheet_name: str
+
+
+type PhysicalFormatContract = DelimitedFormatContract | ParquetFormatContract | ExcelFormatContract
 
 
 @dataclass(frozen=True, slots=True)
@@ -2326,7 +2253,9 @@ Measurement layers also carry semantic `roles`. The packaged `schema/role_policy
 
 `measurements.primary_layer` remains structural and singular. It selects the layer projected to AnnData `X` and makes that source required. `roles: ["abundance"]` is semantic and plural across layers; it classifies raw, normalized, MS1, MS2, LFQ, iBAQ, peak-area, and other abundance values independently of which one is primary.
 
-The facade projects var roles to `column_roles: role → logical column name` and layer roles to `layer_roles: role → ordered retained layer names`. It recomputes the layer map after source resolution so an absent optional layer is never advertised.
+The facade projects var roles to `column_roles: role → logical column name` and retains authored roles on each working layer. Source resolution produces `layer_roles: role → ordered retained layer names` once, excluding unavailable optional layers. These authored semantic tags are distinct from a final layer's measurement/auxiliary occupancy role.
+
+Schema 0.8 retains ordered entries and adds explicit, independent sequence operations with logical `inputs`, a named `syntax` reference and, for normalization, a named `modification_map`. Stripping and ProForma normalization do not consume each other's hidden intermediate output.
 
 ### D. Rule facade and parsing parameters
 
@@ -2373,6 +2302,9 @@ class WorkingParseConfiguration:
     var: WorkingAxisConfiguration
     measurements: WorkingMeasurements
     provenance: Mapping[str, JsonValue]
+    preparation: str | None = None
+
+    def accepts_header(self, header: tuple[str, ...]) -> bool: ...
 ```
 
 Supporting names in that record are narrow composition-boundary values, not hidden service
@@ -2383,21 +2315,19 @@ objects:
 | `InputContract` | projected single-table source and allowed format policies | physical source binder |
 | `SourceLayoutDeclaration` | long, wide, or packed-fragment structural declaration | source resolver |
 | `ComputedOperation` | the executable column object, including explicit logical inputs | dependency walk and unchanged runtime parser |
-| `RawValuePresenceDeclaration` | null/blank and declared missing-sentinel evidence without a converted value contract | raw-presence config projector |
-| `AnnDataLayerEncodingDeclaration` | numeric, regex-numeric, or factor storage declaration for one layer | AnnData config projector |
-| `ModificationConfig` | plain values needed to construct one normalizer | modification-normalizer constructor |
+| `LayerValueDeclaration` | plain numeric, regex numeric or categorical value settings | layer-parser factory |
+| `ModificationMapEntry` | resolved token, identity, mass and localization values | already-constructed sequence normalizer |
 | `JsonValue` | recursively JSON-serializable provenance value | result and writer |
 
-None is a Protocol: each has one representation and no interchangeable algorithm. Their storage
-tags, where present, are consumed only at projection or construction boundaries.
+The configuration records are concrete values. `ComputedOperation` instead names a union of executable behaviors; their settings are not copied into a second computation-config family. Tags on layer declarations are consumed at construction or persisted as snapshot labels.
 
 `ParseRuleFacade._project_effective_rule()`:
 
 - copies `axis.obs_keys` and `axis.var_keys` into explicit final-key tuples;
 - projects column declarations without retaining Pydantic models;
 - promotes the primary layer to the required collection;
-- separates source-layout, raw-presence, and AnnData-only encoding declarations;
-- projects modification declarations and provenance;
+- projects source layout and one canonical value declaration per layer;
+- constructs sequence operations using named syntax/maps and resolved UniMod records;
 - does not author raw-key columns a second time.
 
 The raw-key closure and direct key inputs are derived later from the final keys and their declared
@@ -2419,7 +2349,7 @@ The resolver derives raw-key closure, optional-source pruning, phase order, wide
 | Long sources or wide header captures | Existing long/wide decomposer |
 | Packed source layout | Existing separator composed with ordinary long decomposition |
 | Duplicate mode | Existing duplicate policy |
-| Retained measurement declaration | Raw-presence and canonical-value operations |
+| Retained measurement declaration | One value parser exposing both operations |
 | Required layers and check level | Existing `LayerContractValidator` |
 | Projected columns and physical dtypes | `LevelReadPlan` for input binding |
 
@@ -2436,8 +2366,7 @@ For delimited text, `text_sources` includes:
   before the canonicalization check;
 - every modification source;
 - packed label and value sources that must be split as text;
-- factor labels and regex/localized-number layer sources whose raw-presence or AnnData encoding
-  needs original tokens.
+- factor labels and regex/localized-number layer sources whose raw presence or canonical value parsing needs original tokens.
 
 A physical source used by several roles is text when any role requires lexical preservation.
 Plain numeric layer sources may be read as native numeric columns. Parquet keeps its physical
@@ -2450,8 +2379,7 @@ No projected delimited column is left to inference.
 
 This policy prevents parser failure on localized values such as grouped numerics while still
 delaying layer conversion. For example, a source token like `100,000,000` remains a string when
-the resolved numeric dialect says the punctuation is ambiguous or grouped; the AnnData encoder
-later interprets it using `NumericTextFormat`. Parquet output preserves the string.
+the resolved numeric dialect says the punctuation is ambiguous or grouped; the layer parser later interprets it using the same `NumericTextFormat`. Parquet output preserves the resulting canonical number, not its vendor spelling.
 
 #### D.5 Construction phases
 
@@ -2476,42 +2404,28 @@ Storage selection is absent from compilation. Standard or strict validation is a
 
 #### E.1 Fixed compilation sequence
 
-`ParseRuleCompiler` performs one application sequence:
+`ParseRuleCompiler.__init__()`:
 
-1. bind a file or canonical vendor folder from `data`;
-2. resolve or verify the vendor slug;
-3. parse the typed search parameters;
-4. detect the compatible packaged rules and concrete level sources;
-5. retain that complete resolved state;
-6. compile each selected level when `compile()` is called.
+1. validates and orders requested levels, then represents the caller path as a file or folder
+2. chooses the parameter-parser vendor, using explicit overrides or header-only guessing
+3. parses typed search parameters
+4. detects compatible table groups and levels; each accepted selection already contains its bound parser
+5. retains parameters and the detected selections
 
-The internal level parser factory performs one runtime-construction sequence:
+`compile()` constructs `ParserCollection(tuple(selection.parser ...))`; it does not repeat detection, rule projection or source compilation.
 
-1. obtain `facade.working_parameters.input`;
-2. bind `SingleFile`, `DelimitedFile`, or `Folder` to one physical table;
-3. use extension hints to choose among multiple physical interpretations, then resolve delimiter,
-   numeric-dialect, and header evidence within the facade-projected candidates;
-4. call `resolved = facade.resolve_source(evidence)` exactly once;
-5. construct a `BoundInputReader` from the bound source, selected physical evidence, and
-   `resolved.read`;
-6. construct obs and var runtime plans from the two resolved axis plans;
-7. construct one source decomposer; the delimiter-fragment constructor injects one separator and
-   an ordinary long decomposer;
-8. construct one raw-value presence strategy per retained layer and one duplicate policy from `resolved.duplicate_mode`; sequence operations were already constructed within the axis plans;
-9. construct canonical layer-value parsers and parse-time validation;
-10. inject `resolved.level`, only runtime behavior, and a copy of `resolved.provenance` into
-    `Parser`.
+Within detection, `parser_factory.compile_level(facade, source, checks)`:
 
-The compiler may inspect declaration/configuration unions because it is the composition root. It
-must consume each discriminator at one registry and must not pass the tag into the constructed
-strategy.
+1. obtains the working configuration and prepares multi-file input when declared
+2. for direct input, binds `BoundTable` and observes full source evidence; for prepared input, derives `FrameSourceEvidence`
+3. calls `strategy = facade.resolve_source(evidence, checks=checks)` once
+4. binds a reader to `strategy.read`; prepared readers additionally receive both raw-key tuples
+5. records preparation provenance when applicable
+6. returns `Parser(input_reader, strategy, ParsedLevelFormatWriter())`
 
-For several levels, `ParseRuleCompiler.compile()` runs the same fixed sequence once per resolved `LevelSelection` and retains the resulting level parsers inside `ParserCollection`. The collection parses them into one canonical `ParsedLevels`. H5AD, H5MU, Parquet, and DuckDB persistence is selected later by `write_parsed_levels()`.
+The resolver already constructed axis phases, decomposer/separator, duplicate policy, layer parsers and validator. The factory does not rebuild them or spread their fields onto `Parser`.
 
-Each level performs its own physical binding and header inspection and obtains its own
-`ParseStrategy`, its `LevelReadPlan`, and a bound parser. No level receives the whole source
-table merely because another level needs additional columns. Sharing the full read is not part of
-MuData output.
+Vendor guessing calls the projected header predicate without compiling strategies. Effective level detection does compile candidate parsers to verify source compatibility, and retains the accepted instances. Direct levels have independent projected reads; levels within a requested prepared group share its read/join result. Persistence is selected only when the caller writes the parsed collection.
 
 #### E.2 Source binding outcomes
 
@@ -2525,7 +2439,7 @@ Source binding is allowed to branch on evidence outcomes:
 
 These are facts about a physical source, not behavior selectors inside computation.
 
-`Folder` does not imply a Builder. Detection resolves it to concrete table-local `LevelSelection` values; `ParseRuleCompiler.compile()` consumes each selection once and `ParserCollection.parse()` collects every parsed value before a write. If a future rule genuinely reads several files for one level, a new file-set declaration and bound reader implement that behavior behind the existing `BoundInputReader` Protocol.
+`Folder` does not imply a Builder. Detection selects table-local sources and retains bound parsers in `LevelSelection`; the collection executes them before writing. Multi-file inputs already use declared preparation functions and `PreparedTable`, with `PreparedInputReader` exposing the same input capability. Recognized direct filenames take precedence; renamed files use header compatibility, and ambiguous table matches fail.
 
 #### E.3 Polars reader boundary
 
@@ -2551,9 +2465,7 @@ frame = (
 return LevelSourceTable(frame=frame)
 ```
 
-Parquet uses `scan_parquet(...).select(...).collect()` and retains its physical schema. A file-set
-reader may scan several inputs internally but must still return exactly one `LevelSourceTable` for
-the selected level.
+Parquet uses `scan_parquet(...).select(...).collect()` and retains its physical schema. Excel uses `pl.read_excel()` with the named sheet and projected columns, followed by the resolved dtype casts. Prepared readers project the group's existing frame. Each returns one `LevelSourceTable` for the selected level.
 
 #### E.4 Polars invariants
 
@@ -2607,12 +2519,7 @@ uses it as identity.
 
 #### F.3 Duplicate policies
 
-Before a policy reduces a layer, its `RawValuePresence` computes a Boolean frame with the same
-value-column shape. Null-only presence applies to factors and native numeric layers without
-sentinels. Plain-numeric and regex-numeric presence treat null or blank text as missing and may
-interpret just enough of another token to compare it with a declared missing value, but return
-only Boolean presence. A nonblank token that cannot be parsed or matched remains present so
-duplicate resolution cannot hide a later encoding error. Presence never returns parsed values or
+Before reduction, the layer parser's `present()` expressions null-mask absent cells while retaining the dtype and every claiming scalar. Factor presence and plain numeric presence without sentinels reject null/NaN but retain blank text. Plain numeric presence with sentinels and regex presence also reject blank text and matching numeric sentinels; they return only Boolean presence. An unreadable or unmatched nonblank token remains present so duplicate resolution cannot skip it in favor of a later readable value; canonical value parsing determines its diagnostic or missing result. Presence never returns parsed values or
 mutates `RawLayerTable`.
 
 All policies preserve raw var-key columns and input group order. Error and keep-first copy the
@@ -2633,11 +2540,10 @@ still reaches the runtime as strings, aggregation is undefined and fails at its 
 
 #### F.4 Canonicalization and validity
 
-`require_injective_key_mapping()` uses missing-safe tuple equality for raw keys and valid final
-keys. It reports:
+`ParseStrategy._require_injective_key_mapping()` filters valid final-key rows and uses `is_duplicated()` directly: decomposition already made raw identities unique. Nested raw/final structs provide bounded diagnostic evidence, reporting:
 
 - final-key column names and values;
-- all distinct raw-key tuples that produced the collision;
+- representative distinct raw-key tuples that produced collisions;
 - enough representative source values to diagnose normalization or coercion.
 
 It runs after key-phase computation and before output-phase metadata computation. Its result is
@@ -2659,8 +2565,9 @@ key.
 | `CanonicalKeyCollisionError` | axis preparation | distinct raw identities collapsed to one valid final identity |
 | duplicate-cell error | `ErrorOnDuplicates` | several raw values claim one raw measurement cell |
 | aggregate-type error | numeric aggregate policy | authored aggregate policy received nonnumeric raw values |
-| AnnData encoding error | layer encoder | raw scalar cannot be encoded under its declared AnnData contract |
-| `AnnDataLayerContractError` | encoded-layer checker | required names are absent or measurement-layer occupancy is inconsistent with usable h5 output; this error is part of the `ResultIOError` family |
+| `LayerValueError` | canonical value parser | an integer layer contains fractional or infinite values |
+| `LayerContractError` | parse-time layer validator | required names are absent or canonical measurement occupancy violates the selected checks |
+| `InvalidResultError` | result-I/O validation | canonical result structure or values are invalid for persistence |
 | writer error | output adapter | backend persistence failed after parsing succeeded |
 
 Strategies raise the error belonging to their own boundary. The parser does not catch one error
@@ -2670,15 +2577,15 @@ and reinterpret it as a different mode.
 
 #### G.1 Current rule coverage
 
-The package under `apb2/src/apb2/parserV2/vendor_parse_rules/documents/`, inventoried on 2026-09-17 and migrated to schema `0.8` on 2026-09-19 without changing its supported levels, contains:
+The packaged rules, loaded and inventoried against `b6ef79b` on 2026-09-21, contain:
 
-- 19 rule documents with 19 table groups;
+- 19 rule documents with 20 table groups;
 - 35 effective declared levels and therefore 70 obs/var axis plans;
 - 26 long levels and 9 wide levels;
 - two delimiter-packed positional fragment declarations;
-- token-regex and site-list modification representations;
+- token-regex, site-list and embedded-site-list sequence normalization, plus independent stripping;
 - numeric, regex-numeric, and factor layer encodings;
-- 20 `error`, 14 `keep_first`, and 1 numeric `aggregate` duplicate configurations;
+- 18 `error`, 16 `keep_first`, and 1 numeric `aggregate` duplicate configurations;
 - ordered sourced and computed column entries, including nested and multi-column keys;
 - configured var and layer roles, including authored abundance tags;
 - parameter gates and a DIA-NN primary-layer override.
@@ -2699,10 +2606,11 @@ The architecture covers that set through declarations, not vendor-specific parse
 | typed axis metadata | axis coercers on small raw axes |
 | raw repeated cells | one `DuplicatePolicy` over wide raw layers |
 | canonical identity loss | fixed injectivity validation |
-| raw string/factor/localized layer values | preserved by parser |
-| numeric/regex/factor AnnData storage | AnnData encoders in `AnnDataWriter` |
+| raw string/factor/localized layer values | preserved through duplicate resolution, then interpreted by layer parsers |
+| canonical numeric/category layers | `value_parsing.py`, with explicit final-layer semantics |
+| AnnData storage | structural projection of canonical values |
 | Parquet storage | direct multi-table dataset writer |
-| multiple compatible levels | ordered `list[Parser]` |
+| multiple compatible levels | `ParserCollection` holding an ordered tuple of bound parsers |
 
 #### G.2 Rule-package tests
 
@@ -2722,7 +2630,7 @@ Tests must prove:
 - recognition results remain at parity with the unchanged package;
 - DIA-NN v2's DDA override changes only `measurements.primary_layer` as intended;
 - every input declaration has at least one supported extension hint;
-- shared `.tsv`, `.txt`, `.csv`, and `.parquet` base formats are tested once;
+- shared delimited/Parquet defaults, named-sheet Excel input and explicit encoding fallback are tested;
 - only Spectronaut enables delimiter and numeric-format detection;
 - one MaxQuant document separates direct `evidence.txt` from a prepared higher-level group, recognizing all nonempty directory subsets and renamed internal bindings;
 - every resolved delimited plan partitions all projected columns into disjoint text and
@@ -2783,12 +2691,9 @@ Tests must cover:
 
 Parquet tests verify exact Polars values, dtypes, key metadata, primary layer, layer roles, `uns`,
 safe layer file names, manifest order, legacy missing-role defaults, and atomic directory replacement.
-Encoder construction must be absent.
+No writer-side value-parser construction occurs.
 
-AnnData tests verify plain numeric, localized numeric, regex numeric, factor, missing sentinels,
-orientation, primary-layer-to-`X` selection, required-layer checks across all roles, measurement-only
-occupancy checks, auxiliary-primary rejection, single-key index compatibility, collision-free
-multi-key string indexes, pandas dtype normalization, and atomic write behavior.
+Layer-parser tests verify plain/localized/regex numerics, factor mapping, missing sentinels, integer constraints and native precision. Parse-time validator tests cover required names and measurement-only occupancy under standard/strict checks. AnnData tests cover structural projection, primary-layer-to-`X` selection, auxiliary-primary rejection, explicit semantics, collision-free indexes, pandas dtype normalization and atomic writing.
 
 Result-I/O tests use a two-level fixture with composite metadata, numeric-looking strings, factors,
 nulls, NaN, Unicode and colliding logical names, aligned frames, and sparse coordinate frames.
@@ -2802,9 +2707,9 @@ parser collaborators are not called.
 #### G.6 Architecture tests
 
 Import Linter is the merge-blocking enforcement mechanism. `make lint` and therefore `make check`
-run `lint-imports`. When the first Parser V2 package skeleton is created, `.importlinter` gains:
+run `lint-imports`. The current `.importlinter` includes:
 
-- an exhaustive `layers` contract for the `parserV2` container, with `detect_document`, `compile`, `prepare_source`, and `parse_rule_facade` above the independent `parse_quant | vendor_params | vendor_parse_rules | joins` children;
+- an exhaustive `layers` contract ordering `compile`, `detect_document`, `parser_factory`, `source_binding | prepare_source`, and `parse_rule_facade` above independent `parse_quant | vendor_params | vendor_parse_rules | joins` children;
 - an exhaustive `layers` contract keeping the AlphaDIA and MaxQuant join modules independent of one another;
 - an exhaustive `layers` contract for the `parse_quant` container, with modules directly in
   `parse_quant` above `io`, and with the single declared child edge `io -> data` while
@@ -2813,11 +2718,7 @@ run `lint-imports`. When the first Parser V2 package skeleton is created, `.impo
 - `forbidden` contracts limiting readers to source data, source parameters, and shared parse errors,
   and writers to parsed data.
 
-The contracts are added with the package skeleton, not before it: Import Linter must check real
-modules rather than optional declarations that silently pass while the implementation is absent.
-Built-in Import Linter contracts prove direction and isolation. One focused Grimp architecture test
-additionally proves the maximum-one direct sibling target, which a layers contract cannot express.
-Do not add a wrapper script. The resulting static checks must verify:
+Import Linter checks real modules and proves direction/isolation; focused Grimp tests additionally check the maximum-one direct sibling target and restricted computation imports. Together the configured checks cover:
 
 - every parsing and I/O module is under `parserV2/parse_quant` and imports neither
   `vendor_parse_rules` nor any parent module;
@@ -2834,8 +2735,8 @@ Do not add a wrapper script. The resulting static checks must verify:
   result readers and writers under `parse_quant/io/` import only `data/parsed.py`, I/O-owned
   metadata, validation, errors, and their external backend libraries; none imports Parser, raw
   data, contracts, parameters, or parsing strategies;
-- `parse_rule_facade.py` projects `vendor_parse_rules` into `parse_quant.parameters`; `compile.py` constructs runtime strategies and the collection parser; `prepare_source.py` composes physical input binding with tool joins; `detect_document.py` selects rules using physical headers or the prepared schema; top-level `api.py` owns only the thin in-memory convenience; and `command/conversion.py` owns the file-to-file workflow;
-- only Parser V2 composition modules, top-level `api.py`, and the command workflow import `vendor_params`; the two outer boundaries construct `SearchParameterEvidence` before compilation;
+- the facade projects into `operations.py` plus independent parameters; `source_resolution.py` constructs the strategy; `parser_factory.py` binds I/O; `compile.py` assembles retained parsers; detection selects table groups and verifies candidate sources; preparation composes tool joins; public API and command workflow remain outer boundaries;
+- vendor-parameter dependencies stay outside `parse_quant` and the rule package; detection projects `SearchParameterEvidence`, while the facade resolves UniMod entries from the shared registry;
 - source input adapters remain parent modules because they compose `data/` and `parameters/`;
   parsed-result adapters live in `io/`, whose sole sibling dependency is `data/`;
 - `parserV2/__init__.py` does not eagerly import `compile.py` or an adapter;
@@ -2845,8 +2746,7 @@ Do not add a wrapper script. The resulting static checks must verify:
 - runtime strategy modules do not compare vendor, level, layout, `how`, encoding, duplicate, or
   output discriminator literals;
 - registries are confined to the composition-root area;
-- a module-level private helper with one class client is moved onto that class; free `make_*` and
-  `*_for` functions remain construction or selection boundaries rather than forwarding wrappers;
+- helpers and construction functions are reviewed for actual responsibility and redundant forwarding; they are not multiplied merely to improve a diagnostic count;
 - `RawLayerTable` and `FinalLayerTable` do not acquire a shared mode-bearing base class;
 - no parser result contains `X`, a matrix, a coordinate code, or a temporary key map.
 
@@ -2863,7 +2763,7 @@ They verify scaling rather than enforce machine-independent CI thresholds:
 - duplicate resolution null-masks absent values in wide Polars frames, then uses native first/count/sum aggregations; error mode counts and selects in one grouping, without per-cell presence structs;
 - layer summaries reduce columns natively and gather a bounded deterministic finite-cell sample without flattening the full matrix; AnnData conversion uses one Arrow table conversion, preserving nullable and categorical representations;
 - Parquet allocates no numeric layer matrix;
-- only `AnnDataWriter` allocates one final `n_obs × n_var` array per encoded layer;
+- `AnnDataWriter` allocates final `n_obs × n_var` arrays from canonical layers; h5 readers likewise allocate backend arrays at the I/O boundary;
 - peak memory across raw, resolved, and final layer frames is measured explicitly.
 
 ### H. Implementation boundary and handoff
@@ -2876,7 +2776,7 @@ apb2/src/apb2/parserV2/
 
 #### H.1 Concrete package and module tree
 
-This is the recommended initial structure. It is deliberately coarser than one file per class:
+This is the current module layout, grouped at the existing package boundaries rather than one file per class:
 
 ```text
 apb2/src/apb2/parserV2/
@@ -2907,6 +2807,7 @@ apb2/src/apb2/parserV2/
 │   ├── __init__.py             # parse package marker; no adapter re-exports
 │   ├── delimited_input.py       # binding, evidence, configured Polars text reader
 │   ├── parquet_input.py         # binding, evidence, configured Polars Parquet reader
+│   ├── excel_input.py           # named-sheet evidence and projected Polars Excel reader
 │   ├── prepared_input.py        # per-level projection of the shared prepared frame
 │   ├── errors.py                # shared parse/source boundary errors
 │   ├── numeric_text.py          # shared numeric expressions using NumericTextFormat
@@ -2919,33 +2820,38 @@ apb2/src/apb2/parserV2/
 │   ├── io/
 │   │   ├── __init__.py         # empty marker; no broad re-exports
 │   │   ├── anndata_reader.py   # APB2 h5ad/h5mu -> ParsedLevels
-│   │   ├── anndata_writer.py   # ParsedLevel(s) -> h5ad/h5mu; encoders and checks
+│   │   ├── anndata_writer.py   # canonical ParsedLevel(s) -> structural h5ad/h5mu
 │   │   ├── duckdb.py           # DuckDB <-> ParsedLevels
 │   │   ├── errors.py           # result-I/O error family
 │   │   ├── formats.py          # format registry, path inference, reformat use case
 │   │   ├── metadata.py         # versioned physical-name/schema metadata
+│   │   ├── layer_representation.py # explicit numeric/category semantics
+│   │   ├── json_representation.py # compact result sidecar and coordinated publication
 │   │   ├── parquet_reader.py   # APB2 Parquet dataset -> ParsedLevels
 │   │   ├── parquet_writer.py   # ParsedLevel(s) -> APB2 Parquet dataset
 │   │   └── validation.py       # backend-independent result invariants
 │   ├── parameters/
 │   │   ├── __init__.py         # parameter package marker; no broad re-exports
-│   │   ├── working.py          # parameter-resolved, pre-source working values
-│   │   ├── source.py           # input, evidence, read, and decomposition parameters
-│   │   ├── axis.py             # key, modification, and materialization parameters
-│   │   ├── measurements.py     # duplicates, presence, AnnData serialization config
-│   │   ├── resolved.py         # ResolvedLevelPlan composition
-│   │   └── plan_json.py        # lossless JSON form of a resolved plan
+│   │   ├── source.py           # input, evidence, read and concrete source mappings
+│   │   ├── axis.py             # selections, keys, source plans and modification entries
+│   │   ├── measurements.py     # authored layer values and required/duplicate settings
+│   │   └── level.py            # scalar aliases for levels and provenance
 │   ├── contracts.py            # every Protocol consumed by Parser + runtime plans
-│   ├── parser.py               # Parser and its one-client private static helpers
+│   ├── parser.py               # bound Parser, ParserCollection and executable ParseStrategy
+│   ├── operations.py           # working contracts, coercer/layer factories, duplicate registry
+│   ├── plan_json.py            # snapshot serialization; not runtime reconstruction
+│   ├── value_parsing.py        # canonical layer interpretation and raw presence
+│   ├── layer_validation.py     # parse-time canonical-layer occupancy checks
+│   ├── observation_groups.py   # post-parse observation alignment and grouping
 │   ├── source_resolution.py    # SourcePlanResolver; header/dtype-dependent decisions
 │   ├── axis_columns.py         # concrete coercers and computed-column strategies
 │   ├── decomposition.py        # long, wide, and composed delimiter decomposers
 │   ├── fragments.py            # positional and column-labelled separators
-│   ├── duplicates.py           # duplicate policies and raw-presence strategies
+│   ├── duplicates.py           # raw-presence masking and Polars duplicate policies
 │   └── modifications.py        # independent stripping and normalization computations
 └── vendor_parse_rules/
     ├── __init__.py             # package marker; no broad re-exports
-    ├── document.py             # EffectiveRule, RuleDocument retaining _shell
+    ├── document.py             # Pydantic RuleDocument and composed EffectiveRule
     ├── loader.py               # validation and document loading
     ├── schema_artifact.py      # developer/test schema generation; not a CLI command
     ├── schema/
@@ -2957,6 +2863,9 @@ apb2/src/apb2/parserV2/
     │   ├── axis.py             # identity and axis-column declarations
     │   ├── measurements.py     # duplicate, layer, and value-pattern declarations
     │   ├── fragments.py        # packed-fragment declarations
+    │   ├── annotation.py       # declared sample-matching metadata
+    │   ├── roles.py            # role vocabulary and ownership
+    │   ├── role_policy.json    # packaged semantic-role vocabulary
     │   ├── parameters.py       # gates and primary-layer overrides
     │   └── rule.py             # effective rule union and complete-rule validation
     └── documents/              # packaged rules and generated JSON-Schema artifact
@@ -2974,17 +2883,14 @@ The boundary ownership behind that tree is:
 
 `BoundInputReader`, `ParsedLevelWriter`, `SourceDecomposer`, `FragmentTableSeparator`,
 `AxisValueCoercer`, `ColumnComputer`, `RawValuePresence`, and
-`DuplicatePolicy` all go in `parse_quant/contracts.py`: `Parser` is the client of every one of these
-capabilities. They therefore share one client-owned contract module.
+`DuplicatePolicy`, `LayerValueParser` and `LayerSetValidator` live in `parse_quant/contracts.py`. `Parser` consumes input/output capabilities; `ParseStrategy` consumes the computational capabilities; duplicate policies consume only raw presence.
 
 Concrete readers and writers do not import those Protocols. The delimited reader annotates its
 `read()` result with `parse_quant.data.source.LevelSourceTable`; a writer annotates its `write()`
 input with `parse_quant.data.parsed.ParsedLevel`. These are inward dependencies on exact data
 values: source adapters import downward from parent modules, while result adapters use the declared
 `io -> data` sibling edge. Structural typing proves that the adapters satisfy the Parser-owned
-contracts when `compile.py` injects them. `AnnDataLayerEncoder` and
-`AnnDataLayerContractChecker` are different: their client is `AnnDataWriter`, so they remain private
-to `parse_quant/io/anndata_writer.py`.
+contracts where the level factory and source resolver perform the wiring. Removed AnnData encoder/checker contracts are not part of the current type inventory.
 
 Data placement follows pipeline state and boundary:
 
@@ -2997,12 +2903,7 @@ Data placement follows pipeline state and boundary:
 - `parse_quant/data/layer_columns.py` owns the collision-free positional naming convention shared
   by raw and final layer tables. It is part of their tabular representation, not a generic helper.
 - `parse_quant/numeric_text.py` owns shared numeric expressions for raw presence and canonical value parsing; both consume the existing `NumericTextFormat` from `parameters/source.py` without a second notation record.
-- `parse_quant/parameters` owns every storage-neutral value used to configure parsing: working
-  declarations, source bindings and evidence, `AxisKeyPlan`, `InputContract`, `LevelReadPlan`,
-  source/decomposition configurations, resolved axis/encoding/presence contracts, and
-  `ResolvedLevelPlan`, together with its lossless JSON serialization in `plan_json.py`.
-  `SelectedAxisColumn`, `AxisPhaseRuntimePlan`, and `AxisRuntimePlan` contain injected strategies
-  and stay in `parse_quant/contracts.py`.
+- `parse_quant/parameters` owns independent selections, key/source plans, layer declarations, input contracts, evidence and read plans. `operations.py` owns working contracts that also contain behavior; `contracts.py` owns executable axis phases, and `parser.py` owns `ParseStrategy`. `plan_json.py` serializes decisions without retaining a resolved configuration graph.
 
 The data package belongs to `parse_quant` because all three states are the parsing use case's input,
 intermediate value, or result. The Pydantic declarations remain explicitly separate in
@@ -3016,27 +2917,22 @@ The import law also applies to small type aliases. Storage-side `QuantificationL
 `vendor_parse_rules/schema/*.py` module; their
 storage-neutral parsing equivalents are owned by `parse_quant/parameters`. `ParseRuleFacade`
 translates between those structurally compatible values rather than making one sibling import the
-other. Likewise, `parameters/working.py` and `data/parsed.py` each declare the same recursive JSON
+other. Likewise, `parameters/level.py` and `data/parsed.py` each declare the same recursive JSON
 value shape locally for provenance input and parsed output. These aliases describe scalar
 structure; they are not runtime services or duplicated behavior. Do not create a shared parent
 `model.py` merely to make either child import upward.
 
-`ParseRuleFacade` belongs at parent-level `parse_rule_facade.py` because it imports two siblings:
-`vendor_parse_rules.RuleDocument` as input and `parse_quant.parameters` as output. Putting it in
-either sibling would create the sideways dependency this structure forbids. Its private
-rule-projection and source-resolution helpers remain on the class; there is no one-client
-`projection.py`. `WorkingAxisConfiguration`, `WorkingMeasurementLayer`, `WorkingMeasurements`, and
-`WorkingParseConfiguration` live in `parse_quant/parameters/working.py`, not beside the facade.
+The facade belongs at parent-level because it consumes the rule child and constructs contracts and operations in the parsing child. `WorkingAxisConfiguration` and `WorkingParseConfiguration` live in `parse_quant/operations.py`; measurement records remain in `parameters/measurements.py`. Schema projection stays on the facade; physical-source resolution stays on `SourcePlanResolver`.
 
-The four parent-level modules are intentionally narrow:
+The parent and public composition modules have distinct responsibilities:
 
-- `parse_rule_facade.py` alone translates a rule document into parsing parameter values;
-- `compile.py` alone consumes those parameters, selects implementations through registries, and
-  injects configured behavior;
-- `detect_document.py` alone combines header-only source evidence with packaged-rule
-  compatibility; and
-- top-level `apb2/api.py` acquires parameters, detects and compiles resolved selections, and returns typed in-memory inputs plus canonical parsed levels without writing or altering provenance;
-- `apb2/command/conversion.py` owns grouping, output naming, writing, summaries, and CLI error translation.
+- `parse_rule_facade.py`: schema adaptation and ready computations
+- `source_binding.py`: concrete table binding and evidence
+- `prepare_source.py`: declared multi-file preparation
+- `parser_factory.py`: strategy resolution and I/O binding
+- `detect_document.py`: recognition, candidate binding and accepted selections
+- `compile.py`: public compiler inputs and collection assembly
+- `apb2/api.py`: public imports; `apb2/command/conversion.py`: file-to-file workflow
 
 The parse-owned boundary modules are likewise narrow:
 
@@ -3059,8 +2955,7 @@ The parse-owned boundary modules are likewise narrow:
   `parse_quant.data.parsed` from executing adapter imports and creating a package-initialization
   cycle.
 
-The tree is a placement decision, not a demand to fill every file on day one. A file is created
-when its named responsibility has implementation. If two proposed files remain inseparable or one
+The tree describes implemented ownership, not scaffolding for additional classes. If two proposed files remain inseparable or one
 only forwards to the other, combine them. If a parent module's responsibility belongs to one child,
 move it into that child even when it also imports an external framework. Keep a module in the parent
 only for a responsibility owned by the parent, such as cross-child composition.
@@ -3082,22 +2977,16 @@ Implementation follows these placement rules:
 4. A pure operation with two or more genuine class clients may remain a module-level function in
    their cohesive package. This is the exception for shared behavior, not permission to create a
    chain of forwarding helpers. A function whose only caller is one class moves onto that class.
-5. A factory that constructs one already-selected concrete implementation may live beside that
-   implementation. A registry-backed function that selects an implementation from a declaration
-   discriminator lives in `compile.py`, even when all implementations happen to share one sibling
-   package. Runtime modules never import that registry.
+5. Keep construction at the boundary where its evidence is available: authored operations at the facade, source-dependent collaborators at the resolver and `operations.py`, I/O binding at the level factory, and result selection in `io/formats.py`. Do not funnel every constructor through public `compile.py`.
 
 Concrete consequences in this specification are:
 
 - `_prepare_axis`, `_materialize_axis_columns`,
-  `_retain_mappable_layer`, and `_align_layer_keys` are private Parser methods; the methods that do
-  not read Parser state are static;
+  `_retain_mappable_layer`, and `_align_layer_keys` are private `ParseStrategy` methods; those using only explicit inputs are static;
 - rule-projection helpers remain private methods on `ParseRuleFacade`; physical-source resolution and its helpers belong to parsing-owned `SourcePlanResolver`;
-- `_make_axis_frame`, `_write_namespace`, and `_write_atomically` are private static methods on
-  `AnnDataWriter` while no second writer uses them;
-- `make_source_decomposer()`, `make_column_computer()`, and `duplicate_policy_for()` remain free construction
-  or selection functions in the composition-root area; and
-- no module-level function exists merely to forward arguments to one method or to hide an import.
+- AnnData projection has private methods plus shared I/O functions for axis frames, namespaces and atomic publication;
+- `make_axis_coercer()`, `make_layer_parser()` and `duplicate_policy_for()` live in `operations.py`; the facade and source resolver directly construct their other collaborators;
+- remaining forwarding helpers are implementation details to audit, not justification for a new factory or interface.
 
 Existing code may be imported unchanged only when its current contract already matches this
 specification and the polymorphism-over-discrimination rule. If an existing component must change,
@@ -3105,10 +2994,7 @@ its Parser V2 version belongs under `parserV2`; unrelated legacy behavior is not
 the refactor.
 
 Implementation is forward-only. It must not add source recomposition, source traces, reverse
-Protocols, FASTA integration, or compatibility aliases for schema 0.2. It must not use a negative
-line-count target as an acceptance criterion. Less code is expected from deleting obsolete
-representations and branches, but correctness, explicit data contracts, and readable orchestration
-are the acceptance criteria.
+Protocols, FASTA integration, or compatibility aliases for schema 0.2. Further simplification must demonstrate net production-code reduction across the complete conversion core, counting replacements and separately reporting tests. Preserve scientific behavior, explicit dependencies and readable orchestration; smaller files or moved methods alone are not simplification.
 
 #### H.3 Removed concepts
 
@@ -3122,7 +3008,7 @@ The implementation does not contain:
 - long/wide-specific duplicate-policy methods;
 - string-concatenated intermediate parse identity;
 - a flattened `ParsedData`, duplicated `ParsedData.X`, or an `AxisJoinMap` retained in the result;
-- parser-side layer decoders;
+- AnnData-specific layer encoders or plan-driven reconstruction in writers;
 - a Builder or service locator.
 
 #### H.4 Accepted implementation gate (historical)
