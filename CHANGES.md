@@ -1,5 +1,7 @@
 # Changes
 
+- 2026-09-21: `apb2 convert` now logs separate wall times for rule compilation, bound input reading, parsing (including observation alignment), and result writing, with read/parse timings for each selected level. Multi-file source preparation occurs during compilation and is included in that phase; the measured read phase covers each compiled level's bound reader. No result format or conversion semantics changed.
+
 - 2026-09-18: Added the normative [APB metadata specification](docs/metadata_specification.md), separating APB2-owned storage/ownership invariants from tool-owned payload schemas. Linked the I/O and architecture guides to it, corrected stale version and annotation paths, and documented existing checks plus remaining read/write-envelope validation gaps. Documentation only; no runtime or format change.
 
 - 2026-09-18: **Breaking:** tool namespaces now live directly under their owning object's `uns["apb"]`, without shared/level wrappers. Generic H5AD composition rejects conflicting leaves and preserves scope ownership with paths, including empty mappings, in the storage descriptor. Columnar manifests rename root `shared` to `apb`. HDF storage 3, Parquet 4, DuckDB 3 and representation 4 reject older layouts. Annotation provenance is tool-owned and stores each source descriptor once. Representation reuses persistence projection, with one combined namespace for H5AD and separate root/modality trees for collections; matrices, axes, aligned tables and calculations are unchanged.

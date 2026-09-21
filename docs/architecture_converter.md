@@ -656,7 +656,7 @@ class ParseStrategy:
             # physical column it was selected from, and materializing it would then replace
             # the raw values this map exists to hold.
             raw_keys=raw.select(list(raw_key_columns)),
-            final_keys=ParseStrategy._normalized_keys(working.select(list(plan.keys.final_key_columns))),
+            final_keys=working.select(list(plan.keys.final_key_columns)).fill_nan(None),
         )
         ParseStrategy._require_injective_key_mapping(mapping)
 
@@ -665,7 +665,7 @@ class ParseStrategy:
             working.filter(valid), raw.filter(valid), plan.output_phase
         )
         return (
-            ParseStrategy._finalize_axis_frame(final_rows, outputs=plan.outputs),
+            final_rows.select(list(plan.outputs)),
             mapping,
             tuple(dict.fromkeys((*early_tokens, *output_tokens))),
         )
@@ -781,8 +781,8 @@ arrays = {
 layer_names = safe_names(parsed.layers, prefix="layer", suffix="")
 adata = AnnData(
     X=arrays[parsed.primary_layer_name],
-    obs=self._make_axis_frame(parsed.obs.frame, parsed.obs.key_columns),
-    var=self._make_axis_frame(parsed.var.frame, parsed.var.key_columns),
+    obs=_make_axis_frame(parsed.obs.frame, parsed.obs.key_columns),
+    var=_make_axis_frame(parsed.var.frame, parsed.var.key_columns),
     layers={
         layer_names[name]: values
         for name, values in arrays.items()
@@ -793,7 +793,7 @@ adata = AnnData(
 
 The primary layer is stored only in `X`; other matrices use safe names in `layers`. `_write_level_namespaces()` and `_write_namespaces()` persist parse provenance alongside other tool namespaces below `uns["apb"]`, with reconstruction information in `storage`. `_write_atomically()` publishes the completed result.
 
-`AnnDataWriter._make_axis_frame()` delegates to the shared I/O helper. That helper converts Polars through Arrow to pandas, preserves supported nullable/categorical representations, and retains every authored key as an ordinary column. One string key can serve directly as the storage index; other keys use a collision-free canonical JSON array of typed scalar pairs. Storage labels never enter parsing joins or identity.
+The shared `_make_axis_frame()` I/O helper converts Polars through Arrow to pandas, preserves supported nullable/categorical representations, and retains every authored key as an ordinary column. One string key can serve directly as the storage index; other keys use a collision-free canonical JSON array of typed scalar pairs. Storage labels never enter parsing joins or identity.
 
 Plain numeric interpretation, regex extraction, missing-sentinel handling and factor mapping already ran in `parse_quant/value_parsing.py`. Numeric layers carry `QuantitativeLayerSemantics`; categorical layers carry their category map and missing code in `CategoricalLayerSemantics`. No writer constructs an encoder from rules or saved plans.
 

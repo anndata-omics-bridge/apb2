@@ -20,7 +20,6 @@ from apb2.parserV2.parse_quant.data.parsed import (
     LEVEL_ORDER,
     AnnotationTable,
     FeatureRelation,
-    FinalLayerTable,
     JsonValue,
     ParsedLevel,
     ParsedLevelName,
@@ -59,11 +58,6 @@ class MuDataLevelError(InvalidResultError):
     """The parsed levels cannot form one MuData container."""
 
 
-def _layer_value_block(layer: FinalLayerTable, /) -> pl.DataFrame:
-    """Return observation values without the layer's leading variable keys."""
-    return layer.values.select(pl.exclude(layer.var_key_columns))
-
-
 class AnnDataWriter:
     """Structurally serialize one canonical parsed level as ``.h5ad``."""
 
@@ -84,7 +78,8 @@ class AnnDataWriter:
     ) -> AnnData:
         validate_parsed_level(level_name, parsed)
         arrays = {
-            name: _layer_value_block(layer).to_numpy().T for name, layer in parsed.layers.items()
+            name: layer.values.select(pl.exclude(layer.var_key_columns)).to_numpy().T
+            for name, layer in parsed.layers.items()
         }
         layer_names = safe_names(parsed.layers, prefix="layer", suffix="")
         slot_names = {
@@ -95,8 +90,8 @@ class AnnDataWriter:
         }
         adata = AnnData(
             X=arrays[parsed.primary_layer_name],
-            obs=self._make_axis_frame(parsed.obs.frame, parsed.obs.key_columns),
-            var=self._make_axis_frame(parsed.var.frame, parsed.var.key_columns),
+            obs=_make_axis_frame(parsed.obs.frame, parsed.obs.key_columns),
+            var=_make_axis_frame(parsed.var.frame, parsed.var.key_columns),
             layers={
                 layer_names[name]: values
                 for name, values in arrays.items()
@@ -171,15 +166,6 @@ class AnnDataWriter:
                 shape=(axis_size, axis_size),
             )
         )
-
-    @staticmethod
-    def _make_axis_frame(frame: pl.DataFrame, key_columns: tuple[str, ...]) -> pd.DataFrame:
-        """Convert one axis to pandas, keeping every authored key as an ordinary column.
-
-        The per-dtype cases below are a translation table, not a decision: AnnData and HDF5
-        accept a specific set of representations, and this is the one place that knows which.
-        """
-        return _make_axis_frame(frame, key_columns)
 
 
 def _make_axis_frame(frame: pl.DataFrame, key_columns: tuple[str, ...]) -> pd.DataFrame:
@@ -379,7 +365,7 @@ def quantitative_layer_values(parsed: ParsedLevel, layer_name: str, /) -> pl.Dat
         raise InvalidResultError(f"level has no layer {layer_name!r}") from error
     if not isinstance(layer.semantics, QuantitativeLayerSemantics):
         raise InvalidResultError(f"layer {layer_name!r} is categorical, not quantitative")
-    return _layer_value_block(layer)
+    return layer.values.select(pl.exclude(layer.var_key_columns))
 
 
 def represent_layer_values(
@@ -396,7 +382,7 @@ def represent_layer_values(
         raise InvalidResultError(f"level has no layer {layer_name!r}") from error
     return represent_semantics(
         layer.semantics,
-        _layer_value_block(layer),
+        layer.values.select(pl.exclude(layer.var_key_columns)),
         observation_limit=observation_limit,
     )
 

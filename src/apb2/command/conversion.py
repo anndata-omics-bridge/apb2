@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Generator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from time import perf_counter
 from typing import Literal
 
 from loguru import logger
@@ -68,6 +70,16 @@ class ConversionError(ValueError):
     """An expected input, selection, parsing, or writing failure."""
 
 
+@contextmanager
+def _timed_phase(phase: str) -> Generator[None]:
+    """Log one conversion phase even when it raises an expected error."""
+    started = perf_counter()
+    try:
+        yield
+    finally:
+        logger.info("conversion phase={} seconds={:.3f}", phase, perf_counter() - started)
+
+
 @dataclass(frozen=True, slots=True)
 class LevelConversionSummary:
     """CLI-facing dimensions of one converted quantification level."""
@@ -123,21 +135,23 @@ def convert_from_rule_config(
 ) -> ConversionSummary:
     """Convert one level using an explicitly supplied schema-0.8 rule document."""
     try:
-        document, parameters, evidence = _explicit_conversion_inputs(
-            rule_config=rule_config,
-            parameters_path=parameters_path,
-            parameters_software=parameters_software,
-        )
-        compiler = ExplicitRuleCompiler(
-            document=document,
-            source=_input_source(data),
-            requested_levels=(level,),
-            parameter_evidence=evidence,
-            checks=checks,
-        )
+        with _timed_phase("compile"):
+            document, parameters, evidence = _explicit_conversion_inputs(
+                rule_config=rule_config,
+                parameters_path=parameters_path,
+                parameters_software=parameters_software,
+            )
+            compiler = ExplicitRuleCompiler(
+                document=document,
+                source=_input_source(data),
+                requested_levels=(level,),
+                parameter_evidence=evidence,
+                checks=checks,
+            )
+            parser = compiler.compile()
         parsed, outputs = _parse_and_write(
             output,
-            compiler.compile(),
+            parser,
             compiler.selections,
         )
         return _conversion_summary(
@@ -161,21 +175,23 @@ def convert_all_from_rule_config(
 ) -> ConversionSummary:
     """Convert every compatible level of an explicit schema-0.8 document."""
     try:
-        document, parameters, evidence = _explicit_conversion_inputs(
-            rule_config=rule_config,
-            parameters_path=parameters_path,
-            parameters_software=parameters_software,
-        )
-        compiler = ExplicitRuleCompiler(
-            document=document,
-            source=_input_source(data),
-            requested_levels=document.levels,
-            parameter_evidence=evidence,
-            checks=checks,
-        )
+        with _timed_phase("compile"):
+            document, parameters, evidence = _explicit_conversion_inputs(
+                rule_config=rule_config,
+                parameters_path=parameters_path,
+                parameters_software=parameters_software,
+            )
+            compiler = ExplicitRuleCompiler(
+                document=document,
+                source=_input_source(data),
+                requested_levels=document.levels,
+                parameter_evidence=evidence,
+                checks=checks,
+            )
+            parser = compiler.compile()
         parsed, outputs = _parse_and_write(
             output,
-            compiler.compile(),
+            parser,
             compiler.selections,
         )
         return _conversion_summary(
@@ -200,17 +216,19 @@ def convert_from_packaged_rules(
 ) -> ConversionSummary:
     """Detect a packaged document from the source and parameter file, then convert it."""
     try:
-        compiler = ParseRuleCompiler(
-            data,
-            parameters_path,
-            requested_levels=(level,),
-            checks=checks,
-            software=software,
-            parameters_software=parameters_software,
-        )
+        with _timed_phase("compile"):
+            compiler = ParseRuleCompiler(
+                data,
+                parameters_path,
+                requested_levels=(level,),
+                checks=checks,
+                software=software,
+                parameters_software=parameters_software,
+            )
+            parser = compiler.compile()
         parsed, outputs = _parse_and_write(
             output,
-            compiler.compile(),
+            parser,
             compiler.detection.levels,
         )
         return _conversion_summary(
@@ -234,17 +252,19 @@ def convert_all_from_packaged_rules(
 ) -> ConversionSummary:
     """Detect and convert every compatible packaged level from one file or folder."""
     try:
-        compiler = ParseRuleCompiler(
-            data,
-            parameters_path,
-            requested_levels=LEVELS,
-            checks=checks,
-            software=software,
-            parameters_software=parameters_software,
-        )
+        with _timed_phase("compile"):
+            compiler = ParseRuleCompiler(
+                data,
+                parameters_path,
+                requested_levels=LEVELS,
+                checks=checks,
+                software=software,
+                parameters_software=parameters_software,
+            )
+            parser = compiler.compile()
         parsed, outputs = _parse_and_write(
             output,
-            compiler.compile(),
+            parser,
             compiler.detection.levels,
         )
         return _conversion_summary(
@@ -284,14 +304,27 @@ def _parse_and_write(
     parser: ParserCollection,
     selections: tuple[LevelSelection, ...],
 ) -> tuple[ParsedLevels, tuple[Path, ...]]:
-    """Parse selected levels, align compatible observations, and write each resolution."""
+    """Time bound reads, parsing/alignment, and writing without rereading any source."""
     for selection in selections:
         logger.info("level={} source={}", selection.level, selection.source_path)
-    combined = parser.parse()
+    started = perf_counter()
+    combined, timings = parser.parse_with_timings()
     groups = group_observations(combined)
     outputs = _group_output_paths(groups, output)
-    for group, target in zip(groups, outputs, strict=True):
-        formats.write_parsed_levels(group, target)
+    read_seconds = sum(timing.read_seconds for timing in timings)
+    parse_seconds = perf_counter() - started - read_seconds
+    for timing in timings:
+        logger.info(
+            "conversion level={} read_seconds={:.3f} parse_seconds={:.3f}",
+            timing.level,
+            timing.read_seconds,
+            timing.parse_seconds,
+        )
+    logger.info("conversion phase=read seconds={:.3f}", read_seconds)
+    logger.info("conversion phase=parse seconds={:.3f}", parse_seconds)
+    with _timed_phase("write"):
+        for group, target in zip(groups, outputs, strict=True):
+            formats.write_parsed_levels(group, target)
     combined.levels = {
         name: group.levels[name] for name in LEVELS for group in groups if name in group.levels
     }

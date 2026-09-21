@@ -20,6 +20,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from time import perf_counter
 
 import polars as pl
 
@@ -66,6 +67,15 @@ class CanonicalKeyCollisionError(ValueError):
     """
 
 
+@dataclass(frozen=True, slots=True)
+class LevelParseTimings:
+    """Wall time spent reading and parsing one selected quantification level."""
+
+    level: QuantificationLevel
+    read_seconds: float
+    parse_seconds: float
+
+
 class ParserCollection:
     """Compiled level parsers that produce one canonical ``ParsedLevels`` value."""
 
@@ -87,6 +97,16 @@ class ParserCollection:
             uns={},
         )
 
+    def parse_with_timings(self) -> tuple[ParsedLevels, tuple[LevelParseTimings, ...]]:
+        """Parse once while measuring each bound read and strategy execution."""
+        levels: dict[QuantificationLevel, ParsedLevel] = {}
+        timings: list[LevelParseTimings] = []
+        for parser in self._parsers:
+            parsed_level, timing = parser.parse_with_timings()
+            levels[parser.level] = parsed_level
+            timings.append(timing)
+        return ParsedLevels(levels=levels, uns={}), tuple(timings)
+
 
 @dataclass(frozen=True, slots=True)
 class Parser:
@@ -104,6 +124,15 @@ class Parser:
     def parse(self) -> ParsedLevel:
         """Read the bound input once, then execute the compiled strategy."""
         return self.strategy.parse(self.input_reader.read())
+
+    def parse_with_timings(self) -> tuple[ParsedLevel, LevelParseTimings]:
+        """Read and parse once, reporting the two separate wall times."""
+        started = perf_counter()
+        source = self.input_reader.read()
+        read_seconds = perf_counter() - started
+        started = perf_counter()
+        parsed = self.strategy.parse(source)
+        return parsed, LevelParseTimings(self.level, read_seconds, perf_counter() - started)
 
     def convert(self, parsed: ParsedLevel, target: Path, /) -> None:
         """Write a supplied result without reading or parsing again."""
@@ -183,9 +212,8 @@ class ParseStrategy:
             # physical column it was selected from, and materializing it would then replace
             # the raw values this map exists to hold.
             raw_keys=raw.select(list(raw_key_columns)),
-            final_keys=ParseStrategy._normalized_keys(
-                working.select(list(plan.keys.final_key_columns))
-            ),
+            # NaN and null are the same absence before any key comparison.
+            final_keys=working.select(list(plan.keys.final_key_columns)).fill_nan(None),
         )
         ParseStrategy._require_injective_key_mapping(mapping)
 
@@ -194,7 +222,7 @@ class ParseStrategy:
             working.filter(valid), raw.filter(valid), plan.output_phase
         )
         return (
-            ParseStrategy._finalize_axis_frame(final_rows, outputs=plan.outputs),
+            final_rows.select(list(plan.outputs)),
             mapping,
             tuple(dict.fromkeys((*early_tokens, *output_tokens))),
         )
@@ -219,15 +247,6 @@ class ParseStrategy:
             result, tokens = computer.compute(result)
             unknown.update(dict.fromkeys(tokens))
         return result, tuple(unknown)
-
-    @staticmethod
-    def _normalized_keys(keys: pl.DataFrame) -> pl.DataFrame:
-        """Make ``NaN`` and null the same absence before any key is compared.
-
-        A key column's dtype is exactly what its declared logical type coerced it to, so
-        reading the dtype here is reading that declaration, not sniffing the data.
-        """
-        return keys.fill_nan(None)
 
     @staticmethod
     def _valid_final_key_rows(final_keys: pl.DataFrame) -> pl.Series:
@@ -259,11 +278,6 @@ class ParseStrategy:
             f"{list(mapping.final_keys.columns)} were produced by more than one raw identity; "
             f"examples of final keys and their raw evidence: {evidence.head(_EXAMPLE_LIMIT).to_dicts()}"
         )
-
-    @staticmethod
-    def _finalize_axis_frame(frame: pl.DataFrame, *, outputs: tuple[str, ...]) -> pl.DataFrame:
-        """Project the axis to its retained declared columns, in authored order."""
-        return frame.select(list(outputs))
 
     # --------------------------------------------------------------------------- the layers
 

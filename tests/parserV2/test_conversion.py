@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
+from io import StringIO
 from pathlib import Path
 from typing import Never
 
 import anndata
 import mudata
 import pytest
+from loguru import logger
 
 import apb2.api as public_api
 from apb2.api import ParseRuleCompiler
@@ -121,6 +124,37 @@ def test_packaged_conversion_writes_only_parser_provenance(tmp_path: Path) -> No
     assert representation["levels"][0]["name"] == "protein"
     assert representation["root"] is None
     assert "search_parameters_path" not in representation["levels"][0]["apb"]["parse"]
+
+
+def test_packaged_conversion_logs_separate_phase_timings(tmp_path: Path) -> None:
+    pair = _diann_v2()
+    captured = StringIO()
+    sink = logger.add(captured, format="{message}")
+    try:
+        convert_from_packaged_rules(
+            data=pair.required_data_path(),
+            level="protein",
+            output=tmp_path / "protein.h5ad",
+            parameters_path=_parameter_file(pair),
+            software=None,
+            parameters_software=None,
+            checks="standard",
+        )
+    finally:
+        logger.remove(sink)
+
+    messages = captured.getvalue()
+    phases = re.findall(
+        r"conversion phase=(compile|read|parse|write) seconds=(\d+\.\d{3})",
+        messages,
+    )
+    assert [phase for phase, _seconds in phases] == ["compile", "read", "parse", "write"]
+    assert all(float(seconds) >= 0 for _phase, seconds in phases)
+    assert re.search(
+        r"conversion level=protein read_seconds=\d+\.\d{3} "
+        r"parse_seconds=\d+\.\d{3}",
+        messages,
+    )
 
 
 def test_in_memory_vendor_parse_returns_typed_inputs_without_writing(tmp_path: Path) -> None:
