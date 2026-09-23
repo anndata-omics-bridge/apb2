@@ -33,6 +33,26 @@ def inputs(key: str) -> tuple[Path, Path]:
     return source, folder / record["params"]
 
 
+def test_wombat_peptidoform_without_optional_psm_counts(tmp_path: Path) -> None:
+    """ProteoBench WOMBAT exports can contain abundances but no PSM-count columns."""
+    source = tmp_path / "wombat.csv"
+    source.write_text(
+        "modified_peptide,protein_group,abundance_A_1,abundance_B_1\nPEPTIDEK,P12345,10,20\n",
+        encoding="utf-8",
+    )
+
+    parsed = (
+        ParseRuleCompiler.from_software(
+            source, software="WOMBAT", requested_levels=("peptidoform",)
+        )
+        .compile()
+        .parse()
+    )
+
+    assert set(parsed.levels) == {"peptidoform"}
+    assert parsed.levels["peptidoform"].var.frame.height == 1
+
+
 @pytest.mark.parametrize(
     "key",
     [

@@ -138,7 +138,7 @@
                 "name": "Number_Of_Psms",
                 "source": "^number_of_psms_(?P<sample>.+)$",
                 "type": "integer",
-                "required": true
+                "required": false
               }
             ]
           }

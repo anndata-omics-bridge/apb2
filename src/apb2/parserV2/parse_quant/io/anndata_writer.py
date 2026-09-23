@@ -13,6 +13,7 @@ import polars as pl
 import polars.selectors as cs
 import pyarrow as pa
 from anndata import AnnData
+from anndata import settings as anndata_settings
 from mudata import MuData
 from scipy import sparse
 
@@ -587,5 +588,8 @@ def _write_atomically(target: Path, write: Callable[[Path], None]) -> None:
     """Write beside the destination and replace it only after a complete write."""
     with TemporaryDirectory(dir=target.parent, prefix=f".{target.name}.") as scratch:
         staged = Path(scratch) / target.name
-        write(staged)
+        # Polars string columns become pandas nullable StringArray values here.
+        # AnnData's default deliberately rejects them unless the writer opts in.
+        with anndata_settings.override(allow_write_nullable_strings=True):
+            write(staged)
         staged.replace(target)
