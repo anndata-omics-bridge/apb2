@@ -259,12 +259,8 @@ def convert_from_packaged_rules(
     timings = _TimingRecorder()
     try:
         with timings.phase("compile"):
-            compiler = ParseRuleCompiler(
-                data,
-                parameters_path,
-                requested_levels=(level,),
-                checks=checks,
-                software=software,
+            compiler = _packaged_compiler(
+                data, parameters_path, software, requested_levels=(level,), checks=checks
             )
             parser = compiler.compile()
         parsed, outputs = _parse_and_write(
@@ -296,12 +292,8 @@ def convert_all_from_packaged_rules(
     timings = _TimingRecorder()
     try:
         with timings.phase("compile"):
-            compiler = ParseRuleCompiler(
-                data,
-                parameters_path,
-                requested_levels=LEVELS,
-                checks=checks,
-                software=software,
+            compiler = _packaged_compiler(
+                data, parameters_path, software, requested_levels=LEVELS, checks=checks
             )
             parser = compiler.compile()
         parsed, outputs = _parse_and_write(
@@ -319,6 +311,28 @@ def convert_all_from_packaged_rules(
         )
     except _EXPECTED_CONVERSION_FAILURES as error:
         raise ConversionError(str(error)) from error
+
+
+def _packaged_compiler(
+    data: Path,
+    parameters_path: Path | None,
+    software: str | None,
+    *,
+    requested_levels: tuple[QuantificationLevel, ...],
+    checks: AnnDataChecks,
+) -> ParseRuleCompiler:
+    """Choose the parameter-backed or column-backed compiler at the command boundary."""
+    if parameters_path is None and software is not None:
+        return ParseRuleCompiler.from_software(
+            data, software=software, requested_levels=requested_levels, checks=checks
+        )
+    return ParseRuleCompiler(
+        data,
+        parameters_path,
+        requested_levels=requested_levels,
+        checks=checks,
+        software=software,
+    )
 
 
 def _explicit_conversion_inputs(

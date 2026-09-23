@@ -230,6 +230,17 @@
             }
           ],
           "default": null
+        },
+        "software_only": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SoftwareOnlyEvidence"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -296,6 +307,45 @@
       "maxLength": 1,
       "minLength": 1,
       "type": "string"
+    },
+    "SoftwareOnlyEvidence": {
+      "additionalProperties": false,
+      "description": "Column evidence used when no vendor parameter file is available.",
+      "properties": {
+        "required_columns": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Required Columns",
+          "type": "array"
+        },
+        "forbidden_columns": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Forbidden Columns",
+          "type": "array"
+        },
+        "acquisition_method_if_any": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Acquisition Method If Any",
+          "type": "array"
+        },
+        "acquisition_method_otherwise": {
+          "default": "unknown",
+          "enum": [
+            "DDA",
+            "DIA",
+            "unknown"
+          ],
+          "title": "Acquisition Method Otherwise",
+          "type": "string"
+        }
+      },
+      "title": "SoftwareOnlyEvidence",
+      "type": "object"
     },
     "SupportedExtension": {
       "enum": [

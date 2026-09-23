@@ -2,6 +2,21 @@
 
 APB2 exposes programmatic boundaries for in-memory vendor parsing, result I/O, and sample annotation. The compiler/parser APIs expose storage-neutral Polars values for composition in larger applications; file-to-file vendor conversion belongs to the CLI command workflow.
 
+## Discover packaged result rules
+
+`get_rules()` lists packaged quant-result rules by APB2 category, without opening a vendor result or parameter file:
+
+```python
+from apb2.api import get_rules
+
+for software in get_rules("DIA", level="ion"):
+    print(software.software_name)
+    for variant in software.variants:
+        print(variant.software_version_pattern, variant.levels)
+```
+
+The initial categories are `DDA` and `DIA`; a rule can belong to both. Each variant identifies one packaged rule and retains its own supported quantification levels. `software_version_pattern` is the rule's regular-expression version range, not a list of tested releases. The catalogue reports rule availability, not whether an arbitrary file can be parsed without search parameters. Parameter-parser-only software and ProteoBench-specific UI aliases are not included. Unknown categories raise `ValueError`.
+
 ## Convert vendor results
 
 Use the public compiler when another package needs canonical parsed values:
@@ -38,7 +53,7 @@ compiler = ParseRuleCompiler.from_software(
 parsed_levels = compiler.compile().parse()
 ```
 
-`software` is required and names the result producer; for DIA-NN output from a FragPipe workflow, use `software="diann"`. APB2 matches the requested levels against that producer's packaged rules using their source columns. Overlapping version rules raise an ambiguity error; a matching rule that requires search settings reports the missing fields, without falling back to another version. `compiler.detection.version` is `None`, `compiler.parameters` is unavailable, and the normal rule provenance remains in the parsed result. This constructor does not change the existing constructor or CLI behavior.
+`software` is required and names the result producer; for DIA-NN output from a FragPipe workflow, use `software="diann"`. APB2 matches the requested levels against that producer's packaged rules using their source columns and declared version signatures. For DIA-NN 2.x, the declared MS1 columns distinguish DDA from the DIA default without a separate acquisition argument. Ambiguous matches and search settings that columns cannot establish still raise errors. `compiler.detection.version` is `None`, `compiler.parameters` is unavailable, and the normal rule provenance remains in the parsed result. The CLI uses this same constructor for `apb2 convert DATA ion --software DIA-NN` when `--params` is omitted.
 
 See [Convert vendor results](conversion.md) for rule selection, supported levels, validation, and
 output naming.

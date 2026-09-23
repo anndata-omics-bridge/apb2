@@ -33,13 +33,21 @@ The [support matrix](supported_software.md#quantification-levels-by-rule) shows 
 
 Without `--software`, APB2 recognizes the input across parameter-bearing packaged vendors, then parses parameters using the recognized vendor and resolves its rules. Ambiguity is reported explicitly. If a compound workflow uses a different parameter grammar, supply `--software`. Version, header and requested-level checks still apply; an actual workbook named `.txt` remains supported.
 
-ProteoBench Custom ion uploads have no parameter file. The software hint selects their packaged rule directly:
+For a result without search parameters, pass its result-producer name to select a packaged rule from the file columns:
+
+```bash
+apb2 convert report.parquet ion --software DIA-NN --output results/ion
+```
+
+APB2 reads the file format from the source extension; no separate DIA/DDA or Parquet/text switch is needed. DIA-NN 2.x uses declared MS1 columns to select its DDA primary layer, with the DIA layer as its declared default. If the file does not identify one rule or a required search setting cannot be inferred, conversion fails explicitly. A compound workflow must name the result producer, for example `DIA-NN` rather than `FragPipe` when DIA-NN produced the quantification table.
+
+ProteoBench Custom ion uploads use the same route:
 
 ```bash
 apb2 convert CustomFormat_DDA_quant_ions_test.txt ion --software pb_custom --output results/custom
 ```
 
-This route accepts the wide Custom table with `Sequence`, `Proteins`, `Charge`, `Modified sequence`, and one quantitative column per run. It does not infer search settings from the table or relax parameter requirements for other software.
+The Custom rule accepts the wide table with `Sequence`, `Proteins`, `Charge`, `Modified sequence`, and one quantitative column per run. Search settings that are not established by the file remain unavailable; for example, Sage's charge-combination setting still requires a parameter file.
 
 ## Convert every compatible level
 

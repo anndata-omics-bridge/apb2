@@ -9,7 +9,10 @@
         "shape": "wide",
         "extensions": [
           ".tsv"
-        ]
+        ],
+        "software_only": {
+          "forbidden_columns": ["precursor_idx"]
+        }
       },
       "base": {
         "axis": {

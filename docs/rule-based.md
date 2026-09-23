@@ -21,6 +21,12 @@ The function in [joins/maxquant.py](../src/apb2/parserV2/joins/maxquant.py) acce
 
 The function in [joins/alphadia.py](../src/apb2/parserV2/joins/alphadia.py) enriches AlphaDIA 1.12 matrix intensities with precursor metadata and returns long rows. Parent composition prepares once per requested group. Each level projects from that group's shared frame, excluding wholly absent identities before ordinary decomposition. Tool modules import neither schemas nor parser orchestration. After parsing, explicit bijective observation mappings permit alignment; incompatible resolutions are [written separately](conversion.md#output-naming).
 
+## Software-only column evidence
+
+When a caller supplies `--software` but no parameter file, the table's optional `input.software_only` declaration can distinguish rule variants beyond their normal required columns. `required_columns` and `forbidden_columns` are exact header signatures used only for this parameter-free route; parameter-backed version selection still uses the parsed software version. For example, DIA-NN 1.8/1.9 requires `PG.Normalised` and `Lib.PG.Q.Value`, while its 2.x rule requires `PG.TopN`.
+
+For a rule with an acquisition-dependent primary layer, `acquisition_method_if_any` lists columns that establish DDA and `acquisition_method_otherwise` declares the fallback. DIA-NN 2.x uses `Ms1.Q.Value` or `Global.Ms1.Q.Value` as DDA evidence and otherwise selects its DIA default. This is authored evidence, not a generic claim that missing columns always mean DIA: only declare a fallback after validating its signature against the supported exports. Unresolved settings such as Sage's charge combination still raise an error rather than being guessed.
+
 ## Long format
 
 In a long table, every row holds one observation-variable measurement.

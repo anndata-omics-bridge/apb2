@@ -53,10 +53,10 @@ def convert(
     A directory supplies a multi-file vendor result together. Levels with incompatible
     observation identities are written separately with observation-key suffixes; one-to-one
     aliases are aligned.
-    --params is the vendor parameter file and is required for ordinary packaged rules.
+    --params is the vendor parameter file. Without it, --software selects a packaged
+    result-producer rule from file columns when the evidence is unambiguous.
     --software selects the parameter parser and limits result rules to that vendor and
-    its declared quantification software. For a parameter-free packaged rule such as
-    pb_custom, pass --software without --params. --rule-config selects an
+    its declared quantification software. --rule-config selects an
     explicit schema-0.8 document. --format selects hdf5, parquet, or duckdb. --output is a
     basename to which apb2 appends the selected suffix; the name may contain dots, it simply
     must not already carry that suffix. --strict promotes layer-contract warnings to errors.
@@ -106,9 +106,7 @@ def convert(
                 )
         else:
             if options.params is None and options.software is None:
-                logger.error(
-                    "pass --params, --software for a parameter-free rule, or --rule-config"
-                )
+                logger.error("pass --params, --software, or --rule-config")
                 return 1
             if level is None:
                 result = conversion.convert_all_from_packaged_rules(

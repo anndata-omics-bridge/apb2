@@ -5,12 +5,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import polars as pl
 import pytest
 from polars.testing import assert_frame_equal
 
 from apb2.api import ParseRuleCompiler, QuantificationLevel
 from apb2.parserV2 import detect_document as detection
-from apb2.parserV2.detect_document import AmbiguousRuleError, RuleUnavailableError
+from apb2.parserV2.detect_document import RuleUnavailableError
 from parserV2.fixtures import committed_dir, committed_sample, document_pairs
 
 
@@ -67,11 +68,12 @@ def test_software_hint_must_identify_the_result_producer(software: str) -> None:
         ParseRuleCompiler.from_software(_sample("diann/v1_8"), software=software)
 
 
-def test_overlapping_versions_remain_ambiguous() -> None:
-    with pytest.raises(AmbiguousRuleError, match="several packaged documents"):
-        ParseRuleCompiler.from_software(
-            _sample("diann/v1_8"), software="diann", requested_levels=("ion",)
-        )
+@pytest.mark.parametrize("version", ["v1_7", "v1_8", "v2"])
+def test_diann_version_is_selected_by_declared_columns(version: str) -> None:
+    compiler = ParseRuleCompiler.from_software(
+        _sample(f"diann/{version}"), software="diann", requested_levels=("ion",)
+    )
+    assert compiler.detection.levels[0].document.path.parent.name == version
 
 
 @pytest.mark.parametrize("level", ["ion", "peptidoform"])
@@ -80,11 +82,47 @@ def test_requested_level_does_not_invent_sage_charge_evidence(level: Quantificat
         ParseRuleCompiler.from_software(_sample("sage"), software="sage", requested_levels=(level,))
 
 
-def test_missing_acquisition_evidence_never_falls_back_to_an_older_diann_rule() -> None:
-    with pytest.raises(RuleUnavailableError, match="acquisition_method"):
-        ParseRuleCompiler.from_software(
-            _sample("diann/v2"), software="diann", requested_levels=("ion",)
-        )
+def test_diann_v2_dia_defaults_to_precursor_normalised() -> None:
+    compiler = ParseRuleCompiler.from_software(
+        _sample("diann/v2"), software="diann", requested_levels=("ion",)
+    )
+    parsed = compiler.compile().parse().levels["ion"]
+    assert parsed.primary_layer_name == "Precursor_Normalised"
+
+
+def test_diann_v2_dda_column_selects_ms1_normalised(tmp_path: Path) -> None:
+    source = tmp_path / "dda.parquet"
+    pl.read_parquet(_sample("diann/v2")).with_columns(
+        pl.lit(0.01).alias("Ms1.Q.Value")
+    ).write_parquet(source)
+
+    compiler = ParseRuleCompiler.from_software(source, software="diann", requested_levels=("ion",))
+    parsed = compiler.compile().parse().levels["ion"]
+    assert compiler.detection.levels[0].document.path.parent.name == "v2"
+    assert parsed.primary_layer_name == "Ms1_Normalised"
+
+
+@pytest.mark.parametrize(
+    ("key", "expected_folder"),
+    [("spectronaut/v15", "v15"), ("spectronaut", "spectronaut"), ("spectronaut/v21", "v21")],
+)
+def test_spectronaut_version_is_selected_by_declared_columns(
+    key: str, expected_folder: str
+) -> None:
+    compiler = ParseRuleCompiler.from_software(
+        _sample(key), software="Spectronaut", requested_levels=("ion",)
+    )
+
+    assert compiler.detection.levels[0].document.path.parent.name == expected_folder
+
+
+@pytest.mark.parametrize("version", ["v1_10", "v1_12", "v2"])
+def test_alphadia_version_is_selected_by_declared_columns(version: str) -> None:
+    compiler = ParseRuleCompiler.from_software(
+        _sample(f"alphadia/{version}"), software="AlphaDIA", requested_levels=("ion",)
+    )
+
+    assert compiler.detection.levels[0].document.path.parent.name == version
 
 
 def test_only_requested_levels_require_search_evidence(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -100,7 +138,12 @@ def test_only_requested_levels_require_search_evidence(monkeypatch: pytest.Monke
     )
     assert set(parsed.levels) == {"protein"}
     assert parsed.levels["protein"].var.frame.height > 0
-    with pytest.raises(RuleUnavailableError, match="acquisition_method"):
+    ion = (
         ParseRuleCompiler.from_software(
             _sample("diann/v2"), software="diann", requested_levels=("ion",)
         )
+        .compile()
+        .parse()
+        .levels["ion"]
+    )
+    assert ion.primary_layer_name == "Precursor_Normalised"

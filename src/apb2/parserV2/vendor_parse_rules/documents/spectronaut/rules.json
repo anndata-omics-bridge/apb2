@@ -10,6 +10,9 @@
         "extensions": [
           ".tsv"
         ],
+        "software_only": {
+          "forbidden_columns": ["EG.Comment", "EG.LibraryQvalue"]
+        },
         "delimiter": {
           "mode": "detect",
           "candidates": [

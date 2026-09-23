@@ -15,7 +15,12 @@
         "shape": "long",
         "extensions": [
           ".parquet"
-        ]
+        ],
+        "software_only": {
+          "required_columns": ["PG.TopN"],
+          "acquisition_method_if_any": ["Ms1.Q.Value", "Global.Ms1.Q.Value"],
+          "acquisition_method_otherwise": "DIA"
+        }
       },
       "base": {
         "axis": {

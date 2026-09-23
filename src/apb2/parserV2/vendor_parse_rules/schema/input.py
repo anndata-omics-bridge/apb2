@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import Field, model_validator
 
 from apb2.parserV2.vendor_parse_rules.schema.base import ModelBase, TableShape
@@ -11,6 +13,15 @@ from apb2.parserV2.vendor_parse_rules.schema.base_formats import (
     DetectedNumberFormat,
     SupportedExtension,
 )
+
+
+class SoftwareOnlyEvidence(ModelBase):
+    """Column evidence used when no vendor parameter file is available."""
+
+    required_columns: list[str] = Field(default_factory=list)
+    forbidden_columns: list[str] = Field(default_factory=list)
+    acquisition_method_if_any: list[str] = Field(default_factory=list)
+    acquisition_method_otherwise: Literal["DDA", "DIA", "unknown"] = "unknown"
 
 
 class Input(ModelBase):
@@ -23,6 +34,7 @@ class Input(ModelBase):
     delimiter: DetectedDelimiter | None = None
     numbers: DetectedNumberFormat | None = None
     encoding: DetectedEncoding | None = None
+    software_only: SoftwareOnlyEvidence | None = None
 
     @model_validator(mode="after")
     def _workbook_consistency(self) -> Input:

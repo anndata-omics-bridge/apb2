@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Literal
 
@@ -203,7 +203,7 @@ def detect_software_rules(
     software: str,
     checks: Literal["standard", "strict"] = "standard",
 ) -> DetectedRuleSet:
-    """Select a known producer's rules by columns alone, retaining unresolved evidence."""
+    """Select a known producer's rules from file columns without parameter evidence."""
     vendor = software_slug(software)
     if not vendor:
         raise ValueError("software must name the result producer")
@@ -211,16 +211,9 @@ def detect_software_rules(
     matches: dict[QuantificationLevel, list[LevelSelection]] = {level: [] for level in requested}
     for document in _packaged_documents(frozenset({vendor})):
         for selection in select_document_levels(document, source, requested, None, checks=checks):
-            rule = document.declared(selection.level).declaration
-            needed = set(rule.requires_search_parameters)
-            for override in rule.search_parameter_overrides:
-                needed.update(override.when_search_parameters)
-            if needed:
-                raise RuleUnavailableError(
-                    f"{document.path}: level {selection.level!r} requires search-parameter "
-                    f"evidence for {sorted(needed)}; software alone cannot resolve this rule"
-                )
-            matches[selection.level].append(selection)
+            resolved = _software_only_selection(selection, checks)
+            if resolved is not None:
+                matches[selection.level].append(resolved)
     selected = _unique_level_matches(matches, requested)
     if not selected:
         raise RuleUnavailableError(
@@ -228,6 +221,50 @@ def detect_software_rules(
             f"source {source.path}"
         )
     return DetectedRuleSet(software=vendor, version=None, levels=tuple(selected))
+
+
+def _software_only_selection(
+    selection: LevelSelection, checks: Literal["standard", "strict"]
+) -> LevelSelection | None:
+    """Apply authored column signatures and any inferable search-parameter override."""
+    document = selection.document
+    declared = document.declared(selection.level)
+    columns = set(_selection_columns(selection))
+    software_only = declared.input.software_only
+    if software_only is not None and not set(software_only.required_columns) <= columns:
+        return None
+    if software_only is not None and set(software_only.forbidden_columns) & columns:
+        return None
+    acquisition: Literal["DDA", "DIA", "unknown"] = "unknown"
+    if software_only is not None:
+        acquisition = software_only.acquisition_method_otherwise
+        if any(column in columns for column in software_only.acquisition_method_if_any):
+            acquisition = "DDA"
+    evidence = SearchParameterEvidence(acquisition_method=acquisition, combine_charge_states=None)
+    rule = declared.declaration
+    needed = set(rule.requires_search_parameters)
+    for override in rule.search_parameter_overrides:
+        needed.update(override.when_search_parameters)
+    unresolved = needed - ({"acquisition_method"} if acquisition != "unknown" else set())
+    if unresolved:
+        raise RuleUnavailableError(
+            f"{document.path}: level {selection.level!r} requires search-parameter "
+            f"evidence for {sorted(unresolved)}; software and columns cannot resolve this rule"
+        )
+    try:
+        facade = ParseRuleFacade(document, selection.level, evidence)
+    except RuleNotApplicable:
+        return None
+    return replace(selection, parser=compile_level(facade, selection.source, checks))
+
+
+def _selection_columns(selection: LevelSelection) -> tuple[str, ...]:
+    """Read only the selected table's header for software-only evidence."""
+    if isinstance(selection.source, PreparedTable):
+        return tuple(selection.source.frame.columns)
+    facade = ParseRuleFacade.from_declared_rule(selection.document, selection.level)
+    bound = BoundTable(selection.source, facade.working_parameters.input)
+    return bound.recognition_evidence(facade.working_parameters.accepts_header).columns
 
 
 def select_document_levels(

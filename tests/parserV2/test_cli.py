@@ -18,6 +18,7 @@ from apb2.parserV2.parse_quant.io.metadata import (
     NAMESPACE,
     PARSE_NAMESPACE,
 )
+from parserV2.fixtures import committed_sample
 
 _DOCUMENT = {
     "schema_version": "0.8",
@@ -52,6 +53,21 @@ def test_convert_help_exposes_one_software_hint(capsys: pytest.CaptureFixture[st
     assert "--software" in help_text
     assert "Software hint" in help_text
     assert "--params-software" not in help_text
+
+
+def test_convert_diann_with_software_and_no_params(tmp_path: Path) -> None:
+    source = committed_sample("diann/v2")
+    assert source is not None
+
+    exit_code = convert(
+        source,
+        "ion",
+        ConvertCliOptions(software="DIA-NN", output=tmp_path / "diann"),
+    )
+
+    assert exit_code == 0
+    result = anndata.read_h5ad(tmp_path / "diann.h5ad")
+    assert result.shape[0] > 0
 
 
 _MULTILEVEL_DOCUMENT = {

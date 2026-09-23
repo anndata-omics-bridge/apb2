@@ -1,0 +1,25 @@
+{
+  "categories": ["DDA", "DIA"],
+  "assignments": [
+    {"rule": "alphadia/v1_10/rules.json", "categories": ["DIA"]},
+    {"rule": "alphadia/v1_12/rules.json", "categories": ["DIA"]},
+    {"rule": "alphadia/v2/rules.json", "categories": ["DIA"]},
+    {"rule": "alphapept/rules.json", "categories": ["DDA"]},
+    {"rule": "diann/v1_7/rules.json", "categories": ["DIA"]},
+    {"rule": "diann/v1_8/rules.json", "categories": ["DIA"]},
+    {"rule": "diann/v2/rules.json", "categories": ["DDA", "DIA"]},
+    {"rule": "fragpipe/rules.json", "categories": ["DDA", "DIA"]},
+    {"rule": "i2masschroq/rules.json", "categories": ["DDA"]},
+    {"rule": "maxquant/rules.json", "categories": ["DDA", "DIA"]},
+    {"rule": "msangel/rules.json", "categories": ["DDA"]},
+    {"rule": "pb_custom/rules.json", "categories": ["DDA", "DIA"]},
+    {"rule": "peaks/rules.json", "categories": ["DDA", "DIA"]},
+    {"rule": "prolinestudio/rules.json", "categories": ["DDA"]},
+    {"rule": "quantms/rules.json", "categories": ["DDA"]},
+    {"rule": "sage/rules.json", "categories": ["DDA"]},
+    {"rule": "spectronaut/rules.json", "categories": ["DIA"]},
+    {"rule": "spectronaut/v15/rules.json", "categories": ["DIA"]},
+    {"rule": "spectronaut/v21/rules.json", "categories": ["DIA"]},
+    {"rule": "wombat/rules.json", "categories": ["DDA"]}
+  ]
+}

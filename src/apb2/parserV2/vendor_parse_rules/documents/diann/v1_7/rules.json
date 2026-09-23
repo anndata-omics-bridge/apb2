@@ -15,7 +15,10 @@
         "shape": "long",
         "extensions": [
           ".tsv"
-        ]
+        ],
+        "software_only": {
+          "forbidden_columns": ["Lib.PG.Q.Value"]
+        }
       },
       "base": {
         "axis": {

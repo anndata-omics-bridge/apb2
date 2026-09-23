@@ -17,7 +17,10 @@
           ".tsv",
           ".txt",
           ".parquet"
-        ]
+        ],
+        "software_only": {
+          "required_columns": ["PG.Normalised", "Lib.PG.Q.Value"]
+        }
       },
       "base": {
         "axis": {
