@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import tempfile
 from collections.abc import Generator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -44,6 +46,7 @@ from apb2.parserV2.parse_quant.observation_groups import group_observations
 from apb2.parserV2.parse_quant.parameters.source import Folder, InputSource, SingleFile
 from apb2.parserV2.parse_quant.parser import (
     CanonicalKeyCollisionError,
+    LevelParseTimings,
     ParserCollection,
 )
 from apb2.parserV2.prepare_source import InputPreparationError
@@ -70,14 +73,46 @@ class ConversionError(ValueError):
     """An expected input, selection, parsing, or writing failure."""
 
 
-@contextmanager
-def _timed_phase(phase: str) -> Generator[None]:
-    """Log one conversion phase even when it raises an expected error."""
-    started = perf_counter()
-    try:
-        yield
-    finally:
-        logger.info("conversion phase={} seconds={:.3f}", phase, perf_counter() - started)
+@dataclass(frozen=True, slots=True)
+class PhaseTiming:
+    """One internal conversion phase, independent of subprocess runtime."""
+
+    name: str
+    seconds: float
+
+
+@dataclass(frozen=True, slots=True)
+class ConversionTimings:
+    """Tool-owned phase and level timings for an optional JSON artifact."""
+
+    phases: tuple[PhaseTiming, ...]
+    levels: tuple[LevelParseTimings, ...]
+
+
+class _TimingRecorder:
+    """Accumulate measured phases without changing the conversion result format."""
+
+    def __init__(self) -> None:
+        self.phases: list[PhaseTiming] = []
+        self.levels: tuple[LevelParseTimings, ...] = ()
+
+    @contextmanager
+    def phase(self, name: str) -> Generator[None]:
+        """Record and log a phase even when its operation fails."""
+        started = perf_counter()
+        try:
+            yield
+        finally:
+            self.record(name, perf_counter() - started)
+
+    def record(self, name: str, seconds: float) -> None:
+        """Record an independently measured phase and keep the human log."""
+        self.phases.append(PhaseTiming(name=name, seconds=seconds))
+        logger.info("conversion phase={} seconds={:.3f}", name, seconds)
+
+    def snapshot(self) -> ConversionTimings:
+        """Freeze the measurements for a successful conversion."""
+        return ConversionTimings(phases=tuple(self.phases), levels=self.levels)
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +133,7 @@ class ConversionSummary:
     version: str | None
     levels: tuple[LevelConversionSummary, ...]
     outputs: tuple[Path, ...]
+    timings: ConversionTimings
 
 
 _EXPECTED_CONVERSION_FAILURES = (
@@ -130,16 +166,17 @@ def convert_from_rule_config(
     output: Path,
     rule_config: Path,
     parameters_path: Path | None,
-    parameters_software: str | None,
+    software: str | None,
     checks: AnnDataChecks,
 ) -> ConversionSummary:
     """Convert one level using an explicitly supplied schema-0.8 rule document."""
+    timings = _TimingRecorder()
     try:
-        with _timed_phase("compile"):
+        with timings.phase("compile"):
             document, parameters, evidence = _explicit_conversion_inputs(
                 rule_config=rule_config,
                 parameters_path=parameters_path,
-                parameters_software=parameters_software,
+                software=software,
             )
             compiler = ExplicitRuleCompiler(
                 document=document,
@@ -153,12 +190,14 @@ def convert_from_rule_config(
             output,
             parser,
             compiler.selections,
+            timings,
         )
         return _conversion_summary(
             parsed.levels,
             outputs=outputs,
             software=software_slug(document.software_name),
             version=parameters.software_version if parameters is not None else None,
+            timings=timings.snapshot(),
         )
     except _EXPECTED_CONVERSION_FAILURES as error:
         raise ConversionError(str(error)) from error
@@ -170,16 +209,17 @@ def convert_all_from_rule_config(
     output: Path,
     rule_config: Path,
     parameters_path: Path | None,
-    parameters_software: str | None,
+    software: str | None,
     checks: AnnDataChecks,
 ) -> ConversionSummary:
     """Convert every compatible level of an explicit schema-0.8 document."""
+    timings = _TimingRecorder()
     try:
-        with _timed_phase("compile"):
+        with timings.phase("compile"):
             document, parameters, evidence = _explicit_conversion_inputs(
                 rule_config=rule_config,
                 parameters_path=parameters_path,
-                parameters_software=parameters_software,
+                software=software,
             )
             compiler = ExplicitRuleCompiler(
                 document=document,
@@ -193,12 +233,14 @@ def convert_all_from_rule_config(
             output,
             parser,
             compiler.selections,
+            timings,
         )
         return _conversion_summary(
             parsed.levels,
             outputs=outputs,
             software=software_slug(document.software_name),
             version=parameters.software_version if parameters is not None else None,
+            timings=timings.snapshot(),
         )
     except _EXPECTED_CONVERSION_FAILURES as error:
         raise ConversionError(str(error)) from error
@@ -209,33 +251,34 @@ def convert_from_packaged_rules(
     data: Path,
     level: QuantificationLevel,
     output: Path,
-    parameters_path: Path,
+    parameters_path: Path | None,
     software: str | None,
-    parameters_software: str | None,
     checks: AnnDataChecks,
 ) -> ConversionSummary:
-    """Detect a packaged document from the source and parameter file, then convert it."""
+    """Detect a packaged document from source and optional parameters, then convert it."""
+    timings = _TimingRecorder()
     try:
-        with _timed_phase("compile"):
+        with timings.phase("compile"):
             compiler = ParseRuleCompiler(
                 data,
                 parameters_path,
                 requested_levels=(level,),
                 checks=checks,
                 software=software,
-                parameters_software=parameters_software,
             )
             parser = compiler.compile()
         parsed, outputs = _parse_and_write(
             output,
             parser,
             compiler.detection.levels,
+            timings,
         )
         return _conversion_summary(
             parsed.levels,
             outputs=outputs,
             software=compiler.detection.software,
             version=compiler.detection.version,
+            timings=timings.snapshot(),
         )
     except _EXPECTED_CONVERSION_FAILURES as error:
         raise ConversionError(str(error)) from error
@@ -245,33 +288,34 @@ def convert_all_from_packaged_rules(
     *,
     data: Path,
     output: Path,
-    parameters_path: Path,
+    parameters_path: Path | None,
     software: str | None,
-    parameters_software: str | None,
     checks: AnnDataChecks,
 ) -> ConversionSummary:
     """Detect and convert every compatible packaged level from one file or folder."""
+    timings = _TimingRecorder()
     try:
-        with _timed_phase("compile"):
+        with timings.phase("compile"):
             compiler = ParseRuleCompiler(
                 data,
                 parameters_path,
                 requested_levels=LEVELS,
                 checks=checks,
                 software=software,
-                parameters_software=parameters_software,
             )
             parser = compiler.compile()
         parsed, outputs = _parse_and_write(
             output,
             parser,
             compiler.detection.levels,
+            timings,
         )
         return _conversion_summary(
             parsed.levels,
             outputs=outputs,
             software=compiler.detection.software,
             version=compiler.detection.version,
+            timings=timings.snapshot(),
         )
     except _EXPECTED_CONVERSION_FAILURES as error:
         raise ConversionError(str(error)) from error
@@ -281,7 +325,7 @@ def _explicit_conversion_inputs(
     *,
     rule_config: Path,
     parameters_path: Path | None,
-    parameters_software: str | None,
+    software: str | None,
 ) -> tuple[RuleDocument, Parameters | None, SearchParameterEvidence]:
     """Load one explicit document and its optional parameter evidence once."""
     document = load_rule_document(rule_config)
@@ -289,7 +333,7 @@ def _explicit_conversion_inputs(
         return document, None, UNKNOWN_SEARCH_PARAMETERS
     parameters = parse_params(
         parameters_path,
-        software=parameters_software or software_slug(document.software_name),
+        software=software_slug(document.software_name if software is None else software),
     )
     return document, parameters, search_parameter_evidence(parameters)
 
@@ -303,26 +347,28 @@ def _parse_and_write(
     output: Path,
     parser: ParserCollection,
     selections: tuple[LevelSelection, ...],
+    timings: _TimingRecorder,
 ) -> tuple[ParsedLevels, tuple[Path, ...]]:
     """Time bound reads, parsing/alignment, and writing without rereading any source."""
     for selection in selections:
         logger.info("level={} source={}", selection.level, selection.source_path)
     started = perf_counter()
-    combined, timings = parser.parse_with_timings()
+    combined, level_timings = parser.parse_with_timings()
     groups = group_observations(combined)
     outputs = _group_output_paths(groups, output)
-    read_seconds = sum(timing.read_seconds for timing in timings)
+    read_seconds = sum(timing.read_seconds for timing in level_timings)
     parse_seconds = perf_counter() - started - read_seconds
-    for timing in timings:
+    for timing in level_timings:
         logger.info(
             "conversion level={} read_seconds={:.3f} parse_seconds={:.3f}",
             timing.level,
             timing.read_seconds,
             timing.parse_seconds,
         )
-    logger.info("conversion phase=read seconds={:.3f}", read_seconds)
-    logger.info("conversion phase=parse seconds={:.3f}", parse_seconds)
-    with _timed_phase("write"):
+    timings.levels = level_timings
+    timings.record("read", read_seconds)
+    timings.record("parse", parse_seconds)
+    with timings.phase("write"):
         for group, target in zip(groups, outputs, strict=True):
             formats.write_parsed_levels(group, target)
     combined.levels = {
@@ -355,11 +401,13 @@ def _conversion_summary(
     software: str,
     version: str | None,
     outputs: tuple[Path, ...],
+    timings: ConversionTimings,
 ) -> ConversionSummary:
     return ConversionSummary(
         software=software,
         version=version,
         outputs=outputs,
+        timings=timings,
         levels=tuple(
             LevelConversionSummary(
                 level=level,
@@ -370,3 +418,43 @@ def _conversion_summary(
             for level, parsed in levels.items()
         ),
     )
+
+
+def write_conversion_timings(timings: ConversionTimings, target: Path) -> Path:
+    """Atomically publish optional tool timings without changing APB result metadata."""
+    if target.exists():
+        raise ConversionError(f"timing output already exists: {target}")
+    document = {
+        "format": "apb-tool-timings",
+        "format_version": 1,
+        "tool": "apb2",
+        "operation": "convert",
+        "phases": [{"name": phase.name, "seconds": phase.seconds} for phase in timings.phases],
+        "levels": [
+            {
+                "level": level.level,
+                "read_seconds": level.read_seconds,
+                "parse_seconds": level.parse_seconds,
+            }
+            for level in timings.levels
+        ],
+    }
+    target.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        dir=target.parent,
+        prefix=f".{target.name}.",
+        suffix=".tmp",
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            json.dump(document, handle, ensure_ascii=False, allow_nan=False, indent=2)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        if target.exists():
+            raise ConversionError(f"timing output already exists: {target}")
+        temporary.replace(target)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return target

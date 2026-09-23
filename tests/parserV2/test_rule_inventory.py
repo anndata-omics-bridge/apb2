@@ -1,4 +1,4 @@
-"""The packaged inventory counts: 12 packaged documents, 19 effective levels."""
+"""The packaged inventory counts: 20 packaged documents, 36 effective levels."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from parserV2.rule_inventory import (
 )
 
 
-def test_parser_v2_packages_twelve_documents_and_nineteen_levels() -> None:
+def test_parser_v2_packages_twenty_documents_and_thirty_six_levels() -> None:
     levels = packaged_levels()
 
     assert len({key for key, _level in levels}) == EXPECTED_DOCUMENT_COUNT

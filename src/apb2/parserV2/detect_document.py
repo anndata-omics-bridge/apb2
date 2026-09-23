@@ -106,14 +106,22 @@ def software_slug(software_name: str) -> str:
     return re.sub(r"[^a-z0-9]", "", software_name.lower())
 
 
-def guess_software(source: InputSource) -> str | None:
+def guess_software(source: InputSource) -> str:
     """Return the unique vendor slug whose declared levels accept this source."""
     slugs = {
         software_slug(document.software_name)
-        for document in _packaged_documents()
+        for document in _packaged_documents(parameter_file="required")
         if (_document_matches(document, source))
     }
-    return next(iter(slugs)) if len(slugs) == 1 else None
+    if len(slugs) > 1:
+        raise AmbiguousRuleError(
+            f"source matches several packaged vendors: {sorted(slugs)}; pass --software"
+        )
+    if not slugs:
+        raise RuleUnavailableError(
+            f"could not recognize the vendor for {source.path}; pass --software or --rule-config"
+        )
+    return next(iter(slugs))
 
 
 def detect_rule_document(
@@ -134,10 +142,11 @@ def detect_rule_document(
 
 
 def detect_rule_documents(
-    parameters: Parameters,
+    parameters: Parameters | None,
     source: InputSource,
     levels: Iterable[QuantificationLevel],
     *,
+    vendors: frozenset[str] | None = None,
     checks: Literal["standard", "strict"] = "standard",
 ) -> DetectedRuleSet:
     """Identify one packaged rule per compatible requested level.
@@ -145,6 +154,7 @@ def detect_rule_documents(
     A folder is a bundle of independent tables. Each rule still binds exactly one table, and
     each level remains independently compiled. Missing named tables are unavailable; a named
     table that exists but satisfies none of its document's requested levels is invalid input.
+    When supplied, vendor slugs restrict candidates before any physical source probing.
     """
     requested = _requested_levels(levels)
     if not requested:
@@ -152,9 +162,10 @@ def detect_rule_documents(
 
     matches: dict[QuantificationLevel, list[LevelSelection]] = {level: [] for level in requested}
     expected_names: dict[QuantificationLevel, set[str]] = {level: set() for level in requested}
-    evidence = search_parameter_evidence(parameters)
-    for document in _packaged_documents():
-        version = _version_for(parameters, software_slug(document.software_name))
+    evidence = _detection_evidence(parameters)
+    parameter_file = "none" if parameters is None else "required"
+    for document in _packaged_documents(vendors, parameter_file=parameter_file):
+        version = _detection_version(parameters, software_slug(document.software_name))
         if version is not None and not _pattern_admits(document.software_version_pattern, version):
             continue
         for level in requested:
@@ -169,24 +180,61 @@ def detect_rule_documents(
 
     selected = _unique_level_matches(matches, requested)
     if not selected:
-        raise RuleUnavailableError(_unavailable_message(source, requested, expected_names))
+        scope = f"; candidate vendors: {sorted(vendors)}" if vendors is not None else ""
+        raise RuleUnavailableError(_unavailable_message(source, requested, expected_names) + scope)
 
-    vendors = {software_slug(selection.document.software_name) for selection in selected}
-    if len(vendors) > 1:
-        raise AmbiguousRuleError(f"source levels match several packaged vendors: {sorted(vendors)}")
-    software = next(iter(vendors))
+    matched_vendors = {software_slug(selection.document.software_name) for selection in selected}
+    if len(matched_vendors) > 1:
+        raise AmbiguousRuleError(
+            f"source levels match several packaged vendors: {sorted(matched_vendors)}"
+        )
+    software = next(iter(matched_vendors))
     return DetectedRuleSet(
         software=software,
-        version=_version_for(parameters, software),
+        version=_detection_version(parameters, software),
         levels=tuple(selected),
     )
+
+
+def detect_software_rules(
+    source: InputSource,
+    levels: Iterable[QuantificationLevel],
+    *,
+    software: str,
+    checks: Literal["standard", "strict"] = "standard",
+) -> DetectedRuleSet:
+    """Select a known producer's rules by columns alone, retaining unresolved evidence."""
+    vendor = software_slug(software)
+    if not vendor:
+        raise ValueError("software must name the result producer")
+    requested = _requested_levels(levels)
+    matches: dict[QuantificationLevel, list[LevelSelection]] = {level: [] for level in requested}
+    for document in _packaged_documents(frozenset({vendor})):
+        for selection in select_document_levels(document, source, requested, None, checks=checks):
+            rule = document.declared(selection.level).declaration
+            needed = set(rule.requires_search_parameters)
+            for override in rule.search_parameter_overrides:
+                needed.update(override.when_search_parameters)
+            if needed:
+                raise RuleUnavailableError(
+                    f"{document.path}: level {selection.level!r} requires search-parameter "
+                    f"evidence for {sorted(needed)}; software alone cannot resolve this rule"
+                )
+            matches[selection.level].append(selection)
+    selected = _unique_level_matches(matches, requested)
+    if not selected:
+        raise RuleUnavailableError(
+            f"no matching packaged rule for software {vendor!r}, levels {list(requested)}, "
+            f"source {source.path}"
+        )
+    return DetectedRuleSet(software=vendor, version=None, levels=tuple(selected))
 
 
 def select_document_levels(
     document: RuleDocument,
     source: InputSource,
     levels: Iterable[QuantificationLevel],
-    evidence: SearchParameterEvidence,
+    evidence: SearchParameterEvidence | None,
     *,
     checks: Literal["standard", "strict"] = "standard",
 ) -> tuple[LevelSelection, ...]:
@@ -196,6 +244,8 @@ def select_document_levels(
     elsewhere. Renamed files must identify one table through header evidence. Within that
     table, unavailable optional levels remain skippable. Folder validity is checked per
     present table, so a successful sibling cannot conceal a malformed table.
+    ``None`` probes declared rules; the software-only caller must reject any matched
+    search-parameter dependency before returning those selections.
     """
     requested = _requested_levels(levels)
     tables = document.table_levels
@@ -302,7 +352,7 @@ def _direct_table_sources(source: InputSource, filename: str | None) -> tuple[In
 def _detect_table_levels(
     document: RuleDocument,
     requested: tuple[QuantificationLevel, ...],
-    evidence: SearchParameterEvidence,
+    evidence: SearchParameterEvidence | None,
     source: InputSource,
     checks: Literal["standard", "strict"],
 ) -> _TableDetection:
@@ -314,7 +364,11 @@ def _detect_table_levels(
         if level not in document.levels:
             continue
         try:
-            facade = ParseRuleFacade(document, level, evidence)
+            facade = (
+                ParseRuleFacade.from_declared_rule(document, level)
+                if evidence is None
+                else ParseRuleFacade(document, level, evidence)
+            )
         except RuleNotApplicable:
             continue
         declared_name = facade.working_parameters.input.file_name
@@ -373,8 +427,18 @@ def _unique_level_matches(
     return selected
 
 
-def _packaged_documents() -> tuple[RuleDocument, ...]:
-    return tuple(load_rule_document(rule_path) for rule_path in PACKAGED)
+def _packaged_documents(
+    vendors: frozenset[str] | None = None,
+    *,
+    parameter_file: Literal["required", "none"] | None = None,
+) -> tuple[RuleDocument, ...]:
+    documents = (load_rule_document(rule_path) for rule_path in PACKAGED)
+    return tuple(
+        document
+        for document in documents
+        if (vendors is None or software_slug(document.software_name) in vendors)
+        and (parameter_file is None or document.parameter_file == parameter_file)
+    )
 
 
 def _document_matches(document: RuleDocument, source: InputSource) -> bool:
@@ -440,6 +504,18 @@ def _version_for(parameters: Parameters, rule_slug: str) -> str | None:
     if not any(software_name for software_name, _version in candidates):
         return parameters.software_version
     return None
+
+
+def _detection_evidence(parameters: Parameters | None) -> SearchParameterEvidence:
+    """Use unknown search settings only for a declared parameter-free rule."""
+    return (
+        UNKNOWN_SEARCH_PARAMETERS if parameters is None else search_parameter_evidence(parameters)
+    )
+
+
+def _detection_version(parameters: Parameters | None, rule_slug: str) -> str | None:
+    """Parameter-free documents have no software-version evidence to check or report."""
+    return None if parameters is None else _version_for(parameters, rule_slug)
 
 
 def _pattern_admits(pattern: str, version: str) -> bool:

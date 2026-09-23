@@ -7,7 +7,7 @@ import re
 import shutil
 from io import StringIO
 from pathlib import Path
-from typing import Never
+from typing import Literal, Never
 
 import anndata
 import mudata
@@ -109,7 +109,6 @@ def test_packaged_conversion_writes_only_parser_provenance(tmp_path: Path) -> No
         output=target,
         parameters_path=parameters_path,
         software=None,
-        parameters_software=None,
         checks="standard",
     )
 
@@ -137,7 +136,6 @@ def test_packaged_conversion_logs_separate_phase_timings(tmp_path: Path) -> None
             output=tmp_path / "protein.h5ad",
             parameters_path=_parameter_file(pair),
             software=None,
-            parameters_software=None,
             checks="standard",
         )
     finally:
@@ -188,7 +186,6 @@ def test_packaged_conversion_without_a_level_writes_every_compatible_modality(
         output=target,
         parameters_path=parameters_path,
         software=None,
-        parameters_software=None,
         checks="standard",
     )
 
@@ -225,7 +222,6 @@ def test_maxquant_folder_converts_all_tables_in_canonical_order(
         output=target,
         parameters_path=_maxquant_parameters(),
         software=None,
-        parameters_software=None,
         checks="standard",
     )
 
@@ -276,7 +272,6 @@ def test_maxquant_folder_explicit_level_decomposes_only_requested_level(tmp_path
         output=target,
         parameters_path=_maxquant_parameters(),
         software=None,
-        parameters_software=None,
         checks="standard",
     )
 
@@ -295,7 +290,6 @@ def test_maxquant_folder_missing_explicit_level_names_expected_table(tmp_path: P
             output=target,
             parameters_path=_maxquant_parameters(),
             software=None,
-            parameters_software=None,
             checks="standard",
         )
 
@@ -314,7 +308,6 @@ def test_maxquant_folder_malformed_present_table_aborts_before_write(tmp_path: P
             output=target,
             parameters_path=_maxquant_parameters(),
             software=None,
-            parameters_software=None,
             checks="standard",
         )
 
@@ -335,7 +328,6 @@ def test_maxquant_folder_per_level_parse_failure_aborts_before_write(tmp_path: P
             output=target,
             parameters_path=_maxquant_parameters(),
             software=None,
-            parameters_software=None,
             checks="standard",
         )
 
@@ -354,7 +346,7 @@ def test_explicit_rule_config_binds_its_one_document_from_a_folder(tmp_path: Pat
         output=target,
         rule_config=document.parser_v2_path,
         parameters_path=None,
-        parameters_software=None,
+        software=None,
         checks="standard",
     )
 
@@ -363,17 +355,15 @@ def test_explicit_rule_config_binds_its_one_document_from_a_folder(tmp_path: Pat
 
 
 @pytest.mark.parametrize(
-    ("parameters_software", "software", "inferred", "expected"),
+    ("software", "inferred", "expected"),
     (
-        ("params-choice", "software-choice", "source-choice", "params-choice"),
-        (None, "software-choice", "source-choice", "softwarechoice"),
-        (None, None, "source-choice", "source-choice"),
+        ("software-choice", "source-choice", "softwarechoice"),
+        (None, "source-choice", "source-choice"),
     ),
 )
 def test_parameter_parser_selection_precedence(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    parameters_software: str | None,
     software: str | None,
     inferred: str,
     expected: str,
@@ -397,7 +387,6 @@ def test_parameter_parser_selection_precedence(
             output=tmp_path / "out.h5ad",
             parameters_path=tmp_path / "parameters.txt",
             software=software,
-            parameters_software=parameters_software,
             checks="standard",
         )
 
@@ -424,7 +413,7 @@ def test_expected_subsystem_failure_becomes_one_conversion_error(
             output=tmp_path / "out.h5ad",
             rule_config=_diann_v2().parser_v2_path,
             parameters_path=None,
-            parameters_software=None,
+            software=None,
             checks="standard",
         )
 
@@ -449,7 +438,7 @@ def test_unexpected_subsystem_failure_remains_visible(
             output=tmp_path / "out.h5ad",
             rule_config=_diann_v2().parser_v2_path,
             parameters_path=None,
-            parameters_software=None,
+            software=None,
             checks="standard",
         )
 
@@ -462,7 +451,12 @@ def test_duplicate_packaged_matches_are_reported_as_ambiguous(
     document = load_rule_document(pair.parser_v2_path)
     parameters = parse_params(_parameter_file(pair), software="diann")
 
-    def duplicate_document() -> tuple[object, ...]:
+    def duplicate_document(
+        _vendors: frozenset[str] | None = None,
+        *,
+        parameter_file: Literal["required", "none"] | None = None,
+    ) -> tuple[object, ...]:
+        assert parameter_file == "required"
         return (document, document)
 
     monkeypatch.setattr(detection_module, "_packaged_documents", duplicate_document)
@@ -525,8 +519,7 @@ def test_diann_v1_9_parquet_produces_available_levels(tmp_path: Path) -> None:
         data=data,
         output=target,
         parameters_path=fixture_dir / "param_0..txt",
-        software=None,
-        parameters_software="diann",
+        software="diann",
         checks="standard",
     )
 

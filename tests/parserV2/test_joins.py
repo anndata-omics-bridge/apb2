@@ -155,7 +155,7 @@ def test_folder_conversion_joins_all_levels_and_round_trips(tmp_path: Path, suff
         output=tmp_path / f"output{suffix}",
         rule_config=RULES / "maxquant/rules.json",
         parameters_path=None,
-        parameters_software=None,
+        software=None,
         checks="standard",
     )
     assert len(result.levels) == 4
@@ -231,7 +231,7 @@ def test_maxquant_every_nonempty_subset_round_trips_available_levels(
         output=target,
         rule_config=RULES / "maxquant/rules.json",
         parameters_path=None,
-        parameters_software=None,
+        software=None,
         checks="standard",
     )
     assert [item.level for item in summary.levels] == expected_levels
@@ -344,7 +344,7 @@ def test_maxquant_absent_requested_level_fails_without_writing(tmp_path: Path) -
             output=target,
             rule_config=RULES / "maxquant/rules.json",
             parameters_path=None,
-            parameters_software=None,
+            software=None,
             checks="standard",
         )
     assert not target.exists()
@@ -367,7 +367,7 @@ def test_maxquant_one_to_one_experiments_align_to_raw_files(tmp_path: Path, suff
         output=target,
         rule_config=RULES / "maxquant/rules.json",
         parameters_path=None,
-        parameters_software=None,
+        software=None,
         checks="standard",
     )
     assert summary.outputs == (target,)

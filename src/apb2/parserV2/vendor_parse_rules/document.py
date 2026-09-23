@@ -106,6 +106,7 @@ class RuleDocument(ModelBase):
     file_version: str
     software_name: str
     software_version_pattern: str
+    parameter_file: Literal["required", "none"] = "required"
     sample_annotation: SampleAnnotation | None = None
     tables: list[_RuleTableSchema] = Field(min_length=1)
 

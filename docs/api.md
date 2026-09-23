@@ -25,6 +25,21 @@ write_parsed_levels(parsed_levels, Path("results/ion.h5ad"))
 
 Construction binds the physical source, chooses the parameter parser, parses typed parameters, detects compatible rules, and resolves the requested levels. `compile()` returns one `ParserCollection`; `parse()` returns canonical `ParsedLevels` and performs no write. `compiler.parameters` and `compiler.detection` retain the typed parameter and detection results. Storage is selected only by the target passed to `write_parsed_levels()`.
 
+For a ProteoBench Custom upload, use `ParseRuleCompiler(Path("custom.txt"), None, software="pb_custom", requested_levels=("ion",))`. The packaged rule needs no parameter file; `compiler.parameters` is unavailable in this case, while `compiler.detection` still describes the selected rule.
+
+For vendor exports uploaded without search parameters, the Python API provides a separate constructor:
+
+```python
+compiler = ParseRuleCompiler.from_software(
+    Path("combined_ion.tsv"),
+    software="fragpipe",
+    requested_levels=("ion",),
+)
+parsed_levels = compiler.compile().parse()
+```
+
+`software` is required and names the result producer; for DIA-NN output from a FragPipe workflow, use `software="diann"`. APB2 matches the requested levels against that producer's packaged rules using their source columns. Overlapping version rules raise an ambiguity error; a matching rule that requires search settings reports the missing fields, without falling back to another version. `compiler.detection.version` is `None`, `compiler.parameters` is unavailable, and the normal rule provenance remains in the parsed result. This constructor does not change the existing constructor or CLI behavior.
+
 See [Convert vendor results](conversion.md) for rule selection, supported levels, validation, and
 output naming.
 

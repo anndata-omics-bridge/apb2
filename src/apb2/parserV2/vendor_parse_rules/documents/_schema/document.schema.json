@@ -401,6 +401,15 @@
       "title": "Software Version Pattern",
       "type": "string"
     },
+    "parameter_file": {
+      "default": "required",
+      "enum": [
+        "required",
+        "none"
+      ],
+      "title": "Parameter File",
+      "type": "string"
+    },
     "sample_annotation": {
       "anyOf": [
         {

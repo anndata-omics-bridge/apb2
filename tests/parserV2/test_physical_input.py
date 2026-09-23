@@ -433,6 +433,20 @@ def test_a_workbook_with_a_txt_suffix_reads_its_declared_sheet() -> None:
     assert reader.read().frame.columns == ["sequence", "modifications"]
 
 
+@pytest.mark.parametrize("suffix", [".txt", ".xlsx"])
+def test_plain_text_is_rejected_before_workbook_parsing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, suffix: str
+) -> None:
+    path = write(tmp_path / f"input_file{suffix}", "Sample\tFeature\nA\tF\n")
+
+    def unexpected_excel_read(*args: object, **kwargs: object) -> None:
+        pytest.fail("plain text reached the Excel parser")
+
+    monkeypatch.setattr(excel_input.pl, "read_excel", unexpected_excel_read)
+    with pytest.raises(IncompatibleSourceError, match="not a ZIP-based Excel workbook"):
+        excel_input.sheet_header(path, WORKBOOK.sheet_name)
+
+
 def _workbook_sheet(tmp_path: Path, rows: str) -> Path:
     """Replace the data sheet in the committed XLSX fixture, keeping its real container."""
     template = Path(__file__).parent / "data" / "prolinestudio" / "sample.txt"

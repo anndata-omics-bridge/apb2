@@ -31,6 +31,7 @@ EXPECTED_EXTENSIONS = {
     "maxquant": [".txt"],
     "msangel": [".txt", ".xlsx"],
     "peaks": [".csv"],
+    "pb_custom": [".txt", ".tsv"],
     "prolinestudio": [".txt", ".xlsx"],
     "quantms": [".csv"],
     "sage": [".tsv"],

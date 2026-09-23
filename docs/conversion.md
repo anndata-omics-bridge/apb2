@@ -29,8 +29,17 @@ APB2 appends `.h5ad` to the output basename. `LEVEL` is one of:
 
 The [support matrix](supported_software.md#quantification-levels-by-rule) shows which packaged rule documents currently produce each level.
 
-`--software` is normally unnecessary. Use it when parameter evidence or source columns leave more
-than one packaged rule compatible.
+`--software` names the parameter-file grammar and limits result recognition to that vendor plus any quantification software declared in its parameters. For example, `--software fragpipe` reads FragPipe parameters and can select DIA-NN rules for a DIA-NN quantitative export. Parameter software and result software remain distinct in provenance. A mismatch is an error; APB2 does not fall back to unrelated vendors.
+
+Without `--software`, APB2 recognizes the input across parameter-bearing packaged vendors, then parses parameters using the recognized vendor and resolves its rules. Ambiguity is reported explicitly. If a compound workflow uses a different parameter grammar, supply `--software`. Version, header and requested-level checks still apply; an actual workbook named `.txt` remains supported.
+
+ProteoBench Custom ion uploads have no parameter file. The software hint selects their packaged rule directly:
+
+```bash
+apb2 convert CustomFormat_DDA_quant_ions_test.txt ion --software pb_custom --output results/custom
+```
+
+This route accepts the wide Custom table with `Sequence`, `Proteins`, `Charge`, `Modified sequence`, and one quantitative column per run. It does not infer search settings from the table or relax parameter requirements for other software.
 
 ## Convert every compatible level
 
@@ -81,11 +90,11 @@ Parameter evidence remains optional on this route:
 apb2 convert report.tsv ion \
     --rule-config rules.json \
     --params search-parameters.txt \
-    --params-software spectronaut \
+    --software spectronaut \
     --output results/ion
 ```
 
-`--params-software` selects the parameter-file grammar independently of the rule document.
+`--software` selects the parameter-file grammar independently of an explicit rule document. When omitted, the document's software selects that grammar. Explicit documents bypass packaged rule recognition.
 
 Explicit rules support the same directory bundles as packaged detection. Each table group independently selects direct input or preparation before source-column validation. See [rule authoring](rule-based.md#one-software-multiple-input-tables) for the `tables` structure.
 

@@ -40,7 +40,7 @@ def test_committed_sample_converts_to_the_recorded_expectations(key: str, tmp_pa
         output=tmp_path / "converted.h5mu",
         rule_config=_rule_config(key),
         parameters_path=folder / str(params) if params is not None else None,
-        parameters_software=None,
+        software=None,
         checks="standard",
     )
 

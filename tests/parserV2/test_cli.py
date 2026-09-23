@@ -10,7 +10,7 @@ import anndata
 import mudata
 import pytest
 
-from apb2.cli import ConvertCliOptions, convert
+from apb2.cli import ConvertCliOptions, app, convert
 from apb2.command.conversion import ConversionError
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels
 from apb2.parserV2.parse_quant.io.json_representation import sidecar_path
@@ -44,6 +44,15 @@ _DOCUMENT = {
 }
 
 _TSV = "Run\tPrecursor\tIntensity\ns1\tp1\t1.5\ns1\tp2\t2.5\ns2\tp1\t3.5\n"
+
+
+def test_convert_help_exposes_one_software_hint(capsys: pytest.CaptureFixture[str]) -> None:
+    app(["convert", "--help"], exit_on_error=False, result_action="return_value")
+    help_text = capsys.readouterr().out
+    assert "--software" in help_text
+    assert "Software hint" in help_text
+    assert "--params-software" not in help_text
+
 
 _MULTILEVEL_DOCUMENT = {
     "schema_version": "0.8",
@@ -103,6 +112,50 @@ def test_convert_with_rule_config_writes_h5ad(tmp_path: Path) -> None:
         "observations": 2,
         "variables": 2,
     }
+
+
+def test_convert_writes_optional_separate_timing_file(tmp_path: Path) -> None:
+    report = tmp_path / "report.tsv"
+    report.write_text(_TSV, encoding="utf-8")
+    rule_config = tmp_path / "rules.json"
+    rule_config.write_text(json.dumps(_DOCUMENT), encoding="utf-8")
+    timings = tmp_path / "converted.timings.json"
+
+    assert (
+        convert(
+            report,
+            "ion",
+            ConvertCliOptions(
+                rule_config=rule_config,
+                output=tmp_path / "out",
+                timings_output=timings,
+            ),
+        )
+        == 0
+    )
+
+    document = json.loads(timings.read_text(encoding="utf-8"))
+    assert document["format"] == "apb-tool-timings"
+    assert document["format_version"] == 1
+    assert document["tool"] == "apb2"
+    assert document["operation"] == "convert"
+    assert [phase["name"] for phase in document["phases"]] == ["compile", "read", "parse", "write"]
+    assert all(phase["seconds"] >= 0 for phase in document["phases"])
+    assert [level["level"] for level in document["levels"]] == ["ion"]
+    assert "timings" not in anndata.read_h5ad(tmp_path / "out.h5ad").uns
+    assert (
+        convert(
+            report,
+            "ion",
+            ConvertCliOptions(
+                rule_config=rule_config,
+                output=tmp_path / "again",
+                timings_output=timings,
+            ),
+        )
+        == 2
+    )
+    assert not (tmp_path / "again.h5ad").exists()
 
 
 def test_convert_without_a_level_writes_every_rule_level_as_mudata(tmp_path: Path) -> None:
@@ -176,7 +229,7 @@ def test_convert_with_rule_config_does_not_embed_the_parameter_record(tmp_path: 
         "ion",
         ConvertCliOptions(
             params=parameters,
-            params_software="wombat",
+            software="WOMBAT",
             rule_config=rule_config,
             output=tmp_path / "out",
         ),
@@ -275,7 +328,7 @@ def test_convert_invalid_parameters_fail(tmp_path: Path) -> None:
         "ion",
         ConvertCliOptions(
             params=parameters,
-            params_software="wombat",
+            software="wombat",
             rule_config=rule_config,
             output=tmp_path / "out",
         ),

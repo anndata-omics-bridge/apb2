@@ -22,15 +22,14 @@ apb2 convert DATA [LEVEL] [OPTIONS]
 | --- | --- |
 | `DATA` | Vendor result table or directory containing named result tables |
 | `LEVEL` | Optional quantification level; omit it to write every compatible level |
-| `--params PATH` | Vendor search-parameter file |
+| `--params PATH` | Vendor search-parameter file; omit only for an explicit rule or a parameter-free packaged rule |
 | `--rule-config PATH` | Explicit schema-0.8 rule document |
-| `--software NAME` | Disambiguate packaged rule selection |
-| `--params-software NAME` | Select the parameter-file parser independently |
+| `--software NAME` | Parameter-file grammar and result-rule hint; required without `--params` for parameter-free packaged rules such as `pb_custom` |
 | `--format FORMAT` | `hdf5`, `parquet`, or `duckdb`; default `hdf5` |
 | `--output BASENAME` | Output basename without the selected suffix |
 | `--strict` | Promote layer-contract warnings to errors |
 
-One of `--params` or `--rule-config` is required. A directory supplies multi-file table groups. An explicit `LEVEL` selects one decomposition; omission converts all supported levels. HDF5 uses `.h5ad` for an explicit level and `.h5mu` otherwise. Parquet and DuckDB retain their suffixes. Compatible one-to-one observation aliases are aligned; incompatible resolutions get separate key-qualified outputs, such as `result.raw_file.h5mu` and `result.experiment.h5mu`. The CLI reports every actual path; see [output naming](conversion.md#output-naming).
+Use `--params` for ordinary packaged rules, `--software pb_custom` for a parameter-free ProteoBench Custom upload, or `--rule-config` for an explicit rule. A directory supplies multi-file table groups. An explicit `LEVEL` selects one decomposition; omission converts all supported levels. HDF5 uses `.h5ad` for an explicit level and `.h5mu` otherwise. Parquet and DuckDB retain their suffixes. Compatible one-to-one observation aliases are aligned; incompatible resolutions get separate key-qualified outputs, such as `result.raw_file.h5mu` and `result.experiment.h5mu`. The CLI reports every actual path; see [output naming](conversion.md#output-naming).
 
 See [Convert vendor results](conversion.md) for worked examples.
 

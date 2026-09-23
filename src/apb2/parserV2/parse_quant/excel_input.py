@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from zipfile import is_zipfile
 
 import polars as pl
 import polars.selectors as cs
@@ -29,6 +30,8 @@ _DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
 
 def sheet_header(path: Path, sheet_name: str) -> tuple[str, ...]:
     """Inspect the named sheet without materializing its data rows in Python."""
+    if not is_zipfile(path):
+        raise IncompatibleSourceError(f"{path}: not a ZIP-based Excel workbook")
     try:
         frame = pl.read_excel(
             path,

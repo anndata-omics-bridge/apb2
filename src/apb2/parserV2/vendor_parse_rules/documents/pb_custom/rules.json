@@ -1,0 +1,66 @@
+{
+  "schema_version": "0.8",
+  "file_version": "1",
+  "software_name": "pb_custom",
+  "software_version_pattern": "^.*$",
+  "parameter_file": "none",
+  "sample_annotation": {
+    "matching": {
+      "mode": "exact",
+      "normalize": "mass_spec_basename"
+    }
+  },
+  "tables": [
+    {
+      "input": {
+        "shape": "wide",
+        "extensions": [".txt", ".tsv"]
+      },
+      "base": {
+        "axis": {
+          "obs_keys": ["sample"]
+        },
+        "measurements": {
+          "duplicates": {
+            "mode": "error"
+          }
+        },
+        "columns": {
+          "var": [
+            {"name": "Sequence", "source": "Sequence"},
+            {"name": "Proteins", "source": "Proteins", "roles": ["protein_assignment", "fasta_accessions"]},
+            {"name": "Charge", "source": "Charge", "type": "integer"},
+            {"name": "ProForma_peptidoform", "source": "Modified sequence"},
+            {"name": "ProForma_peptide", "source": "Sequence"}
+          ]
+        }
+      },
+      "levels": {
+        "ion": {
+          "axis": {
+            "var_keys": ["ProForma_ion"]
+          },
+          "measurements": {
+            "primary_layer": "Intensity",
+            "layers": [
+              {
+                "name": "Intensity",
+                "source": "^(?P<sample>.+)$",
+                "roles": ["abundance"]
+              }
+            ]
+          },
+          "columns": {
+            "var": [
+              {
+                "name": "ProForma_ion",
+                "inputs": ["ProForma_peptidoform", "Charge"],
+                "how": "proforma_ion"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

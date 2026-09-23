@@ -114,7 +114,7 @@ def test_split_output_conflicts_fail_before_any_write(
             output=target,
             rule_config=rule,
             parameters_path=None,
-            parameters_software=None,
+            software=None,
             checks="standard",
         )
     if existing:
@@ -186,7 +186,7 @@ def test_explicit_multitable_conversion_round_trips_in_canonical_order(
         output=target,
         rule_config=rule,
         parameters_path=None,
-        parameters_software=None,
+        software=None,
         checks="standard",
     )
     assert [item.level for item in summary.levels] == ["ion", "protein"]
@@ -218,7 +218,7 @@ def test_integer_measurements_round_trip_with_canonical_integer_dtype(
         output=target,
         rule_config=rule,
         parameters_path=None,
-        parameters_software=None,
+        software=None,
         checks="standard",
     )
 
@@ -256,7 +256,7 @@ def test_explicit_present_malformed_table_preserves_existing_output(
             output=target,
             rule_config=rule,
             parameters_path=None,
-            parameters_software=None,
+            software=None,
             checks="standard",
         )
     assert target.read_bytes() == b"existing artifact"
@@ -273,7 +273,7 @@ def test_explicit_requested_missing_table_has_focused_error(tmp_path: Path) -> N
             output=tmp_path / "out.h5ad",
             rule_config=rule,
             parameters_path=None,
-            parameters_software=None,
+            software=None,
             checks="standard",
         )
 

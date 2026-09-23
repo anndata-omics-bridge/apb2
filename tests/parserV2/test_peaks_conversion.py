@@ -30,8 +30,7 @@ def test_peaks_fdr_does_not_filter_or_enter_parsed_provenance(
             data=data,
             output=target,
             parameters_path=parameters,
-            software=None,
-            parameters_software="peaks",
+            software="peaks",
             checks="standard",
         )
         assert result.version is None

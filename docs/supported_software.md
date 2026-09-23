@@ -1,9 +1,6 @@
 # Supported software and formats
 
-APB2 selects a packaged conversion rule only when both the software version and the vendor table
-match that rule. The tables below describe the rules shipped with APB2. Version labels are concise
-readings of the match patterns; follow a rule-document link for its exact version expression,
-required source columns, transformations, and output schema.
+APB2 selects a packaged conversion rule when its vendor table matches and, for parameter-bearing rules, its software version matches. The `pb_custom` upload format has no parameter file; select it with `--software pb_custom`. The tables below describe the rules shipped with APB2. Version labels are concise readings of the match patterns; follow a rule-document link for its exact version expression, required source columns, transformations, and output schema.
 
 ## Packaged vendor-table rules
 
@@ -23,6 +20,7 @@ This table has one row per packaged rule document.
 | [MaxQuant](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant/rules.json) | 1.5.x, 1.6.x, or 2.x | `evidence.txt`, `modificationSpecificPeptides.txt`, `peptides.txt`, `proteinGroups.txt` | long / wide | `mqpar.xml` |
 | [MSAngel](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/msangel/rules.json) | 2.x | `Quantified peptide ions` sheet in an XLSX workbook (`.txt` or `.xlsx`) | wide | MSAngel workflow JSON |
 | [PEAKS](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/peaks/rules.json) | 13.x | `.csv` | wide | PEAKS settings text report |
+| [ProteoBench Custom](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/pb_custom/rules.json) | version-free | `.txt`, `.tsv` | wide | none; `--software pb_custom` required |
 | [ProlineStudio](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/prolinestudio/rules.json) | 2.x | `Quantified peptide ions` sheet in an XLSX workbook (`.txt` or `.xlsx`) | wide | parameter sheets in the result workbook |
 | [quantms](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/quantms/rules.json) | 1.x | `.csv` | long | quantms versions YAML |
 | [Sage](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/sage/rules.json) | 0.x | `.tsv` | wide | Sage JSON parameter file |
@@ -31,8 +29,7 @@ This table has one row per packaged rule document.
 | [Spectronaut 21](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/spectronaut/v21/rules.json) | 21.x | `.tsv` | long | Spectronaut settings text report |
 | [WOMBAT](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/wombat/rules.json) | 0.9.11 | `.csv` | wide | WOMBAT YAML parameter file |
 
-`--software` and the Python parameter-parser registry use lower-case software names; DIA-NN accepts
-both `diann` and `dia-nn`.
+`--software` uses lower-case software names; DIA-NN accepts both `diann` and `dia-nn`. The parameter-parser registry applies only to parameter-bearing rules; `pb_custom` is selected directly.
 
 MaxQuant uses two table groups: direct evidence → ion (`Raw_File`), and joined modification-specific peptide, peptide and protein exports → higher levels (`Experiment`). All nonempty subsets work from a vendor-result directory. A complete one-to-one run/experiment mapping aligns observations; fractionated or unmapped inputs produce separate results. See [conversion and output naming](conversion.md#output-naming).
 
@@ -54,6 +51,7 @@ A check mark means that the linked rule document can convert that level. APB2 re
 | [MaxQuant](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant/rules.json) | ✓ | ✓ | ✓ | ✓ | — |
 | [MSAngel](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/msangel/rules.json) | ✓ | — | — | — | — |
 | [PEAKS](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/peaks/rules.json) | ✓ | — | — | — | — |
+| [ProteoBench Custom](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/pb_custom/rules.json) | ✓ | — | — | — | — |
 | [ProlineStudio](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/prolinestudio/rules.json) | ✓ | — | — | — | — |
 | [quantms](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/quantms/rules.json) | ✓ | — | — | — | — |
 | [Sage](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/sage/rules.json) | ✓ | ✓ | — | — | — |

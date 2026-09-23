@@ -22,9 +22,12 @@ class ConvertCliOptions:
 
     params: Path | None = None
     rule_config: Path | None = None
-    software: str | None = None
-    params_software: str | None = None
+    software: Annotated[
+        str | None,
+        Parameter(help="Software hint; required for a parameter-free packaged rule"),
+    ] = None
     output: Path | None = None
+    timings_output: Path | None = None
     storage_format: Annotated[
         Literal["hdf5", "parquet", "duckdb"],
         Parameter(name="--format"),
@@ -50,12 +53,14 @@ def convert(
     A directory supplies a multi-file vendor result together. Levels with incompatible
     observation identities are written separately with observation-key suffixes; one-to-one
     aliases are aligned.
-    --params is the vendor parameter file and is required unless --rule-config is given.
-    --software disambiguates packaged rule detection. --params-software selects the
-    parameter parser independently for compound workflows. --rule-config selects an
+    --params is the vendor parameter file and is required for ordinary packaged rules.
+    --software selects the parameter parser and limits result rules to that vendor and
+    its declared quantification software. For a parameter-free packaged rule such as
+    pb_custom, pass --software without --params. --rule-config selects an
     explicit schema-0.8 document. --format selects hdf5, parquet, or duckdb. --output is a
     basename to which apb2 appends the selected suffix; the name may contain dots, it simply
     must not already carry that suffix. --strict promotes layer-contract warnings to errors.
+    --timings-output writes a separate JSON file of internal conversion phase timings.
     """
     suffixes = _MULTI_LEVEL_SUFFIX if level is None else _SINGLE_LEVEL_SUFFIX
     output_suffix = suffixes[options.storage_format]
@@ -74,6 +79,9 @@ def convert(
         if options.output is None
         else Path(f"{options.output}{output_suffix}")
     )
+    if options.timings_output is not None and options.timings_output.exists():
+        logger.error("timing output already exists: {}", options.timings_output)
+        return 2
     checks = "strict" if options.strict else "standard"
     try:
         if options.rule_config is not None:
@@ -83,7 +91,7 @@ def convert(
                     output=output,
                     rule_config=options.rule_config,
                     parameters_path=options.params,
-                    parameters_software=options.params_software,
+                    software=options.software,
                     checks=checks,
                 )
             else:
@@ -93,12 +101,14 @@ def convert(
                     output=output,
                     rule_config=options.rule_config,
                     parameters_path=options.params,
-                    parameters_software=options.params_software,
+                    software=options.software,
                     checks=checks,
                 )
         else:
-            if options.params is None:
-                logger.error("pass --params (it gives the software version) or --rule-config PATH")
+            if options.params is None and options.software is None:
+                logger.error(
+                    "pass --params, --software for a parameter-free rule, or --rule-config"
+                )
                 return 1
             if level is None:
                 result = conversion.convert_all_from_packaged_rules(
@@ -106,7 +116,6 @@ def convert(
                     output=output,
                     parameters_path=options.params,
                     software=options.software,
-                    parameters_software=options.params_software,
                     checks=checks,
                 )
             else:
@@ -116,7 +125,6 @@ def convert(
                     output=output,
                     parameters_path=options.params,
                     software=options.software,
-                    parameters_software=options.params_software,
                     checks=checks,
                 )
             logger.info(
@@ -124,7 +132,9 @@ def convert(
                 result.software,
                 result.version or "missing",
             )
-    except conversion.ConversionError as error:
+        if options.timings_output is not None:
+            conversion.write_conversion_timings(result.timings, options.timings_output)
+    except (conversion.ConversionError, OSError) as error:
         logger.error(str(error))
         return 1
     _log_result(result)

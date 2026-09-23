@@ -1,5 +1,13 @@
 # Changes
 
+- 2026-09-23: Added the Python-only `ParseRuleCompiler.from_software()` constructor for vendor results uploaded without parameter files. It reuses packaged column/rule matching, requires an explicit result producer, and rejects ambiguous versions or missing scientific evidence without older-rule fallback. No CLI behavior changed.
+
+- 2026-09-23: Added the ProteoBench Custom wide ion-upload fixture and packaged `pb_custom` rule. `apb2 convert ... ion --software pb_custom` now selects that rule without a parameter file; other packaged rules still require their vendor parameters. The fixture records six runs and 8,493 ions.
+
+- 2026-09-21: **Breaking:** conversion has one optional `--software` hint, selecting parameter-file grammar and restricting packaged result probes to that vendor and its declared quantification software. Removed `--params-software` and compiler `parameters_software`; FragPipe parameters can still select DIA-NN results. Unhinted recognition scans all vendors but resolves only plausible rules afterward; mismatches never trigger a global fallback and ambiguous vendors are explicit errors. Explicit rules retain their own selection. No persisted-format or scientific-output change.
+
+- 2026-09-21: `apb2 convert --timings-output PATH` now optionally publishes a versioned, atomic JSON file of internal phase and per-level timings. The file is separate from the APB result and scientific representation; existing INFO logs remain unchanged.
+
 - 2026-09-21: `apb2 convert` now logs separate wall times for rule compilation, bound input reading, parsing (including observation alignment), and result writing, with read/parse timings for each selected level. Multi-file source preparation occurs during compilation and is included in that phase; the measured read phase covers each compiled level's bound reader. No result format or conversion semantics changed.
 
 - 2026-09-18: Added the normative [APB metadata specification](docs/metadata_specification.md), separating APB2-owned storage/ownership invariants from tool-owned payload schemas. Linked the I/O and architecture guides to it, corrected stale version and annotation paths, and documented existing checks plus remaining read/write-envelope validation gaps. Documentation only; no runtime or format change.

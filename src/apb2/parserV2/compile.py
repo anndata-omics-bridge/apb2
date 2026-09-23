@@ -4,20 +4,21 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Self
 
 from apb2.parserV2.detect_document import (
     DetectedRuleSet,
     LevelSelection,
     RuleUnavailableError,
     detect_rule_documents,
+    detect_software_rules,
     guess_software,
     select_document_levels,
     software_slug,
 )
 from apb2.parserV2.parse_quant.parameters.source import Folder, InputSource, SingleFile
 from apb2.parserV2.parse_quant.parser import ParserCollection
-from apb2.parserV2.vendor_params.parsers.shared.model import Parameters
+from apb2.parserV2.vendor_params.parsers.shared.model import Parameters, ParamsError
 from apb2.parserV2.vendor_params.registry import parse_params
 from apb2.parserV2.vendor_parse_rules.document import RuleDocument, SearchParameterEvidence
 from apb2.parserV2.vendor_parse_rules.schema.base import LEVELS, QuantificationLevel
@@ -33,22 +34,22 @@ class ParseRuleCompiler:
     def __init__(
         self,
         data: Path,
-        parameters_path: Path,
+        parameters_path: Path | None,
         *,
         requested_levels: Iterable[QuantificationLevel] | None = None,
         checks: ValidationChecks = "standard",
         software: str | None = None,
-        parameters_software: str | None = None,
     ) -> None:
         """Resolve the source, parameters, vendor rules, and selected levels.
 
         Args:
             data: Vendor result table or canonical multi-file result directory.
-            parameters_path: Vendor search-parameter file.
+            parameters_path: Vendor search-parameter file, or ``None`` for a packaged
+                parameter-free rule selected by ``software``.
             requested_levels: Quantification levels to compile.
             checks: Canonical layer validation level applied during parsing.
-            software: Optional vendor slug to select and verify.
-            parameters_software: Optional independent parameter-parser slug.
+            software: Parameter-file software, or the parameter-free rule to select;
+                limits result rules to that vendor and its declared quantification software.
 
         Raises:
             ValueError: The level request is empty or duplicated.
@@ -56,26 +57,64 @@ class ParseRuleCompiler:
         """
         levels = _validated_levels(LEVELS if requested_levels is None else requested_levels)
         source = _input_source(data)
-        requested_software = None if software is None else software_slug(software)
-        parameter_parser = parameters_software or requested_software or guess_software(source)
-        if parameter_parser is None:
-            raise RuleUnavailableError(
-                f"could not auto-detect the vendor for {data}; pass software= or use an "
-                "explicit rule document"
+        if parameters_path is None:
+            if software is None:
+                raise RuleUnavailableError(
+                    "parameter-free packaged conversion requires --software (software= in Python)"
+                )
+            parameters = None
+            vendors = frozenset({software_slug(software)})
+        else:
+            parameter_software = (
+                guess_software(source) if software is None else software_slug(software)
             )
-        parameters = parse_params(parameters_path, software=parameter_parser)
-        detection = detect_rule_documents(parameters, source, levels, checks=checks)
-        if requested_software is not None and detection.software != requested_software:
-            raise RuleUnavailableError(
-                f"software {requested_software!r} does not match the detected vendor "
-                f"{detection.software!r}"
+            try:
+                parameters = parse_params(parameters_path, software=parameter_software)
+            except ParamsError as error:
+                raise ParamsError(
+                    f"cannot parse {parameters_path} as {parameter_software}: {error}; "
+                    "use --software (software= in Python) to select the parameter-file grammar"
+                ) from error
+            vendors = frozenset(
+                software_slug(name)
+                for name in (parameter_software, parameters.quantification_software)
+                if name is not None
             )
+        detection = detect_rule_documents(
+            parameters, source, levels, vendors=vendors, checks=checks
+        )
         self._parameters = parameters
         self._detection = detection
 
+    @classmethod
+    def from_software(
+        cls,
+        data: Path,
+        *,
+        software: str,
+        requested_levels: Iterable[QuantificationLevel] | None = None,
+        checks: ValidationChecks = "standard",
+    ) -> Self:
+        """Compile a known result producer's export without a parameter file.
+
+        Column matching must identify one rule per requested level without search
+        settings. Ambiguous versions or missing scientific evidence raise an error.
+        ``software`` names the result producer, not a compound workflow's parameter
+        software. The detected version is ``None`` and ``parameters`` is unavailable.
+        """
+        levels = _validated_levels(LEVELS if requested_levels is None else requested_levels)
+        compiler = cls.__new__(cls)
+        compiler._detection = detect_software_rules(
+            _input_source(data), levels, software=software, checks=checks
+        )
+        compiler._parameters = None
+        return compiler
+
     @property
     def parameters(self) -> Parameters:
-        """Typed vendor parameters used for rule detection."""
+        """Typed vendor parameters used for rule detection, when supplied."""
+        if self._parameters is None:
+            raise ValueError("this conversion has no vendor parameter file")
         return self._parameters
 
     @property
