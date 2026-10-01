@@ -152,12 +152,6 @@
                 "required": false
               },
               {
-                "name": "Protein_Group_QValue",
-                "source": "pg_qval",
-                "type": "number",
-                "required": false
-              },
-              {
                 "name": "ProForma_peptidoform",
                 "inputs": [
                   "Sequence",

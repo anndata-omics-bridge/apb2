@@ -508,4 +508,4 @@ def test_cli_directory_joins_before_ion_conversion(tmp_path: Path) -> None:
     assert parsed.layers["Intensity"].values.row(0)[1:] == (12.0, None)
     assert parsed.layers["QValue"].values.row(0)[1:] == (0.001, 0.002)
     assert parsed.layers["Proba"].values.row(0)[1:] == (0.1, 0.2)
-    assert parsed.var.frame["Protein_Group_QValue"].to_list() == [0.01]
+    assert "Protein_Group_QValue" not in parsed.var.frame.columns

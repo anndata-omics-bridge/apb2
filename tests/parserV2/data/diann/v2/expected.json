@@ -22,7 +22,9 @@
       "variables": 125,
       "layers": [
         "PG_MaxLFQ",
-        "Genes_MaxLFQ"
+        "Genes_MaxLFQ",
+        "PG_Q_Value",
+        "PG_PEP"
       ]
     }
   }

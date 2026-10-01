@@ -1,5 +1,9 @@
 # Changes
 
+- 2026-10-01: The AlphaDIA 1.12 rule no longer retains `pg_qval` as ion var column `Protein_Group_QValue`: it is a global protein-group value, carried since the parser v2 port without a recorded reason, and the precursor TSV has no protein quantity to give it a protein level. The AlphaDIA 1.12 ion fingerprint changes. AlphaDIA 2.x moves `pg.qval` from ion var to a new protein level keyed by `pg.name` (roles `protein_assignment`, `fasta_accessions`), quantified by `pg.intensity` as layer `PG_Intensity`, with `pg.master_protein`; `pg.proteins` and `pg.genes` stay on ion because they differ between precursors of one group. The AlphaDIA 2.x ion fingerprint changes and a protein level appears.
+
+- 2026-10-01: DIA-NN protein levels retain the run-specific protein-group q-value as layer `PG_Q_Value` (1.7, 1.8/1.9 and 2.x) and its posterior error probability as layer `PG_PEP` (2.x; the 1.7 and 1.8 fixtures carry no `PG.PEP`). Effective-rule fingerprints of all three DIA-NN protein levels change. `Global.PG.Q.Value` remains unretained.
+
 - 2026-10-01: DIA-NN 1.8/1.9 and 2.x rules retain the run-specific precursor posterior error probability as ion layer `PEP`, declared like `Q_Value`; DIA-NN 1.7 reports carry no `PEP` column, so that rule is unchanged. The PEAKS rule retains the per-feature identification score `-10LgP` as the numeric var column `Minus_10LgP`. Effective-rule fingerprints of the DIA-NN 1.8 ion, DIA-NN 2.x ion and PEAKS ion levels change. `Global.Q.Value`, `PG.Q.Value` and `PG.PEP` remain unretained.
 
 - 2026-09-23: Added the Python-only `ParseRuleCompiler.from_software()` constructor for vendor results uploaded without parameter files. It reuses packaged column/rule matching, requires an explicit result producer, and rejects ambiguous versions or missing scientific evidence without older-rule fallback. No CLI behavior changed.

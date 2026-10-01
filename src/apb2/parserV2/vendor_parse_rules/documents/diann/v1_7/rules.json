@@ -295,6 +295,10 @@
                 "roles": [
                   "abundance"
                 ]
+              },
+              {
+                "name": "PG_Q_Value",
+                "source": "PG.Q.Value"
               }
             ]
           },

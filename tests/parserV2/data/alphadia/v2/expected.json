@@ -13,6 +13,13 @@
         "Proba",
         "RT_Observed"
       ]
+    },
+    "protein": {
+      "observations": 1,
+      "variables": 331,
+      "layers": [
+        "PG_Intensity"
+      ]
     }
   }
 }

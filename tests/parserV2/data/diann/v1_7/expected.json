@@ -21,7 +21,8 @@
       "layers": [
         "PG_Normalised",
         "PG_Quantity",
-        "Genes_MaxLFQ"
+        "Genes_MaxLFQ",
+        "PG_Q_Value"
       ]
     },
     "fragment": {

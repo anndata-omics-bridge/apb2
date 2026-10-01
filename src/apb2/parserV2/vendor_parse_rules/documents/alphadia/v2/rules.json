@@ -141,12 +141,6 @@
                 "required": false
               },
               {
-                "name": "Protein_Group_QValue",
-                "source": "pg.qval",
-                "type": "number",
-                "required": false
-              },
-              {
                 "name": "Mz_Observed",
                 "source": "precursor.mz.observed",
                 "type": "number",
@@ -186,6 +180,53 @@
                   "Charge"
                 ],
                 "how": "proforma_ion"
+              }
+            ]
+          }
+        },
+        "protein": {
+          "axis": {
+            "var_keys": [
+              "Protein_Group"
+            ]
+          },
+          "measurements": {
+            "primary_layer": "PG_Intensity",
+            "duplicates": {
+              "mode": "keep_first"
+            },
+            "layers": [
+              {
+                "name": "PG_Intensity",
+                "source": "pg.intensity",
+                "roles": [
+                  "abundance"
+                ],
+                "missing_values": [
+                  0
+                ]
+              }
+            ]
+          },
+          "columns": {
+            "var": [
+              {
+                "name": "Protein_Group",
+                "source": "pg.name",
+                "roles": [
+                  "protein_assignment",
+                  "fasta_accessions"
+                ]
+              },
+              {
+                "name": "Protein_Group_Master",
+                "source": "pg.master_protein"
+              },
+              {
+                "name": "Protein_Group_QValue",
+                "source": "pg.qval",
+                "type": "number",
+                "required": false
               }
             ]
           }
