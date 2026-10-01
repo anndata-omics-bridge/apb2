@@ -802,6 +802,93 @@ def test_tool_namespaces_preserve_overlapping_ownership_and_empty_objects(
         assert "provenance" not in representation["levels"][0]["apb"]["tool"]
 
 
+@pytest.mark.parametrize("suffix", [".h5ad", ".h5mu", ".parquet", ".duckdb"])
+@pytest.mark.parametrize(
+    "value",
+    [
+        pytest.param({"levels": [{"level": "ion", "fingerprint": None}]}, id="record-list"),
+        pytest.param([{}], id="empty-record"),
+        pytest.param(["a", None], id="text-with-null"),
+        pytest.param([[1, 2], [3]], id="ragged-lists"),
+        pytest.param([1, "a"], id="integer-and-text"),
+        pytest.param([1, 2.5], id="integer-and-float"),
+        pytest.param([True, 1], id="boolean-and-integer"),
+        pytest.param(2**70, id="integer-beyond-64-bits"),
+        pytest.param([2**70, 1], id="integers-beyond-64-bits"),
+        pytest.param("a\x00b", id="text-with-nul"),
+        pytest.param({"LFQ/Intensity": 1, ".": 2, "": 3, "a\x00b": 4}, id="unlinkable-keys"),
+        pytest.param('[1, "a"]', id="json-looking-text"),
+        pytest.param(["a", "b"], id="native-text-list"),
+    ],
+)
+def test_extension_json_values_round_trip_through_every_result_format(
+    tmp_path: Path, suffix: str, value: JsonValue
+) -> None:
+    level = _level("ion", "Ion")
+    level.metadata = {"tool": {"local": value}}
+    parsed = ParsedLevels(levels={"ion": level}, uns={}, metadata={"tool": {"shared": value}})
+    target = tmp_path / f"result{suffix}"
+    write_parsed_levels(parsed, target)
+    restored = read_parsed_levels(target)
+    # JSON text distinguishes 1 from 1.0 and True, which list equality does not.
+    assert json.dumps(restored.metadata, sort_keys=True) == json.dumps(
+        parsed.metadata, sort_keys=True
+    )
+    assert json.dumps(restored.levels["ion"].metadata, sort_keys=True) == json.dumps(
+        level.metadata, sort_keys=True
+    )
+
+
+def test_h5ad_stores_only_unstorable_values_as_recorded_json_text(tmp_path: Path) -> None:
+    parsed = ParsedLevels(levels={"ion": _level("ion", "Ion")}, uns={})
+    parsed.metadata["catalog"] = {"levels": [{"level": "ion"}], "names": ["a", "b"]}
+    target = tmp_path / "result.h5ad"
+    write_parsed_levels(parsed, target)
+    apb = anndata.read_h5ad(target).uns["apb"]
+    assert json.loads(apb["catalog"]["levels"]) == [{"level": "ion"}]
+    assert isinstance(apb["catalog"]["names"], np.ndarray)
+    assert json.loads(apb["storage"])["json_values"] == [["catalog", "levels"]]
+
+
+@pytest.mark.parametrize(
+    ("json_values", "message"),
+    [
+        ([["catalog", "levels"], ["catalog", "levels"]], "does not name stored text"),
+        ([["catalog", "levels"], ["catalog", "names"]], "does not name stored text"),
+        ([["catalog", "levels"], ["catalog", "absent"]], "does not name stored text"),
+        ([["catalog", "levels"], ["catalog", "text"]], "invalid JSON value"),
+        ([["catalog", "levels"], ["catalog", "number"]], "do not describe"),
+    ],
+)
+def test_h5_reader_rejects_json_value_paths_that_do_not_match_the_metadata(
+    tmp_path: Path, json_values: list[list[str]], message: str
+) -> None:
+    parsed = ParsedLevels(levels={"ion": _level("ion", "Ion")}, uns={})
+    parsed.metadata["catalog"] = {
+        "levels": [{"level": "ion"}],
+        "names": ["a", "b"],
+        "text": "plain",
+        "number": "1",
+    }
+    target = tmp_path / "result.h5ad"
+    write_parsed_levels(parsed, target)
+    stored = anndata.read_h5ad(target)
+    descriptor = json.loads(stored.uns["apb"]["storage"])
+    descriptor["json_values"] = json_values
+    stored.uns["apb"]["storage"] = json.dumps(descriptor)
+    stored.write_h5ad(target)
+    with pytest.raises(InvalidResultError, match=message):
+        read_parsed_levels(target)
+
+
+def test_h5_writer_rejects_a_section_name_hdf5_cannot_link(tmp_path: Path) -> None:
+    parsed = ParsedLevels(levels={"ion": _level("ion", "Ion")}, uns={}, metadata={"a/b": 1})
+    target = tmp_path / "result.h5ad"
+    with pytest.raises(InvalidResultError, match="cannot name an HDF5 group"):
+        write_parsed_levels(parsed, target)
+    assert not target.exists()
+
+
 def test_single_level_export_from_h5mu_retains_root_provenance(tmp_path: Path) -> None:
     source = tmp_path / "collection.h5mu"
     target = tmp_path / "ion.h5ad"

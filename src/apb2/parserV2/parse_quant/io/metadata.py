@@ -27,7 +27,7 @@ PARSE_NAMESPACE = "parse"
 ROLES_NAMESPACE = "roles"
 STORAGE_NAMESPACE = "storage"
 RESULT_FORMAT = "apb2-parsed-levels"
-RESULT_FORMAT_VERSION = "4"
+RESULT_FORMAT_VERSION = "5"
 
 PARQUET_FORMAT = "apb2-parsed-levels-parquet"
 PARQUET_FORMAT_VERSION = "5"

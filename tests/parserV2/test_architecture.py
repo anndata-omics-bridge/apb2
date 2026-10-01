@@ -393,6 +393,7 @@ def test_only_physical_result_adapters_reach_for_storage_backends() -> None:
         expected_by_module = {
             "anndata_reader.py": {"pandas", "numpy", "anndata", "mudata", "scipy"},
             "anndata_writer.py": {"pandas", "numpy", "anndata", "mudata", "scipy"},
+            "uns_json.py": {"numpy"},
             "duckdb.py": {"duckdb"},
         }
         expected = expected_by_module.get(path.name, set())

@@ -33,7 +33,6 @@ from apb2.parserV2.parse_quant.io.metadata import (
     NAMESPACE,
     RESULT_FORMAT,
     RESULT_FORMAT_VERSION,
-    STORAGE_NAMESPACE,
     collection_shared_scope,
     compose_metadata,
     layer_semantics_metadata,
@@ -42,6 +41,7 @@ from apb2.parserV2.parse_quant.io.metadata import (
     safe_names,
     shared_scope,
 )
+from apb2.parserV2.parse_quant.io.uns_json import UnsJsonCodec
 from apb2.parserV2.parse_quant.io.validation import validate_parsed_level, validate_parsed_levels
 
 KEY_SEPARATOR = "_"
@@ -565,10 +565,9 @@ def _write_level_namespaces(
     shared: Mapping[str, JsonValue] | None,
 ) -> None:
     namespace, ownership = compose_metadata(shared or {}, level)
-    namespace[STORAGE_NAMESPACE] = json.dumps(
-        {**storage, "metadata_ownership": ownership}, ensure_ascii=False, allow_nan=False
+    target.uns[NAMESPACE] = UnsJsonCodec().encode(
+        namespace, {**storage, "metadata_ownership": ownership}
     )
-    target.uns[NAMESPACE] = namespace
 
 
 def _write_namespaces(
@@ -578,10 +577,7 @@ def _write_namespaces(
     storage: Mapping[str, JsonValue],
 ) -> None:
     """Store canonical shared metadata and a nonduplicating physical descriptor."""
-    target.uns[NAMESPACE] = {
-        **shared,
-        STORAGE_NAMESPACE: json.dumps(storage, ensure_ascii=False, allow_nan=False),
-    }
+    target.uns[NAMESPACE] = UnsJsonCodec().encode(shared, storage)
 
 
 def _write_atomically(target: Path, write: Callable[[Path], None]) -> None:

@@ -58,6 +58,8 @@ ProteoBench scoring must preserve existing annotation. Common versions, methods 
 
 The primary quantity's only physical matrix must be `X`; `adata.layers` contains additional matrices. Its original logical name remains in the descriptor and is displayed as, for example, `Intensity · X`. Roles are explicit semantic metadata, not instructions to choose another primary matrix.
 
+AnnData stores each `uns` list as one NumPy array and each key as an HDF5 link name, so h5ad and h5mu must store a value as JSON text when AnnData cannot hold it exactly. Such values are lists that are not empty and not one scalar type, integers outside 64 bits, text containing NUL, and mappings with a key that is empty, `.`, or contains `/` or NUL. The storage descriptor's `json_values` lists their key-segment paths, and readers decode exactly those paths. Every other mapping stays a native `uns` group. A top-level section name HDF5 cannot link is rejected. All `uns["apb"]` writes go through `UnsJsonCodec`.
+
 Parquet and DuckDB manifests must use collection `apb` and per-level `apb` records. Unknown extension metadata must survive storage; APB2 must not import FASTA or ProteoBench implementations to interpret it. `parse`, `roles` and `storage` are APB2-owned; collection `annotation_tables` and `feature_relations` are reserved. Retired `shared`/`level` envelopes are not extension slots.
 
 Representation must reuse persistence projections. Collection documents expose `root.apb` and local `levels[].apb`; H5AD exposes `root: null` and the combined namespace once. No `shared` field or displayed storage value is permitted. The sidecar is a derived, bounded view, never part of `uns`; see [its lifecycle and redaction rules](result_io.md#compact-json-representation). Consumers must not independently merge metadata trees.
@@ -66,9 +68,9 @@ Representation must reuse persistence projections. Collection documents expose `
 
 | Persisted component | Current version |
 |---|---|
-| HDF5 storage descriptor | `3` |
-| Parquet manifest | `4` |
-| DuckDB manifest | `3` |
+| HDF5 storage descriptor | `5` |
+| Parquet manifest | `5` |
+| DuckDB manifest | `4` |
 | Representation document | `4` |
 
 Readers and writers must change together and reject unsupported older layouts explicitly. No aliases or automatic migrations are provided. Tool payload versions remain independently owned; a parsing-rule schema version is not a result-storage version. Historical artifacts must not be rewritten as a side effect of reading or viewing them.

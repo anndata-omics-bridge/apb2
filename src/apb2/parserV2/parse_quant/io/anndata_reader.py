@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Mapping
 from pathlib import Path
 from typing import cast
@@ -36,7 +35,6 @@ from apb2.parserV2.parse_quant.io.metadata import (
     RESULT_FORMAT,
     RESULT_FORMAT_VERSION,
     ROLES_NAMESPACE,
-    STORAGE_NAMESPACE,
     layer_role_from_metadata,
     layer_semantics_from_metadata,
     object_mapping,
@@ -45,6 +43,7 @@ from apb2.parserV2.parse_quant.io.metadata import (
     string_list,
     string_value,
 )
+from apb2.parserV2.parse_quant.io.uns_json import UnsJsonCodec
 from apb2.parserV2.parse_quant.io.validation import validate_parsed_levels
 
 
@@ -60,7 +59,7 @@ class H5adReader:
             raise InvalidResultError(f"cannot read h5ad result {source}: {error}") from error
         metadata = _result_metadata(stored)
         root_scope, level_scope = split_metadata(
-            _scientific_namespace(stored), metadata.get("metadata_ownership")
+            _scientific_namespace(stored, metadata), metadata.get("metadata_ownership")
         )
         level_name, level = _read_level(stored, metadata, level_scope)
         shared_uns, shared_metadata = _shared_scope(root_scope)
@@ -93,8 +92,9 @@ class H5muReader:
             if name not in LEVEL_ORDER or physical_name not in stored.mod:
                 raise InvalidResultError(f"h5mu declares unavailable level {name!r}")
             modality = cast(AnnData, stored[physical_name])
+            modality_metadata = _result_metadata(modality)
             level_name, level = _read_level(
-                modality, _result_metadata(modality), _scientific_namespace(modality)
+                modality, modality_metadata, _scientific_namespace(modality, modality_metadata)
             )
             if level_name != name:
                 raise InvalidResultError(
@@ -102,7 +102,7 @@ class H5muReader:
                 )
             levels[level_name] = level
             level_names[name] = physical_name
-        shared_uns, shared_metadata = _shared_scope(_scientific_namespace(stored))
+        shared_uns, shared_metadata = _shared_scope(_scientific_namespace(stored, metadata))
         annotation_tables, annotation_names = _annotation_tables(stored, metadata, shared_metadata)
         expected_modalities = set(level_names.values()).union(annotation_names.values())
         if expected_modalities != set(stored.mod):
@@ -408,14 +408,7 @@ def _dense(value: object) -> np.ndarray:
 
 
 def _result_metadata(stored: AnnData | mudata.MuData) -> Mapping[str, object]:
-    namespace = object_mapping(stored.uns.get(NAMESPACE), f"uns[{NAMESPACE!r}]")
-    raw = namespace.get(STORAGE_NAMESPACE)
-    if not isinstance(raw, str):
-        raise InvalidResultError("h5 result has no APB2 storage descriptor")
-    try:
-        metadata = object_mapping(json.loads(raw), "APB2 storage descriptor")
-    except json.JSONDecodeError as error:
-        raise InvalidResultError(f"invalid APB2 storage descriptor: {error}") from error
+    metadata = UnsJsonCodec().storage(_namespace(stored))
     if metadata.get("format") != RESULT_FORMAT:
         raise InvalidResultError(f"h5 object is not an {RESULT_FORMAT} result")
     if metadata.get("format_version") != RESULT_FORMAT_VERSION:
@@ -425,12 +418,14 @@ def _result_metadata(stored: AnnData | mudata.MuData) -> Mapping[str, object]:
     return metadata
 
 
-def _scientific_namespace(stored: AnnData | mudata.MuData) -> dict[str, JsonValue]:
-    namespace = object_mapping(stored.uns.get(NAMESPACE), f"uns[{NAMESPACE!r}]")
-    return _json_object(
-        {key: value for key, value in namespace.items() if key != STORAGE_NAMESPACE},
-        "APB metadata",
-    )
+def _scientific_namespace(
+    stored: AnnData | mudata.MuData, metadata: Mapping[str, object]
+) -> dict[str, JsonValue]:
+    return UnsJsonCodec().decode(_namespace(stored), metadata)
+
+
+def _namespace(stored: AnnData | mudata.MuData) -> Mapping[str, object]:
+    return object_mapping(stored.uns.get(NAMESPACE), f"uns[{NAMESPACE!r}]")
 
 
 def _shared_scope(
@@ -458,7 +453,7 @@ def _level_scope(
 
 def _shared_extensions(metadata: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
     return {
-        key: _json_value(value)
+        key: value
         for key, value in metadata.items()
         if key not in {"annotation_tables", "feature_relations"}
     }
@@ -471,19 +466,4 @@ def _ordered_entries(value: object, role: str) -> list[Mapping[str, object]]:
 
 
 def _json_object(value: object, role: str) -> dict[str, JsonValue]:
-    mapping = object_mapping(value, role)
-    return {key: _json_value(item) for key, item in mapping.items()}
-
-
-def _json_value(value: object) -> JsonValue:
-    if value is None or isinstance(value, bool | int | float | str):
-        return value
-    if isinstance(value, np.generic):
-        return _json_value(value.item())
-    if isinstance(value, np.ndarray):
-        return [_json_value(item) for item in value.tolist()]
-    if isinstance(value, list | tuple):
-        return [_json_value(item) for item in value]
-    if isinstance(value, Mapping):
-        return {str(key): _json_value(item) for key, item in value.items()}
-    raise InvalidResultError(f"h5 metadata contains unsupported {type(value).__name__}")
+    return cast(dict[str, JsonValue], dict(object_mapping(value, role)))

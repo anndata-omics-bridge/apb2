@@ -145,4 +145,6 @@ through without encoding them again, but it cannot recover the original layer to
 
 The logical primary layer is physically stored only in `X`; it is not duplicated in `adata.layers`. APB2 restores its logical name when reading the storage descriptor. Direct AnnData consumers therefore use `adata.X` for the primary values and `adata.layers` only for additional layers.
 
+Metadata in `uns["apb"]` stays native mappings, scalars and single-type arrays. A value AnnData cannot store exactly is stored as JSON text instead: for example a list of records, a list mixing types or containing nulls, or a mapping whose key contains `/`. The storage descriptor's `json_values` names each such path, and APB2's readers restore the original values.
+
 See the [Python API](api.md) for signatures and result types.
