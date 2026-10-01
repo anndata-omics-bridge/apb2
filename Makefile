@@ -1,5 +1,6 @@
 VENV_BIN := .venv/bin
-DOCS_PORT ?= 8000
+DOCS_PORT ?= 8101
+SERVE_ON_PORT ?= $(wildcard $(HOME)/projects/bin/serve-on-port)
 
 # Corpus-backed tests run when a downloaded vendor corpus is present; they skip otherwise.
 # The store is owned and downloaded by apb_studio's Fixture Manager.
@@ -45,11 +46,11 @@ docs:  ## Build user documentation with strict warnings
 	uv run --frozen --group docs zensical build --clean --strict
 
 docs-serve:  ## Serve user documentation locally
-	uv run --frozen --group docs zensical serve
+	SERVE_PORT=$(DOCS_PORT) $(SERVE_ON_PORT) uv run --frozen --group docs zensical serve -a localhost:$(DOCS_PORT)
 
 docs-serve-public:  ## Serve the prebuilt public directory without rebuilding
 	@test -f public/index.html || (echo "public/index.html is missing; run 'make docs' first" >&2; exit 1)
-	$(VENV_BIN)/python -m http.server $(DOCS_PORT) --directory public
+	SERVE_PORT=$(DOCS_PORT) $(SERVE_ON_PORT) $(VENV_BIN)/python -m http.server $(DOCS_PORT) --directory public
 
 check:  ## Run every merge-blocking quality gate
 	uv lock --check
