@@ -8,7 +8,7 @@ import polars as pl
 
 _KEY = "mod_seq_charge_hash"
 _IDENTITY = ("sequence", "charge", "mods", "mod_sites", "genes", "decoy")
-_ANNOTATIONS = (*_IDENTITY, "proteins", "pg", "pg_master", "channel")
+_ANNOTATIONS = (*_IDENTITY, "proteins", "pg", "pg_master", "pg_qval", "channel")
 
 
 def identify(headers: Mapping[str, tuple[str, ...]]) -> dict[str, str]:
@@ -27,8 +27,10 @@ def identify(headers: Mapping[str, tuple[str, ...]]) -> dict[str, str]:
 def join(tables: Mapping[str, pl.DataFrame]) -> pl.DataFrame:
     """Enrich authoritative matrix values, returning the long table described by the rule.
 
-    The secondary table supplies only feature metadata, never substitute intensities.
-    A precursor-only input already has the prepared long layout.
+    The matrix supplies the rows and their intensities. The secondary table supplies feature
+    metadata by hash and its per-run identification values, such as q-values, by hash and
+    run, never substitute intensities. A precursor-only input already has the prepared long
+    layout.
     """
     if "precursors" not in tables:
         raise ValueError("AlphaDIA matrix requires its precursor metadata companion")
@@ -36,10 +38,13 @@ def join(tables: Mapping[str, pl.DataFrame]) -> pl.DataFrame:
     if "matrix" not in tables:
         return precursors
     matrix = tables["matrix"]
-    metadata = precursors.select(_KEY, *(c for c in _ANNOTATIONS if c in precursors.columns))
-    metadata = metadata.unique(maintain_order=True)
+    annotations = [column for column in _ANNOTATIONS if column in precursors.columns]
+    metadata = precursors.select(_KEY, *annotations).unique(maintain_order=True)
     if metadata[_KEY].null_count() or metadata[_KEY].is_duplicated().any():
         raise ValueError("AlphaDIA precursor metadata has missing hashes or conflicting identities")
+    per_run = precursors.drop(*annotations, "intensity", strict=False)
+    if per_run.select(_KEY, "run").is_duplicated().any():
+        raise ValueError("AlphaDIA precursor metadata has duplicate hash and run rows")
     if matrix[_KEY].null_count() or matrix[_KEY].is_duplicated().any():
         raise ValueError("AlphaDIA matrix has missing or duplicate precursor hashes")
     missing = matrix.select(_KEY).join(metadata.select(_KEY), on=_KEY, how="anti")
@@ -48,6 +53,8 @@ def join(tables: Mapping[str, pl.DataFrame]) -> pl.DataFrame:
     samples = [column for column in matrix.columns if column != _KEY]
     if not samples:
         raise ValueError("AlphaDIA matrix has no quantitative sample columns")
-    return matrix.unpivot(on=samples, index=_KEY, variable_name="run", value_name="intensity").join(
-        metadata, on=_KEY, how="left", validate="m:1", maintain_order="left"
+    return (
+        matrix.unpivot(on=samples, index=_KEY, variable_name="run", value_name="intensity")
+        .join(metadata, on=_KEY, how="left", validate="m:1", maintain_order="left")
+        .join(per_run, on=[_KEY, "run"], how="left", validate="1:1", maintain_order="left")
     )

@@ -69,7 +69,10 @@ def _alphadia() -> dict[str, pl.DataFrame]:
             "pg": ["P", "P", "Q"],
             "pg_master": ["P", "P", "Q"],
             "decoy": ["0", "0", "0"],
+            "pg_qval": ["0.01", "0.01", "0.02"],
             "intensity": ["999", "888", "777"],
+            "qval": ["0.001", "0.002", "0.003"],
+            "proba": ["0.1", "0.2", "0.3"],
             "run": ["A", "B", "A"],
         }
     )
@@ -84,6 +87,20 @@ def test_alphadia_uses_matrix_not_secondary_measurements() -> None:
     assert result["intensity"].to_list() == ["12", None]
     assert result["mod_seq_charge_hash"].to_list() == ["18446744073709551615"] * 2
     assert result["sequence"].to_list() == ["PEPTIDE"] * 2
+
+
+def test_alphadia_join_keeps_precursor_values_by_hash_and_run() -> None:
+    tables = _alphadia()
+    tables["matrix"] = tables["matrix"].with_columns(pl.lit("5").alias("C"))
+    result = alphadia.join(tables)
+    assert result["run"].to_list() == ["A", "B", "C"]
+    assert result["intensity"].to_list() == ["12", None, "5"]
+    assert result["qval"].to_list() == ["0.001", "0.002", None]
+    assert result["proba"].to_list() == ["0.1", "0.2", None]
+    assert result["pg_qval"].to_list() == ["0.01"] * 3
+    tables["precursors"] = pl.concat([tables["precursors"], tables["precursors"].head(1)])
+    with pytest.raises(ValueError, match="duplicate hash and run"):
+        alphadia.join(tables)
 
 
 def test_alphadia_rejects_conflicting_or_missing_metadata() -> None:
@@ -489,3 +506,6 @@ def test_cli_directory_joins_before_ion_conversion(tmp_path: Path) -> None:
     assert result.value.code == 0
     parsed = read_parsed_levels(tmp_path / "output.parquet").levels["ion"]
     assert parsed.layers["Intensity"].values.row(0)[1:] == (12.0, None)
+    assert parsed.layers["QValue"].values.row(0)[1:] == (0.001, 0.002)
+    assert parsed.layers["Proba"].values.row(0)[1:] == (0.1, 0.2)
+    assert parsed.var.frame["Protein_Group_QValue"].to_list() == [0.01]
