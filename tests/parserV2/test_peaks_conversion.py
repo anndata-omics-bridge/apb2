@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import polars as pl
 import pytest
-from polars.testing import assert_frame_equal
+from polars.testing import assert_frame_equal, assert_series_equal
 
 from apb2.command.conversion import convert_all_from_packaged_rules
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels
@@ -50,3 +51,26 @@ def test_peaks_fdr_does_not_filter_or_enter_parsed_provenance(
         assert_frame_equal(first.layers[name].values, second.layers[name].values)
     assert first_result.uns == {}
     assert second_result.uns == {}
+
+
+def test_peaks_retains_the_minus_10lgp_identification_score(tmp_path: Path) -> None:
+    """Every feature row's ``-10LgP`` survives as the numeric var column ``Minus_10LgP``."""
+    data = committed_sample("peaks")
+    assert data is not None
+    target = tmp_path / "converted.parquet"
+    convert_all_from_packaged_rules(
+        data=data,
+        output=target,
+        parameters_path=None,
+        software="peaks",
+        checks="standard",
+    )
+
+    var = read_parsed_levels(target).levels["ion"].var.frame
+    source = pl.read_csv(data).get_column("-10LgP")
+    assert var.schema["Minus_10LgP"] == pl.Float64
+    assert_series_equal(
+        var.get_column("Minus_10LgP").sort(),
+        source.sort(),
+        check_names=False,
+    )

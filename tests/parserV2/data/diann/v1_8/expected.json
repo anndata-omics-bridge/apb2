@@ -13,6 +13,7 @@
         "Precursor_Quantity",
         "Ms1_Area",
         "Q_Value",
+        "PEP",
         "RT"
       ]
     },

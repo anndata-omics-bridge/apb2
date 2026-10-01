@@ -1,5 +1,7 @@
 # Changes
 
+- 2026-10-01: DIA-NN 1.8/1.9 and 2.x rules retain the run-specific precursor posterior error probability as ion layer `PEP`, declared like `Q_Value`; DIA-NN 1.7 reports carry no `PEP` column, so that rule is unchanged. The PEAKS rule retains the per-feature identification score `-10LgP` as the numeric var column `Minus_10LgP`. Effective-rule fingerprints of the DIA-NN 1.8 ion, DIA-NN 2.x ion and PEAKS ion levels change. `Global.Q.Value`, `PG.Q.Value` and `PG.PEP` remain unretained.
+
 - 2026-09-23: Added the Python-only `ParseRuleCompiler.from_software()` constructor for vendor results uploaded without parameter files. It reuses packaged column/rule matching, requires an explicit result producer, and rejects ambiguous versions or missing scientific evidence without older-rule fallback. No CLI behavior changed.
 
 - 2026-09-23: Added the ProteoBench Custom wide ion-upload fixture and packaged `pb_custom` rule. `apb2 convert ... ion --software pb_custom` now selects that rule without a parameter file; other packaged rules still require their vendor parameters. The fixture records six runs and 8,493 ions.

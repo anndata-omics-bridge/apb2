@@ -136,6 +136,11 @@
                 "type": "number"
               },
               {
+                "name": "Minus_10LgP",
+                "source": "-10LgP",
+                "type": "number"
+              },
+              {
                 "name": "Avg_Area",
                 "source": "Avg. Area",
                 "type": "number"
