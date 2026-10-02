@@ -61,6 +61,7 @@ def test_dda_query_keeps_only_version_with_dda_evidence() -> None:
         "FragPipe",
         "i2MassChroQ",
         "MaxQuant",
+        "MetaMorpheus",
         "MSAngel",
         "pb_custom",
         "PEAKS",
@@ -70,7 +71,6 @@ def test_dda_query_keeps_only_version_with_dda_evidence() -> None:
         "WOMBAT",
     }
     assert [variant.rule for variant in dda["DIA-NN"].variants] == ["diann/v2/rules.json"]
-    assert "MetaMorpheus" not in dda
     assert "MSAID" not in dda
 
 

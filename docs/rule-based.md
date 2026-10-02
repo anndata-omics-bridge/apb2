@@ -6,7 +6,7 @@ The current rule format is schema `0.8`. The generated [document schema](../src/
 
 ## One software, multiple input tables
 
-Software metadata belongs at the document root. Each `tables` entry contains `input`, `base`, `levels`, and optionally `prepare: {"how": "maxquant"}` or `prepare: {"how": "alphadia"}`. Preparation is table-local: a direct-input group and a prepared group can coexist. Each rule describes one physical or prepared table; there is no separate join schema. Shared declarations merge only within a table, and each level belongs to one group.
+Software metadata belongs at the document root. Each `tables` entry contains `input`, `base`, `levels`, and optionally `prepare: {"how": "maxquant"}`, `prepare: {"how": "alphadia"}` or `prepare: {"how": "metamorpheus"}`. Preparation is table-local: a direct-input group and a prepared group can coexist. Each rule describes one physical or prepared table; there is no separate join schema. Shared declarations merge only within a table, and each level belongs to one group.
 
 The [MaxQuant document](../src/apb2/parserV2/vendor_parse_rules/documents/maxquant/rules.json) has two groups: direct evidence at run resolution, and joined wide exports at experiment resolution.
 
@@ -20,6 +20,8 @@ The [MaxQuant document](../src/apb2/parserV2/vendor_parse_rules/documents/maxqua
 The function in [joins/maxquant.py](../src/apb2/parserV2/joins/maxquant.py) accepts any nonempty subset of the three higher-level exports, unpivots their quantities and joins shared evidence-ID references plus experiment. Namespaced source columns preserve each table's measurements, with repeated cells handled by the rule's `keep_first` policy. All three higher-level rules inherit `Experiment` observations from their table's `base`. Evidence is never joined: its direct rule inherits `Raw_File` observations and retains `Experiment` and `Fraction` metadata. All 15 nonempty input combinations remain supported.
 
 The function in [joins/alphadia.py](../src/apb2/parserV2/joins/alphadia.py) enriches AlphaDIA 1.12 matrix intensities with precursor metadata and returns long rows. Parent composition prepares once per requested group. Each level projects from that group's shared frame, excluding wholly absent identities before ordinary decomposition. Tool modules import neither schemas nor parser orchestration. After parsing, explicit bijective observation mappings permit alignment; incompatible resolutions are [written separately](conversion.md#output-naming).
+
+The function in [joins/metamorpheus.py](../src/apb2/parserV2/joins/metamorpheus.py) keeps FlashLFQ peaks mapped to exactly one peptidoform and casts `Peak intensity` to a number, so the rule can sum repeated peaks of one ion and run.
 
 ## Software-only column evidence
 

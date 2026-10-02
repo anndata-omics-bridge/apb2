@@ -281,15 +281,21 @@ def _apply_unknown_policy(
 class _PendingToken:
     raw_token: str
     location: ModificationLocation
+    fallback: ResidueLocation | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class _TokenPlacement:
-    """Where one token sits, and which residues were consumed while placing it."""
+    """Where one token sits, and which residues were consumed while placing it.
+
+    ``fallback`` is the final residue for an unmarked token after it: such a token is
+    C-terminal only when a C-terminal map entry fits, and otherwise modifies that residue.
+    """
 
     location: ModificationLocation
     consumed_residues: tuple[str, ...]
     next_cursor: int
+    fallback: ResidueLocation | None = None
 
 
 def _place_token(
@@ -309,7 +315,12 @@ def _place_token(
         location = (
             TerminalLocation("C-term", residues[-1]) if residues else TerminalOnlyLocation("C-term")
         )
-        return _TokenPlacement(location, (), match.end())
+        # ``PEPTIDE-[x]`` marks the terminus explicitly; ``PEPTIDEC[x]`` may be either.
+        marked = sequence[match.start() - 1 : match.start()] == "-"
+        fallback = (
+            ResidueLocation(len(residues) - 1, residues[-1]) if residues and not marked else None
+        )
+        return _TokenPlacement(location, (), match.end(), fallback)
     if token_position == "before_residue":
         following = sequence[match.end() : match.end() + 1]
         if following.isalpha():
@@ -337,7 +348,7 @@ def _tokenize(
         raw_token = groups[0] if groups else match.group(0)
         placement = _place_token(sequence, match, token_position, residues)
         residues.extend(placement.consumed_residues)
-        pending.append(_PendingToken(raw_token, placement.location))
+        pending.append(_PendingToken(raw_token, placement.location, placement.fallback))
         cursor = placement.next_cursor
     residues.extend(character for character in sequence[cursor:] if character.isalpha())
     return residues, pending
@@ -363,14 +374,10 @@ class TokenRegexNormalizer:
         unknown_tokens: dict[int, str] = {}
         unknown_token_list: list[str] = []
         for token in pending:
-            entry = _matched_entry(
-                self.entries,
-                token.raw_token,
-                token.location,
-                case_sensitive=self.case_sensitive,
-            )
-            if entry is not None:
-                token.location.record_label(labels, entry.accession or entry.name)
+            matched = self._match(token)
+            if matched is not None:
+                entry, location = matched
+                location.record_label(labels, entry.accession or entry.name)
                 continue
             _apply_unknown_policy(
                 self.unknown_policy,
@@ -384,6 +391,20 @@ class TokenRegexNormalizer:
             value=render_proforma(stripped, labels, unknown_tokens),
             unknown_tokens=tuple(unknown_token_list),
         )
+
+    def _match(
+        self, token: _PendingToken
+    ) -> tuple[ModificationMapEntry, ModificationLocation] | None:
+        """The first map entry that fits the token's location, then its residue fallback."""
+        for location in (token.location, token.fallback):
+            if location is None:
+                continue
+            entry = _matched_entry(
+                self.entries, token.raw_token, location, case_sensitive=self.case_sensitive
+            )
+            if entry is not None:
+                return entry, location
+        return None
 
 
 # ------------------------------------------------------------------- parallel name/site lists

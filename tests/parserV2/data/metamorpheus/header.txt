@@ -1,0 +1,26 @@
+File Name
+Base Sequence
+Full Sequence
+Protein Group
+Organism
+Peptide Monoisotopic Mass
+MS2 Retention Time
+Precursor Charge
+Theoretical MZ
+Peak intensity
+Peak RT Start
+Peak RT Apex
+Peak RT End
+Peak MZ
+Peak Charge
+Num Charge States Observed
+Peak Detection Type
+PIP Q-Value
+PIP PEP
+PSMs Mapped
+Base Sequences Mapped
+Full Sequences Mapped
+Peak Split Valley RT
+Peak Apex Mass Error (ppm)
+Decoy Peptide
+Random RT

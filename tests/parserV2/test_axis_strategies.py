@@ -440,6 +440,23 @@ def test_a_terminal_token_renders_before_the_sequence() -> None:
     assert result.value == "[UNIMOD:1]-PEPTIDE"
 
 
+def test_a_token_after_the_final_residue_is_c_terminal_only_when_a_c_terminal_entry_fits() -> None:
+    amidated = ModificationMapEntry(
+        token="am",
+        name="Amidated",
+        accession="UNIMOD:2",
+        target=("C-term",),
+        position="C-term",
+        mass_delta=-0.984016,
+    )
+    rules = token_regex(entries=(OXIDATION, amidated))
+
+    assert rules.transform(("PEPTIDEM(ox)",)).value == "PEPTIDEM[UNIMOD:35]"
+    assert rules.transform(("PEPTIDEM(am)",)).value == "PEPTIDEM-[UNIMOD:2]"
+    # An explicit terminus marker keeps an unfitting token terminal and unknown.
+    assert rules.transform(("PEPTIDEM-(ox)",)).value == "PEPTIDEM-[ox]"
+
+
 def test_a_before_residue_vendor_attaches_the_token_to_what_follows() -> None:
     rules = token_regex(
         pattern="[a-z]+",

@@ -379,7 +379,8 @@
         "how": {
           "enum": [
             "alphadia",
-            "maxquant"
+            "maxquant",
+            "metamorpheus"
           ],
           "title": "How",
           "type": "string"

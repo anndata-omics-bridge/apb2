@@ -29,6 +29,7 @@ EXPECTED_EXTENSIONS = {
     "fragpipe": [".tsv"],
     "i2masschroq": [".tsv", ".txt"],
     "maxquant": [".txt"],
+    "metamorpheus": [".tsv"],
     "msangel": [".txt", ".xlsx"],
     "peaks": [".csv"],
     "pb_custom": [".txt", ".tsv"],
