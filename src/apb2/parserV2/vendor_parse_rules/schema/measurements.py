@@ -11,6 +11,10 @@ from pydantic import Discriminator, Field, Tag, model_validator
 from apb2.parserV2.vendor_parse_rules.schema.base import DuplicateMode, ModelBase
 from apb2.parserV2.vendor_parse_rules.schema.roles import SemanticRole
 
+_MISSING_BOUND = r"^<=\s*(-?\d+(?:\.\d+)?)$"
+type MissingBound = Annotated[str, Field(pattern=_MISSING_BOUND)]
+"""A ``<=`` threshold: every number at or below it is missing, e.g. ``"<=0"``."""
+
 
 class Duplicates(ModelBase):
     """How repeated raw measurement cells are resolved."""
@@ -56,10 +60,25 @@ class NumericLayer(ModelBase):
     type: Literal["number", "integer"] = "number"
     name: str
     source: str
-    missing_values: list[float] = Field(default_factory=list)
+    missing_values: list[float | MissingBound] = Field(default_factory=list)
     value_pattern: ValuePattern = Field(default_factory=NoValuePattern)
     required: bool = False
     roles: list[SemanticRole] = Field(default_factory=list)
+
+    @property
+    def missing_sentinels(self) -> tuple[float, ...]:
+        """The exact numbers declared missing."""
+        return tuple(value for value in self.missing_values if isinstance(value, float))
+
+    @property
+    def missing_at_or_below(self) -> float | None:
+        """The largest declared ``<=`` threshold, or ``None`` without one."""
+        bounds = [
+            float(match.group(1))
+            for value in self.missing_values
+            if isinstance(value, str) and (match := re.match(_MISSING_BOUND, value))
+        ]
+        return max(bounds) if bounds else None
 
 
 class FactorLayer(ModelBase):

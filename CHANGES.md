@@ -1,5 +1,7 @@
 # Changes
 
+- 2026-10-02: Fix: the i2MassChroQ rule derives `ProForma_peptide` with `stripped_sequence` from `Sequence` (inline `[MOD:nnnnn]`, `[42]` tokens, `after_residue`), instead of copying the vendor `sequence` column, which carries PSI-MOD annotations and ProForma N-terminal prefixes in most exports. `ProForma_peptidoform`, `ProForma_ion` and `Sequence` are unchanged. Across the 13 ProteoBench i2MassChroQ corpus submissions, FASTA-unmatched features drop from 16–24% to 0 in the 9 exports with modified `sequence` values, and ProteoBench `nr_feature` moves from 16–24% below upstream to within 0.9%.
+
 - 2026-10-02: Fix: an inline modification token written after a peptide's last residue (`after_residue` syntax) is now that residue's modification whenever the modification map places it on that residue: DIA-NN `…STAC(UniMod:4)` becomes `…STAC[UNIMOD:4]` instead of the unresolved C-terminal `…STAC-[UniMod:4]`. It stays C-terminal only when no entry fits the residue. Affects the canonical ProForma columns and feature keys of every `after_residue` rule (DIA-NN, Spectronaut, FragPipe, MaxQuant, PEAKS, quantms, Sage, WOMBAT); such tokens no longer appear in `unknown_mod_tokens`.
 
 - 2026-10-02: DIA-NN 1.7, 1.8/1.9 and 2.x rules retain the library and experiment-wide precursor q-values as ion layers `Lib_Q_Value` (`Lib.Q.Value`) and `Global_Q_Value` (`Global.Q.Value`), declared like `Q_Value`. ProteoBench's entrapment module ranks DIA-NN precursors by one of these.

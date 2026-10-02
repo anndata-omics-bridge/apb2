@@ -255,7 +255,12 @@ def test_the_alphadia_wide_ion_level_resolves_exactly_as_specified() -> None:
     assert snapshot(resolved)["layer_values"] == [
         {
             "layer_name": "Intensity",
-            "value": {"kind": "plain_numeric", "missing_values": [0.0], "type": "number"},
+            "value": {
+                "kind": "plain_numeric",
+                "missing_values": [],
+                "type": "number",
+                "missing_at_or_below": 0.0,
+            },
         }
     ]
     assert resolved.layer_validator == LayerContractValidator(

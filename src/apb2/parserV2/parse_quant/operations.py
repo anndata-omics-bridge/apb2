@@ -147,6 +147,7 @@ def make_layer_parser(
         return PlainNumericLayerParser(
             layer_name=layer_name,
             missing_values=value.missing_values,
+            missing_at_or_below=value.missing_at_or_below,
             number_format=numbers,
             numeric_type=value.type,
         )
@@ -154,6 +155,7 @@ def make_layer_parser(
         return RegexNumericLayerParser(
             layer_name=layer_name,
             missing_values=value.missing_values,
+            missing_at_or_below=value.missing_at_or_below,
             pattern=value.pattern,
             number_format=numbers,
             numeric_type=value.type,

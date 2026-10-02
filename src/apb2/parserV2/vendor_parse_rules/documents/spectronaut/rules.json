@@ -84,6 +84,9 @@
                 "source": "FG.Quantity",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               },
               {
@@ -141,6 +144,9 @@
                 "source": "EG.ReferenceQuantity (Settings)",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               },
               {
@@ -148,6 +154,9 @@
                 "source": "EG.TargetQuantity (Settings)",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               },
               {
@@ -155,6 +164,9 @@
                 "source": "EG.TotalQuantity (Settings)",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               },
               {
@@ -367,6 +379,9 @@
                 "source": "F.PeakArea",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               },
               {
@@ -501,6 +516,9 @@
                 "source": "PG.Quantity",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               },
               {

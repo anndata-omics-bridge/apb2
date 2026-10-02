@@ -80,6 +80,9 @@
                 "source": "Precursor.Normalised",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               },
               {
@@ -87,6 +90,9 @@
                 "source": "Ms1.Normalised",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               },
               {
@@ -94,6 +100,9 @@
                 "source": "Precursor.Quantity",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               },
               {
@@ -101,6 +110,9 @@
                 "source": "Ms1.Area",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               },
               {
@@ -210,6 +222,9 @@
                 "source": "Fragment.Quant.Raw",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               },
               {
@@ -301,6 +316,9 @@
                 "source": "PG.MaxLFQ",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               },
               {
@@ -308,6 +326,9 @@
                 "source": "PG.Normalised",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               },
               {
@@ -315,6 +336,9 @@
                 "source": "PG.Quantity",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               },
               {
@@ -322,6 +346,9 @@
                 "source": "Genes.MaxLFQ",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               },
               {

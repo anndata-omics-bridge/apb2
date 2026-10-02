@@ -29,6 +29,9 @@
               "source": "^abundance_(?:DDA_)?(?P<sample>.+)$",
               "roles": [
                 "abundance"
+              ],
+              "missing_values": [
+                "<=0"
               ]
             },
             {
@@ -37,6 +40,9 @@
               "required": true,
               "roles": [
                 "abundance"
+              ],
+              "missing_values": [
+                "<=0"
               ]
             },
             {

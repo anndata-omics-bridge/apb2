@@ -29,16 +29,17 @@ class PlainNumericLayerParser:
 
     layer_name: str
     missing_values: tuple[float, ...]
+    missing_at_or_below: float | None
     number_format: NumericTextFormat
     numeric_type: NumericLayerType
 
     def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr:
         """Without sentinels blank text claims a cell; unreadable tokens always do."""
-        if not self.missing_values:
+        if not self.missing_values and self.missing_at_or_below is None:
             return ~absent(values, dtype)
         numbers = as_numbers(values, dtype, self.number_format)
-        sentinel = numbers.is_in(self.missing_values).fill_null(False)
-        return ~(blank(values, dtype) | sentinel)
+        sentinel = _declared_missing(numbers, self.missing_values, self.missing_at_or_below)
+        return ~(blank(values, dtype) | sentinel.fill_null(False))
 
     def parse(self, layer: FinalLayerTable, /) -> FinalLayerTable:
         values = layer.values.select(pl.exclude(layer.var_key_columns))
@@ -83,7 +84,9 @@ class PlainNumericLayerParser:
                     unreadable[:_EXAMPLE_LIMIT],
                 )
             canonical = prepared.select(
-                _masked(pl.all().struct.field("number"), self.missing_values).name.keep()
+                _masked(
+                    pl.all().struct.field("number"), self.missing_values, self.missing_at_or_below
+                ).name.keep()
             )
         return _parsed_layer(
             layer,
@@ -99,6 +102,7 @@ class RegexNumericLayerParser:
 
     layer_name: str
     missing_values: tuple[float, ...]
+    missing_at_or_below: float | None
     pattern: str
     number_format: NumericTextFormat
     numeric_type: NumericLayerType
@@ -107,8 +111,8 @@ class RegexNumericLayerParser:
         """Inspect the numeric capture while retaining each original claiming token."""
         extracted = values.cast(pl.String, strict=False).str.extract(self.pattern, 1)
         numbers = as_numbers(extracted, pl.String(), self.number_format)
-        sentinel = numbers.is_in(self.missing_values).fill_null(False)
-        return ~(blank(values, dtype) | sentinel)
+        sentinel = _declared_missing(numbers, self.missing_values, self.missing_at_or_below)
+        return ~(blank(values, dtype) | sentinel.fill_null(False))
 
     def parse(self, layer: FinalLayerTable, /) -> FinalLayerTable:
         values = layer.values.select(pl.exclude(layer.var_key_columns))
@@ -120,6 +124,7 @@ class RegexNumericLayerParser:
                     self.number_format,
                 ),
                 self.missing_values,
+                self.missing_at_or_below,
             ).name.keep()
         )
         return _parsed_layer(
@@ -182,10 +187,21 @@ def _parsed_layer(
     )
 
 
-def _masked(numbers: pl.Expr, missing_values: tuple[float, ...]) -> pl.Expr:
-    if not missing_values:
+def _declared_missing(
+    numbers: pl.Expr, missing_values: tuple[float, ...], missing_at_or_below: float | None
+) -> pl.Expr:
+    """Whether a number is a declared sentinel or at or below the declared threshold."""
+    missing = numbers.is_in(list(missing_values))
+    return missing if missing_at_or_below is None else missing | (numbers <= missing_at_or_below)
+
+
+def _masked(
+    numbers: pl.Expr, missing_values: tuple[float, ...], missing_at_or_below: float | None
+) -> pl.Expr:
+    if not missing_values and missing_at_or_below is None:
         return numbers
-    return pl.when(numbers.is_in(list(missing_values))).then(None).otherwise(numbers)
+    missing = _declared_missing(numbers, missing_values, missing_at_or_below)
+    return pl.when(missing).then(None).otherwise(numbers)
 
 
 def _validate_numeric_type(

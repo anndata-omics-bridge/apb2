@@ -90,6 +90,9 @@
                 "source": "Intensity",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               }
             ]

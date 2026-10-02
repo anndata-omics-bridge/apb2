@@ -74,7 +74,7 @@
                   "abundance"
                 ],
                 "missing_values": [
-                  0
+                  "<=0"
                 ]
               },
               {
@@ -203,7 +203,7 @@
                   "abundance"
                 ],
                 "missing_values": [
-                  0
+                  "<=0"
                 ]
               }
             ]

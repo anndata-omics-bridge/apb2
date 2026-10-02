@@ -255,7 +255,7 @@ class ParseRuleFacade:
                 layer.name
                 for layer in rule.measurements.layers
                 if not isinstance(layer, NumericLayer)
-                or layer.missing_values
+                or layer.missing_sentinels
                 or not isinstance(layer.value_pattern, NoValuePattern)
             )
             if offenders:
@@ -401,12 +401,15 @@ class ParseRuleFacade:
             return FactorLayerDeclaration(categories=tuple(layer.categories.items()))
         if isinstance(layer.value_pattern, RegexValuePattern):
             return RegexNumericLayerDeclaration(
-                missing_values=tuple(layer.missing_values),
+                missing_values=layer.missing_sentinels,
                 pattern=layer.value_pattern.pattern,
                 type=layer.type,
+                missing_at_or_below=layer.missing_at_or_below,
             )
         return PlainNumericLayerDeclaration(
-            missing_values=tuple(layer.missing_values), type=layer.type
+            missing_values=layer.missing_sentinels,
+            type=layer.type,
+            missing_at_or_below=layer.missing_at_or_below,
         )
 
     @staticmethod

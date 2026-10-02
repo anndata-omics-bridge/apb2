@@ -209,6 +209,34 @@ def test_every_declared_abundance_layer_is_tagged(
     assert actual == expected
 
 
+@pytest.mark.parametrize(("pair", "level"), _LEVEL_CASES)
+def test_every_abundance_layer_treats_zero_and_negative_values_as_missing(
+    pair: PackagedDocument, level: QuantificationLevel
+) -> None:
+    rule = load_rule_document(pair.parser_v2_path).declared(level).declaration
+    unmasked = [
+        layer.name
+        for layer in rule.measurements.layers
+        if "abundance" in layer.roles
+        and not (isinstance(layer, NumericLayer) and layer.missing_at_or_below == 0.0)
+    ]
+
+    assert unmasked == []
+
+
+def test_missing_values_combine_exact_sentinels_with_one_at_or_below_bound() -> None:
+    layer = NumericLayer(name="I", source="I", missing_values=[-1, "<= 0", "<=-2.5"])
+
+    assert layer.missing_sentinels == (-1.0,)
+    assert layer.missing_at_or_below == 0.0
+
+
+@pytest.mark.parametrize("token", [">=0", "<0", "<=zero"])
+def test_a_missing_value_text_must_be_an_at_or_below_bound(token: str) -> None:
+    with pytest.raises(ValidationError):
+        NumericLayer(name="I", source="I", missing_values=[token])
+
+
 def test_packaged_integer_measurements_are_exactly_the_declared_counts() -> None:
     actual = {
         (pair.key, level, layer.name)

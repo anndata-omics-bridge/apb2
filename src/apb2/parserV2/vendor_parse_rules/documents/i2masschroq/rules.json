@@ -53,6 +53,9 @@
                 "source": "area",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               }
             ]
@@ -65,7 +68,11 @@
               },
               {
                 "name": "ProForma_peptide",
-                "source": "sequence"
+                "inputs": [
+                  "Sequence"
+                ],
+                "how": "stripped_sequence",
+                "syntax": "vendor_sequence"
               },
               {
                 "name": "ProForma_peptidoform",
@@ -93,6 +100,13 @@
                 "how": "proforma_ion"
               }
             ]
+          },
+          "sequence_syntax": {
+            "vendor_sequence": {
+              "parser": "token_regex",
+              "token_pattern": "\\[([^\\]]+)\\]",
+              "token_position": "after_residue"
+            }
           }
         }
       }

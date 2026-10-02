@@ -124,7 +124,12 @@ def test_the_notation_the_source_was_read_under_survives_into_the_record() -> No
     assert decoded["layer_values"] == [
         {
             "layer_name": "Quantity",
-            "value": {"kind": "plain_numeric", "missing_values": [], "type": "number"},
+            "value": {
+                "kind": "plain_numeric",
+                "missing_values": [],
+                "type": "number",
+                "missing_at_or_below": None,
+            },
         }
     ]
 

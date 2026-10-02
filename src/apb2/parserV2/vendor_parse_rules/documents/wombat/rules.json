@@ -96,6 +96,9 @@
                 "source": "^abundance_(?P<sample>.+)$",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               }
             ]
@@ -132,6 +135,9 @@
                 "source": "^abundance_(?P<sample>.+)$",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               },
               {

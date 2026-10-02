@@ -628,6 +628,10 @@
       "title": "Measurements",
       "type": "object"
     },
+    "MissingBound": {
+      "pattern": "^<=\\s*(-?\\d+(?:\\.\\d+)?)$",
+      "type": "string"
+    },
     "ModificationMap": {
       "items": {
         "$ref": "#/$defs/ModificationMapEntry"
@@ -698,7 +702,14 @@
         },
         "missing_values": {
           "items": {
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "$ref": "#/$defs/MissingBound"
+              }
+            ]
           },
           "title": "Missing Values",
           "type": "array"

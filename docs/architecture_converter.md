@@ -2044,7 +2044,7 @@ These become `AxisValueCoercer` objects evaluated on small axis frames. Their de
 
 `fragments.value_columns` is an ordered list independent of `measurements.layers`. Resolution retains available packed sources in authored order and requires at least one; `label_output` cannot collide with physical sources.
 
-Aggregate mode requires plain numeric layers without missing sentinels, factors or regex extraction. Source resolution additionally verifies native numeric read dtypes, so interpretation cannot change the contributions after summation. The runtime aggregate retains a dtype guard; the MaxQuant aggregate rule satisfies these restrictions.
+Aggregate mode requires plain numeric layers without missing sentinels, factors or regex extraction. Source resolution additionally verifies native numeric read dtypes, so interpretation cannot change the contributions after summation. A `<=` threshold such as `"<=0"` is permitted: presence removes every contribution at or below it before summation, so a sum of the remaining larger values is never masked afterwards. The runtime aggregate retains a dtype guard; the MaxQuant aggregate rule satisfies these restrictions.
 
 #### C.4 Physical input policy
 
@@ -2519,7 +2519,7 @@ uses it as identity.
 
 #### F.3 Duplicate policies
 
-Before reduction, the layer parser's `present()` expressions null-mask absent cells while retaining the dtype and every claiming scalar. Factor presence and plain numeric presence without sentinels reject null/NaN but retain blank text. Plain numeric presence with sentinels and regex presence also reject blank text and matching numeric sentinels; they return only Boolean presence. An unreadable or unmatched nonblank token remains present so duplicate resolution cannot skip it in favor of a later readable value; canonical value parsing determines its diagnostic or missing result. Presence never returns parsed values or
+Before reduction, the layer parser's `present()` expressions null-mask absent cells while retaining the dtype and every claiming scalar. Factor presence and plain numeric presence without sentinels reject null/NaN but retain blank text. Plain numeric presence with sentinels or a `<=` threshold, and regex presence, also reject blank text, matching numeric sentinels and numbers at or below a declared threshold; they return only Boolean presence. An unreadable or unmatched nonblank token remains present so duplicate resolution cannot skip it in favor of a later readable value; canonical value parsing determines its diagnostic or missing result. Presence never returns parsed values or
 mutates `RawLayerTable`.
 
 All policies preserve raw var-key columns and input group order. Error and keep-first copy the
