@@ -175,6 +175,8 @@ P2	20	21
 
 The expression matches both measurement headers and captures `a` and `b` as observation keys. Long and wide inputs produce the same observations-by-variables result contract.
 
+By default the primary layer's captures are the sample names, and every other layer keeps only columns whose capture is one of them. When the primary layer's header shape is shared by non-sample columns, `measurements.sample_layer` names the layer whose captures are the sample names instead. PEAKS sets it to `Sample_Mz`: only runs have `<run> m/z` columns, so group averages such as `A Normalized Area` are not samples. The sample layer is required, and long rules reject the field because their observations come from `columns.obs`.
+
 ## Column entries
 
 `columns.obs` and `columns.var` are ordered lists. Every physical column entry carries its own facts:

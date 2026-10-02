@@ -38,6 +38,7 @@ apb2/
 └── annotation/
     ├── compiler.py            generic delimited-source composition
     ├── prolfquapp.py           source-bound parser + bound annotation
+    ├── sdrf.py                 SDRF source view, source-bound parser + bound annotation
     ├── source/                 CSV/TSV decoding
     ├── application/            retention and selection behavior
     ├── matching/               exact/fuzzy matching
@@ -51,7 +52,7 @@ that reads and writes physical results.
 
 External packages explicitly compose `make_annotation_table`, matching, an application policy,
 and `record_annotation_provenance` through `apb2.annotation_extension`. APB2 does not discover or
-branch on convention names. `apb-proteobench` is the first external interpreter.
+branch on convention names. `apb-proteobench` is the first external interpreter. `SdrfSource` gives such interpreters SDRF header lookup and data-file basenames without a second SDRF reader.
 
 The optional rule declaration `sample_annotation.matching` is a Pydantic storage schema. Parser V2
 projects its exact/fuzzy mode and optional key normalization into JSON-compatible level provenance.

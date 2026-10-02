@@ -53,7 +53,7 @@ apb2 annotate SOURCE ANNOTATION TARGET [OPTIONS]
 | Argument or option | Meaning |
 | --- | --- |
 | `SOURCE` | Existing APB2 h5ad, h5mu, Parquet, or DuckDB result |
-| `ANNOTATION` | Generic prolfquapp-style CSV/TSV table |
+| `ANNOTATION` | SDRF-Proteomics or generic prolfquapp-style CSV/TSV table |
 | `TARGET` | New annotated APB2 result; format selected by suffix |
 | `--unmatched MODE` | `keep`, `error`, or `drop` behavior |
 | `--include COLUMN` | In drop mode, also require a true Boolean annotation field |

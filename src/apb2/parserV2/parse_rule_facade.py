@@ -298,7 +298,10 @@ class ParseRuleFacade:
     def _project_layout(rule: LongRule | WideRule) -> SourceLayoutDeclaration:
         fragments = rule.fragments
         if fragments is None:
-            return LongSourceLayout() if isinstance(rule, LongRule) else WideSourceLayout()
+            if isinstance(rule, LongRule):
+                return LongSourceLayout()
+            measurements = rule.measurements
+            return WideSourceLayout(measurements.sample_layer or measurements.primary_layer)
         if isinstance(fragments, ColumnLabeledFragments):
             return ColumnLabeledFragmentLayout(
                 label_source=fragments.label_column,
@@ -367,14 +370,14 @@ class ParseRuleFacade:
 
     @staticmethod
     def _project_measurements(rule: LongRule | WideRule) -> WorkingMeasurements:
-        """Promote the primary layer into the required set, preserving authored order."""
+        """Promote the primary and sample layers into the required set, in authored order."""
         projected = tuple(
             ParseRuleFacade._project_layer(layer) for layer in rule.measurements.layers
         )
         required = frozenset(
             layer.name
             for layer in rule.measurements.layers
-            if layer_required(rule.measurements.primary_layer, layer)
+            if layer_required(rule.measurements, layer)
         )
         return WorkingMeasurements(
             primary_layer_name=rule.measurements.primary_layer,

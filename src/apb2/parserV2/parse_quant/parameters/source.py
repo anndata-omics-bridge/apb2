@@ -153,7 +153,9 @@ class LongSourceLayout:
 
 @dataclass(frozen=True, slots=True)
 class WideSourceLayout:
-    """One physical row per feature; observations are header captures."""
+    """One physical row per feature; observations are one layer's header captures."""
+
+    sample_layer_name: str
 
     def packed_sources(self) -> tuple[str, ...]:
         """Return physical columns that require packed-value splitting."""

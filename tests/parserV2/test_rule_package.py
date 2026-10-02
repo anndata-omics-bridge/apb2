@@ -189,7 +189,7 @@ def test_the_primary_layer_names_exactly_one_layer_and_is_required(
 
     assert len(names) == len(set(names))
     assert len(primary) == 1
-    assert layer_required(rule.measurements.primary_layer, primary[0])
+    assert layer_required(rule.measurements, primary[0])
     assert "abundance" in primary[0].roles
     # Promotion changes what is required, never the authored order.
     assert names == [layer.name for layer in rule.measurements.layers]
@@ -384,6 +384,17 @@ def test_protein_assignment_names_the_group_not_its_accessions(
         "protein_assignment": protein_assignment,
         "fasta_accessions": fasta_accessions,
     }
+
+
+def test_alphadia_v1_10_genes_are_both_assignment_and_fasta_identifiers() -> None:
+    # AlphaDIA 1.10 exports no accession column; ``genes`` holds UniProt entry names.
+    pair = next(candidate for candidate in document_pairs() if candidate.key == "alphadia/v1_10")
+    document = load_rule_document(pair.parser_v2_path)
+    roles = ParseRuleFacade(document, "ion", NO_EVIDENCE).working_parameters.provenance[
+        "column_roles"
+    ]
+
+    assert roles == {"protein_assignment": "Genes", "fasta_accessions": "Genes"}
 
 
 def test_spectronaut_fragment_exposes_its_parent_ion_identity() -> None:

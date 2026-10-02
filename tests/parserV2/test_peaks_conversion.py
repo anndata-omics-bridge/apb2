@@ -74,3 +74,44 @@ def test_peaks_retains_the_minus_10lgp_identification_score(tmp_path: Path) -> N
         source.sort(),
         check_names=False,
     )
+
+
+def test_peaks_samples_come_from_run_mz_columns_not_group_averages(tmp_path: Path) -> None:
+    """Runs of any name are samples; ``<group> Normalized Area`` averages have no ``m/z``."""
+    runs = ("A1_run", "B1_run")
+    per_run = [
+        f"{run} {suffix}" for run in runs for suffix in ("m/z", "RT mean", "Normalized Area")
+    ]
+    header = [
+        *("Peptide", "Quality", "Significance", "-10LgP", "m/z", "RT range", "z", "Avg. Area"),
+        *per_run,
+        *("Sample Profile (Ratio)", "A Normalized Area", "B Normalized Area"),
+        *("Group Profile (Ratio)", "RT mean", "Id Count", "Accession", "PTM"),
+    ]
+    rows = [
+        [
+            *("PEPTIDEK", "1", "20", "35.5", "450.7", "10.1-10.4", "2", "150"),
+            *("450.7", "10.2", "100", "450.7", "10.3", "200"),
+            *("1:2", "100", "200", "1:2", "10.25", "2", "P00001", ""),
+        ],
+        [
+            *("M(+15.99)PEPTIDER", "1", "18", "30.1", "380.2", "12.0-12.2", "3", "300"),
+            *("380.2", "12.1", "300", "380.2", "12.1", "0"),
+            *("1:0", "300", "0", "1:0", "12.1", "1", "P00002", "Oxidation (M)"),
+        ],
+    ]
+    data = tmp_path / "peaks.csv"
+    pl.DataFrame(rows, schema=header, orient="row").write_csv(data)
+    target = tmp_path / "converted.parquet"
+    convert_all_from_packaged_rules(
+        data=data,
+        output=target,
+        parameters_path=None,
+        software="peaks",
+        checks="standard",
+    )
+
+    level = read_parsed_levels(target).levels["ion"]
+    assert level.obs.frame.get_column("sample").to_list() == list(runs)
+    assert set(level.layers) == {"Normalized_Area", "Sample_Mz", "Sample_RT_Mean"}
+    assert level.layers["Normalized_Area"].values.width == len(runs) + 1

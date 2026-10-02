@@ -86,13 +86,18 @@ type Layer = Annotated[
 
 
 class Measurements(ModelBase):
-    """Named measurements, their primary layer, and raw duplicate policy."""
+    """Named measurements, their primary layer, and raw duplicate policy.
+
+    ``sample_layer`` names the wide layer whose header captures are the sample names;
+    omitted, the primary layer supplies them.
+    """
 
     primary_layer: str
+    sample_layer: str | None = None
     duplicates: Duplicates = Field(default_factory=Duplicates)
     layers: list[Layer] = Field(min_length=1)
 
 
-def layer_required(primary_layer: str, layer: Layer) -> bool:
-    """Whether a layer is primary or explicitly required."""
-    return layer.required or layer.name == primary_layer
+def layer_required(measurements: Measurements, layer: Layer) -> bool:
+    """Whether a layer is primary, supplies the sample names, or is explicitly required."""
+    return layer.required or layer.name in {measurements.primary_layer, measurements.sample_layer}

@@ -14,24 +14,36 @@ from apb2.annotation.prolfquapp import (
     ProlfquappAnnotationParser,
     prolfquapp_signature,
 )
+from apb2.annotation.sdrf import (
+    SdrfAnnotationParameters,
+    SdrfAnnotationParser,
+    SdrfSource,
+    sdrf_signature,
+)
 from apb2.annotation.source.load import load_annotation_file, load_annotation_frame
 
 
 @dataclass(frozen=True, slots=True)
 class AnnotationCompiler:
-    """User-configured parser for generic delimited observation annotations."""
+    """User-configured parser for SDRF and generic delimited observation annotations."""
 
     prolfquapp: ProlfquappAnnotationParameters = field(
         default_factory=ProlfquappAnnotationParameters
     )
+    sdrf: SdrfAnnotationParameters = field(default_factory=SdrfAnnotationParameters)
 
     def compile(self, source: Path | pl.DataFrame, /) -> AnnotationParser:
-        """Load once, verify the tabular convention, and return its bound parser."""
+        """Load once, verify the tabular convention, and return its bound parser.
+
+        SDRF headers take precedence; other tables must carry a prolfquapp observation key.
+        """
         loaded = (
             load_annotation_file(source)
             if isinstance(source, Path)
             else load_annotation_frame(source)
         )
+        if sdrf_signature(loaded):
+            return SdrfAnnotationParser(source=SdrfSource(loaded), parameters=self.sdrf)
         if not prolfquapp_signature(loaded, self.prolfquapp):
             raise AnnotationError("annotation table has no supported observation key")
         return ProlfquappAnnotationParser(source=loaded, parameters=self.prolfquapp)

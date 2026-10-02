@@ -80,6 +80,12 @@ class _RuleCore(ModelBase):
                 f"measurements.primary_layer={self.measurements.primary_layer!r} matches no "
                 f"layer; available: {sorted(names)}"
             )
+        sample_layer = self.measurements.sample_layer
+        if sample_layer is not None and sample_layer not in set(names):
+            raise ValueError(
+                f"measurements.sample_layer={sample_layer!r} matches no layer; "
+                f"available: {sorted(names)}"
+            )
         _check_role_owners(
             "layer", (role for layer in self.measurements.layers for role in layer.roles)
         )
@@ -97,6 +103,11 @@ class LongRule(_RuleCore):
     def _column_consistency(self) -> LongRule:
         if self.fragments is not None and self.quantification_level != "fragment":
             raise ValueError("fragments are valid only for quantification_level='fragment'")
+        if self.measurements.sample_layer is not None:
+            raise ValueError(
+                "measurements.sample_layer is valid only for wide rules; long observations "
+                "come from columns.obs"
+            )
         _check_column_group(self.axis.obs_keys, self.columns.obs, "obs")
         _check_column_group(self.axis.var_keys, self.columns.var, "var")
         _check_computed_columns(self, self.columns.var)

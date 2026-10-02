@@ -739,8 +739,49 @@ def test_a_primary_wide_layer_with_no_match_is_incompatible() -> None:
     )
     facade = synthetic.facade(document)
 
-    with pytest.raises(IncompatibleSourceError, match="primary layer"):
+    with pytest.raises(IncompatibleSourceError, match="sample layer 'Intensity'"):
         facade.resolve_source(delimited(("Feature", "A Count")))
+
+
+def test_a_wide_sample_layer_supplies_the_observations_every_layer_aligns_to() -> None:
+    document = synthetic.wide_document(
+        var_select={"Feature": "Feature"},
+        layers=[
+            {"name": "Intensity", "source": r"^(?P<sample>.+) Intensity$"},
+            {"name": "Mz", "source": r"^(?P<sample>.+) Mz$"},
+        ],
+        primary_layer="Intensity",
+        sample_layer="Mz",
+    )
+    facade = synthetic.facade(document)
+    header = ("Feature", "R1 Mz", "R1 Intensity", "R2 Mz", "R2 Intensity", "G Intensity")
+
+    resolved = facade.resolve_source(delimited(header))
+    decomposition = resolved.decomposer
+    assert isinstance(decomposition, WideSourceDecomposer)
+    plans = {plan.name: plan for plan in decomposition.layer_plans}
+
+    assert [source.source_column for source in plans["Intensity"].sources] == [
+        "R1 Intensity",
+        "R2 Intensity",
+    ]
+    assert [source.sample for source in plans["Mz"].sources] == ["R1", "R2"]
+
+
+def test_a_wide_sample_layer_with_no_match_is_incompatible() -> None:
+    document = synthetic.wide_document(
+        var_select={"Feature": "Feature"},
+        layers=[
+            {"name": "Intensity", "source": r"^(?P<sample>.+) Intensity$"},
+            {"name": "Mz", "source": r"^(?P<sample>.+) Mz$"},
+        ],
+        primary_layer="Intensity",
+        sample_layer="Mz",
+    )
+    facade = synthetic.facade(document)
+
+    with pytest.raises(IncompatibleSourceError, match="sample layer 'Mz'"):
+        facade.resolve_source(delimited(("Feature", "R1 Intensity")))
 
 
 # ------------------------------------------------------------------------ long resolution

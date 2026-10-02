@@ -80,17 +80,19 @@ result = annotation.annotate()
 write_parsed_levels(result.parsed, Path("annotated.h5mu"))
 ```
 
-`AnnotationCompiler` loads and validates the generic delimited source once. The returned parser is
+`AnnotationCompiler` loads and validates the SDRF or generic delimited source once. The returned parser is
 source-bound and can be parsed against several datasets, producing a separate dataset-bound
 annotation each time.
 `parse(parsed)` raises before constructing an annotation when the selected policy is invalid—for
 example, when complete coverage was requested but cannot be met. `annotate()` uses the stored
 matches and does not recompute them.
 
-prolfquapp behavior is composed with `KeepUnmatchedAnnotation`,
+prolfquapp and SDRF behavior is composed with `KeepUnmatchedAnnotation`,
 `RequireCompleteAnnotation`, or `SelectAnnotatedObservations`. All tables and matching evidence
 are Polars-backed values. External scientific interpreters use the public capabilities in
 `apb2.annotation_extension`; APB2 does not select them by a convention enum.
+
+An external interpreter reads an SDRF through `load_annotation_file` and `SdrfSource`. `SdrfSource.columns(header)` returns every occurrence of a repeated header in file order, and `data_file_basenames()` supplies the run names vendor tables usually report.
 
 ## Read and write results
 

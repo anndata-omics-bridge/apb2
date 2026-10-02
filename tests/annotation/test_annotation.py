@@ -16,6 +16,7 @@ from apb2.annotation.application.policies import (
     BooleanAnnotationSelection,
     KeepUnmatchedAnnotation,
     MatchedAnnotationSelection,
+    RequireCompleteAnnotation,
     SelectAnnotatedObservations,
 )
 from apb2.annotation.compiler import AnnotationCompiler
@@ -33,6 +34,8 @@ from apb2.annotation.matching.core import (
     normalize_mass_spec_basename,
 )
 from apb2.annotation.prolfquapp import ProlfquappAnnotationParameters
+from apb2.annotation.sdrf import SdrfAnnotationParameters, SdrfSource
+from apb2.annotation.source.load import load_annotation_file
 from apb2.cli import annotate as annotate_command
 from apb2.parserV2.parse_quant.data.parsed import (
     AuxiliaryLayerRole,
@@ -602,3 +605,156 @@ def test_annotation_does_not_recompute_matching_during_application() -> None:
         first.parsed.levels["ion"].obs.frame,
         second.parsed.levels["ion"].obs.frame,
     )
+
+
+_SDRF_HEADER = (
+    "source name",
+    "characteristics[organism]",
+    "characteristics[spiked compound]",
+    "characteristics[spiked compound]",
+    "assay name",
+    "comment[label]",
+    "comment[data file]",
+    "factor value[spiked compound]",
+)
+_LABEL_FREE = "AC=MS:1002038;NT=label free sample"
+
+
+def _sdrf_rows(*runs: str, label: str = _LABEL_FREE) -> list[tuple[str, ...]]:
+    return [
+        (
+            f"mixture_{run[-1]}",
+            "homo sapiens",
+            "CT=mixture;SP=Saccharomyces cerevisiae;QY=30%",
+            "CT=mixture;SP=Escherichia coli;QY=5%",
+            f"assay_{run}",
+            label,
+            f"/data/{run}.raw",
+            run[-1],
+        )
+        for run in runs
+    ]
+
+
+def _write_sdrf(path: Path, rows: list[tuple[str, ...]]) -> Path:
+    path.write_text(
+        "\n".join("\t".join(row) for row in (_SDRF_HEADER, *rows)) + "\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_loader_keeps_verbatim_repeated_sdrf_headers(tmp_path: Path) -> None:
+    loaded = load_annotation_file(_write_sdrf(tmp_path / "design.sdrf.tsv", _sdrf_rows("run_A")))
+
+    sdrf = SdrfSource(loaded)
+
+    assert loaded.headers == _SDRF_HEADER
+    spiked = sdrf.columns("Characteristics[Spiked Compound]")
+    assert [loaded.frame.get_column(name).to_list() for name in spiked] == [
+        ["CT=mixture;SP=Saccharomyces cerevisiae;QY=30%"],
+        ["CT=mixture;SP=Escherichia coli;QY=5%"],
+    ]
+    with pytest.raises(AnnotationError, match="must occur exactly once; found 2"):
+        sdrf.column("characteristics[spiked compound]")
+
+
+def test_compiler_recognises_sdrf_and_matches_extensionless_runs(tmp_path: Path) -> None:
+    source = _write_sdrf(tmp_path / "design.sdrf.tsv", _sdrf_rows("run_A", "run_B"))
+
+    annotation = AnnotationCompiler().compile(source).parse(_parsed(("run_A", "run_B")))
+    result = annotation.annotate()
+
+    obs = result.parsed.levels["ion"].obs.frame
+    assert obs.columns == [
+        "run",
+        "source_name",
+        "characteristics_organism",
+        "characteristics_spiked_compound",
+        "characteristics_spiked_compound_duplicated_0",
+        "assay_name",
+        "comment_label",
+        "factor_value_spiked_compound",
+    ]
+    assert obs.get_column("assay_name").to_list() == ["assay_run_A", "assay_run_B"]
+    root = result.parsed.metadata["sdrf"]
+    assert isinstance(root, dict)
+    provenance = root["provenance"]
+    assert isinstance(provenance, dict)
+    record = provenance["annotation"]
+    assert isinstance(record, dict)
+    assert record["source"] == {"path": str(source.resolve())}
+    columns = record["columns"]
+    assert isinstance(columns, list)
+    assert {
+        "header": "characteristics[spiked compound]",
+        "column": "characteristics_spiked_compound",
+    } in columns
+    assert {
+        "header": "characteristics[spiked compound]",
+        "column": "characteristics_spiked_compound_duplicated_0",
+    } in columns
+    assert all(
+        isinstance(entry, dict) and entry["header"] != "comment[data file]" for entry in columns
+    )
+
+
+def test_in_memory_sdrf_headers_ignore_case() -> None:
+    source = pl.DataFrame(
+        {
+            "Source Name": ["mixture_A"],
+            "Comment[Data File]": ["run_A.d"],
+            "Factor Value[spiked compound]": ["A"],
+        }
+    )
+
+    annotation = AnnotationCompiler().compile(source).parse(_parsed(("run_A",)))
+
+    match = annotation.matches.levels["ion"]
+    assert match.matched_rows.to_list() == [True]
+    assert match.corrections == ()
+
+
+def test_sdrf_rejects_multiplexed_rows(tmp_path: Path) -> None:
+    source = _write_sdrf(
+        tmp_path / "design.sdrf.tsv",
+        _sdrf_rows("run_A", label="AC=MS:1002624;NT=TMT126"),
+    )
+
+    with pytest.raises(AnnotationError, match="label-free rows only"):
+        AnnotationCompiler().compile(source)
+
+
+def test_sdrf_rejects_a_data_file_on_two_rows(tmp_path: Path) -> None:
+    rows = _sdrf_rows("run_A", "run_B")
+    rows[1] = (*rows[1][:6], rows[0][6], rows[1][7])
+    parser = AnnotationCompiler().compile(_write_sdrf(tmp_path / "design.sdrf.tsv", rows))
+
+    with pytest.raises(AnnotationError, match="duplicate annotation identifier"):
+        parser.parse(_parsed(("run_A",)))
+
+
+def test_sdrf_applies_the_configured_application(tmp_path: Path) -> None:
+    compiler = AnnotationCompiler(
+        sdrf=SdrfAnnotationParameters(application=RequireCompleteAnnotation()),
+    )
+    parser = compiler.compile(_write_sdrf(tmp_path / "design.sdrf.tsv", _sdrf_rows("run_A")))
+
+    with pytest.raises(AnnotationError, match="complete sample annotation required"):
+        parser.parse(_parsed(("run_A", "run_B")))
+
+
+def test_cli_annotates_with_sdrf(tmp_path: Path) -> None:
+    source = tmp_path / "input.parquet"
+    target = tmp_path / "annotated.parquet"
+    write_parsed_levels(_parsed(("run_A", "run_B")), source)
+    annotation = _write_sdrf(tmp_path / "design.sdrf.tsv", _sdrf_rows("run_A", "run_B"))
+
+    exit_code = annotate_command(source, annotation, target)
+
+    assert exit_code == 0
+    restored = read_parsed_levels(target)
+    obs = restored.levels["ion"].obs.frame
+    assert obs.get_column("factor_value_spiked_compound").to_list() == ["A", "B"]
+    local = restored.levels["ion"].metadata["sdrf"]
+    assert isinstance(local, dict) and "annotation" in local

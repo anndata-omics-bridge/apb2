@@ -113,8 +113,9 @@ xfail_strict = true
 
 [tool.deptry]
 known_first_party = ["apb2"]
-# documentation/ holds executable benchmark tooling, not importable package code.
-exclude = ["documentation", "tests", "venv", "[.]venv", "[.]direnv", "[.]git", "setup[.]py"]
+# documentation/ holds executable benchmark tooling, not importable package code; .claude/
+# holds agent worktrees, each a full checkout.
+exclude = ["documentation", "tests", "venv", "[.]venv", "[.]direnv", "[.]git", "[.]claude", "setup[.]py"]
 
 [tool.deptry.per_rule_ignores]
 # DuckDB asks Polars for Arrow record batches when a DataFrame is registered. Polars imports

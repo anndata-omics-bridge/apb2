@@ -16,6 +16,8 @@ from apb2.annotation.matching.core import (
     make_annotation_table,
     match_annotation,
 )
+from apb2.annotation.sdrf import SdrfSource
+from apb2.annotation.source.load import load_annotation_file
 
 __all__ = [
     "AnnotationApplication",
@@ -24,7 +26,9 @@ __all__ = [
     "AnnotationMatches",
     "AnnotationResult",
     "RequireCompleteAnnotation",
+    "SdrfSource",
     "annotation_matching_for",
+    "load_annotation_file",
     "make_annotation_table",
     "match_annotation",
     "record_annotation_provenance",

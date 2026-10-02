@@ -17,12 +17,13 @@ from apb2.annotation.application.policies import (
 from apb2.annotation.compiler import AnnotationCompiler
 from apb2.annotation.data.model import AnnotationError, AnnotationResult
 from apb2.annotation.prolfquapp import ProlfquappAnnotationParameters
+from apb2.annotation.sdrf import SdrfAnnotationParameters
 from apb2.parserV2.parse_quant.io.errors import ResultIOError
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels, write_parsed_levels
 
 
 class UnmatchedObservations(StrEnum):
-    """Direct CLI choices for unmatched prolfquapp observations."""
+    """Direct CLI choices for unmatched prolfquapp or SDRF observations."""
 
     KEEP = "keep"
     ERROR = "error"
@@ -49,6 +50,7 @@ def annotate_result(
         application = _application(unmatched, include)
         compiler = AnnotationCompiler(
             prolfquapp=ProlfquappAnnotationParameters(application=application),
+            sdrf=SdrfAnnotationParameters(application=application),
         )
         parsed = read_parsed_levels(source)
         annotation = compiler.compile(annotation_source).parse(parsed)

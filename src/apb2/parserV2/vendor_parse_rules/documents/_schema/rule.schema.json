@@ -591,11 +591,23 @@
     },
     "Measurements": {
       "additionalProperties": false,
-      "description": "Named measurements, their primary layer, and raw duplicate policy.",
+      "description": "Named measurements, their primary layer, and raw duplicate policy.\n\n``sample_layer`` names the wide layer whose header captures are the sample names;\nomitted, the primary layer supplies them.",
       "properties": {
         "primary_layer": {
           "title": "Primary Layer",
           "type": "string"
+        },
+        "sample_layer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sample Layer"
         },
         "duplicates": {
           "$ref": "#/$defs/Duplicates"

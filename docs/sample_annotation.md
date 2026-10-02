@@ -1,7 +1,7 @@
 # Annotate samples
 
 Sample annotation is a post-conversion operation over storage-neutral `ParsedLevels`. APB2's CLI
-accepts a generic prolfquapp-style CSV/TSV table and writes the same result format unless the target
+accepts an SDRF-Proteomics or a generic prolfquapp-style CSV/TSV table and writes the same result format unless the target
 suffix deliberately selects another one. Scientific conventions such as ProteoBench compose the
 public annotation extension boundary from their own packages.
 
@@ -52,6 +52,17 @@ corrections and `annotation_only` is `A - Q`.
 
 Dropping observations subsets `obs`, every layer observation column, every `obsm` row, and both
 axes of every `obsp` matrix while remapping coordinates. It never filters only `obs`.
+
+## SDRF tables
+
+A table whose headers include `source name` and `comment[data file]`, compared case-insensitively, is read as SDRF-Proteomics; this takes precedence over prolfquapp recognition.
+
+- Rows are keyed by `comment[data file]`. The extensionless basename is an exact alias, so `run_A.raw` matches a vendor run named `run_A` without a rule-declared normalization.
+- Every other column is added to `obs` under its sanitized name. Repeated headers stay separate: two `characteristics[spiked compound]` columns become `characteristics_spiked_compound` and `characteristics_spiked_compound_duplicated_0`.
+- `sdrf.provenance.annotation.columns` maps each verbatim header to its `obs` column.
+- Only label-free rows are supported; multiplexed `comment[label]` values are rejected because they need run-and-channel observation keys.
+- Values are preserved as written. APB2 does not validate SDRF structure or ontology terms; use the official `sdrf-pipelines` validator for that.
+- `--unmatched` and `--include` behave as for prolfquapp tables. A data file listed on two rows is an error.
 
 ## Matching
 

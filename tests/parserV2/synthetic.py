@@ -126,8 +126,9 @@ def wide_document(
     primary_layer: str,
     var_keys: list[str] | None = None,
     obs_keys: list[str] | None = None,
+    sample_layer: str | None = None,
 ) -> RuleDocument:
-    """A wide rule whose observation axis comes from its primary layer's header captures."""
+    """A wide rule whose observation axis comes from its sample layer's header captures."""
     return document(
         shape="wide",
         base={
@@ -138,6 +139,7 @@ def wide_document(
             "columns": {"var": _column_entries(var_select)},
             "measurements": {
                 "primary_layer": primary_layer,
+                **({"sample_layer": sample_layer} if sample_layer is not None else {}),
                 "duplicates": {"mode": "error"},
                 "layers": layers,
             },

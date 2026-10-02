@@ -97,7 +97,8 @@
                 "name": "Genes",
                 "source": "genes",
                 "roles": [
-                  "protein_assignment"
+                  "protein_assignment",
+                  "fasta_accessions"
                 ]
               },
               {
