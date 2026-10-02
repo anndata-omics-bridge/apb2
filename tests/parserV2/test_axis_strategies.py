@@ -537,6 +537,28 @@ def test_an_embedded_site_must_point_to_the_declared_residue() -> None:
         embedded_site_list().transform(("PEPMIDE", "Oxidation (M3)"))
 
 
+def test_a_modification_after_the_last_residue_belongs_to_that_residue() -> None:
+    """DIA-NN writes carbamidomethylated C-terminal cysteine as ``…C(UniMod:4)``."""
+    result = token_regex().transform(("PEPTIDEM(ox)",))
+
+    assert result.value == "PEPTIDEM[UNIMOD:35]"
+    assert result.unknown_tokens == ()
+
+
+def test_a_terminal_only_modification_after_the_last_residue_stays_c_terminal() -> None:
+    amidated = ModificationMapEntry(
+        token="am",
+        name="Amidated",
+        accession="UNIMOD:2",
+        target=("C-term",),
+        position="C-term",
+        mass_delta=-0.984016,
+    )
+    result = token_regex(entries=(OXIDATION, amidated)).transform(("PEPTIDEM(am)",))
+
+    assert result.value == "PEPTIDEM-[UNIMOD:2]"
+
+
 def test_two_modifications_on_one_residue_concatenate() -> None:
     result = token_regex(
         entries=(OXIDATION, replace(ACETYL, position="Anywhere", target=("M",)))

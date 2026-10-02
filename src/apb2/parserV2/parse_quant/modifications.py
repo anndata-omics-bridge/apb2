@@ -363,19 +363,14 @@ class TokenRegexNormalizer:
         unknown_tokens: dict[int, str] = {}
         unknown_token_list: list[str] = []
         for token in pending:
-            entry = _matched_entry(
-                self.entries,
-                token.raw_token,
-                token.location,
-                case_sensitive=self.case_sensitive,
-            )
+            location, entry = self._resolve(token, len(stripped))
             if entry is not None:
-                token.location.record_label(labels, entry.accession or entry.name)
+                location.record_label(labels, entry.accession or entry.name)
                 continue
             _apply_unknown_policy(
                 self.unknown_policy,
                 token.raw_token,
-                token.location,
+                location,
                 len(stripped),
                 unknown_tokens,
                 unknown_token_list,
@@ -384,6 +379,32 @@ class TokenRegexNormalizer:
             value=render_proforma(stripped, labels, unknown_tokens),
             unknown_tokens=tuple(unknown_token_list),
         )
+
+    def _resolve(
+        self, token: _PendingToken, stripped_length: int
+    ) -> tuple[ModificationLocation, ModificationMapEntry | None]:
+        """Match one token where it sits.
+
+        A token written after the last residue is that residue's modification whenever the
+        map places it on that residue, as DIA-NN's ``…C(UniMod:4)``; it is C-terminal only
+        when no entry fits the residue.
+        """
+        location = token.location
+        if (
+            self.token_position == "after_residue"
+            and isinstance(location, TerminalLocation)
+            and location.position == "C-term"
+        ):
+            on_residue = ResidueLocation(stripped_length - 1, location.adjacent_residue)
+            entry = _matched_entry(
+                self.entries, token.raw_token, on_residue, case_sensitive=self.case_sensitive
+            )
+            if entry is not None:
+                return on_residue, entry
+        entry = _matched_entry(
+            self.entries, token.raw_token, location, case_sensitive=self.case_sensitive
+        )
+        return location, entry
 
 
 # ------------------------------------------------------------------- parallel name/site lists
