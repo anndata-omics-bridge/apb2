@@ -99,6 +99,14 @@
                 "source": "Q.Value"
               },
               {
+                "name": "Lib_Q_Value",
+                "source": "Lib.Q.Value"
+              },
+              {
+                "name": "Global_Q_Value",
+                "source": "Global.Q.Value"
+              },
+              {
                 "name": "RT",
                 "source": "RT"
               }
