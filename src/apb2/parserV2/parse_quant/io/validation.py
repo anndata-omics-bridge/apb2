@@ -22,7 +22,14 @@ def validate_parsed_levels(parsed: ParsedLevels, /) -> None:
     """Validate collection, axis, layer, aligned-frame, and coordinate invariants."""
     if not parsed.levels:
         raise InvalidResultError("a persisted result must contain at least one level")
+    shared_obs = next(iter(parsed.levels.values())).obs
     for name, level in parsed.levels.items():
+        if parsed.hierarchy is not None and name not in parsed.hierarchy.level_names:
+            raise InvalidResultError(f"level {name!r} is absent from the declared hierarchy")
+        if level.obs.key_columns != shared_obs.key_columns or not level.obs.frame.select(
+            level.obs.key_columns
+        ).equals(shared_obs.frame.select(shared_obs.key_columns)):
+            raise InvalidResultError(f"level {name!r} does not share the observation axis")
         validate_parsed_level(name, level)
     for name, table in parsed.annotation_tables.items():
         if name in parsed.levels:
@@ -44,35 +51,23 @@ def validate_parsed_level(name: str, parsed: ParsedLevel, /) -> None:
         )
     _validate_axis_keys(name, "obs", parsed.obs.frame, parsed.obs.key_columns)
     _validate_axis_keys(name, "var", parsed.var.frame, parsed.var.key_columns)
+    for role, column in parsed.var.roles.items():
+        if parsed.var.frame.schema.get(column) != pl.String:
+            raise InvalidResultError(
+                f"level {name!r} var role {role!r} requires String column {column!r}"
+            )
     for layer_name, layer in parsed.layers.items():
         if layer.layer_name != layer_name:
             raise InvalidResultError(
                 f"level {name!r} stores layer {layer_name!r} with internal name "
                 f"{layer.layer_name!r}"
             )
-        if layer.var_key_columns != parsed.var.key_columns:
-            raise InvalidResultError(
-                f"level {name!r} layer {layer_name!r} declares var keys "
-                f"{list(layer.var_key_columns)}; var declares {list(parsed.var.key_columns)}"
-            )
-        leading_columns = tuple(layer.values.columns[: len(layer.var_key_columns)])
-        if leading_columns != layer.var_key_columns:
-            raise InvalidResultError(
-                f"level {name!r} layer {layer_name!r} must begin with var keys "
-                f"{list(layer.var_key_columns)}, got {list(leading_columns)}"
-            )
         if layer.values.height != parsed.var.frame.height:
             raise InvalidResultError(
                 f"level {name!r} layer {layer_name!r} has {layer.values.height} rows; "
                 f"var has {parsed.var.frame.height}"
             )
-        layer_keys = layer.values.select(list(layer.var_key_columns))
-        var_keys = parsed.var.frame.select(list(parsed.var.key_columns))
-        if not layer_keys.equals(var_keys):
-            raise InvalidResultError(
-                f"level {name!r} layer {layer_name!r} var keys do not match var row-for-row"
-            )
-        value_count = layer.values.width - len(layer.var_key_columns)
+        value_count = layer.values.width
         if value_count != parsed.obs.frame.height:
             raise InvalidResultError(
                 f"level {name!r} layer {layer_name!r} has {value_count} observation "
@@ -81,7 +76,7 @@ def validate_parsed_level(name: str, parsed: ParsedLevel, /) -> None:
         _validate_layer_values(
             name,
             layer_name,
-            layer.values.select(pl.exclude(layer.var_key_columns)),
+            layer.values,
             layer.semantics,
         )
     _validate_aligned(name, "obsm", parsed.obsm, parsed.obs.frame.height)

@@ -37,6 +37,7 @@ from apb2.parserV2.vendor_parse_rules.schema.base_modifications import (
     TokenRegexSyntax,
 )
 from apb2.parserV2.vendor_parse_rules.schema.fragments import Fragments
+from apb2.parserV2.vendor_parse_rules.schema.hierarchy import HIERARCHIES
 from apb2.parserV2.vendor_parse_rules.schema.measurements import Measurements
 from apb2.parserV2.vendor_parse_rules.schema.parameters import (
     ConditionValue,
@@ -60,6 +61,7 @@ class _RuleCore(ModelBase):
     software_name: str
     software_version_pattern: str
     quantification_level: QuantificationLevel
+    hierarchy: str
     axis: Axis
     measurements: Measurements
     sequence_syntax: dict[str, SequenceSyntax] = Field(default_factory=dict)
@@ -72,6 +74,12 @@ class _RuleCore(ModelBase):
 
     @model_validator(mode="after")
     def _core_consistency(self) -> _RuleCore:
+        if self.hierarchy not in HIERARCHIES:
+            raise ValueError(f"unknown hierarchy {self.hierarchy!r}")
+        if self.quantification_level not in dict(HIERARCHIES[self.hierarchy]):
+            raise ValueError(
+                f"level {self.quantification_level!r} is absent from hierarchy {self.hierarchy!r}"
+            )
         names = [layer.name for layer in self.measurements.layers]
         if len(names) != len(set(names)):
             raise ValueError("measurement layer names must be unique")
@@ -193,6 +201,8 @@ def _check_column_group(keys: list[str], group: ColumnGroup, owner: RoleOwner) -
     role_columns: list[tuple[SemanticRole, str]] = [
         (role, entry.name) for entry in group for role in entry.roles
     ]
+    if owner == "var" and any(entry.roles and entry.type != "string" for entry in group):
+        raise ValueError("every var role requires a string-typed column")
     _check_role_owners(owner, (role for role, _name in role_columns))
     if len(dict(role_columns)) != len(role_columns):
         raise ValueError(f"roles must be unique on columns.{owner}")

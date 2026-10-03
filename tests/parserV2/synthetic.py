@@ -71,6 +71,7 @@ def document(
             "schema_version": SCHEMA_VERSION,
             "file_version": "1",
             "software_name": "Synthetic",
+            "hierarchy": "lfq",
             "software_version_pattern": "^1$",
             "tables": [{"input": declared, "base": base, "levels": levels}],
         },

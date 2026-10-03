@@ -27,7 +27,13 @@ def _level(frame: pl.DataFrame, key: str) -> ParsedLevel:
         var=VarFinal(pl.DataFrame({"feature": ["P"]}), ("feature",)),
         primary_layer_name="Intensity",
         uns={},
-        layers={"Intensity": FinalLayerTable("Intensity", ("feature",), values)},
+        layers={
+            "Intensity": FinalLayerTable(
+                "Intensity",
+                (values).drop(("feature",), strict=False),
+                semantic_roles=("abundance",),
+            )
+        },
         obsm={},
         varm={},
         obsp={},
@@ -48,15 +54,15 @@ def _parsed(experiments: list[str | None], samples: list[str]) -> ParsedLevels:
     )
 
 
-def test_bijective_alignment_preserves_measurement_order_and_original_metadata() -> None:
+def test_bijective_alignment_preserves_cells_on_one_shared_axis() -> None:
     parsed = _parsed(["B", "A"], ["A", "B"])
     original = parsed.levels["protein"]
     (result,) = group_observations(parsed)
     protein = result.levels["protein"]
     assert protein.obs.key_columns == ("Raw_File",)
-    assert protein.obs.frame["Raw_File"].to_list() == ["raw_a", "raw_z"]
-    assert protein.obs.frame["Experiment"].to_list() == ["A", "B"]
-    assert protein.layers["Intensity"] is original.layers["Intensity"]
+    assert protein.obs.frame["Raw_File"].to_list() == ["raw_z", "raw_a"]
+    assert protein.obs.frame["Experiment"].to_list() == ["B", "A"]
+    assert protein.layers["Intensity"].values.rows() == [(101, 100)]
     assert original.obs.key_columns == ("Experiment",)
     assert original.obs.frame.columns == ["Experiment"]
     assert protein.uns["observation_keys_original"] == ["Experiment"]
@@ -65,19 +71,21 @@ def test_bijective_alignment_preserves_measurement_order_and_original_metadata()
     assert json.loads(relationships)[0]["aligned"] is True
 
 
-@pytest.mark.parametrize("samples", [[], ["B", "A", "B"]])
-def test_alignment_keeps_empty_and_repeated_observation_rows(samples: list[str]) -> None:
-    parsed = _parsed(["B", "A"], samples)
-    # Preserve the declared dtype even when the frame contains no observations.
-    parsed.levels["protein"].obs.frame = pl.DataFrame(
-        {"Experiment": samples}, schema={"Experiment": pl.String}
-    )
+def test_alignment_fills_an_empty_observation_axis_without_losing_features() -> None:
+    parsed = _parsed(["B", "A"], [])
+    parsed.levels["protein"].obs.frame = pl.DataFrame(schema={"Experiment": pl.String})
     (result,) = group_observations(parsed)
-    assert result.levels["protein"].obs.frame.to_dict(as_series=False) == {
-        "Experiment": samples,
-        "Raw_File": [{"A": "raw_a", "B": "raw_z"}[name] for name in samples],
-    }
-    assert result.levels["protein"].layers is parsed.levels["protein"].layers
+    protein = result.levels["protein"]
+    assert protein.obs.frame["Raw_File"].to_list() == ["raw_z", "raw_a"]
+    assert protein.layers["Intensity"].values.rows() == [(None, None)]
+    assert parsed.levels["protein"].obs.frame.is_empty()
+
+
+def test_duplicate_observation_keys_are_rejected_before_alignment() -> None:
+    parsed = _parsed(["B", "A"], ["B", "A", "B"])
+    with pytest.raises(ValueError, match="duplicate observation keys"):
+        group_observations(parsed)
+    assert parsed.levels["protein"].obs.frame["Experiment"].to_list() == ["B", "A", "B"]
 
 
 @pytest.mark.parametrize(

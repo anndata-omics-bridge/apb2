@@ -15,7 +15,6 @@ from anndata import AnnData
 from scipy import sparse
 
 from apb2.parserV2.parse_quant.data.parsed import (
-    LEVEL_ORDER,
     AnnotationTable,
     FeatureRelation,
     FinalLayerSemantics,
@@ -38,6 +37,8 @@ from apb2.parserV2.parse_quant.io.metadata import (
     layer_role_from_metadata,
     layer_semantics_from_metadata,
     object_mapping,
+    read_hierarchy,
+    restore_level_roles,
     restore_table_schema,
     split_metadata,
     string_list,
@@ -64,6 +65,7 @@ class H5adReader:
         level_name, level = _read_level(stored, metadata, level_scope)
         shared_uns, shared_metadata = _shared_scope(root_scope)
         parsed = ParsedLevels(
+            hierarchy=read_hierarchy(shared_metadata),
             levels={level_name: level},
             uns=shared_uns,
             metadata=shared_metadata,
@@ -89,7 +91,7 @@ class H5muReader:
         for entry in level_entries:
             name = string_value(entry.get("name"), "h5mu level name")
             physical_name = string_value(entry.get("physical_name"), "h5mu level physical name")
-            if name not in LEVEL_ORDER or physical_name not in stored.mod:
+            if physical_name not in stored.mod:
                 raise InvalidResultError(f"h5mu declares unavailable level {name!r}")
             modality = cast(AnnData, stored[physical_name])
             modality_metadata = _result_metadata(modality)
@@ -108,6 +110,7 @@ class H5muReader:
         if expected_modalities != set(stored.mod):
             raise InvalidResultError("h5mu level order and modalities name different levels")
         parsed = ParsedLevels(
+            hierarchy=read_hierarchy(shared_metadata),
             levels=levels,
             uns=shared_uns,
             metadata=_shared_extensions(shared_metadata),
@@ -124,7 +127,7 @@ def _read_level(
     stored: AnnData, metadata: Mapping[str, object], scope: dict[str, JsonValue]
 ) -> tuple[ParsedLevelName, ParsedLevel]:
     level_name = string_value(metadata.get("level"), "quantification level")
-    if level_name not in LEVEL_ORDER:
+    if not level_name:
         raise InvalidResultError(f"unknown quantification level {level_name!r}")
     obs_frame = restore_table_schema(
         _axis_frame(cast(pd.DataFrame, stored.obs)),
@@ -145,17 +148,19 @@ def _read_level(
     layers = _layers(stored, var.frame, metadata)
     uns, level_metadata = _level_scope(scope)
     primary = _primary_layer_name(metadata)
-    return level_name, ParsedLevel(
-        obs=obs,
-        var=var,
-        primary_layer_name=primary,
-        layers=layers,
-        obsm=_aligned_frames(stored.obsm, metadata, "obsm"),
-        varm=_aligned_frames(stored.varm, metadata, "varm"),
-        obsp=_pairwise_frames(stored.obsp, metadata, "obsp"),
-        varp=_pairwise_frames(stored.varp, metadata, "varp"),
-        uns=uns,
-        metadata=level_metadata,
+    return level_name, restore_level_roles(
+        ParsedLevel(
+            obs=obs,
+            var=var,
+            primary_layer_name=primary,
+            layers=layers,
+            obsm=_aligned_frames(stored.obsm, metadata, "obsm"),
+            varm=_aligned_frames(stored.varm, metadata, "varm"),
+            obsp=_pairwise_frames(stored.obsp, metadata, "obsp"),
+            varp=_pairwise_frames(stored.varp, metadata, "varp"),
+            uns=uns,
+            metadata=level_metadata,
+        )
     )
 
 
@@ -165,7 +170,6 @@ def _layers(
     metadata: Mapping[str, object],
 ) -> dict[str, FinalLayerTable]:
     entries = _ordered_entries(metadata.get("layers"), "layer metadata")
-    keys = tuple(string_list(metadata.get("var_key_columns"), "var key columns"))
     result: dict[str, FinalLayerTable] = {}
     for entry in entries:
         name = string_value(entry.get("name"), "logical layer name")
@@ -193,8 +197,7 @@ def _layers(
         )
         result[name] = FinalLayerTable(
             layer_name=name,
-            var_key_columns=keys,
-            values=pl.concat([var.select(keys), values], how="horizontal_extend"),
+            values=values,
             role=layer_role_from_metadata(entry, f"layer {name!r}"),
             semantics=semantics,
         )
@@ -346,7 +349,7 @@ def _feature_relations(
             raise InvalidResultError(
                 f"feature relation {name!r} has unknown annotation table {annotation_table!r}"
             )
-        if target_level not in LEVEL_ORDER or target_level not in level_names:
+        if target_level not in level_names:
             raise InvalidResultError(
                 f"feature relation {name!r} has unknown target level {target_level!r}"
             )

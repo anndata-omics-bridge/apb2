@@ -507,6 +507,10 @@
         "quantification_level": {
           "$ref": "#/$defs/QuantificationLevel"
         },
+        "hierarchy": {
+          "title": "Hierarchy",
+          "type": "string"
+        },
         "axis": {
           "$ref": "#/$defs/Axis"
         },
@@ -581,6 +585,7 @@
         "software_name",
         "software_version_pattern",
         "quantification_level",
+        "hierarchy",
         "axis",
         "measurements",
         "shape",
@@ -987,13 +992,6 @@
       "type": "object"
     },
     "QuantificationLevel": {
-      "enum": [
-        "ion",
-        "peptidoform",
-        "peptide",
-        "protein",
-        "fragment"
-      ],
       "type": "string"
     },
     "RegexValuePattern": {
@@ -1351,6 +1349,10 @@
         "quantification_level": {
           "$ref": "#/$defs/QuantificationLevel"
         },
+        "hierarchy": {
+          "title": "Hierarchy",
+          "type": "string"
+        },
         "axis": {
           "$ref": "#/$defs/Axis"
         },
@@ -1419,6 +1421,7 @@
         "software_name",
         "software_version_pattern",
         "quantification_level",
+        "hierarchy",
         "axis",
         "measurements",
         "shape",

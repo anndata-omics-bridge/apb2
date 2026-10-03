@@ -114,6 +114,7 @@ from apb2.parserV2.vendor_parse_rules.schema.base_modifications import (
     TokenRegexSyntax,
 )
 from apb2.parserV2.vendor_parse_rules.schema.fragments import ColumnLabeledFragments
+from apb2.parserV2.vendor_parse_rules.schema.hierarchy import HIERARCHIES
 from apb2.parserV2.vendor_parse_rules.schema.input import Input
 from apb2.parserV2.vendor_parse_rules.schema.measurements import (
     FactorLayer,
@@ -482,6 +483,10 @@ class ParseRuleFacade:
         """
         provenance: dict[str, JsonValue] = {
             "rule_json": json.dumps(rule.model_dump(mode="json")),
+            "hierarchy": {
+                "name": rule.hierarchy,
+                "identities": [list(pair) for pair in HIERARCHIES[rule.hierarchy]],
+            },
             "column_roles": {
                 role: entry.name for entry in rule.columns.var for role in entry.roles
             },

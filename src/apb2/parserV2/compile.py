@@ -173,11 +173,10 @@ def _validated_levels(
     levels = tuple(requested_levels)
     if not levels:
         raise ValueError("at least one quantification level is required")
-    duplicates = tuple(level for level in LEVELS if levels.count(level) > 1)
+    duplicates = tuple(level for level in dict.fromkeys(levels) if levels.count(level) > 1)
     if duplicates:
         raise ValueError(f"duplicate quantification levels: {duplicates}")
-    requested = set(levels)
-    return tuple(level for level in LEVELS if level in requested)
+    return levels
 
 
 def _input_source(data: Path) -> InputSource:

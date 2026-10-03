@@ -114,4 +114,4 @@ def test_peaks_samples_come_from_run_mz_columns_not_group_averages(tmp_path: Pat
     level = read_parsed_levels(target).levels["ion"]
     assert level.obs.frame.get_column("sample").to_list() == list(runs)
     assert set(level.layers) == {"Normalized_Area", "Sample_Mz", "Sample_RT_Mean"}
-    assert level.layers["Normalized_Area"].values.width == len(runs) + 1
+    assert level.layers["Normalized_Area"].values.width == len(runs)

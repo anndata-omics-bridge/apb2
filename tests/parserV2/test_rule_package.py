@@ -24,6 +24,7 @@ from apb2.parserV2.vendor_parse_rules.schema.base import (
     QuantificationLevel,
 )
 from apb2.parserV2.vendor_parse_rules.schema.fragments import ColumnLabeledFragments
+from apb2.parserV2.vendor_parse_rules.schema.hierarchy import HIERARCHIES
 from apb2.parserV2.vendor_parse_rules.schema.input import Input
 from apb2.parserV2.vendor_parse_rules.schema.measurements import (
     FactorLayer,
@@ -107,7 +108,7 @@ def test_entry_shaped_columns_project_roles_and_runtime_selections(tmp_path: Pat
         {
             "name": "feature",
             "source": "Feature",
-            "type": "integer",
+            "type": "string",
             "roles": ["protein_assignment", "fasta_accessions"],
         }
     ]
@@ -115,7 +116,7 @@ def test_entry_shaped_columns_project_roles_and_runtime_selections(tmp_path: Pat
     document = make_rule_document(tmp_path / "rules.json", payload)
     working = ParseRuleFacade(document, "ion", NO_EVIDENCE).working_parameters
 
-    assert working.var.required_selections[0].logical_type == "integer"
+    assert working.var.required_selections[0].logical_type == "string"
     assert working.provenance["column_roles"] == {
         "protein_assignment": "feature",
         "fasta_accessions": "feature",
@@ -491,6 +492,7 @@ def test_a_level_without_a_gate_is_applicable_without_any_evidence() -> None:
 
 def _document_payload() -> dict[str, Any]:
     return {
+        "hierarchy": "lfq",
         "schema_version": SCHEMA_VERSION,
         "file_version": "1",
         "software_name": "Test",
@@ -851,3 +853,28 @@ def test_the_published_artifact_is_the_schema_the_models_declare() -> None:
     committed = json.loads(artifact_path().read_text(encoding="utf-8"))
 
     assert committed == rule_json_schema()
+
+
+@pytest.mark.parametrize(("pair", "level"), _LEVEL_CASES)
+def test_packaged_levels_declare_reachable_hierarchy_identities(
+    pair: PackagedDocument, level: str
+) -> None:
+    rule = load_rule_document(pair.parser_v2_path).declared(level).declaration
+    hierarchy = dict(HIERARCHIES[rule.hierarchy])
+    assert level in hierarchy
+    roles = {role: column.name for column in rule.columns.var for role in column.roles}
+    available = {*rule.axis.var_keys, *(column.name for column in rule.columns.var)}
+    coarser = list(hierarchy)[list(hierarchy).index(level) + 1 :]
+    assert not coarser or any(
+        roles.get(hierarchy[name], hierarchy[name]) in available for name in coarser
+    )
+
+
+@pytest.mark.parametrize("dtype", ["integer", "number", "boolean"])
+def test_rule_var_roles_reject_non_string_types(dtype: str, tmp_path: Path) -> None:
+    payload = _document_payload()
+    payload["tables"][0]["levels"]["ion"]["columns"]["var"][0].update(
+        {"type": dtype, "roles": ["protein_assignment"]}
+    )
+    with pytest.raises(ValidationError, match="string"):
+        _declared(payload, tmp_path)

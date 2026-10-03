@@ -42,7 +42,7 @@ class PlainNumericLayerParser:
         return ~(blank(values, dtype) | sentinel.fill_null(False))
 
     def parse(self, layer: FinalLayerTable, /) -> FinalLayerTable:
-        values = layer.values.select(pl.exclude(layer.var_key_columns))
+        values = layer.values
         if not values.width:
             canonical = values
         else:
@@ -115,7 +115,7 @@ class RegexNumericLayerParser:
         return ~(blank(values, dtype) | sentinel.fill_null(False))
 
     def parse(self, layer: FinalLayerTable, /) -> FinalLayerTable:
-        values = layer.values.select(pl.exclude(layer.var_key_columns))
+        values = layer.values
         canonical = values.select(
             _masked(
                 as_numbers(
@@ -151,7 +151,7 @@ class FactorLayerParser:
             missing_code=UNKNOWN_CATEGORY_CODE,
         )
         mapping = dict(self.categories)
-        values = layer.values.select(pl.exclude(layer.var_key_columns))
+        values = layer.values
         canonical = values.select(
             pl.all()
             .cast(pl.String, strict=False)
@@ -177,11 +177,9 @@ def _parsed_layer(
     semantics: QuantitativeLayerSemantics | CategoricalLayerSemantics,
     role: MeasurementLayerRole | AuxiliaryLayerRole,
 ) -> FinalLayerTable:
-    keys = layer.values.select(list(layer.var_key_columns))
     return FinalLayerTable(
         layer_name=layer.layer_name,
-        var_key_columns=layer.var_key_columns,
-        values=pl.concat([keys, values], how="horizontal_extend"),
+        values=values,
         role=role,
         semantics=semantics,
     )

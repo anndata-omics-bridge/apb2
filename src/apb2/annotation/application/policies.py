@@ -261,11 +261,10 @@ def _annotated_level(
 
 
 def _subset_layer(layer: FinalLayerTable, kept: list[int]) -> FinalLayerTable:
-    key_count = len(layer.var_key_columns)
-    value_columns = layer.values.columns[key_count:]
+    value_columns = layer.values.columns
     selected_names = [value_columns[index] for index in kept]
-    values = layer.values.select([*layer.var_key_columns, *selected_names])
-    replacement = observation_labels(len(kept), layer.var_key_columns)
+    values = layer.values.select(selected_names)
+    replacement = observation_labels(len(kept), ())
     values = values.rename(dict(zip(selected_names, replacement, strict=True)))
     return replace(layer, values=values)
 

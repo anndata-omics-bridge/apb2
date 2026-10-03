@@ -156,8 +156,10 @@ def test_raw_and_final_layer_tables_share_no_mode_bearing_abstraction() -> None:
     )
     final = FinalLayerTable(
         layer_name="Intensity",
-        var_key_columns=("ProForma_ion",),
-        values=pl.DataFrame({"ProForma_ion": ["F/2"], "A": [1.0]}),
+        values=(pl.DataFrame({"ProForma_ion": ["F/2"], "A": [1.0]})).drop(
+            ("ProForma_ion",), strict=False
+        ),
+        semantic_roles=("abundance",),
     )
 
     assert type(raw).__mro__[1:] == (object,)
@@ -174,12 +176,14 @@ def test_a_parsed_level_composes_final_values_and_nothing_new() -> None:
             key_columns=("ProForma_ion",),
         ),
         primary_layer_name="Intensity",
-        uns={"software_name": "AlphaDIA", "quantification_level": "ion"},
+        uns={"hierarchy": "lfq", "software_name": "AlphaDIA", "quantification_level": "ion"},
         layers={
             "Intensity": FinalLayerTable(
                 layer_name="Intensity",
-                var_key_columns=("ProForma_ion",),
-                values=pl.DataFrame({"ProForma_ion": ["F/2"], "A": [1.0], "B": [2.0]}),
+                values=(pl.DataFrame({"ProForma_ion": ["F/2"], "A": [1.0], "B": [2.0]})).drop(
+                    ("ProForma_ion",), strict=False
+                ),
+                semantic_roles=("abundance",),
             )
         },
         obsm={},

@@ -10,7 +10,6 @@ from typing import Protocol
 from loguru import logger
 
 from apb2.parserV2.parse_quant.data.parsed import (
-    LEVEL_ORDER,
     ParsedLevel,
     ParsedLevels,
 )
@@ -41,7 +40,7 @@ class ParsedLevelFormatWriter:
     def write(self, parsed: ParsedLevel, target: Path, /) -> None:
         """Wrap one canonical level and delegate to the ordinary result writer."""
         value = parsed.uns.get("quantification_level")
-        if not isinstance(value, str) or value not in LEVEL_ORDER:
+        if not isinstance(value, str):
             raise InvalidResultError(
                 "writing one parsed level requires uns['quantification_level']"
             )

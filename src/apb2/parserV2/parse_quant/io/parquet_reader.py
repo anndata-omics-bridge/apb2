@@ -10,7 +10,6 @@ from typing import cast
 import polars as pl
 
 from apb2.parserV2.parse_quant.data.parsed import (
-    LEVEL_ORDER,
     AnnotationTable,
     FeatureRelation,
     FinalLayerTable,
@@ -30,6 +29,8 @@ from apb2.parserV2.parse_quant.io.metadata import (
     layer_role_from_metadata,
     layer_semantics_from_metadata,
     object_mapping,
+    read_hierarchy,
+    restore_level_roles,
     restore_table_schema,
     string_list,
     string_value,
@@ -67,7 +68,7 @@ class ParquetReader:
         level_entries = object_mapping(manifest.get("levels"), "levels")
         levels: dict[ParsedLevelName, ParsedLevel] = {}
         for name in order:
-            if name not in LEVEL_ORDER:
+            if not name:
                 raise InvalidResultError(f"unknown quantification level {name!r}")
             level = _read_level(source, object_mapping(level_entries.get(name), f"level {name!r}"))
             levels[name] = level
@@ -77,6 +78,7 @@ class ParquetReader:
         annotation_tables = _read_annotation_tables(source, manifest)
         feature_relations = _read_feature_relations(source, manifest)
         parsed = ParsedLevels(
+            hierarchy=read_hierarchy(metadata),
             levels=levels,
             uns=uns,
             metadata=metadata,
@@ -103,17 +105,19 @@ def _read_level(source: Path, metadata: dict[str, object] | object) -> ParsedLev
     )
     layers = _read_layers(directory, level)
     uns, extension_metadata = unpack_level_scope(level.get("apb"), "level APB metadata")
-    return ParsedLevel(
-        obs=obs,
-        var=var,
-        primary_layer_name=string_value(level.get("primary_layer"), "primary layer"),
-        layers=layers,
-        obsm=_read_named_frames(directory / "obsm", level, "obsm"),
-        varm=_read_named_frames(directory / "varm", level, "varm"),
-        obsp=_read_named_frames(directory / "obsp", level, "obsp"),
-        varp=_read_named_frames(directory / "varp", level, "varp"),
-        uns=uns,
-        metadata=extension_metadata,
+    return restore_level_roles(
+        ParsedLevel(
+            obs=obs,
+            var=var,
+            primary_layer_name=string_value(level.get("primary_layer"), "primary layer"),
+            layers=layers,
+            obsm=_read_named_frames(directory / "obsm", level, "obsm"),
+            varm=_read_named_frames(directory / "varm", level, "varm"),
+            obsp=_read_named_frames(directory / "obsp", level, "obsp"),
+            varp=_read_named_frames(directory / "varp", level, "varp"),
+            uns=uns,
+            metadata=extension_metadata,
+        )
     )
 
 
@@ -126,9 +130,6 @@ def _read_layers(directory: Path, level: object) -> dict[str, FinalLayerTable]:
         entry = object_mapping(entries.get(name), f"layer {name!r}")
         result[name] = FinalLayerTable(
             layer_name=name,
-            var_key_columns=tuple(
-                string_list(entry.get("var_key_columns"), f"layer {name!r} var keys")
-            ),
             values=_read_table(directory / "layers", entry),
             role=layer_role_from_metadata(entry, f"layer {name!r}"),
             semantics=layer_semantics_from_metadata(entry.get("semantics"), f"layer {name!r}"),
@@ -191,7 +192,7 @@ def _read_feature_relations(
         target_level = string_value(
             entry.get("target_level"), f"feature relation {name!r} target level"
         )
-        if target_level not in LEVEL_ORDER:
+        if not target_level:
             raise InvalidResultError(
                 f"feature relation {name!r} has unknown target level {target_level!r}"
             )

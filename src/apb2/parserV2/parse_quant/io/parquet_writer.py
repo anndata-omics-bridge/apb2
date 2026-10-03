@@ -11,7 +11,6 @@ import polars as pl
 from loguru import logger
 
 from apb2.parserV2.parse_quant.data.parsed import (
-    LEVEL_ORDER,
     AnnotationTable,
     FeatureRelation,
     FinalLayerTable,
@@ -76,7 +75,7 @@ class ParquetLevelsWriter:
                 "format_version": FORMAT_VERSION,
                 "level_order": list(parsed.levels),
                 "levels": level_metadata,
-                "apb": shared_scope(parsed.uns, parsed.metadata),
+                "apb": shared_scope(parsed.uns, parsed.metadata, parsed.hierarchy),
                 "annotation_table_order": list(parsed.annotation_tables),
                 "annotation_tables": _write_annotation_tables(
                     parsed.annotation_tables,
@@ -128,7 +127,6 @@ def _write_layers(layers: Mapping[str, FinalLayerTable], directory: Path) -> dic
         layer.values.write_parquet(directory / names[name])
         result[name] = {
             **table_metadata(layer.values, names[name]),
-            "var_key_columns": list(layer.var_key_columns),
             "role": layer.role.persisted_name(),
             "semantics": layer_semantics_metadata(layer.semantics),
         }
@@ -185,7 +183,7 @@ def _write_feature_relations(
 
 def _level_name(parsed: ParsedLevel) -> ParsedLevelName:
     value = parsed.uns.get("quantification_level")
-    if not isinstance(value, str) or value not in LEVEL_ORDER:
+    if not isinstance(value, str):
         raise InvalidResultError(
             "a parser-owned Parquet write requires uns['quantification_level']"
         )

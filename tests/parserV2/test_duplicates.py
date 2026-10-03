@@ -122,8 +122,10 @@ def test_an_at_or_below_bound_reads_the_number_inside_a_structured_token() -> No
 def test_an_at_or_below_bound_leaves_only_positive_final_values() -> None:
     final = FinalLayerTable(
         layer_name="L",
-        var_key_columns=("Feature",),
-        values=pl.DataFrame({"Feature": ["F1", "F2", "F3"], "obs_0": [5.0, 0.0, -1.0]}),
+        values=(pl.DataFrame({"Feature": ["F1", "F2", "F3"], "obs_0": [5.0, 0.0, -1.0]})).drop(
+            ("Feature",), strict=False
+        ),
+        semantic_roles=("abundance",),
     )
 
     parsed = NONPOSITIVE.parse(final)

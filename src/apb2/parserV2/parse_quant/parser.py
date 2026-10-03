@@ -38,6 +38,7 @@ from apb2.parserV2.parse_quant.data.layer_columns import observation_labels
 from apb2.parserV2.parse_quant.data.parsed import (
     FinalLayerTable,
     JsonValue,
+    LevelHierarchy,
     ObsFinal,
     ParsedLevel,
     ParsedLevels,
@@ -79,7 +80,7 @@ class LevelParseTimings:
 class ParserCollection:
     """Compiled level parsers that produce one canonical ``ParsedLevels`` value."""
 
-    __slots__ = ("_parsers",)
+    __slots__ = ("_hierarchy", "_parsers")
 
     def __init__(self, parsers: tuple[Parser, ...], /) -> None:
         if not parsers:
@@ -88,13 +89,25 @@ class ParserCollection:
         duplicates = sorted(level for level in set(levels) if levels.count(level) > 1)
         if duplicates:
             raise ValueError(f"duplicate parser levels: {duplicates}")
-        self._parsers = parsers
+        definitions = [parser.strategy.provenance.get("hierarchy") for parser in parsers]
+        if any(definition != definitions[0] for definition in definitions):
+            raise ValueError("parser levels must declare one shared hierarchy")
+        self._hierarchy = (
+            None if definitions[0] is None else LevelHierarchy.from_json(definitions[0])
+        )
+        order = (
+            tuple(parser.level for parser in parsers)
+            if self._hierarchy is None
+            else self._hierarchy.level_names
+        )
+        self._parsers = tuple(sorted(parsers, key=lambda parser: order.index(parser.level)))
 
     def parse(self) -> ParsedLevels:
         """Parse every compiled level once and assemble the canonical collection."""
         return ParsedLevels(
             levels={parser.level: parser.parse() for parser in self._parsers},
             uns={},
+            hierarchy=self._hierarchy,
         )
 
     def parse_with_timings(self) -> tuple[ParsedLevels, tuple[LevelParseTimings, ...]]:
@@ -105,7 +118,7 @@ class ParserCollection:
             parsed_level, timing = parser.parse_with_timings()
             levels[parser.level] = parsed_level
             timings.append(timing)
-        return ParsedLevels(levels=levels, uns={}), tuple(timings)
+        return ParsedLevels(levels=levels, uns={}, hierarchy=self._hierarchy), tuple(timings)
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,6 +175,21 @@ class ParseStrategy:
         layers = self._prepare_layers(raw.layers, obs_map, var_map)
         self.layer_validator.validate(layers)
         uns = dict(self.provenance)
+        raw_columns = uns.pop("column_roles", {})
+        raw_layers = uns.pop("layer_roles", {})
+        assert isinstance(raw_columns, dict) and isinstance(raw_layers, dict)
+        var.roles = {
+            role: column
+            for role, column in raw_columns.items()
+            if isinstance(column, str) and column in var.frame.columns
+        }
+        for name, layer in layers.items():
+            layer.semantic_roles = tuple(
+                role
+                for role, names in raw_layers.items()
+                if isinstance(names, list) and name in names
+            )
+        uns.pop("hierarchy", None)
         if unknown_mod_tokens:
             uns[_UNKNOWN_MOD_TOKENS] = list(unknown_mod_tokens)
 
@@ -361,11 +389,8 @@ class ParseStrategy:
         )
         value_columns = layer.values.columns[len(keys) :]
         labels = observation_labels(len(value_columns), reserved=final_keys.columns)
-        values = final_keys.hstack(
-            joined.select(value_columns).rename(dict(zip(value_columns, labels, strict=True)))
-        )
+        values = joined.select(value_columns).rename(dict(zip(value_columns, labels, strict=True)))
         return FinalLayerTable(
             layer_name=layer.layer_name,
-            var_key_columns=tuple(final_keys.columns),
             values=values,
         )

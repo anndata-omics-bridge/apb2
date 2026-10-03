@@ -15,6 +15,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
     FinalLayerRole,
     FinalLayerSemantics,
     JsonValue,
+    LevelHierarchy,
     MeasurementLayerRole,
     ParsedLevel,
     ParsedLevels,
@@ -30,7 +31,7 @@ RESULT_FORMAT = "apb2-parsed-levels"
 RESULT_FORMAT_VERSION = "5"
 
 PARQUET_FORMAT = "apb2-parsed-levels-parquet"
-PARQUET_FORMAT_VERSION = "5"
+PARQUET_FORMAT_VERSION = "6"
 PARQUET_MANIFEST_NAME = "manifest.json"
 PARQUET_LEVELS_DIRECTORY = "levels"
 
@@ -64,12 +65,18 @@ _LAYER_ROLES_BY_NAME: Mapping[str, FinalLayerRole] = {
 
 
 def shared_scope(
-    parse: Mapping[str, JsonValue], metadata: Mapping[str, JsonValue], /
+    parse: Mapping[str, JsonValue],
+    metadata: Mapping[str, JsonValue],
+    hierarchy: LevelHierarchy | None = None,
+    /,
 ) -> dict[str, JsonValue]:
     """Compose one shared APB scope without merging it into a level."""
-    if {PARSE_NAMESPACE, ROLES_NAMESPACE, STORAGE_NAMESPACE}.intersection(metadata):
+    if {PARSE_NAMESPACE, ROLES_NAMESPACE, STORAGE_NAMESPACE, "hierarchy"}.intersection(metadata):
         raise InvalidResultError("root extension metadata uses a reserved APB section")
-    return {PARSE_NAMESPACE: dict(parse), **dict(metadata)}
+    result: dict[str, JsonValue] = {PARSE_NAMESPACE: dict(parse), **dict(metadata)}
+    if hierarchy is not None:
+        result["hierarchy"] = hierarchy.as_json()
+    return result
 
 
 def level_scope(parsed: ParsedLevel, /) -> dict[str, JsonValue]:
@@ -79,11 +86,15 @@ def level_scope(parsed: ParsedLevel, /) -> dict[str, JsonValue]:
         for repeated in ("schema_version", "software_name", "shape", "quantification_level"):
             parse.pop(repeated, None)
     roles: dict[str, JsonValue] = {}
-    columns = parse.pop("column_roles", None)
-    layers = parse.pop("layer_roles", None)
-    if columns is not None:
-        roles["columns"] = columns
-    if layers is not None:
+    if parsed.var.roles:
+        roles["columns"] = dict(parsed.var.roles)
+    layers: dict[str, JsonValue] = {}
+    for name, layer in parsed.layers.items():
+        for role in layer.semantic_roles:
+            members = layers.setdefault(role, [])
+            assert isinstance(members, list)
+            members.append(name)
+    if layers:
         roles["layers"] = layers
     collisions = {PARSE_NAMESPACE, ROLES_NAMESPACE, STORAGE_NAMESPACE}.intersection(parsed.metadata)
     if collisions:
@@ -97,7 +108,7 @@ def level_scope(parsed: ParsedLevel, /) -> dict[str, JsonValue]:
 
 def collection_shared_scope(parsed: ParsedLevels, /) -> dict[str, JsonValue]:
     """Compose root scientific metadata, including non-level objects exactly once."""
-    result = shared_scope(parsed.uns, parsed.metadata)
+    result = shared_scope(parsed.uns, parsed.metadata, parsed.hierarchy)
     reserved = {"annotation_tables", "feature_relations"}.intersection(result)
     if reserved:
         raise InvalidResultError(f"shared metadata uses reserved section(s) {reserved}")
@@ -467,3 +478,25 @@ def _string_list(value: object, role: str) -> list[str]:
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         raise InvalidResultError(f"{role} is not a list of text values")
     return cast(list[str], value)
+
+
+def restore_level_roles(parsed: ParsedLevel) -> ParsedLevel:
+    """Hydrate semantic declarations at the physical read boundary."""
+    columns = object_mapping(parsed.uns.pop("column_roles", {}), "column roles")
+    parsed.var.roles = {
+        role: string_value(column, f"column role {role!r}") for role, column in columns.items()
+    }
+    layers = object_mapping(parsed.uns.pop("layer_roles", {}), "layer roles")
+    for role, raw_names in layers.items():
+        names = string_list(raw_names, f"layer role {role!r}")
+        if len(names) != len(set(names)) or set(names) - set(parsed.layers):
+            raise InvalidResultError(f"layer role {role!r} names duplicate or absent layers")
+        for name in names:
+            parsed.layers[name].semantic_roles += (role,)
+    return parsed
+
+
+def read_hierarchy(metadata: dict[str, JsonValue]) -> LevelHierarchy | None:
+    """Restore the typed hierarchy from an adapter-owned shared metadata mapping."""
+    value = metadata.pop("hierarchy", None)
+    return None if value is None else LevelHierarchy.from_json(value)

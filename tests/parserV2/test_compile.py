@@ -69,6 +69,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
     InputSource,
     NumericTextFormat,
     SingleFile,
+    SourceEvidence,
 )
 from apb2.parserV2.parse_quant.parser import Parser
 from apb2.parserV2.parse_quant.value_parsing import (
@@ -421,6 +422,7 @@ def test_compilation_injects_the_detected_number_notation_into_axis_coercers(
     document = make_rule_document(
         tmp_path / "rules.json",
         {
+            "hierarchy": "lfq",
             "schema_version": SCHEMA_VERSION,
             "file_version": "1",
             "software_name": "Localized",
@@ -476,12 +478,12 @@ def test_compilation_resolves_the_source_exactly_once(
 
     def counting(
         self: ParseRuleFacade,
-        evidence: object,
+        evidence: SourceEvidence,
         *,
         checks: Literal["standard", "strict"] = "standard",
     ) -> object:
         calls.append("resolve_source")
-        return original(self, evidence, checks=checks)  # pyright: ignore[reportArgumentType]
+        return original(self, evidence, checks=checks)
 
     monkeypatch.setattr(ParseRuleFacade, "resolve_source", counting)
     document = synthetic.long_document(
@@ -679,7 +681,7 @@ def test_a_wide_level_asks_whether_anything_matches_its_layer_pattern() -> None:
 def test_every_packaged_level_accepts_a_header_built_from_its_own_requirements(
     pair: PackagedDocument, level: str
 ) -> None:
-    facade = pair.first_admitted_facade(level)  # pyright: ignore[reportArgumentType]
+    facade = pair.first_admitted_facade(level)
     working = facade.working_parameters
     header = pair.header()
     if not header:

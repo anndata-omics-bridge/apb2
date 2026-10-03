@@ -85,18 +85,21 @@ def _parsed(
     pair_rows[1::2] = range(1, len(runs))
     layer = FinalLayerTable(
         layer_name="Intensity",
-        var_key_columns=("feature",),
-        values=pl.DataFrame(
-            {
-                "feature": ["p1", "p2"],
-                **{
-                    f"obs_{index}": [float(index + 1), float(index + 11)]
-                    for index in range(len(runs))
-                },
-            }
-        ),
+        values=(
+            pl.DataFrame(
+                {
+                    "feature": ["p1", "p2"],
+                    **{
+                        f"obs_{index}": [float(index + 1), float(index + 11)]
+                        for index in range(len(runs))
+                    },
+                }
+            )
+        ).drop(("feature",), strict=False),
+        semantic_roles=("abundance",),
     )
     uns: dict[str, JsonValue] = {
+        "hierarchy": "lfq",
         "quantification_level": "ion",
         "software_name": "Synthetic",
         "plan_json": _plan(),
@@ -253,7 +256,7 @@ def test_drop_and_boolean_selection_subsets_every_observation_aligned_value() ->
         "run": ["run_A", "run_C"],
         "include": [True, True],
     }
-    assert result.layers["Intensity"].values.columns == ["feature", "obs_0", "obs_1"]
+    assert result.layers["Intensity"].values.columns == ["obs_0", "obs_1"]
     assert result.layers["Intensity"].values.get_column("obs_1").to_list() == [3.0, 13.0]
     assert result.obsm["quality"].get_column("score").to_list() == [0, 2]
     assert result.obsp["links"].is_empty()
@@ -294,10 +297,11 @@ def test_annotation_preserves_layer_semantics_and_round_trips(
     parsed = _parsed()
     layer = FinalLayerTable(
         layer_name="Evidence",
-        var_key_columns=("feature",),
-        values=pl.DataFrame(
-            {"feature": ["p1", "p2"], "obs_0": [1, -1], "obs_1": [2, 1], "obs_2": [-1, 2]}
-        ),
+        values=(
+            pl.DataFrame(
+                {"feature": ["p1", "p2"], "obs_0": [1, -1], "obs_1": [2, 1], "obs_2": [-1, 2]}
+            )
+        ).drop(("feature",), strict=False),
         role=AuxiliaryLayerRole(),
         semantics=semantics,
     )
@@ -317,17 +321,17 @@ def test_annotation_preserves_layer_semantics_and_round_trips(
     write_parsed_levels(result, target)
     restored = read_parsed_levels(target)
     expected = layer.values.select(
-        "feature", *(pl.col(f"obs_{old}").alias(f"obs_{new}") for new, old in enumerate(kept))
+        *(pl.col(f"obs_{old}").alias(f"obs_{new}") for new, old in enumerate(kept))
     )
     for level in (result.levels["ion"], restored.levels["ion"]):
         copied = level.layers["Evidence"]
         assert copied.semantics == semantics
         assert copied.layer_name == layer.layer_name
-        assert copied.var_key_columns == layer.var_key_columns
+        assert copied.semantic_roles == layer.semantic_roles
         assert isinstance(copied.role, AuxiliaryLayerRole)
         assert_frame_equal(copied.values, expected)
         assert level.obs.frame["run"].to_list() == [["run_A", "run_B", "run_C"][i] for i in kept]
-    assert layer.values.columns == ["feature", "obs_0", "obs_1", "obs_2"]
+    assert layer.values.columns == ["obs_0", "obs_1", "obs_2"]
 
 
 def test_exact_matching_supports_composite_keys() -> None:

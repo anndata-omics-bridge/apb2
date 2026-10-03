@@ -1,6 +1,15 @@
 """Public storage-neutral APB result and result-I/O boundary."""
 
 from apb2.parserV2.parse_quant.data.layer_columns import observation_labels
+from apb2.parserV2.parse_quant.data.layer_selection import (
+    ALL_ABUNDANCE_LAYERS,
+    PRIMARY_LAYER,
+    AllAbundanceLayers,
+    LayerSelection,
+    NamedAbundanceLayer,
+    PrimaryLayer,
+    ResolvedLayerSelection,
+)
 from apb2.parserV2.parse_quant.data.parsed import (
     AnnotationTable,
     AuxiliaryLayerRole,
@@ -8,6 +17,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
     FeatureRelation,
     FinalLayerTable,
     JsonValue,
+    LevelHierarchy,
     MeasurementLayerRole,
     ObsFinal,
     ParsedLevel,
@@ -35,18 +45,26 @@ def get_provenance(parsed: ParsedLevels, /) -> dict[str, JsonValue]:
 
 
 __all__ = [
+    "ALL_ABUNDANCE_LAYERS",
+    "PRIMARY_LAYER",
+    "AllAbundanceLayers",
     "AnnotationTable",
     "AuxiliaryLayerRole",
     "CategoricalLayerSemantics",
     "FeatureRelation",
     "FinalLayerTable",
     "JsonValue",
+    "LayerSelection",
+    "LevelHierarchy",
     "MeasurementLayerRole",
+    "NamedAbundanceLayer",
     "ObsFinal",
     "ParsedLevel",
     "ParsedLevelName",
     "ParsedLevels",
+    "PrimaryLayer",
     "QuantitativeLayerSemantics",
+    "ResolvedLayerSelection",
     "ResultIOError",
     "VarFinal",
     "get_provenance",

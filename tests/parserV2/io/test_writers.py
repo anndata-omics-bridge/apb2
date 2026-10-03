@@ -82,6 +82,7 @@ def level(
         }
     )
     metadata: dict[str, JsonValue] = {
+        "hierarchy": "lfq",
         "software_name": "Synthetic",
         "quantification_level": "ion",
     }
@@ -92,7 +93,11 @@ def level(
         primary_layer_name=primary,
         uns=metadata,
         layers={
-            name: FinalLayerTable(layer_name=name, var_key_columns=var_keys, values=frame)
+            name: FinalLayerTable(
+                layer_name=name,
+                values=(frame).drop(var_keys, strict=False),
+                semantic_roles=("abundance",),
+            )
             for name, frame in values.items()
         },
         obsm={},
@@ -163,7 +168,7 @@ def test_the_manifest_states_what_every_file_is(tmp_path: Path) -> None:
     ParquetWriter().write(parsed, target)
     manifest = manifest_of(target)
 
-    assert manifest["format_version"] == "5"
+    assert manifest["format_version"] == "6"
     assert manifest["level_order"] == ["ion"]
     levels = manifest["levels"]
     assert isinstance(levels, dict)
@@ -174,6 +179,7 @@ def test_the_manifest_states_what_every_file_is(tmp_path: Path) -> None:
     apb = ion["apb"]
     assert isinstance(apb, dict)
     assert apb["parse"] == {
+        "hierarchy": "lfq",
         "software_name": "Synthetic",
         "quantification_level": "ion",
         "unknown_mod_tokens": ["Mystery@M"],
@@ -182,9 +188,8 @@ def test_the_manifest_states_what_every_file_is(tmp_path: Path) -> None:
     assert isinstance(layers, dict)
     assert layers["Q Value"] == {
         "file": "Q_Value.parquet",
-        "columns": ["Feature", "Charge", "obs_0"],
-        "schema": [{"name": "String"}, {"name": "Int64"}, {"name": "Float64"}],
-        "var_key_columns": ["Feature", "Charge"],
+        "columns": ["obs_0"],
+        "schema": [{"name": "Float64"}],
         "role": "measurement",
         "semantics": {"kind": "quantitative", "logical_type": "number"},
     }
@@ -305,9 +310,7 @@ def canonical_values(
     values: pl.DataFrame,
 ) -> pl.DataFrame:
     layer = FinalLayerTable(
-        layer_name="L",
-        var_key_columns=(),
-        values=values,
+        layer_name="L", values=(values).drop((), strict=False), semantic_roles=("abundance",)
     )
     return parser.parse(layer).values
 
@@ -458,8 +461,7 @@ def validate_layers(
     layers = {
         name: FinalLayerTable(
             layer_name=name,
-            var_key_columns=(),
-            values=frame,
+            values=(frame).drop((), strict=False),
             role=AuxiliaryLayerRole() if name in auxiliary else MeasurementLayerRole(),
         )
         for name, frame in values.items()
@@ -627,10 +629,10 @@ def test_writer_does_not_repeat_parse_time_occupancy_checks(
 
 def test_the_parser_owned_anndata_writer_validates_layer_key_alignment(tmp_path: Path) -> None:
     parsed = level()
-    parsed.layers["Intensity"].values = parsed.layers["Intensity"].values.reverse()
+    parsed.layers["Intensity"].values = parsed.layers["Intensity"].values.head(1)
     target = tmp_path / "ion.h5ad"
 
-    with pytest.raises(InvalidResultError, match="do not match var row-for-row"):
+    with pytest.raises(InvalidResultError, match="rows"):
         writer_for(parsed).write(parsed, target)
 
     assert not target.exists()
@@ -677,6 +679,7 @@ def test_h5ad_namespaces_have_one_scientific_owner_and_one_storage_descriptor(
 ) -> None:
     parsed = level(
         uns={
+            "hierarchy": "lfq",
             "quantification_level": "ion",
             "column_roles": {"protein_assignment": "Feature"},
             "layer_roles": {"abundance": ["Intensity"]},
@@ -909,6 +912,7 @@ def test_only_repeated_axis_strings_are_dictionary_encoded(tmp_path: Path) -> No
 def test_the_provenance_is_written_under_the_parse_tool_namespace(tmp_path: Path) -> None:
     parsed = level(
         uns={
+            "hierarchy": "lfq",
             "software_name": "Synthetic",
             "quantification_level": "ion",
             "unknown_mod_tokens": ["Mystery@M"],
@@ -965,13 +969,13 @@ def test_mudata_writer_materializes_each_canonical_level(
     tmp_path: Path,
 ) -> None:
     ion = level(
-        uns={"software_name": "Synthetic", "quantification_level": "ion"},
+        uns={"hierarchy": "lfq", "software_name": "Synthetic", "quantification_level": "ion"},
     )
     protein = level(
         var=pl.DataFrame({"Protein": ["P1"]}),
         var_keys=("Protein",),
         layers={"Intensity": pl.DataFrame({"Protein": ["P1"], "obs_0": [10.0], "obs_1": [20.0]})},
-        uns={"software_name": "Synthetic", "quantification_level": "protein"},
+        uns={"hierarchy": "lfq", "software_name": "Synthetic", "quantification_level": "protein"},
     )
     target = tmp_path / "levels.h5mu"
 

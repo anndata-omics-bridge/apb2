@@ -183,8 +183,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
 )
 ```
 
-`ParsedLevels` contains an ordered level mapping and shared JSON-compatible provenance. Each
-`ParsedLevel` contains:
+`ParsedLevels` contains an ordered level mapping whose levels share identical observation key columns, values and order, plus shared JSON-compatible provenance. `hierarchy` holds a self-contained `LevelHierarchy(name, identities)` from fine to coarse; identity names resolve against `VarFinal.roles` or name var columns directly. Each `ParsedLevel` contains:
 
 - `obs: ObsFinal`
 - `var: VarFinal`
@@ -198,15 +197,13 @@ from apb2.parserV2.parse_quant.data.parsed import (
 
 ### Semantic conversion roles
 
-For rule-driven conversion, `ParsedLevel.uns` contains `column_roles` and `layer_roles` inside parse provenance. `column_roles` maps a semantic role such as `protein_assignment` to one logical var-column name. `layer_roles` maps a role such as `abundance` to an ordered list of retained layer names. The allowed role/owner combinations come from the packaged [role policy](../src/apb2/parserV2/vendor_parse_rules/schema/role_policy.json).
+`FinalLayerTable.semantic_roles` holds semantic roles such as `abundance`; select layers with `PRIMARY_LAYER`, `ALL_ABUNDANCE_LAYERS` or `NamedAbundanceLayer(name)`. Every selection requires the abundance role. `VarFinal.roles` maps semantic roles such as `protein_assignment` to retained var columns; every role column must be `pl.String`. Readers and writers persist both role maps under `uns["apb"]["roles"]` and reject absent or non-String var role columns.
 
-These maps are JSON-compatible provenance rather than Python strategy objects. Consumers may use them to discover scientific meaning without knowing vendor-specific names, while readers and writers preserve them without interpretation.
+Consumers discover scientific meaning from these typed maps without knowing vendor-specific names; physical adapters serialize and validate them at the result boundary.
 
 ### Structural layer roles
 
-Layer tables remain wide Polars frames. Their leading columns are authored variable keys and their
-remaining columns are observation values. They are not converted to NumPy arrays until an h5ad or
-h5mu writer performs the matrix projection. `FinalLayerTable.role` defaults to
+Layer tables hold only observation values: row i belongs to var row i and column j to obs row j. They remain Polars frames until an h5ad or h5mu writer performs the matrix projection. `FinalLayerTable.role` defaults to
 `MeasurementLayerRole()`. Measurement layers may be primary and participate in h5 matrix-occupancy
 comparisons. `AuxiliaryLayerRole()` is for numeric diagnostics such as counts or component IDs: the
 writer still validates, encodes, stores, and restores these layers, but excludes them from occupancy
@@ -218,9 +215,9 @@ The structural-role-bearing layer field is:
 @dataclass(slots=True)
 class FinalLayerTable:
     layer_name: str
-    var_key_columns: tuple[str, ...]
     values: polars.DataFrame
     role: FinalLayerRole = field(default_factory=MeasurementLayerRole)
+    semantic_roles: tuple[str, ...] = ()
     semantics: FinalLayerSemantics = field(default_factory=QuantitativeLayerSemantics)
 ```
 
@@ -283,3 +280,7 @@ result model imitates an AnnData container.
 For compiler construction, rule-schema details, algorithms, and dependency boundaries, consult the
 complete [converter architecture](architecture_converter.md). Nothing from that specification has
 been moved into this user reference.
+
+## Level hierarchies
+
+Packaged rules name a hierarchy from `hierarchies.json`: `lfq` (fragment, ion, peptidoform, peptide, protein), `psm` (psm, ion, peptidoform, peptide, protein), or `ptm_site` (peptidoform, multisite, site). Level names are open and validated against the declared hierarchy. The collection persists its hierarchy name and complete ordered identities under `uns["apb"]["hierarchy"]`; custom results remain interpretable without the packaged rule configuration. Parser output aligns explicitly declared sample keys to their ordered union, retaining missing cells; readers and writers reject differing observation axes. Parquet uses format version 6 and DuckDB version 5.

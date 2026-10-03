@@ -507,8 +507,7 @@ def _requested_levels(
     levels: Iterable[QuantificationLevel],
 ) -> tuple[QuantificationLevel, ...]:
     """Return unique requested levels in canonical parsing order."""
-    requested = set(levels)
-    return tuple(level for level in LEVELS if level in requested)
+    return tuple(dict.fromkeys(levels))
 
 
 def _unavailable_message(

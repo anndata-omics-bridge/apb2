@@ -1,5 +1,9 @@
 # Changes
 
+## 2026-10-03
+
+- Typed var/layer semantic roles, strict shared observation axes, values-only matrices, and persisted configurable level hierarchies; Parquet 6 and DuckDB 5.
+
 - 2026-10-03: The JSON result representation decodes embedded JSON text only in `rule_json` and `plan_json`. A level metadata entry named `aggregate` is no longer special: apb-aggregate now stores its history there as a native JSON list, which projects unchanged.
 
 - 2026-10-03: `apb2.result_facade` exports `ResultIOError`, so result consumers no longer import it from `parserV2.parse_quant.io.errors`.

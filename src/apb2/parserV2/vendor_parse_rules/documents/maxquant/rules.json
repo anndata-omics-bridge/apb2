@@ -1,4 +1,5 @@
 {
+  "hierarchy": "lfq",
   "schema_version": "0.8",
   "file_version": "5",
   "software_name": "MaxQuant",

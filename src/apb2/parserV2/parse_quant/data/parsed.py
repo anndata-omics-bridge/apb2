@@ -13,23 +13,15 @@ same value, not duplicated behaviour.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, cast
 
 import polars as pl
 
 # Ruff RUF036 wants ``None`` last; the specification's ordering is otherwise identical.
 type JsonScalar = bool | int | float | str | None
 type JsonValue = JsonScalar | list[JsonValue] | dict[str, JsonValue]
-type ParsedLevelName = Literal["ion", "peptidoform", "peptide", "protein", "fragment"]
+type ParsedLevelName = str
 type NumericLayerType = Literal["number", "integer"]
-
-LEVEL_ORDER: tuple[ParsedLevelName, ...] = (
-    "ion",
-    "peptidoform",
-    "peptide",
-    "protein",
-    "fragment",
-)
 
 
 @dataclass(slots=True)
@@ -45,7 +37,7 @@ class ObsFinal:
 
 @dataclass(slots=True)
 class VarFinal:
-    """The public variable axis: authored keys plus retained output metadata."""
+    """The public variable axis: authored keys, retained metadata, and column roles."""
 
     frame: pl.DataFrame
     # pl.DataFrame({
@@ -55,6 +47,56 @@ class VarFinal:
 
     key_columns: tuple[str, ...]
     # ("ProForma_ion",)
+
+    roles: dict[str, str] = field(default_factory=dict)
+    # {"protein_assignment": "Protein_Group"}
+
+
+@dataclass(frozen=True, slots=True)
+class LevelHierarchy:
+    """Ordered level identities, expressed as var columns or semantic role names."""
+
+    name: str
+    identities: tuple[tuple[str, str], ...]
+
+    def __post_init__(self) -> None:
+        names = self.level_names
+        if not self.name or not names or len(names) != len(set(names)):
+            raise ValueError("a hierarchy requires a name and unique ordered levels")
+        if any(not level or not identity for level, identity in self.identities):
+            raise ValueError("hierarchy levels and identities must be nonempty")
+
+    @property
+    def level_names(self) -> tuple[str, ...]:
+        """Return levels from fine to coarse."""
+        return tuple(level for level, _identity in self.identities)
+
+    def key(self, level: str, var: VarFinal) -> str:
+        """Resolve one identity against this axis's typed roles."""
+        identity = dict(self.identities)[level]
+        return var.roles.get(identity, identity)
+
+    def as_json(self) -> dict[str, JsonValue]:
+        """Return the self-contained persisted hierarchy."""
+        return {"name": self.name, "identities": [list(pair) for pair in self.identities]}
+
+    @classmethod
+    def from_json(cls, value: JsonValue) -> LevelHierarchy:
+        """Validate a persisted hierarchy without consulting packaged configurations."""
+        if not isinstance(value, dict) or not isinstance(value.get("name"), str):
+            raise ValueError("hierarchy must have a text name")
+        pairs = value.get("identities")
+        if not isinstance(pairs, list) or any(
+            not isinstance(pair, list)
+            or len(pair) != 2
+            or any(not isinstance(item, str) for item in pair)
+            for pair in pairs
+        ):
+            raise ValueError("hierarchy identities must be ordered pairs of strings")
+        return cls(
+            cast(str, value["name"]),
+            tuple((pair[0], pair[1]) for pair in cast(list[list[str]], pairs)),
+        )
 
 
 class MeasurementLayerRole:
@@ -131,17 +173,13 @@ type FinalLayerSemantics = QuantitativeLayerSemantics | CategoricalLayerSemantic
 
 @dataclass(slots=True)
 class FinalLayerTable:
-    """One canonical matrix layer aligned to the final axes."""
+    """One matrix: one row per var row and one column per obs row, by position."""
 
     layer_name: str
     # "Intensity"
 
-    var_key_columns: tuple[str, ...]
-    # ("ProForma_ion",)
-
     values: pl.DataFrame
     # pl.DataFrame({
-    #     "ProForma_ion": ["PEPM[UNIMOD:35]IDE/2", "OTHER/3"],
     #     "A": [100.0, 50.0],
     #     "B": [120.0, 60.0],
     #     "C": [90.0, 70.0],
@@ -149,6 +187,9 @@ class FinalLayerTable:
 
     role: FinalLayerRole = field(default_factory=MeasurementLayerRole)
     # MeasurementLayerRole()
+
+    semantic_roles: tuple[str, ...] = ()
+    # ("abundance",)
 
     semantics: FinalLayerSemantics = field(default_factory=QuantitativeLayerSemantics)
     # QuantitativeLayerSemantics(logical_type="number")
@@ -210,7 +251,7 @@ class FeatureRelation:
 
 @dataclass(slots=True)
 class ParsedLevels:
-    """One or more parsed quantification levels and their shared provenance."""
+    """One or more parsed levels on one shared observation axis."""
 
     levels: dict[ParsedLevelName, ParsedLevel]
     # {"ion": ion_parsed_level, "protein": protein_parsed_level}
@@ -226,3 +267,5 @@ class ParsedLevels:
 
     feature_relations: dict[str, FeatureRelation] = field(default_factory=dict)
     # {"protein_group_membership": FeatureRelation(...)}
+
+    hierarchy: LevelHierarchy | None = None
