@@ -10,7 +10,7 @@ from typing import Annotated, Literal
 from cyclopts import App, Parameter
 from loguru import logger
 
-from apb2 import annotation_facade
+from apb2.command import annotation as annotation_workflow
 from apb2.command import conversion
 
 app = App(name="apb2", help="Rules-driven vendor-result conversion", help_on_error=True)
@@ -155,7 +155,7 @@ def annotate(
     source: Path,
     annotation: Path,
     target: Path,
-    unmatched: annotation_facade.UnmatchedObservations | None = None,
+    unmatched: annotation_workflow.UnmatchedObservations | None = None,
     include: str | None = None,
 ) -> int:
     """Attach a delimited sample table to an APB2 result.
@@ -164,7 +164,7 @@ def annotate(
     drop mode by one Boolean annotation field.
     """
     try:
-        result = annotation_facade.annotate_result(
+        result = annotation_workflow.annotate_result(
             source,
             annotation,
             target,
@@ -172,7 +172,7 @@ def annotate(
             include=include,
         )
     except (
-        annotation_facade.AnnotationWorkflowError,
+        annotation_workflow.AnnotationWorkflowError,
         OSError,
     ) as error:
         logger.error(str(error))

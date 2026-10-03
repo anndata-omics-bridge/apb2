@@ -29,7 +29,6 @@ from apb2.parserV2.parse_quant.data.parsed import (
     QuantitativeLayerSemantics,
     VarFinal,
 )
-from apb2.parserV2.parse_quant.io.anndata_writer import quantitative_layer_values
 from apb2.parserV2.parse_quant.io.duckdb import METADATA_TABLE
 from apb2.parserV2.parse_quant.io.errors import InvalidResultError, UnsupportedResultFormatError
 from apb2.parserV2.parse_quant.io.formats import (
@@ -653,10 +652,10 @@ def test_h5_writer_ignores_missing_and_corrupt_plan_json(tmp_path: Path) -> None
     _assert_result_equal(restored, expected)
 
 
-def test_quantitative_layer_values_returns_canonical_values_directly() -> None:
+def test_quantitative_values_returns_canonical_values_directly() -> None:
     ion = _level("ion", "Ion")
 
-    projected = quantitative_layer_values(ion, "Intensity")
+    projected = ion.layers["Intensity"].quantitative_values()
 
     assert projected.to_dict(as_series=False) == {
         "obs_0": [100.5, None],

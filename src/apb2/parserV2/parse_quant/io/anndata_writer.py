@@ -25,7 +25,6 @@ from apb2.parserV2.parse_quant.data.parsed import (
     ParsedLevel,
     ParsedLevelName,
     ParsedLevels,
-    QuantitativeLayerSemantics,
 )
 from apb2.parserV2.parse_quant.io.errors import InvalidResultError
 from apb2.parserV2.parse_quant.io.layer_representation import represent_semantics
@@ -343,29 +342,6 @@ class H5muWriter:
     def write(self, parsed: ParsedLevels, target: Path, /) -> None:
         validate_parsed_levels(parsed)
         MuDataWriter().write(parsed, target)
-
-
-def quantitative_layer_values(parsed: ParsedLevel, layer_name: str, /) -> pl.DataFrame:
-    """Return one canonical quantitative value block directly.
-
-    Args:
-        parsed: One validated APB2 level.
-        layer_name: The logical layer to project.
-
-    Returns:
-        A numeric value block with one row per variable and one column per
-        observation. Variable-key columns are not included.
-
-    Raises:
-        InvalidResultError: The layer is absent or categorical.
-    """
-    try:
-        layer = parsed.layers[layer_name]
-    except KeyError as error:
-        raise InvalidResultError(f"level has no layer {layer_name!r}") from error
-    if not isinstance(layer.semantics, QuantitativeLayerSemantics):
-        raise InvalidResultError(f"layer {layer_name!r} is categorical, not quantitative")
-    return layer.values
 
 
 def represent_layer_values(

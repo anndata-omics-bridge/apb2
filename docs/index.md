@@ -146,27 +146,12 @@ writer_for(ResultFormat.DUCKDB).write(parsed, Path("results.duckdb"))
 
 ### Annotate a parsed result
 
-The facade performs the complete file-to-file operation:
+`apb2 annotate RESULT SAMPLES TARGET` performs the complete file-to-file operation. The compiler/parser API exposes the storage-neutral transformation:
 
 ```python
 from pathlib import Path
 
-from apb2.annotation_facade import annotate_result
-
-result = annotate_result(
-    Path("results/all-levels.h5mu"),
-    Path("samples.tsv"),
-    Path("results/annotated.h5mu"),
-)
-```
-
-The compiler/parser API exposes the storage-neutral transformation:
-
-```python
-from pathlib import Path
-
-from apb2.annotation.compiler import AnnotationCompiler
-from apb2.result_facade import read_parsed_levels, write_parsed_levels
+from apb2.api import AnnotationCompiler, read_parsed_levels, write_parsed_levels
 
 parsed = read_parsed_levels(Path("results/all-levels.h5mu"))
 parser = AnnotationCompiler().compile(Path("samples.tsv"))

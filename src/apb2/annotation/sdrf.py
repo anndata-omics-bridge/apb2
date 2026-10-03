@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from pathlib import Path
 
 import polars as pl
 
 from apb2.annotation.application.policies import (
     AnnotationApplication,
-    KeepUnmatchedAnnotation,
     record_annotation_provenance,
 )
 from apb2.annotation.data.model import (
@@ -24,6 +24,7 @@ from apb2.annotation.matching.core import (
     match_annotation,
     normalize_mass_spec_basename,
 )
+from apb2.annotation.source.load import load_annotation_file
 from apb2.parserV2.parse_quant.data.parsed import JsonValue, ParsedLevels
 
 _SOURCE_NAME = "source name"
@@ -32,13 +33,6 @@ _LABEL = "comment[label]"
 _LABEL_FREE_NAME = "label free sample"
 _LABEL_FREE_ACCESSION = "MS:1002038"
 _DATA_FILE_BASENAME = "__sdrf_data_file_basename"
-
-
-@dataclass(frozen=True, slots=True)
-class SdrfAnnotationParameters:
-    """User-selected SDRF application behavior."""
-
-    application: AnnotationApplication = field(default_factory=KeepUnmatchedAnnotation)
 
 
 class SdrfSource:
@@ -62,6 +56,15 @@ class SdrfSource:
         self._source = source
         self._columns = {header: tuple(names) for header, names in columns.items()}
         self._require_label_free()
+
+    @classmethod
+    def read(cls, path: Path) -> SdrfSource:
+        """Read one SDRF file.
+
+        Raises:
+            AnnotationError: The file is absent, undecodable, or not label-free SDRF.
+        """
+        return cls(load_annotation_file(path))
 
     @property
     def source(self) -> LoadedAnnotationSource:
@@ -126,7 +129,7 @@ class SdrfAnnotationParser:
     """An SDRF parser bound to one already loaded source."""
 
     source: SdrfSource
-    parameters: SdrfAnnotationParameters
+    application: AnnotationApplication
 
     def parse(self, parsed: ParsedLevels, /) -> SdrfAnnotation:
         """Validate, match, and construct only an applicable dataset annotation."""
@@ -136,12 +139,12 @@ class SdrfAnnotationParser:
             parsed,
             {name: annotation_matching_for(level) for name, level in parsed.levels.items()},
         )
-        self.parameters.application.validate(matches)
+        self.application.validate(matches)
         return SdrfAnnotation(
             table=table,
             parsed=parsed,
             matches=matches,
-            application=self.parameters.application,
+            application=self.application,
             columns=_column_map(self.source.source, table),
         )
 

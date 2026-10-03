@@ -2,11 +2,12 @@
 
 ## 2026-10-03
 
+- `apb2.annotation_extension` is gone; `apb2.api` adds `AnnotationCompiler`, `AnnotationError` and `SdrfSource`. `AnnotationCompiler(unmatched="keep" | "error" | "drop", include=None)` replaces `ProlfquappAnnotationParameters` and `SdrfAnnotationParameters`; `SdrfSource.read(path)` reads an SDRF. The `apb2 annotate` workflow moved from `annotation_facade.py` to `command/annotation.py`.
 - Typed var/layer semantic roles, strict shared observation axes, values-only matrices, and persisted configurable level hierarchies; Parquet 6 and DuckDB 5.
 
 - 2026-10-03: The JSON result representation decodes embedded JSON text only in `rule_json` and `plan_json`. A level metadata entry named `aggregate` is no longer special: apb-aggregate now stores its history there as a native JSON list, which projects unchanged.
 
-- 2026-10-03: `apb2.result_facade` exports `ResultIOError`, so result consumers no longer import it from `parserV2.parse_quant.io.errors`.
+- 2026-10-03: `apb2.api` is the one public module. `result_facade.py` and `modification_facade.py` are gone. `api.py` adds `ParsedLevel`, `FinalLayerTable`, `JsonValue`, `ResultIOError`, `canonical_modification_names` and `sidecar_path`. Consumers build levels with `ParsedLevel.build()` and `with_layers()`, select abundance layers with `ParsedLevel.abundance_layers()`, read values with `FinalLayerTable.quantitative_values()` and `decoded_values()`, and attach annotations with `ParsedLevels.with_annotation_table()` and `with_feature_relation()`. The layer-selection classes and constants, `observation_labels`, `quantitative_layer_values` and `get_provenance` are no longer public.
 
 - 2026-10-02: Numeric `missing_values` accept, besides exact numbers, at most one `"<=<number>"` threshold. Values at or below it are missing before duplicate resolution and in the final layer, and aggregate-duplicate rules may declare it. Every packaged `abundance` layer declares `"<=0"`, enforced by a package test, so vendor zero and negative abundances now convert to missing values. Before, only some AlphaDIA, FragPipe, MaxQuant, PEAKS and Sage layers mapped exact `0`; DIA-NN, Spectronaut, AlphaPept, WOMBAT and the others kept zeros as observations. Rule fingerprints changed for every packaged rule.
 

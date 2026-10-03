@@ -66,11 +66,10 @@ against one `ParsedLevels`:
 ```python
 from pathlib import Path
 
-from apb2.annotation.compiler import AnnotationCompiler
-from apb2.result_facade import read_parsed_levels, write_parsed_levels
+from apb2.api import AnnotationCompiler, read_parsed_levels, write_parsed_levels
 
 parsed = read_parsed_levels(Path("input.h5mu"))
-parser = AnnotationCompiler().compile(Path("samples.tsv"))
+parser = AnnotationCompiler(unmatched="error").compile(Path("samples.tsv"))
 annotation = parser.parse(parsed)
 
 for level, match in annotation.matches.levels.items():
@@ -87,12 +86,9 @@ annotation each time.
 example, when complete coverage was requested but cannot be met. `annotate()` uses the stored
 matches and does not recompute them.
 
-prolfquapp and SDRF behavior is composed with `KeepUnmatchedAnnotation`,
-`RequireCompleteAnnotation`, or `SelectAnnotatedObservations`. All tables and matching evidence
-are Polars-backed values. External scientific interpreters use the public capabilities in
-`apb2.annotation_extension`; APB2 does not select them by a convention enum.
+`AnnotationCompiler(unmatched="keep" | "error" | "drop", include=None)` decides what happens to observations without an annotation row: keep them with null metadata, raise, or drop them; `include` names a Boolean annotation column that further selects observations and requires `"drop"`. A prolfquapp table is keyed by its one column matching `^raw`, `^file`, `^run`, `^channel` or `^Relative`, with optional `<key>_aliases` list values; every other column becomes an obs column. All tables and matching evidence are Polars-backed values. Failures raise `AnnotationError`.
 
-An external interpreter reads an SDRF through `load_annotation_file` and `SdrfSource`. `SdrfSource.columns(header)` returns every occurrence of a repeated header in file order, and `data_file_basenames()` supplies the run names vendor tables usually report.
+`SdrfSource.read(path)` reads an SDRF for tools that need its columns beyond annotation. `SdrfSource.columns(header)` returns every occurrence of a repeated header in file order, and `data_file_basenames()` supplies the run names vendor tables usually report.
 
 ## Read and write results
 
@@ -197,7 +193,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
 
 ### Semantic conversion roles
 
-`FinalLayerTable.semantic_roles` holds semantic roles such as `abundance`; select layers with `PRIMARY_LAYER`, `ALL_ABUNDANCE_LAYERS` or `NamedAbundanceLayer(name)`. Every selection requires the abundance role. `VarFinal.roles` maps semantic roles such as `protein_assignment` to retained var columns; every role column must be `pl.String`. Readers and writers persist both role maps under `uns["apb"]["roles"]` and reject absent or non-String var role columns.
+`FinalLayerTable.semantic_roles` holds semantic roles such as `abundance`; `ParsedLevel.abundance_layers()` returns every abundance layer in authored order, and `abundance_layers(names)` validates the named ones, the primary layer included. Every selection requires the abundance role. `VarFinal.roles` maps semantic roles such as `protein_assignment` to retained var columns; every role column must be `pl.String`. Readers and writers persist both role maps under `uns["apb"]["roles"]` and reject absent or non-String var role columns.
 
 Consumers discover scientific meaning from these typed maps without knowing vendor-specific names; physical adapters serialize and validate them at the result boundary.
 
@@ -224,26 +220,28 @@ class FinalLayerTable:
 Pairwise frames have exactly `row`, `column`, and `value` columns. Positions are zero-based local
 coordinates into the corresponding final axis.
 
-### Quantitative helpers
+### Building and querying levels
 
-Import the public helpers from the result facade:
-
-```python
-from collections.abc import Iterable
-
-import polars as pl
-
-from apb2.result_facade import observation_labels, quantitative_layer_values
-```
-
-Their public signatures are:
+Every name a consumer needs comes from `apb2.api`. Consumers build levels and attach annotations through methods, never through the axis, role or semantics classes:
 
 ```python
-observation_labels(count: int, reserved: Iterable[str]) -> tuple[str, ...]
-quantitative_layer_values(parsed: ParsedLevel, layer_name: str, /) -> pl.DataFrame
+from apb2.api import ParsedLevel
+
+level = ParsedLevel.build(
+    obs, ("sample",), var, ("peptide",), {"protein_assignment": "protein"},
+    primary_layer="Intensity",
+    abundance={"Intensity": intensity},
+    auxiliary={"Count": counts},
+)
+level = level.with_layers(abundance={"Summed": summed}, metadata={"history": [...]})
+numbers = level.layers["Intensity"].quantitative_values()
 ```
 
-`observation_labels()` creates collision-free positional value-column names for a wide layer. `quantitative_layer_values()` returns the already-canonical variable-by-observation value block for a quantitative layer; it performs no stored-plan interpretation or conversion.
+- `ParsedLevel.build()`: each layer frame has one row per var row and one column per obs row, by position; APB2 names the columns. Abundance layers are measurements with the `abundance` role; auxiliary layers are diagnostics, integer when every column is
+- `ParsedLevel.with_layers()`: a new level with layers and `varm` tables added and metadata sections set; existing names raise
+- `FinalLayerTable.quantitative_values()`: the numeric value block; a categorical layer raises
+- `FinalLayerTable.decoded_values()`: category codes replaced by their labels, numbers unchanged
+- `ParsedLevels.with_annotation_table()` and `with_feature_relation()`: a new result with a keyed feature table, or its relation to one level's variable axis
 
 ## Errors
 
@@ -256,7 +254,7 @@ from apb2.parserV2.parse_quant.io.errors import (
 )
 ```
 
-Catch `ResultIOError` for expected result-format failures; `apb2.result_facade` re-exports it for result consumers. `UnsupportedResultFormatError` reports
+Catch `ResultIOError` for expected result-format failures; consumers import it from `apb2.api`, and the other error classes are APB2-internal. `UnsupportedResultFormatError` reports
 an unsupported suffix; `InvalidResultError` reports an invalid in-memory or persisted result.
 `AnnDataLayerContractError` is a `ResultIOError` raised when the encoded layer set violates an h5
 required-name check or the measurement-layer occupancy contract.

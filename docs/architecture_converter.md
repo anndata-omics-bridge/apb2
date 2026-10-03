@@ -721,16 +721,7 @@ key columns lead the layer in that order, and their values equal `VarFinal` row-
 must never infer alignment from matching dimensions alone. It also requires the primary layer to
 have `MeasurementLayerRole`; an `AuxiliaryLayerRole` cannot define the primary quantitative matrix.
 
-Downstream APB tools use the public result facade rather than importing adapter internals:
-
-```python
-from apb2.result_facade import observation_labels, quantitative_layer_values
-
-def observation_labels(count: int, reserved: Iterable[str]) -> tuple[str, ...]: ...
-def quantitative_layer_values(parsed: ParsedLevel, layer_name: str, /) -> pl.DataFrame: ...
-```
-
-The label helper establishes the collision-free positional observation columns used by wide layer tables. The value helper returns the already-canonical quantitative value block directly; it performs no interpretation or conversion.
+Downstream APB tools import only `apb2.api`. They build levels with `ParsedLevel.build()` and read values with `FinalLayerTable.quantitative_values()`, so the positional observation labels stay an APB2 convention.
 
 ### 6.1 Parquet
 

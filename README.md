@@ -101,7 +101,7 @@ storage-neutral values for custom pipelines. Result formats also have explicit a
 ```python
 from pathlib import Path
 
-from apb2.result_facade import read_parsed_levels, write_parsed_levels
+from apb2.api import read_parsed_levels, write_parsed_levels
 
 parsed = read_parsed_levels(Path("result.parquet"))
 write_parsed_levels(parsed, Path("result.duckdb"))
