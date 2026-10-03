@@ -278,7 +278,7 @@ Numeric layers default to logical `"type": "number"`. Declare `"type": "integer"
 }
 ```
 
-`missing_values` lists what a vendor writes for "not measured": exact numbers such as `0`, or one `<=` threshold such as `"<=0"`, which makes every number at or below it missing. Both apply before duplicate resolution and in the final layer. Every packaged `abundance` layer declares `"<=0"`, because a linear abundance is positive by definition and log-scale consumers cannot use zero or negative values; a package test enforces this. Leave it off layers where zero or negative values are meaningful, such as scores, mass errors, or retention-time deltas.
+`missing_values` lists what a vendor writes for "not measured": exact numbers such as `0`, and at most one `<=` threshold such as `"<=0"`, which makes every number at or below it missing. Both apply before duplicate resolution and in the final layer. Every packaged `abundance` layer declares `"<=0"`, because a linear abundance is positive by definition and log-scale consumers cannot use zero or negative values; a package test enforces this. Leave it off layers where zero or negative values are meaningful, such as scores, mass errors, or retention-time deltas.
 
 Conversion provenance projects var roles as `column_roles`, mapping each role to one logical name. It projects layer roles as `layer_roles`, mapping each role to the ordered retained layer names. Optional layers absent from the bound source are omitted from `layer_roles`.
 

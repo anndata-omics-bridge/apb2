@@ -259,7 +259,7 @@ from apb2.parserV2.parse_quant.io.errors import (
 )
 ```
 
-Catch `ResultIOError` for expected result-format failures. `UnsupportedResultFormatError` reports
+Catch `ResultIOError` for expected result-format failures; `apb2.result_facade` re-exports it for result consumers. `UnsupportedResultFormatError` reports
 an unsupported suffix; `InvalidResultError` reports an invalid in-memory or persisted result.
 `AnnDataLayerContractError` is a `ResultIOError` raised when the encoded layer set violates an h5
 required-name check or the measurement-layer occupancy contract.

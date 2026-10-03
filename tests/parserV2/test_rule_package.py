@@ -225,10 +225,15 @@ def test_every_abundance_layer_treats_zero_and_negative_values_as_missing(
 
 
 def test_missing_values_combine_exact_sentinels_with_one_at_or_below_bound() -> None:
-    layer = NumericLayer(name="I", source="I", missing_values=[-1, "<= 0", "<=-2.5"])
+    layer = NumericLayer(name="I", source="I", missing_values=[-1, "<= 0", 7])
 
-    assert layer.missing_sentinels == (-1.0,)
+    assert layer.missing_sentinels == (-1.0, 7.0)
     assert layer.missing_at_or_below == 0.0
+
+
+def test_missing_values_reject_a_second_threshold() -> None:
+    with pytest.raises(ValidationError, match="more than one threshold"):
+        NumericLayer(name="I", source="I", missing_values=["<=0", "<=-2.5"])
 
 
 @pytest.mark.parametrize("token", [">=0", "<0", "<=zero"])

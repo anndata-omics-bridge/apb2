@@ -1,5 +1,9 @@
 # Changes
 
+- 2026-10-03: `apb2.result_facade` exports `ResultIOError`, so result consumers no longer import it from `parserV2.parse_quant.io.errors`.
+
+- 2026-10-02: Numeric `missing_values` accept, besides exact numbers, at most one `"<=<number>"` threshold. Values at or below it are missing before duplicate resolution and in the final layer, and aggregate-duplicate rules may declare it. Every packaged `abundance` layer declares `"<=0"`, enforced by a package test, so vendor zero and negative abundances now convert to missing values. Before, only some AlphaDIA, FragPipe, MaxQuant, PEAKS and Sage layers mapped exact `0`; DIA-NN, Spectronaut, AlphaPept, WOMBAT and the others kept zeros as observations. Rule fingerprints changed for every packaged rule.
+
 - 2026-10-02: Fix: the i2MassChroQ rule derives `ProForma_peptide` with `stripped_sequence` from `Sequence` (inline `[MOD:nnnnn]`, `[42]` tokens, `after_residue`), instead of copying the vendor `sequence` column, which carries PSI-MOD annotations and ProForma N-terminal prefixes in most exports. `ProForma_peptidoform`, `ProForma_ion` and `Sequence` are unchanged. Across the 13 ProteoBench i2MassChroQ corpus submissions, FASTA-unmatched features drop from 16–24% to 0 in the 9 exports with modified `sequence` values, and ProteoBench `nr_feature` moves from 16–24% below upstream to within 0.9%.
 
 - 2026-10-02: Fix: an inline modification token written after a peptide's last residue (`after_residue` syntax) is now that residue's modification whenever the modification map places it on that residue: DIA-NN `…STAC(UniMod:4)` becomes `…STAC[UNIMOD:4]` instead of the unresolved C-terminal `…STAC-[UniMod:4]`. It stays C-terminal only when no entry fits the residue. Affects the canonical ProForma columns and feature keys of every `after_residue` rule (DIA-NN, Spectronaut, FragPipe, MaxQuant, PEAKS, quantms, Sage, WOMBAT); such tokens no longer appear in `unknown_mod_tokens`.

@@ -65,6 +65,13 @@ class NumericLayer(ModelBase):
     required: bool = False
     roles: list[SemanticRole] = Field(default_factory=list)
 
+    @model_validator(mode="after")
+    def _validate_one_threshold(self) -> NumericLayer:
+        thresholds = [value for value in self.missing_values if isinstance(value, str)]
+        if len(thresholds) > 1:
+            raise ValueError(f"missing_values declares more than one threshold: {thresholds}")
+        return self
+
     @property
     def missing_sentinels(self) -> tuple[float, ...]:
         """The exact numbers declared missing."""
@@ -72,13 +79,11 @@ class NumericLayer(ModelBase):
 
     @property
     def missing_at_or_below(self) -> float | None:
-        """The largest declared ``<=`` threshold, or ``None`` without one."""
-        bounds = [
-            float(match.group(1))
-            for value in self.missing_values
-            if isinstance(value, str) and (match := re.match(_MISSING_BOUND, value))
-        ]
-        return max(bounds) if bounds else None
+        """The declared ``<=`` threshold, or ``None`` without one."""
+        for value in self.missing_values:
+            if isinstance(value, str) and (match := re.match(_MISSING_BOUND, value)):
+                return float(match.group(1))
+        return None
 
 
 class FactorLayer(ModelBase):

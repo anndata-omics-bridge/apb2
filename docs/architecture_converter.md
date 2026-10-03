@@ -1914,7 +1914,7 @@ with:
       {
         "name": "Precursor_Intensity",
         "source": "precursor.intensity",
-        "missing_values": [0]
+        "missing_values": ["<=0"]
       },
       {"name": "QValue", "source": "precursor.qval"},
       {"name": "Proba", "source": "precursor.proba"},
@@ -2044,7 +2044,7 @@ These become `AxisValueCoercer` objects evaluated on small axis frames. Their de
 
 `fragments.value_columns` is an ordered list independent of `measurements.layers`. Resolution retains available packed sources in authored order and requires at least one; `label_output` cannot collide with physical sources.
 
-Aggregate mode requires plain numeric layers without missing sentinels, factors or regex extraction. Source resolution additionally verifies native numeric read dtypes, so interpretation cannot change the contributions after summation. A `<=` threshold such as `"<=0"` is permitted: presence removes every contribution at or below it before summation, so a sum of the remaining larger values is never masked afterwards. The runtime aggregate retains a dtype guard; the MaxQuant aggregate rule satisfies these restrictions.
+Aggregate mode requires plain numeric layers without missing sentinels, factors or regex extraction. Source resolution additionally verifies native numeric read dtypes, so interpretation cannot change the contributions after summation. A `<=` threshold such as `"<=0"` is permitted: presence removes every contribution at or below it before summation. For a threshold of zero or more, the sum of the remaining larger values therefore stays above it and is never masked afterwards. The runtime aggregate retains a dtype guard; the MaxQuant aggregate rule satisfies these restrictions.
 
 #### C.4 Physical input policy
 

@@ -17,6 +17,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
     VarFinal,
 )
 from apb2.parserV2.parse_quant.io.anndata_writer import quantitative_layer_values
+from apb2.parserV2.parse_quant.io.errors import ResultIOError
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels, write_parsed_levels
 from apb2.parserV2.parse_quant.io.json_representation import (
     project_result,
@@ -46,6 +47,7 @@ __all__ = [
     "ParsedLevelName",
     "ParsedLevels",
     "QuantitativeLayerSemantics",
+    "ResultIOError",
     "VarFinal",
     "get_provenance",
     "observation_labels",
