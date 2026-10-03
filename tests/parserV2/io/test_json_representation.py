@@ -343,12 +343,8 @@ def test_known_embedded_json_containers_are_projected_recursively_without_mutati
             "provenance": {"rule_json": rule_text},
         }
     )
-    aggregate_text = json.dumps(
-        [{"source_level": "ion", "target_level": "protein", "method": "mean"}]
-    )
     level = parsed.levels["ion"]
     level.uns.update({"rule_json": rule_text, "plan_json": plan_text})
-    level.metadata["aggregate"] = aggregate_text
     parsed.annotation_tables["proteins"].metadata.update(
         {
             "rule_json": "{not valid JSON",
@@ -397,16 +393,12 @@ def test_known_embedded_json_containers_are_projected_recursively_without_mutati
         },
     }
     assert document["root"]["apb"]["parse"] == {"produced_by": "apb2"}
-    assert projected_level["apb"]["aggregate"] == [
-        {"source_level": "ion", "target_level": "protein", "method": "mean"}
-    ]
     projected_annotation = document["annotation_tables"][0]["metadata"]
     assert projected_annotation["rule_json"] == "{not valid JSON"
     assert projected_annotation["plan_json"] == "42"
     assert projected_annotation["note"] == '{"looks":"like JSON"}'
     assert level.uns["rule_json"] == rule_text
     assert level.uns["plan_json"] == plan_text
-    assert level.metadata["aggregate"] == aggregate_text
 
 
 def test_sidecar_publication_replaces_atomically_and_preserves_artifact(tmp_path: Path) -> None:

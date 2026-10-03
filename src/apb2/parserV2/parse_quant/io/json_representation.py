@@ -43,7 +43,6 @@ FORMAT_VERSION = "4"
 SIDECAR_SUFFIX = ".apb.json"
 _EMBEDDED_JSON_FIELDS = frozenset(
     {
-        "aggregate",
         "plan_json",
         "rule_json",
     }

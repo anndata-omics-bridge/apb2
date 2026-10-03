@@ -1,5 +1,7 @@
 # Changes
 
+- 2026-10-03: The JSON result representation decodes embedded JSON text only in `rule_json` and `plan_json`. A level metadata entry named `aggregate` is no longer special: apb-aggregate now stores its history there as a native JSON list, which projects unchanged.
+
 - 2026-10-03: `apb2.result_facade` exports `ResultIOError`, so result consumers no longer import it from `parserV2.parse_quant.io.errors`.
 
 - 2026-10-02: Numeric `missing_values` accept, besides exact numbers, at most one `"<=<number>"` threshold. Values at or below it are missing before duplicate resolution and in the final layer, and aggregate-duplicate rules may declare it. Every packaged `abundance` layer declares `"<=0"`, enforced by a package test, so vendor zero and negative abundances now convert to missing values. Before, only some AlphaDIA, FragPipe, MaxQuant, PEAKS and Sage layers mapped exact `0`; DIA-NN, Spectronaut, AlphaPept, WOMBAT and the others kept zeros as observations. Rule fingerprints changed for every packaged rule.
