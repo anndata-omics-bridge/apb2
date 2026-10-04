@@ -13,6 +13,16 @@ license-files = ["LICENSE"]
 authors = [
     { name = "Witold Wolski", email = "wew@fgcz.ethz.ch" },
 ]
+keywords = ["proteomics", "mass spectrometry", "anndata", "mudata", "quantification"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Typing :: Typed",
+]
 dependencies = [
     "anndata>=0.11",
     "cyclopts>=3",

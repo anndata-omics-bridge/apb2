@@ -2,6 +2,7 @@
 
 ## 2026-10-04
 
+- PyPI release setup: `.github/workflows/publish.yml` builds and checks the distributions, then publishes through PyPI trusted publishing — to PyPI for a published GitHub release tagged `v<version>`, to TestPyPI for a manual run. README links point at the documentation site so they resolve on PyPI, README gains an installation section, and `pyproject.toml` adds keywords and classifiers.
 - The `apb2` command imports APB2 only through `api.py`: `apb2/cli/` replaces `cli.py` and `command/` (console script unchanged). `api.py` adds `ConversionError`, which every expected conversion failure now is (unreadable parameter or rule files raise it instead of `ParamsError`), `AnnotationResult` and `LevelParseTimings`. `ParseRuleCompiler.from_rule(data, rule, ...)` compiles a caller's rule file, and `ParsedLevels.observation_groups()` replaces `group_observations()`; the internal `formats.reformat` is gone.
 - Public signatures drop the `/` and `*` markers (`ParseRuleCompiler`, `from_software`, `get_rules`, `read_parsed_levels`, `write_parsed_levels`, `sidecar_path`, `AnnotationCompiler.compile`, `SdrfSource`); every call that worked before still works. The API guide, index and result-I/O pages import only from `apb2.api`: the explicit-format readers and writers, `reformat` and the result-model types are internal, and the guide's `AnnDataLayerContractError`, which no longer existed, is gone.
 
