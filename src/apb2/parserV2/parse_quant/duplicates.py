@@ -23,16 +23,17 @@ import polars as pl
 import polars.selectors as cs
 
 from apb2.parserV2.parse_quant.contracts import RawValuePresence
+from apb2.parserV2.parse_quant.data.errors import ConversionError
 from apb2.parserV2.parse_quant.data.raw import RawLayerTable
 
 _EXAMPLE_LIMIT = 5
 
 
-class DuplicateCellError(ValueError):
+class DuplicateCellError(ConversionError):
     """Several raw scalars claim one measurement cell and the rule forbids that."""
 
 
-class AggregateTypeError(TypeError):
+class AggregateTypeError(ConversionError, TypeError):
     """A numeric aggregate received values that are not numbers."""
 
 

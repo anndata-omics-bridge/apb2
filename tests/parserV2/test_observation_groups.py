@@ -15,7 +15,6 @@ from apb2.parserV2.parse_quant.data.parsed import (
     ParsedLevels,
     VarFinal,
 )
-from apb2.parserV2.parse_quant.observation_groups import group_observations
 
 
 def _level(frame: pl.DataFrame, key: str) -> ParsedLevel:
@@ -57,7 +56,7 @@ def _parsed(experiments: list[str | None], samples: list[str]) -> ParsedLevels:
 def test_bijective_alignment_preserves_cells_on_one_shared_axis() -> None:
     parsed = _parsed(["B", "A"], ["A", "B"])
     original = parsed.levels["protein"]
-    (result,) = group_observations(parsed)
+    (result,) = parsed.observation_groups()
     protein = result.levels["protein"]
     assert protein.obs.key_columns == ("Raw_File",)
     assert protein.obs.frame["Raw_File"].to_list() == ["raw_z", "raw_a"]
@@ -74,7 +73,7 @@ def test_bijective_alignment_preserves_cells_on_one_shared_axis() -> None:
 def test_alignment_fills_an_empty_observation_axis_without_losing_features() -> None:
     parsed = _parsed(["B", "A"], [])
     parsed.levels["protein"].obs.frame = pl.DataFrame(schema={"Experiment": pl.String})
-    (result,) = group_observations(parsed)
+    (result,) = parsed.observation_groups()
     protein = result.levels["protein"]
     assert protein.obs.frame["Raw_File"].to_list() == ["raw_z", "raw_a"]
     assert protein.layers["Intensity"].values.rows() == [(None, None)]
@@ -84,7 +83,7 @@ def test_alignment_fills_an_empty_observation_axis_without_losing_features() -> 
 def test_duplicate_observation_keys_are_rejected_before_alignment() -> None:
     parsed = _parsed(["B", "A"], ["B", "A", "B"])
     with pytest.raises(ValueError, match="duplicate observation keys"):
-        group_observations(parsed)
+        parsed.observation_groups()
     assert parsed.levels["protein"].obs.frame["Experiment"].to_list() == ["B", "A", "B"]
 
 
@@ -97,7 +96,7 @@ def test_nonbijective_or_incomplete_mapping_stays_separate(
     experiments: list[str | None], samples: list[str]
 ) -> None:
     parsed = _parsed(experiments, samples)
-    groups = group_observations(parsed)
+    groups = parsed.observation_groups()
     assert [list(group.levels) for group in groups] == [["ion"], ["protein"]]
     for group in groups:
         for name, level in group.levels.items():
@@ -108,7 +107,7 @@ def test_missing_relationship_cannot_be_inferred_from_matching_labels() -> None:
     parsed = _parsed(["A", "B"], ["raw_z", "raw_a"])
     ion = parsed.levels["ion"]
     ion.obs.frame = ion.obs.frame.drop("Experiment")
-    assert len(group_observations(parsed)) == 2
+    assert len(parsed.observation_groups()) == 2
 
 
 def test_authored_metadata_is_never_overwritten_by_alignment() -> None:
@@ -116,11 +115,11 @@ def test_authored_metadata_is_never_overwritten_by_alignment() -> None:
     protein = parsed.levels["protein"]
     protein.obs.frame = protein.obs.frame.with_columns(pl.lit("different").alias("Raw_File"))
     original = protein.obs.frame.clone()
-    assert len(group_observations(parsed)) == 2
+    assert len(parsed.observation_groups()) == 2
     assert_frame_equal(protein.obs.frame, original)
 
 
 def test_single_identity_preserves_original_result() -> None:
     parsed = _parsed(["A", "B"], ["A", "B"])
     del parsed.levels["ion"]
-    assert group_observations(parsed) == (parsed,)
+    assert parsed.observation_groups() == (parsed,)

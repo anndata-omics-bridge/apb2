@@ -8,14 +8,14 @@ from typing import Literal, Never
 
 import pytest
 
-from apb2.api import ParseRuleCompiler
+from apb2.api import ConversionError, ParseRuleCompiler
 from apb2.parserV2 import compile as compilation
 from apb2.parserV2 import detect_document as detection
 from apb2.parserV2.detect_document import AmbiguousRuleError, RuleUnavailableError
 from apb2.parserV2.parse_quant.parameters.source import InputSource
 from apb2.parserV2.parse_quant.parser import Parser
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
-from apb2.parserV2.vendor_params.parsers.shared.model import Parameters, ParamsError
+from apb2.parserV2.vendor_params.parsers.shared.model import Parameters
 from apb2.parserV2.vendor_params.registry import parse_params
 from apb2.parserV2.vendor_parse_rules.document import RuleDocument
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
@@ -160,7 +160,7 @@ def test_unhinted_recognition_visits_every_packaged_vendor(monkeypatch: pytest.M
 
 def test_unhinted_compound_parameters_request_the_grammar() -> None:
     source, _parameters = inputs("diann/v1_8")
-    with pytest.raises(ParamsError, match=r"cannot parse .* as diann: .*--software"):
+    with pytest.raises(ConversionError, match=r"cannot parse .* as diann: .*--software"):
         ParseRuleCompiler(source, PARAMS / "fragpipe.workflow")
 
 

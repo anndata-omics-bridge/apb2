@@ -5,9 +5,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from apb2.annotation.compiler import AnnotationCompiler
-from apb2.annotation.data.model import AnnotationError
+from apb2.annotation.data.model import AnnotationError, AnnotationResult
 from apb2.annotation.sdrf import SdrfSource
 from apb2.parserV2.compile import ParseRuleCompiler
+from apb2.parserV2.parse_quant.data.errors import ConversionError
 from apb2.parserV2.parse_quant.data.parsed import (
     FinalLayerTable,
     JsonValue,
@@ -18,6 +19,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
 from apb2.parserV2.parse_quant.io.errors import ResultIOError
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels, write_parsed_levels
 from apb2.parserV2.parse_quant.io.json_representation import sidecar_path
+from apb2.parserV2.parse_quant.parser import LevelParseTimings
 from apb2.parserV2.vendor_params.parsers.shared.model import Parameters
 from apb2.parserV2.vendor_params.parsers.shared.unimod import UNIMOD_REGISTRY
 from apb2.parserV2.vendor_params.registry import parse_params as parse_search_parameters
@@ -38,9 +40,12 @@ def canonical_modification_names() -> Mapping[str, str]:
 __all__ = [
     "AnnotationCompiler",
     "AnnotationError",
+    "AnnotationResult",
+    "ConversionError",
     "FinalLayerTable",
     "JsonValue",
     "LevelHierarchy",
+    "LevelParseTimings",
     "Parameters",
     "ParseRuleCompiler",
     "ParsedLevel",

@@ -12,8 +12,8 @@ import pytest
 from loguru import logger
 from polars.testing import assert_frame_equal
 
-from apb2.cli import app
-from apb2.command.conversion import (
+from apb2.cli.app import app
+from apb2.cli.conversion import (
     ConversionError,
     convert_all_from_rule_config,
     convert_from_rule_config,

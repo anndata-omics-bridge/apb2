@@ -34,6 +34,7 @@ from apb2.parserV2.parse_quant.contracts import (
     ParsedLevelWriter,
     SourceDecomposer,
 )
+from apb2.parserV2.parse_quant.data.errors import ConversionError
 from apb2.parserV2.parse_quant.data.layer_columns import observation_labels
 from apb2.parserV2.parse_quant.data.parsed import (
     FinalLayerTable,
@@ -59,7 +60,7 @@ _EXAMPLE_LIMIT = 5
 _UNKNOWN_MOD_TOKENS = "unknown_mod_tokens"
 
 
-class CanonicalKeyCollisionError(ValueError):
+class CanonicalKeyCollisionError(ConversionError):
     """Distinct raw identities materialized into one valid final identity.
 
     Never a duplicate: a duplicate is several values for one cell, while this is two cells

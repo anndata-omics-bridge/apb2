@@ -15,10 +15,9 @@ import pytest
 from loguru import logger
 
 import apb2.api as public_api
-from apb2.api import ParseRuleCompiler
-from apb2.command import conversion as conversion_application
-from apb2.command.conversion import (
-    ConversionError,
+from apb2.api import ConversionError, ParseRuleCompiler
+from apb2.cli import conversion as conversion_application
+from apb2.cli.conversion import (
     convert_all_from_packaged_rules,
     convert_from_packaged_rules,
 )
@@ -393,43 +392,59 @@ def test_parameter_parser_selection_precedence(
     assert selected == [expected]
 
 
-def test_expected_subsystem_failure_becomes_one_conversion_error(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def fail_parse_and_write(*_arguments: object, **_keywords: object) -> Never:
-        raise OSError("cannot write target")
+def test_every_expected_conversion_failure_is_a_conversion_error() -> None:
+    from apb2.parserV2.detect_document import RuleDetectionError
+    from apb2.parserV2.parse_quant.axis_columns import AxisCoercionError
+    from apb2.parserV2.parse_quant.data.layer_columns import StorageLabelError
+    from apb2.parserV2.parse_quant.duplicates import AggregateTypeError, DuplicateCellError
+    from apb2.parserV2.parse_quant.errors import (
+        AmbiguousDialectError,
+        ColumnComputationError,
+        IncompatibleSourceError,
+    )
+    from apb2.parserV2.parse_quant.fragments import PackedLengthError
+    from apb2.parserV2.parse_quant.modifications import (
+        PackedSiteMismatchError,
+        UnknownModificationError,
+    )
+    from apb2.parserV2.parse_quant.parser import CanonicalKeyCollisionError
+    from apb2.parserV2.prepare_source import InputPreparationError
 
-    monkeypatch.setattr(
-        conversion_application,
-        "_parse_and_write",
-        fail_parse_and_write,
+    expected = (
+        AggregateTypeError,
+        AmbiguousDialectError,
+        AxisCoercionError,
+        CanonicalKeyCollisionError,
+        ColumnComputationError,
+        DuplicateCellError,
+        IncompatibleSourceError,
+        InputPreparationError,
+        PackedLengthError,
+        PackedSiteMismatchError,
+        RuleDetectionError,
+        StorageLabelError,
+        UnknownModificationError,
     )
 
-    with pytest.raises(ConversionError, match="cannot write target"):
-        conversion_application.convert_from_rule_config(
-            data=_diann_v2().required_data_path(),
-            level="ion",
-            output=tmp_path / "out.h5ad",
-            rule_config=_diann_v2().parser_v2_path,
-            parameters_path=None,
-            software=None,
-            checks="standard",
-        )
+    assert all(issubclass(error, public_api.ConversionError) for error in expected)
+
+
+def test_an_unreadable_rule_file_is_a_conversion_error(tmp_path: Path) -> None:
+    rule = tmp_path / "rule.json"
+    rule.write_text("{not json", encoding="utf-8")
+
+    with pytest.raises(public_api.ConversionError, match="cannot read rule file"):
+        ParseRuleCompiler.from_rule(_diann_v2().required_data_path(), rule)
 
 
 def test_unexpected_subsystem_failure_remains_visible(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fail_parse_and_write(*_arguments: object, **_keywords: object) -> Never:
+    def fail_compile(*_arguments: object, **_keywords: object) -> Never:
         raise RuntimeError("implementation defect")
 
-    monkeypatch.setattr(
-        conversion_application,
-        "_parse_and_write",
-        fail_parse_and_write,
-    )
+    monkeypatch.setattr(ParseRuleCompiler, "from_rule", fail_compile)
 
     with pytest.raises(RuntimeError, match="implementation defect"):
         conversion_application.convert_from_rule_config(

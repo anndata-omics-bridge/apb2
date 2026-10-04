@@ -8,7 +8,7 @@ import polars as pl
 import pytest
 from polars.testing import assert_frame_equal, assert_series_equal
 
-from apb2.command.conversion import convert_all_from_packaged_rules
+from apb2.cli.conversion import convert_all_from_packaged_rules
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels
 from parserV2.fixtures import committed_sample
 

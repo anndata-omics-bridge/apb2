@@ -6,7 +6,7 @@ from pathlib import Path
 
 import polars as pl
 
-from apb2.command.conversion import convert_all_from_packaged_rules
+from apb2.cli.conversion import convert_all_from_packaged_rules
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels
 from parserV2.fixtures import DATA_DIR
 

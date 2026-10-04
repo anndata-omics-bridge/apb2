@@ -83,7 +83,7 @@ layers =
     operations | plan_json | (parser)
     value_parsing | layer_validation | decomposition | duplicates
     contracts
-    axis_columns | modifications | fragments | delimited_input | excel_input | parquet_input | prepared_input | observation_groups
+    axis_columns | modifications | fragments | delimited_input | excel_input | parquet_input | prepared_input
     numeric_text | errors
     io
     data | parameters
@@ -115,7 +115,6 @@ source_modules =
     apb2.parserV2.parse_quant.parameters
     apb2.parserV2.parse_quant.contracts
     apb2.parserV2.parse_quant.errors
-    apb2.parserV2.parse_quant.observation_groups
 forbidden_modules =
     pydantic
     pandas

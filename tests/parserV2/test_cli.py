@@ -10,8 +10,8 @@ import anndata
 import mudata
 import pytest
 
-from apb2.cli import ConvertCliOptions, app, convert
-from apb2.command.conversion import ConversionError
+from apb2.api import ConversionError
+from apb2.cli.app import ConvertCliOptions, app, convert
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels
 from apb2.parserV2.parse_quant.io.json_representation import sidecar_path
 from apb2.parserV2.parse_quant.io.metadata import (

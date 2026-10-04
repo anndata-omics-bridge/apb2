@@ -25,6 +25,7 @@ from typing import Literal, Protocol
 
 import polars as pl
 
+from apb2.parserV2.parse_quant.data.errors import ConversionError
 from apb2.parserV2.parse_quant.parameters.axis import (
     ModificationMapEntry,
     ModificationTokenPosition,
@@ -45,11 +46,11 @@ _NUMERIC_TOKEN = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$")
 _INTEGER_SITE = re.compile(r"^[+-]?\d+$")
 
 
-class UnknownModificationError(ValueError):
+class UnknownModificationError(ConversionError):
     """A vendor token matched no declared modification and the rule refuses to guess."""
 
 
-class PackedSiteMismatchError(ValueError):
+class PackedSiteMismatchError(ConversionError):
     """A vendor row pairs a different number of modification names and sites."""
 
 

@@ -8,6 +8,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Literal
 
+from apb2.parserV2.parse_quant.data.errors import ConversionError
 from apb2.parserV2.parse_quant.errors import IncompatibleSourceError
 from apb2.parserV2.parse_quant.parameters.source import (
     Folder,
@@ -36,7 +37,7 @@ from apb2.parserV2.vendor_parse_rules.loader import PACKAGED, load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import LEVELS, QuantificationLevel
 
 
-class RuleDetectionError(ValueError):
+class RuleDetectionError(ConversionError):
     """The supplied evidence does not identify one unambiguous packaged selection."""
 
 

@@ -2923,7 +2923,7 @@ The parent and public composition modules have distinct responsibilities:
 - `parser_factory.py`: strategy resolution and I/O binding
 - `detect_document.py`: recognition, candidate binding and accepted selections
 - `compile.py`: public compiler inputs and collection assembly
-- `apb2/api.py`: public imports; `apb2/command/conversion.py`: file-to-file workflow
+- `apb2/api.py`: public imports; `apb2/cli/conversion.py`: the command's file-to-file workflow, through `apb2.api` only
 
 The parse-owned boundary modules are likewise narrow:
 

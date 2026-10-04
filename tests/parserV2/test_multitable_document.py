@@ -11,7 +11,7 @@ import polars as pl
 import pytest
 from pydantic import ValidationError
 
-from apb2.command.conversion import (
+from apb2.cli.conversion import (
     ConversionError,
     convert_all_from_rule_config,
     convert_from_rule_config,

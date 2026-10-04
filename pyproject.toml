@@ -36,7 +36,7 @@ Documentation = "https://anndata-omics-bridge.github.io/apb2/"
 Repository = "https://github.com/anndata-omics-bridge/apb2"
 
 [project.scripts]
-apb2 = "apb2.cli:main"
+apb2 = "apb2.cli.app:main"
 
 [dependency-groups]
 dev = [

@@ -13,7 +13,7 @@ import polars as pl
 import pytest
 from polars.testing import assert_frame_equal
 
-from apb2.cli import reformat as reformat_command
+from apb2.cli.app import reformat as reformat_command
 from apb2.parserV2.parse_quant.data.parsed import (
     AnnotationTable,
     AuxiliaryLayerRole,
@@ -37,7 +37,6 @@ from apb2.parserV2.parse_quant.io.formats import (
     ResultFormat,
     read_parsed_levels,
     reader_for,
-    reformat,
     result_format_for,
     write_parsed_levels,
     writer_for,
@@ -388,7 +387,7 @@ def test_columnar_crossings_are_exact(
     target = tmp_path / f"target{suffix[target_format]}"
     writer_for(source_format).write(rich_result(), source)
 
-    reformat(source, target)
+    write_parsed_levels(read_parsed_levels(source), target)
 
     _assert_result_equal(reader_for(target_format).read(target), rich_result())
 
@@ -447,7 +446,7 @@ def test_columnar_to_h5mu_yields_the_declared_matrix_projection(
     writer_for(ResultFormat.H5MU).write(rich_result(), projected_path)
     expected = reader_for(ResultFormat.H5MU).read(projected_path)
 
-    reformat(source, crossed_path)
+    write_parsed_levels(read_parsed_levels(source), crossed_path)
 
     _assert_result_equal(reader_for(ResultFormat.H5MU).read(crossed_path), expected)
 
@@ -463,7 +462,7 @@ def test_h5mu_to_columnar_preserves_the_represented_projection(
     writer_for(ResultFormat.H5MU).write(rich_result(), source)
     expected = reader_for(ResultFormat.H5MU).read(source)
 
-    reformat(source, target)
+    write_parsed_levels(read_parsed_levels(source), target)
 
     _assert_result_equal(reader_for(target_format).read(target), expected)
 
@@ -480,9 +479,9 @@ def test_one_level_h5ad_crosses_columnar_formats_in_both_directions(
     restored = tmp_path / f"restored{suffix}"
     writer_for(columnar_format).write(raw, columnar)
 
-    reformat(columnar, h5ad)
+    write_parsed_levels(read_parsed_levels(columnar), h5ad)
     projection = reader_for(ResultFormat.H5AD).read(h5ad)
-    reformat(h5ad, restored)
+    write_parsed_levels(read_parsed_levels(h5ad), restored)
 
     _assert_result_equal(reader_for(columnar_format).read(restored), projection)
 

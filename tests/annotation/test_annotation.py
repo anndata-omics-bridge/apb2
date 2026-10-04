@@ -27,7 +27,7 @@ from apb2.annotation.matching.core import (
 )
 from apb2.annotation.sdrf import SdrfSource
 from apb2.annotation.source.load import load_annotation_file
-from apb2.cli import annotate as annotate_command
+from apb2.cli.app import annotate as annotate_command
 from apb2.parserV2.parse_quant.data.parsed import (
     AuxiliaryLayerRole,
     CategoricalLayerSemantics,

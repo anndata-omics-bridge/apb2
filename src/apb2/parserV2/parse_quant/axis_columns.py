@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 import polars as pl
 
+from apb2.parserV2.parse_quant.data.errors import ConversionError
 from apb2.parserV2.parse_quant.errors import ColumnComputationError
 from apb2.parserV2.parse_quant.numeric_text import as_numbers
 from apb2.parserV2.parse_quant.parameters.source import NumericTextFormat
@@ -23,7 +24,7 @@ _BOOLEAN_SPELLINGS = {
 }
 
 
-class AxisCoercionError(ValueError):
+class AxisCoercionError(ConversionError):
     """One selected axis column holds values its declared logical type cannot read."""
 
 

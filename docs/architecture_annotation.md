@@ -34,7 +34,7 @@ level with zero matches because such an annotation is not an annotation for that
 ```text
 apb2/
 ├── api.py                     AnnotationCompiler, AnnotationError, SdrfSource
-├── command/annotation.py      `apb2 annotate`: result I/O + orchestration
+├── cli/annotation.py          `apb2 annotate`: result I/O + orchestration
 └── annotation/
     ├── compiler.py            generic delimited-source composition
     ├── prolfquapp.py           source-bound parser + bound annotation
@@ -47,7 +47,7 @@ apb2/
 
 Modules directly in `annotation/` compose children. The child packages import only the innermost
 data package. Annotation computation depends on the `ParsedLevels` value model but never on result
-I/O, Pydantic rule documents, pandas, AnnData, or MuData. `command/annotation.py` is the outer adapter
+I/O, Pydantic rule documents, pandas, AnnData, or MuData. `cli/annotation.py` is the outer adapter
 that reads and writes physical results.
 
 External packages use `apb2.api.AnnotationCompiler` like any other caller; apb-proteobench compiles its module samples as a prolfquapp table with `unmatched="error"`. `SdrfSource.read(path)` gives them SDRF header lookup and data-file basenames without a second SDRF reader.

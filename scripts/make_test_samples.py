@@ -28,7 +28,8 @@ import polars as pl
 from cyclopts import App
 from loguru import logger
 
-from apb2.command.conversion import ConversionError, convert_all_from_rule_config
+from apb2.api import ConversionError
+from apb2.cli.conversion import convert_all_from_rule_config
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.vendor_parse_rules.document import (
     RuleDocument,

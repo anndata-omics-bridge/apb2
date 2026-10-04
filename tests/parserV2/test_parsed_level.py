@@ -33,9 +33,12 @@ def test_the_public_api_is_exactly_the_approved_names() -> None:
     assert sorted(public_api.__all__) == [
         "AnnotationCompiler",
         "AnnotationError",
+        "AnnotationResult",
+        "ConversionError",
         "FinalLayerTable",
         "JsonValue",
         "LevelHierarchy",
+        "LevelParseTimings",
         "Parameters",
         "ParseRuleCompiler",
         "ParsedLevel",

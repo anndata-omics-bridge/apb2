@@ -7,8 +7,6 @@ from functools import partial
 from pathlib import Path
 from typing import Protocol
 
-from loguru import logger
-
 from apb2.parserV2.parse_quant.data.parsed import (
     ParsedLevel,
     ParsedLevels,
@@ -113,20 +111,3 @@ def write_parsed_levels(parsed: ParsedLevels, target: Path) -> None:
         target,
         partial(writer.write, parsed, target),
     )
-
-
-def reformat(source: Path, target: Path, /) -> None:
-    """Read one APB2 result and write the same value through another format adapter."""
-    input_format = result_format_for(source)
-    result_format_for(target)
-    parsed = reader_for(input_format).read(source)
-    for level, value in parsed.levels.items():
-        logger.info(
-            "level={} shape=({}, {}) layers={}",
-            level,
-            value.obs.frame.height,
-            value.var.frame.height,
-            list(value.layers),
-        )
-    write_parsed_levels(parsed, target)
-    logger.info("reformatted {} -> {}", source, target)

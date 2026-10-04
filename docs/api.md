@@ -57,6 +57,21 @@ parsed_levels = compiler.compile().parse()
 
 `software` is required and names the result producer; for DIA-NN output from a FragPipe workflow, use `software="diann"`. APB2 matches the requested levels against that producer's packaged rules using their source columns and declared version signatures. For DIA-NN 2.x, the declared MS1 columns distinguish DDA from the DIA default without a separate acquisition argument. Ambiguous matches and search settings that columns cannot establish still raise errors. `compiler.detection.version` is `None`, `compiler.parameters` is unavailable, and the normal rule provenance remains in the parsed result. The CLI uses this same constructor for `apb2 convert DATA ion --software DIA-NN` when `--params` is omitted.
 
+A caller-authored schema-0.8 rule file replaces detection:
+
+```python
+compiler = ParseRuleCompiler.from_rule(
+    Path("report.tsv"),
+    Path("my_rules.json"),
+    Path("search-parameters.txt"),
+)
+parsed_levels, timings = compiler.compile().parse_with_timings()
+```
+
+`requested_levels` defaults to every level the rule declares; the optional parameter file adds search-parameter evidence and `compiler.detection.version`. `parse_with_timings()` also returns one `LevelParseTimings` per level, its read and parse seconds.
+
+Levels whose observation identities differ cannot share one file: `parsed_levels.observation_groups()` returns the independently writable results, aligning only one-to-one key mappings. The `apb2 convert` command writes each group to its own file.
+
 See [Convert vendor results](conversion.md) for rule selection, supported levels, validation, and
 output naming.
 
@@ -86,7 +101,7 @@ source-bound and can be parsed against several datasets, producing a separate da
 annotation each time.
 `parse(parsed)` raises before constructing an annotation when the selected policy is invalid—for
 example, when complete coverage was requested but cannot be met. `annotate()` uses the stored
-matches and does not recompute them.
+matches and does not recompute them, and returns an `AnnotationResult`: the annotated `parsed` and one coverage report per level.
 
 `AnnotationCompiler(unmatched="keep" | "error" | "drop", include=None)` decides what happens to observations without an annotation row: keep them with null metadata, raise, or drop them; `include` names a Boolean annotation column that further selects observations and requires `"drop"`. A prolfquapp table is keyed by its one column matching `^raw`, `^file`, `^run`, `^channel` or `^Relative`, with optional `<key>_aliases` list values; every other column becomes an obs column. All tables and matching evidence are Polars-backed values. Failures raise `AnnotationError`.
 
@@ -179,8 +194,10 @@ numbers = level.layers["Intensity"].quantitative_values()
 ## Errors
 
 ```python
-from apb2.api import ResultIOError
+from apb2.api import ConversionError, ResultIOError
 ```
+
+Catch `ConversionError` for expected conversion failures from constructing a `ParseRuleCompiler`, `compile()` or `parse()`: unreadable parameter or rule files, inputs no rule accepts, and values the selected rule rejects. It is a `ValueError`; anything else that escapes is a defect.
 
 Catch `ResultIOError` for expected result-format failures: an unsupported suffix, an invalid in-memory or persisted result, or an encoded layer set that violates an h5 required-name check or the measurement-layer occupancy contract. Its message names the cause; the subclasses that carry it are APB2-internal.
 
