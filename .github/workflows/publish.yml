@@ -1,7 +1,7 @@
 name: Publish
 
-# A published GitHub release tagged v<version> uploads to PyPI; a manual run uploads to TestPyPI.
-# Both use PyPI trusted publishing, so the repository stores no API token.
+# A published GitHub release tagged v<version> uploads to PyPI through trusted publishing, so the
+# repository stores no API token. A manual run only builds and checks the distributions.
 on:
   release:
     types: [published]
@@ -38,27 +38,6 @@ jobs:
         with:
           name: dist
           path: dist/
-
-  testpypi:
-    if: github.event_name == 'workflow_dispatch'
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: testpypi
-      url: https://test.pypi.org/p/apb2
-    permissions:
-      id-token: write
-    steps:
-      - name: Download distributions
-        uses: actions/download-artifact@v8
-        with:
-          name: dist
-          path: dist/
-
-      - name: Publish to TestPyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          repository-url: https://test.pypi.org/legacy/
 
   pypi:
     if: github.event_name == 'release'
