@@ -17,6 +17,8 @@ for software in get_rules("DIA", level="ion"):
 
 The initial categories are `DDA` and `DIA`; a rule can belong to both. Each variant identifies one packaged rule and retains its own supported quantification levels. `software_version_pattern` is the rule's regular-expression version range, not a list of tested releases. The catalogue reports rule availability, not whether an arbitrary file can be parsed without search parameters. Parameter-parser-only software and ProteoBench-specific UI aliases are not included. Unknown categories raise `ValueError`.
 
+`packaged_rule_declarations()` maps each packaged `(rule, level)`, with `rule` named as `RuleVariant.rule` names it, to every distinct `rule_json` text that conversion can store for that level, one per declaration some search-parameter evidence selects.
+
 ## Convert vendor results
 
 Use the public compiler when another package needs canonical parsed values:
@@ -179,7 +181,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
 )
 ```
 
-`ParsedLevels` contains an ordered level mapping whose levels share identical observation key columns, values and order, plus shared JSON-compatible provenance. `hierarchy` holds a self-contained `LevelHierarchy(name, identities)` from fine to coarse; identity names resolve against `VarFinal.roles` or name var columns directly. Each `ParsedLevel` contains:
+`ParsedLevels` contains an ordered level mapping whose levels share identical observation key columns, values and order, plus shared JSON-compatible provenance. `hierarchy` holds a self-contained `LevelHierarchy(name, identities)`, imported from `apb2.api`, from fine to coarse; identity names resolve against `VarFinal.roles` or name var columns directly. Each `ParsedLevel` contains:
 
 - `obs: ObsFinal`
 - `var: VarFinal`

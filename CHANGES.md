@@ -2,6 +2,7 @@
 
 ## 2026-10-03
 
+- `apb2.api` adds `LevelHierarchy` and `packaged_rule_declarations()`, which lists every distinct `rule_json` each packaged rule level can store, so catalogue and test code no longer read the rule loader.
 - `apb2.annotation_extension` is gone; `apb2.api` adds `AnnotationCompiler`, `AnnotationError` and `SdrfSource`. `AnnotationCompiler(unmatched="keep" | "error" | "drop", include=None)` replaces `ProlfquappAnnotationParameters` and `SdrfAnnotationParameters`; `SdrfSource.read(path)` reads an SDRF. The `apb2 annotate` workflow moved from `annotation_facade.py` to `command/annotation.py`.
 - Typed var/layer semantic roles, strict shared observation axes, values-only matrices, and persisted configurable level hierarchies; Parquet 6 and DuckDB 5.
 

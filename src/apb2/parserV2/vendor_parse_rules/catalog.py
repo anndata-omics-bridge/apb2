@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
+import json
 from collections import defaultdict
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, model_validator
 
-from apb2.parserV2.vendor_parse_rules.document import RuleDocument
+from apb2.parserV2.vendor_parse_rules.document import (
+    RuleDocument,
+    RuleNotApplicable,
+    SearchParameterEvidence,
+)
 from apb2.parserV2.vendor_parse_rules.loader import PACKAGED, load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import LEVELS, ModelBase, QuantificationLevel
 
@@ -82,8 +88,7 @@ class RuleCatalog:
 
     def __init__(self, source: Path, packaged: tuple[Path, ...] = PACKAGED) -> None:
         catalogue = _Catalogue.model_validate_json(source.read_text(encoding="utf-8"))
-        document_root = Path(str(resources.files("apb2.parserV2.vendor_parse_rules.documents")))
-        paths = {path.relative_to(document_root).as_posix(): path for path in packaged}
+        paths = {_rule_name(path): path for path in packaged}
         assigned = {assignment.rule for assignment in catalogue.assignments}
         missing = paths.keys() - assigned
         extra = assigned - paths.keys()
@@ -136,3 +141,39 @@ def get_rules(category: str, *, level: QuantificationLevel | None = None) -> lis
     """
     source = Path(str(resources.files("apb2.parserV2.vendor_parse_rules"))) / "catalog.json"
     return RuleCatalog(source).get_rules(category, level=level)
+
+
+_ACQUISITION: tuple[Literal["DDA", "DIA", "unknown"], ...] = ("DDA", "DIA", "unknown")
+_COMBINE_CHARGE_STATES: tuple[bool | None, ...] = (True, False, None)
+
+
+def packaged_rule_declarations() -> dict[tuple[str, str], tuple[str, ...]]:
+    """Every distinct ``rule_json`` a packaged rule level can store, keyed by (rule, level).
+
+    ``rule`` is the document path :class:`RuleVariant` names, such as ``maxquant/rules.json``.
+    Each value is exactly the text conversion stores in a level's ``rule_json``, once per
+    distinct declaration that some search-parameter evidence selects, in first-selected order.
+    """
+    declarations: dict[tuple[str, str], tuple[str, ...]] = {}
+    for path in PACKAGED:
+        document = load_rule_document(path)
+        for level in document.levels:
+            texts: dict[str, None] = {}
+            for acquisition in _ACQUISITION:
+                for combine in _COMBINE_CHARGE_STATES:
+                    evidence = SearchParameterEvidence(
+                        acquisition_method=acquisition, combine_charge_states=combine
+                    )
+                    try:
+                        effective = document.rule(level, evidence)
+                    except RuleNotApplicable:
+                        continue
+                    texts[json.dumps(effective.declaration.model_dump(mode="json"))] = None
+            declarations[(_rule_name(path), level)] = tuple(texts)
+    return declarations
+
+
+def _rule_name(path: Path) -> str:
+    """A packaged rules.json as its path below the documents directory."""
+    root = Path(str(resources.files("apb2.parserV2.vendor_parse_rules.documents")))
+    return path.relative_to(root).as_posix()
