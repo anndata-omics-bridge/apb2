@@ -19,14 +19,14 @@ sync:  ## Synchronize the locked development environment
 	uv sync --frozen --group dev
 
 format:  ## Format and autofix source and tests
-	$(VENV_BIN)/ruff format src tests
-	$(VENV_BIN)/ruff check --fix src tests
+	$(VENV_BIN)/ruff format src tests scripts
+	$(VENV_BIN)/ruff check --fix src tests scripts
 
 format-check:  ## Check formatting without changing files
-	$(VENV_BIN)/ruff format --check src tests
+	$(VENV_BIN)/ruff format --check src tests scripts
 
 lint:  ## Run code and import-architecture lint checks
-	$(VENV_BIN)/ruff check src tests
+	$(VENV_BIN)/ruff check src tests scripts
 	$(VENV_BIN)/lint-imports
 
 typecheck:  ## Run standard Pyright in strict mode
