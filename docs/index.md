@@ -133,15 +133,15 @@ write_parsed_levels(parsed, Path("results/ion.h5ad"))
 
 ### Read and write results
 
-Choose the source and target formats explicitly:
+The suffix selects the format:
 
 ```python
 from pathlib import Path
 
-from apb2.parserV2.parse_quant.io.formats import ResultFormat, reader_for, writer_for
+from apb2.api import read_parsed_levels, write_parsed_levels
 
-parsed = reader_for(ResultFormat.PARQUET).read(Path("results.parquet"))
-writer_for(ResultFormat.DUCKDB).write(parsed, Path("results.duckdb"))
+parsed = read_parsed_levels(Path("results.parquet"))
+write_parsed_levels(parsed, Path("results.duckdb"))
 ```
 
 ### Annotate a parsed result

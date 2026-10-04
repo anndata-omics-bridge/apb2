@@ -44,7 +44,7 @@ class SdrfSource:
 
     __slots__ = ("_columns", "_source")
 
-    def __init__(self, source: LoadedAnnotationSource, /) -> None:
+    def __init__(self, source: LoadedAnnotationSource) -> None:
         if not sdrf_signature(source):
             raise AnnotationError(
                 f"SDRF annotation requires {_SOURCE_NAME!r} and {_DATA_FILE!r} columns; "
@@ -71,11 +71,11 @@ class SdrfSource:
         """Return the loaded source this SDRF view reads."""
         return self._source
 
-    def columns(self, header: str, /) -> tuple[str, ...]:
+    def columns(self, header: str) -> tuple[str, ...]:
         """Return the frame column of every occurrence of one SDRF header, in file order."""
         return self._columns.get(_header_key(header), ())
 
-    def column(self, header: str, /) -> str:
+    def column(self, header: str) -> str:
         """Return the frame column of a header that must occur exactly once."""
         found = self.columns(header)
         if len(found) != 1:

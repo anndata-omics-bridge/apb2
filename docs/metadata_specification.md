@@ -69,8 +69,8 @@ Representation must reuse persistence projections. Collection documents expose `
 | Persisted component | Current version |
 |---|---|
 | HDF5 storage descriptor | `5` |
-| Parquet manifest | `5` |
-| DuckDB manifest | `4` |
+| Parquet manifest | `6` |
+| DuckDB manifest | `5` |
 | Representation document | `4` |
 
 Readers and writers must change together and reject unsupported older layouts explicitly. No aliases or automatic migrations are provided. Tool payload versions remain independently owned; a parsing-rule schema version is not a result-storage version. Historical artifacts must not be rewritten as a side effect of reading or viewing them.

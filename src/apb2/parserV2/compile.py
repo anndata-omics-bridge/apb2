@@ -35,7 +35,6 @@ class ParseRuleCompiler:
         self,
         data: Path,
         parameters_path: Path | None,
-        *,
         requested_levels: Iterable[QuantificationLevel] | None = None,
         checks: ValidationChecks = "standard",
         software: str | None = None,
@@ -90,7 +89,6 @@ class ParseRuleCompiler:
     def from_software(
         cls,
         data: Path,
-        *,
         software: str,
         requested_levels: Iterable[QuantificationLevel] | None = None,
         checks: ValidationChecks = "standard",

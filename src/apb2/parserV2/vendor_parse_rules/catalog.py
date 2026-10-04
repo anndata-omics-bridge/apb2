@@ -133,7 +133,7 @@ class RuleCatalog:
         ]
 
 
-def get_rules(category: str, *, level: QuantificationLevel | None = None) -> list[SoftwareRules]:
+def get_rules(category: str, level: QuantificationLevel | None = None) -> list[SoftwareRules]:
     """List packaged quant-result rules by APB2 category, optionally by level.
 
     Version patterns describe the declared rule range, not a finite list of tested releases.

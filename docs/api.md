@@ -94,97 +94,28 @@ matches and does not recompute them.
 
 ## Read and write results
 
-### Format selection
-
-```python
-from apb2.parserV2.parse_quant.io.formats import ResultFormat
-```
-
-`ResultFormat` has four values:
-
-```python
-ResultFormat.H5AD
-ResultFormat.H5MU
-ResultFormat.PARQUET
-ResultFormat.DUCKDB
-```
-
-### Readers and writers
-
 ```python
 from pathlib import Path
 
-from apb2.parserV2.parse_quant.io.formats import (
-    ParsedLevelsReader,
-    ParsedLevelsWriter,
-    ResultFormat,
-    reader_for,
-    writer_for,
-)
+from apb2.api import read_parsed_levels, sidecar_path, write_parsed_levels
 
-reader: ParsedLevelsReader = reader_for(ResultFormat.PARQUET)
-writer: ParsedLevelsWriter = writer_for(ResultFormat.DUCKDB)
-
-parsed = reader.read(Path("results.parquet"))
-writer.write(parsed, Path("results.duckdb"))
+parsed = read_parsed_levels(Path("results.parquet"))
+write_parsed_levels(parsed, Path("results.duckdb"))
+print(sidecar_path(Path("results.duckdb")))  # results.duckdb.apb.json
 ```
 
-The capabilities are:
-
-```python
-class ParsedLevelsReader(Protocol):
-    def read(self, source: Path, /) -> ParsedLevels: ...
-
-
-class ParsedLevelsWriter(Protocol):
-    def write(self, parsed: ParsedLevels, target: Path, /) -> None: ...
-```
-
-Concrete adapters are selected once by `reader_for()` or `writer_for()`. Callers do not need to
-construct or discriminate among backend classes.
-
-### Path-inferred helpers
-
-```python
-from apb2.parserV2.parse_quant.io.formats import (
-    read_parsed_levels,
-    reformat,
-    result_format_for,
-    write_parsed_levels,
-)
-```
-
-```python
-result_format_for(path: Path, /) -> ResultFormat
-read_parsed_levels(source: Path, /) -> ParsedLevels
-write_parsed_levels(parsed: ParsedLevels, target: Path, /) -> None
-reformat(source: Path, target: Path, /) -> None
-```
-
-These functions infer formats only from the supported suffixes. `reformat()` is a complete
-storage-only use case, not a vendor conversion function. Both writes publish an adjacent compact `<artifact>.apb.json` representation.
-
-The public result facade also exposes `project_result(parsed, artifact=None)`, `sidecar_path(artifact)`, and `write_result_representation(parsed, artifact)` for consumers that need to inspect or republish the versioned representation explicitly. Omitting the artifact produces the same in-memory scientific document with `artifact: null`.
+The suffix selects the format: `.h5ad`, `.h5mu`, `.parquet` or `.duckdb`. `write_parsed_levels()` also publishes an adjacent compact `<artifact>.apb.json` representation, which `sidecar_path(artifact)` names. Converting between formats is `write_parsed_levels(read_parsed_levels(source), target)`; the CLI command `apb2 reformat` does the same.
 
 ## Result model
 
 ```python
-from apb2.parserV2.parse_quant.data.parsed import (
-    AuxiliaryLayerRole,
-    FinalLayerRole,
-    FinalLayerTable,
-    MeasurementLayerRole,
-    ObsFinal,
-    ParsedLevel,
-    ParsedLevels,
-    VarFinal,
-)
+from apb2.api import FinalLayerTable, JsonValue, LevelHierarchy, ParsedLevel, ParsedLevels
 ```
 
-`ParsedLevels` contains an ordered level mapping whose levels share identical observation key columns, values and order, plus shared JSON-compatible provenance. `hierarchy` holds a self-contained `LevelHierarchy(name, identities)`, imported from `apb2.api`, from fine to coarse; identity names resolve against `VarFinal.roles` or name var columns directly. Each `ParsedLevel` contains:
+`ParsedLevels` contains an ordered level mapping whose levels share identical observation key columns, values and order, plus shared JSON-compatible provenance. `hierarchy` holds a self-contained `LevelHierarchy(name, identities)`, imported from `apb2.api`, from fine to coarse; identity names resolve against `level.var.roles` or name var columns directly. Each `ParsedLevel` contains:
 
-- `obs: ObsFinal`
-- `var: VarFinal`
+- `obs`: the observation axis, with `frame` and `key_columns`
+- `var`: the variable axis, with `frame`, `key_columns` and `roles`
 - `primary_layer_name: str`
 - `layers: dict[str, FinalLayerTable]`
 - `obsm: dict[str, polars.DataFrame]`
@@ -195,7 +126,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
 
 ### Semantic conversion roles
 
-`FinalLayerTable.semantic_roles` holds semantic roles such as `abundance`; `ParsedLevel.abundance_layers()` returns every abundance layer in authored order, and `abundance_layers(names)` validates the named ones, the primary layer included. Every selection requires the abundance role. `VarFinal.roles` maps semantic roles such as `protein_assignment` to retained var columns; every role column must be `pl.String`. Readers and writers persist both role maps under `uns["apb"]["roles"]` and reject absent or non-String var role columns.
+`FinalLayerTable.semantic_roles` holds semantic roles such as `abundance`; `ParsedLevel.abundance_layers()` returns every abundance layer in authored order, and `abundance_layers(names)` validates the named ones, the primary layer included. Every selection requires the abundance role. `level.var.roles` maps semantic roles such as `protein_assignment` to retained var columns; every role column must be `pl.String`. Readers and writers persist both role maps under `uns["apb"]["roles"]` and reject absent or non-String var role columns.
 
 Consumers discover scientific meaning from these typed maps without knowing vendor-specific names; physical adapters serialize and validate them at the result boundary.
 
@@ -248,22 +179,10 @@ numbers = level.layers["Intensity"].quantitative_values()
 ## Errors
 
 ```python
-from apb2.parserV2.parse_quant.io.errors import (
-    AnnDataLayerContractError,
-    InvalidResultError,
-    ResultIOError,
-    UnsupportedResultFormatError,
-)
+from apb2.api import ResultIOError
 ```
 
-Catch `ResultIOError` for expected result-format failures; consumers import it from `apb2.api`, and the other error classes are APB2-internal. `UnsupportedResultFormatError` reports
-an unsupported suffix; `InvalidResultError` reports an invalid in-memory or persisted result.
-`AnnDataLayerContractError` is a `ResultIOError` raised when the encoded layer set violates an h5
-required-name check or the measurement-layer occupancy contract.
-
-```python
-class AnnDataLayerContractError(ResultIOError): ...
-```
+Catch `ResultIOError` for expected result-format failures: an unsupported suffix, an invalid in-memory or persisted result, or an encoded layer set that violates an h5 required-name check or the measurement-layer occupancy contract. Its message names the cause; the subclasses that carry it are APB2-internal.
 
 ## Parser/result boundary
 

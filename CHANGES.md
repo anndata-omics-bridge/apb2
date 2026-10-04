@@ -1,5 +1,9 @@
 # Changes
 
+## 2026-10-04
+
+- Public signatures drop the `/` and `*` markers (`ParseRuleCompiler`, `from_software`, `get_rules`, `read_parsed_levels`, `write_parsed_levels`, `sidecar_path`, `AnnotationCompiler.compile`, `SdrfSource`); every call that worked before still works. The API guide, index and result-I/O pages import only from `apb2.api`: the explicit-format readers and writers, `reformat` and the result-model types are internal, and the guide's `AnnDataLayerContractError`, which no longer existed, is gone.
+
 ## 2026-10-03
 
 - `scripts/make_test_samples.py` replaces APB Studio's `make_apb2_test_samples.py`, so APB Studio no longer imports apb2. It takes the fixture store as `STORE` and reads its current `downloads.csv`; the old script still looked for `raw_file_db_downloaded.csv` and `json_dir/` and found no exports. `scripts/` is linted and type-checked with `src` and `tests`.

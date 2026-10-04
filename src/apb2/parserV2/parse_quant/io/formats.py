@@ -100,12 +100,12 @@ def result_format_for(path: Path, /) -> ResultFormat:
         ) from error
 
 
-def read_parsed_levels(source: Path, /) -> ParsedLevels:
+def read_parsed_levels(source: Path) -> ParsedLevels:
     """Read a result after inferring its format from the source path."""
     return reader_for(result_format_for(source)).read(source)
 
 
-def write_parsed_levels(parsed: ParsedLevels, target: Path, /) -> None:
+def write_parsed_levels(parsed: ParsedLevels, target: Path) -> None:
     """Write a result and its compact APB JSON representation sidecar."""
     writer = writer_for(result_format_for(target))
     write_result_with_representation(

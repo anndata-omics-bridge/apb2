@@ -46,7 +46,7 @@ class AnnotationCompiler:
         """
         self._application = _application(unmatched, include)
 
-    def compile(self, source: Path | pl.DataFrame, /) -> AnnotationParser:
+    def compile(self, source: Path | pl.DataFrame) -> AnnotationParser:
         """Load once, verify the tabular convention, and return its bound parser.
 
         SDRF headers take precedence; other tables must carry a prolfquapp observation key.

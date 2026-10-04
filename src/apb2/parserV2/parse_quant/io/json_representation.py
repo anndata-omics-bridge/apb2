@@ -48,7 +48,7 @@ _EMBEDDED_JSON_FIELDS = frozenset(
 )
 
 
-def sidecar_path(artifact: Path, /) -> Path:
+def sidecar_path(artifact: Path) -> Path:
     """Return the representation path adjacent to one scientific artifact."""
     return artifact.with_name(f"{artifact.name}{SIDECAR_SUFFIX}")
 

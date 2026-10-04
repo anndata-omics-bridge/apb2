@@ -26,7 +26,7 @@ Keep integration scope equal to the tool being changed. For `apb2 convert`, run 
   blanket exclusions, file-wide ignores, or unqualified `# type: ignore`.
 - Ruff is the sole formatter and linter. Do not add Black, isort, Flake8, mypy,
   or another overlapping formatter/type checker.
-- Keep `__init__.py` empty and import public objects from their defining modules.
+- Keep `__init__.py` empty and import from defining modules inside this package. Other anndata_bridge packages import this one only from `apb2.api`, and it imports them only from theirs.
 - Use Google-style docstrings for public APIs and the configured 100-character
   line length.
 
