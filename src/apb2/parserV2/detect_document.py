@@ -35,6 +35,7 @@ from apb2.parserV2.vendor_parse_rules.document import (
 )
 from apb2.parserV2.vendor_parse_rules.loader import PACKAGED, load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import LEVELS, QuantificationLevel
+from apb2.parserV2.vendor_parse_rules.schema.rule import LongRule
 
 
 class RuleDetectionError(ConversionError):
@@ -358,7 +359,9 @@ def _table_sources(
         if not paths or not selected:
             return (), paths
         prepared = prepare_source(
-            InputFiles(source.path, {path.name: path for path in paths}), preparation
+            InputFiles(source.path, {path.name: path for path in paths}),
+            preparation,
+            _RuleColumns.of(document, table),
         )
         return (prepared,), paths
     filename = declaration.input.file_name
@@ -369,6 +372,36 @@ def _table_sources(
         if candidate.path.name == filename or candidate.path.name not in declared_names
     )
     return candidates, ()
+
+
+@dataclass(frozen=True, slots=True)
+class _RuleColumns:
+    """The prepared columns one table group's level rules can read: names or wide patterns."""
+
+    names: frozenset[str]
+    patterns: tuple[re.Pattern[str], ...]
+
+    @classmethod
+    def of(cls, document: RuleDocument, table: tuple[QuantificationLevel, ...]) -> _RuleColumns:
+        names: set[str] = set()
+        patterns: list[re.Pattern[str]] = []
+        for level in table:
+            rule = document.declared(level).declaration
+            entries = (
+                (*rule.columns.obs, *rule.columns.var)
+                if isinstance(rule, LongRule)
+                else tuple(rule.columns.var)
+            )
+            names.update(entry.source for entry in entries if entry.source is not None)
+            for layer in rule.measurements.layers:
+                if isinstance(rule, LongRule):
+                    names.add(layer.source)
+                else:
+                    patterns.append(re.compile(layer.source))
+        return cls(frozenset(names), tuple(patterns))
+
+    def __call__(self, column: str) -> bool:
+        return column in self.names or any(pattern.match(column) for pattern in self.patterns)
 
 
 def _direct_table_sources(source: InputSource, filename: str | None) -> tuple[InputSource, ...]:
@@ -474,7 +507,8 @@ def _packaged_documents(
     return tuple(
         document
         for document in documents
-        if (vendors is None or software_slug(document.software_name) in vendors)
+        if document.selection == "automatic"
+        and (vendors is None or software_slug(document.software_name) in vendors)
         and (parameter_file is None or document.parameter_file == parameter_file)
     )
 

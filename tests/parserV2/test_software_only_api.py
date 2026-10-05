@@ -102,6 +102,12 @@ def test_diann_v2_dda_column_selects_ms1_normalised(tmp_path: Path) -> None:
     assert parsed.primary_layer_name == "Ms1_Normalised"
 
 
+def _spectronaut_rule_folders(source: Path) -> set[str]:
+    """Return the rule folder of every level detected across all quantification levels."""
+    compiler = ParseRuleCompiler.from_software(source, software="Spectronaut")
+    return {level.document.path.parent.name for level in compiler.detection.levels}
+
+
 @pytest.mark.parametrize(
     ("key", "expected_folder"),
     [("spectronaut/v15", "v15"), ("spectronaut", "spectronaut"), ("spectronaut/v21", "v21")],
@@ -109,11 +115,27 @@ def test_diann_v2_dda_column_selects_ms1_normalised(tmp_path: Path) -> None:
 def test_spectronaut_version_is_selected_by_declared_columns(
     key: str, expected_folder: str
 ) -> None:
-    compiler = ParseRuleCompiler.from_software(
-        _sample(key), software="Spectronaut", requested_levels=("ion",)
-    )
+    assert _spectronaut_rule_folders(_sample(key)) == {expected_folder}
 
-    assert compiler.detection.levels[0].document.path.parent.name == expected_folder
+
+def test_spectronaut_15_is_selected_without_its_optional_comment_column(tmp_path: Path) -> None:
+    """Spectronaut 15 exports lack the experiment columns the 19+ rules require."""
+    # The sample is windows-1252 encoded, so the column is dropped without decoding.
+    rows = [line.split(b"\t") for line in _sample("spectronaut/v15").read_bytes().split(b"\n")]
+    comment = rows[0].index(b"EG.Comment")
+    source = tmp_path / "report.tsv"
+    source.write_bytes(b"\n".join(b"\t".join(row[:comment] + row[comment + 1 :]) for row in rows))
+
+    assert _spectronaut_rule_folders(source) == {"v15"}
+
+
+def test_spectronaut_19_keeps_its_rule_with_a_comment_column(tmp_path: Path) -> None:
+    source = tmp_path / "report.tsv"
+    pl.read_csv(_sample("spectronaut"), separator="\t", infer_schema=False).with_columns(
+        pl.lit("").alias("EG.Comment")
+    ).write_csv(source, separator="\t")
+
+    assert _spectronaut_rule_folders(source) == {"spectronaut"}
 
 
 @pytest.mark.parametrize("version", ["v1_10", "v1_12", "v2"])

@@ -7,6 +7,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Literal, Self
 
+from loguru import logger
 from pydantic import ValidationError
 
 from apb2.parserV2.detect_document import (
@@ -22,6 +23,7 @@ from apb2.parserV2.detect_document import (
     software_slug,
 )
 from apb2.parserV2.parse_quant.data.errors import ConversionError
+from apb2.parserV2.parse_quant.data.step_log import logged_step
 from apb2.parserV2.parse_quant.parameters.source import Folder, InputSource, SingleFile
 from apb2.parserV2.parse_quant.parser import ParserCollection
 from apb2.parserV2.vendor_params.parsers.shared.model import Parameters, ParamsError
@@ -85,9 +87,11 @@ class ParseRuleCompiler:
                 for name in (parameter_software, parameters.quantification_software)
                 if name is not None
             )
-        detection = detect_rule_documents(
-            parameters, source, levels, vendors=vendors, checks=checks
-        )
+        with logged_step("detect", source=data, levels=",".join(levels)):
+            detection = detect_rule_documents(
+                parameters, source, levels, vendors=vendors, checks=checks
+            )
+        _log_detection(detection)
         self._parameters = parameters
         self._detection = detection
 
@@ -108,9 +112,11 @@ class ParseRuleCompiler:
         """
         levels = _validated_levels(LEVELS if requested_levels is None else requested_levels)
         compiler = cls.__new__(cls)
-        compiler._detection = detect_software_rules(
-            _input_source(data), levels, software=software, checks=checks
-        )
+        with logged_step("detect", source=data, software=software, levels=",".join(levels)):
+            compiler._detection = detect_software_rules(
+                _input_source(data), levels, software=software, checks=checks
+            )
+        _log_detection(compiler._detection)
         compiler._parameters = None
         return compiler
 
@@ -222,6 +228,13 @@ class ExplicitRuleCompiler:
     def compile(self) -> ParserCollection:
         """Compile every explicit selection into one collection parser."""
         return ParserCollection(tuple(selection.parser for selection in self._selections))
+
+
+def _log_detection(detection: DetectedRuleSet) -> None:
+    """Name the packaged rule document each detected level will be parsed with."""
+    for selection in detection.levels:
+        rule = "/".join(selection.document.path.parts[-3:])
+        logger.info("detected level={} rule={}", selection.level, rule)
 
 
 def _validated_levels(

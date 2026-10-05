@@ -47,6 +47,7 @@ from apb2.parserV2.parse_quant.modifications import (
     TokenRegexStripper,
 )
 from apb2.parserV2.parse_quant.operations import (
+    NUMERIC_DUPLICATE_MODES,
     ComputedOperation,
     WorkingAxisConfiguration,
     WorkingParseConfiguration,
@@ -251,7 +252,8 @@ class ParseRuleFacade:
     @staticmethod
     def _require_rule_compatibility(rule: LongRule | WideRule) -> None:
         """Reject declarations for which no configured runtime strategy can be built."""
-        if rule.measurements.duplicates.mode == "aggregate":
+        mode = rule.measurements.duplicates.mode
+        if mode in NUMERIC_DUPLICATE_MODES:
             offenders = sorted(
                 layer.name
                 for layer in rule.measurements.layers
@@ -261,7 +263,7 @@ class ParseRuleFacade:
             )
             if offenders:
                 raise ValueError(
-                    "aggregate duplicates require plain numeric layers without late decoding; "
+                    f"{mode} duplicates require plain numeric layers without late decoding; "
                     f"offending layers: {offenders}"
                 )
         fragments = rule.fragments

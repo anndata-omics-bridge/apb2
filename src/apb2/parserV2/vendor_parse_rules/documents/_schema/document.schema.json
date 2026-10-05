@@ -373,6 +373,7 @@
           "enum": [
             "alphadia",
             "maxquant",
+            "maxquant_wide",
             "metamorpheus"
           ],
           "title": "How",
@@ -456,6 +457,15 @@
         "none"
       ],
       "title": "Parameter File",
+      "type": "string"
+    },
+    "selection": {
+      "default": "automatic",
+      "enum": [
+        "automatic",
+        "explicit"
+      ],
+      "title": "Selection",
       "type": "string"
     },
     "sample_annotation": {

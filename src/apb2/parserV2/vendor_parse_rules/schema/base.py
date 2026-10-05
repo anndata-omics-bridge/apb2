@@ -12,7 +12,7 @@ type TableShape = Literal["long", "wide"]
 type SchemaVersion = Literal["0.8"]
 type QuantificationLevel = str
 type AxisColumnType = Literal["string", "integer", "number", "boolean"]
-type DuplicateMode = Literal["error", "aggregate", "keep_first"]
+type DuplicateMode = Literal["error", "sum", "max", "keep_first"]
 type TokenPosition = Literal[
     "before_residue", "after_residue", "n_term", "c_term", "embedded", "unknown"
 ]

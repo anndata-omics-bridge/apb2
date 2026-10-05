@@ -210,7 +210,8 @@
     "DuplicateMode": {
       "enum": [
         "error",
-        "aggregate",
+        "sum",
+        "max",
         "keep_first"
       ],
       "type": "string"

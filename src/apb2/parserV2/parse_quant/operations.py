@@ -3,7 +3,7 @@
 The parent facade chooses computations from authored declarations, without retaining storage
 models. Source resolution binds these same objects to available inputs and execution phases.
 Only coercion and layer parsing still need construction here: their numeric notation comes
-from the physical source. Duplicate policies are immutable, stateless registry entries.
+from the physical source. Duplicate policies are immutable registry entries.
 
 These contracts compose inward settings and behavior, so they live here rather than in the
 independent parameters leaf. The parser itself consumes only the bound runtime collaborators.
@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+
+import polars as pl
 
 from apb2.parserV2.parse_quant.axis_columns import (
     BooleanAxisCoercer,
@@ -115,9 +117,13 @@ class WorkingParseConfiguration:
 _DUPLICATE_POLICIES: Mapping[DuplicateMode, DuplicatePolicy] = {
     "error": ErrorOnDuplicates(),
     "keep_first": KeepFirstDuplicate(),
-    "aggregate": AggregateNumericDuplicates(),
+    "sum": AggregateNumericDuplicates(pl.Expr.sum),
+    "max": AggregateNumericDuplicates(pl.Expr.max),
 }
 """One policy per executable duplicate mode; schema 0.8 declares no others."""
+
+NUMERIC_DUPLICATE_MODES: frozenset[DuplicateMode] = frozenset({"sum", "max"})
+"""Modes that reduce numbers, so their layers must be plain numeric and read as numbers."""
 
 
 def make_axis_coercer(

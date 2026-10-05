@@ -12,7 +12,7 @@
           ".tsv"
         ],
         "software_only": {
-          "required_columns": ["EG.Comment"]
+          "forbidden_columns": ["E.Errors", "EG.LibraryQvalue"]
         },
         "delimiter": {
           "mode": "detect",

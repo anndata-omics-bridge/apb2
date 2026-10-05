@@ -32,10 +32,17 @@ def compile_level(
             columns=tuple(source.frame.columns), dtypes=tuple(source.frame.schema.items())
         )
         strategy = facade.resolve_source(evidence, checks=checks)
+        # A wide level's observation keys come from header captures, not prepared columns,
+        # so only key columns the level reads can mark a row as absent.
+        projected = set(strategy.read.projected_columns)
         input_reader = PreparedInputReader(
             source.frame,
             strategy.read,
-            (strategy.obs.keys.raw_key_columns, strategy.var.keys.raw_key_columns),
+            tuple(
+                keys
+                for keys in (strategy.obs.keys.raw_key_columns, strategy.var.keys.raw_key_columns)
+                if set(keys) <= projected
+            ),
         )
         preparation = {
             "input_preparation": {

@@ -154,6 +154,43 @@ def test_packaged_conversion_logs_separate_phase_timings(tmp_path: Path) -> None
     )
 
 
+def test_packaged_conversion_logs_each_step_start_and_end(tmp_path: Path) -> None:
+    """Every step logs its start, so the last start line locates a killed conversion."""
+    pair = _diann_v2()
+    captured = StringIO()
+    sink = logger.add(captured, format="{message}")
+    try:
+        convert_from_packaged_rules(
+            data=pair.required_data_path(),
+            level="protein",
+            output=tmp_path / "protein.h5ad",
+            parameters_path=_parameter_file(pair),
+            software=None,
+            checks="standard",
+        )
+    finally:
+        logger.remove(sink)
+
+    messages = captured.getvalue()
+    steps = re.findall(r"step=(\S+) start", messages)
+    assert steps == [
+        "detect",
+        "read",
+        "parse.decompose",
+        "parse.obs",
+        "parse.var",
+        "parse.layers",
+        "parse.validate",
+        "write",
+    ]
+    for step in steps:
+        assert re.search(
+            rf"step={re.escape(step)} done\b.* seconds=\d+\.\d{{3}} peak_rss_gb=(\d+\.\d|n/a)",
+            messages,
+        ), step
+    assert re.search(r"detected level=protein rule=\S+/rules\.json", messages)
+
+
 def test_in_memory_vendor_parse_returns_typed_inputs_without_writing(tmp_path: Path) -> None:
     pair = _diann_v2()
     parameters_path = _parameter_file(pair)

@@ -23,7 +23,7 @@
         },
         "measurements": {
           "duplicates": {
-            "mode": "aggregate"
+            "mode": "max"
           }
         },
         "columns": {
@@ -102,11 +102,6 @@
                   "protein_assignment",
                   "fasta_accessions"
                 ]
-              },
-              {
-                "name": "Decoy",
-                "source": "Decoy Peptide",
-                "type": "boolean"
               },
               {
                 "name": "ProForma_peptide",

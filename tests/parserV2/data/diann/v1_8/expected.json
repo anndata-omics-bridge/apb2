@@ -27,7 +27,9 @@
         "PG_Normalised",
         "PG_Quantity",
         "Genes_MaxLFQ",
-        "PG_Q_Value"
+        "PG_Q_Value",
+        "Lib_PG_Q_Value",
+        "Global_PG_Q_Value"
       ]
     },
     "fragment": {

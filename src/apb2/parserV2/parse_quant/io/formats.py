@@ -11,6 +11,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
     ParsedLevel,
     ParsedLevels,
 )
+from apb2.parserV2.parse_quant.data.step_log import logged_step
 from apb2.parserV2.parse_quant.io.anndata_reader import H5adReader, H5muReader
 from apb2.parserV2.parse_quant.io.anndata_writer import H5adWriter, H5muWriter
 from apb2.parserV2.parse_quant.io.duckdb import DuckDBReader, DuckDBWriter
@@ -105,9 +106,11 @@ def read_parsed_levels(source: Path) -> ParsedLevels:
 
 def write_parsed_levels(parsed: ParsedLevels, target: Path) -> None:
     """Write a result and its compact APB JSON representation sidecar."""
-    writer = writer_for(result_format_for(target))
-    write_result_with_representation(
-        parsed,
-        target,
-        partial(writer.write, parsed, target),
-    )
+    result_format = result_format_for(target)
+    writer = writer_for(result_format)
+    with logged_step("write", format=result_format, path=target):
+        write_result_with_representation(
+            parsed,
+            target,
+            partial(writer.write, parsed, target),
+        )
