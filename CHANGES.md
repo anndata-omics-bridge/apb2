@@ -2,7 +2,7 @@
 
 ## 2026-10-05
 
-- README shows the Zenodo DOI badge, linking the concept DOI that resolves to the latest archived release.
+- README shows the Zenodo DOI badge, linking the concept DOI that resolves to the latest archived release, and the PyPI version badge.
 - 0.1.1: `CITATION.cff` records the author's ORCID, so the Zenodo archive of each GitHub release carries complete citation metadata and a DOI.
 
 ## 2026-10-04

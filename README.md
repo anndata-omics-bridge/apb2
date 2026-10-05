@@ -1,6 +1,7 @@
 # apb2
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23151445.svg)](https://doi.org/10.5281/zenodo.23151445)
+[![PyPI](https://img.shields.io/pypi/v/apb2.svg)](https://pypi.org/project/apb2/)
 
 APB2 is a [rules-driven framework](https://anndata-omics-bridge.github.io/apb2/rule-based/) for converting outputs from proteomics
 software into AnnData or MuData. It supports ion, peptidoform, peptide, protein, and fragment
