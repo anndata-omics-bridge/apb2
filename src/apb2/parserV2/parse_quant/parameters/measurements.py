@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-type DuplicateMode = Literal["error", "keep_first", "aggregate"]
+type DuplicateMode = Literal["error", "keep_first", "sum", "max"]
 """How several raw scalars claiming one measurement cell become one scalar."""
 
 type NumericType = Literal["number", "integer"]

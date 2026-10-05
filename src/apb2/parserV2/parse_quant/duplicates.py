@@ -17,7 +17,8 @@ before any of this runs.
 
 from __future__ import annotations
 
-from dataclasses import replace
+from collections.abc import Callable
+from dataclasses import dataclass, replace
 
 import polars as pl
 import polars.selectors as cs
@@ -88,25 +89,31 @@ class KeepFirstDuplicate:
         )
 
 
+@dataclass(frozen=True, slots=True)
 class AggregateNumericDuplicates:
-    """Claiming scalars are summed; a cell with none stays null rather than becoming zero."""
+    """Claiming scalars reduce to one number; a cell with none stays null rather than zero.
 
-    __slots__ = ()
+    ``pl.Expr.sum`` adds the claiming scalars into a new one; ``pl.Expr.max`` selects the
+    largest of them. Every layer and observation column reduces on its own, so with several
+    layers one feature's cells may come from different repeated rows.
+    """
+
+    reduction: Callable[[pl.Expr], pl.Expr]
 
     def resolve(self, layer: RawLayerTable, presence: RawValuePresence, /) -> RawLayerTable:
         masked = _masked(layer, presence)
         self._require_numeric(layer)
         values = pl.exclude(layer.raw_var_key_columns)
-        summed = masked.group_by(layer.raw_var_key_columns, maintain_order=True).agg(
-            pl.when(values.count() > 0).then(values.sum()).otherwise(None)
+        reduced = masked.group_by(layer.raw_var_key_columns, maintain_order=True).agg(
+            pl.when(values.count() > 0).then(self.reduction(values)).otherwise(None)
         )
-        return replace(layer, values=summed)
+        return replace(layer, values=reduced)
 
     @staticmethod
     def _require_numeric(layer: RawLayerTable) -> None:
         """Defence in depth: compilation rejects a plan that cannot deliver numbers.
 
-        A malformed file can still deliver text where the rule promised numbers, and summing
+        A malformed file can still deliver text where the rule promised numbers, and reducing
         text has no defined answer, so this fails at its own boundary rather than inventing
         one.
         """

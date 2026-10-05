@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+from typing import get_args
 
 import polars as pl
 import pytest
@@ -436,7 +437,7 @@ def test_an_injective_coalesce_of_the_same_shape_parses_normally() -> None:
     assert parsed.var.frame.get_column("Key").to_list() == ["K1", "K2"]
 
 
-@pytest.mark.parametrize("mode", ["error", "keep_first", "aggregate"])
+@pytest.mark.parametrize("mode", get_args(DuplicateMode.__value__))
 @pytest.mark.parametrize("key_name", ["Key", "first"])
 def test_a_canonical_collision_is_reported_under_every_duplicate_policy(
     mode: DuplicateMode,

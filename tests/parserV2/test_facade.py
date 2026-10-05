@@ -938,11 +938,12 @@ def test_parquet_evidence_keeps_its_physical_schema() -> None:
     assert read.native_numeric_sources == frozenset()
 
 
-def test_an_aggregate_rule_needs_layer_values_this_source_delivers_as_numbers() -> None:
+@pytest.mark.parametrize("mode", ["sum", "max"])
+def test_a_reducing_rule_needs_layer_values_this_source_delivers_as_numbers(mode: str) -> None:
     document = synthetic.long_document(
         obs_select={"sample": "Sample"},
         var_select={"Feature": "Feature"},
-        duplicates="aggregate",
+        duplicates=mode,
     )
     facade = synthetic.facade(document)
     grouped = dataclasses.replace(
@@ -952,7 +953,7 @@ def test_an_aggregate_rule_needs_layer_values_this_source_delivers_as_numbers() 
 
     resolved = facade.resolve_source(delimited(("Sample", "Feature", "Quantity")))
     assert isinstance(resolved.duplicates, AggregateNumericDuplicates)
-    # Summing needs numbers, so an aggregating rule is the one case that reads them eagerly.
+    # Reducing needs numbers, so a reducing rule is the one case that reads them eagerly.
     assert resolved.read.native_numeric_sources == frozenset({"Quantity"})
     with pytest.raises(IncompatibleSourceError, match="native numeric"):
         facade.resolve_source(grouped)

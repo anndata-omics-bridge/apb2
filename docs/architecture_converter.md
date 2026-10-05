@@ -1681,7 +1681,7 @@ Computations return `(frame, unknown_mod_tokens)`; the Series-based `ColumnCompu
 | `AxisValueCoercer` | Validate and build one named selection expression | string, integer, number, boolean |
 | `ColumnComputer` | Materialize one declared computed column | coalesce, join-nonempty, stripped sequence, ProForma sequence, ProForma ion, ProForma fragment |
 | `RawValuePresence` | Mark raw layer scalars that semantically claim a cell without converting them | factor, plain numeric and regex numeric layer parsers |
-| `DuplicatePolicy` | Resolve repeated values of each raw wide cell | error, keep first, numeric aggregate |
+| `DuplicatePolicy` | Resolve repeated values of each raw wide cell | error, keep first, numeric sum or max |
 | `ParsedLevelWriter` | Persist one parsed level | injected format writer; direct AnnData and Parquet writers |
 | `ParsedLevelsReader` | Read one APB2 result | h5ad, h5mu, Parquet dataset, DuckDB |
 | `ParsedLevelsWriter` | Persist one APB2 result collection | h5ad, h5mu, Parquet dataset, DuckDB |
@@ -1775,8 +1775,11 @@ The duplicate registry contains ready stateless instances:
 _DUPLICATE_POLICIES: Mapping[DuplicateMode, DuplicatePolicy] = {
     "error": ErrorOnDuplicates(),
     "keep_first": KeepFirstDuplicate(),
-    "aggregate": AggregateNumericDuplicates(),
+    "sum": AggregateNumericDuplicates(pl.Expr.sum),
+    "max": AggregateNumericDuplicates(pl.Expr.max),
 }
+
+NUMERIC_DUPLICATE_MODES: frozenset[DuplicateMode] = frozenset({"sum", "max"})
 
 def duplicate_policy_for(mode: DuplicateMode) -> DuplicatePolicy:
     return _DUPLICATE_POLICIES[mode]
@@ -1933,7 +1936,8 @@ The identity and measurement portion of the storage model remains:
 type DuplicateMode = Literal[
     "error",
     "keep_first",
-    "aggregate",
+    "sum",
+    "max",
 ]
 
 
@@ -2035,7 +2039,7 @@ These become `AxisValueCoercer` objects evaluated on small axis frames. Their de
 
 `fragments.value_columns` is an ordered list independent of `measurements.layers`. Resolution retains available packed sources in authored order and requires at least one; `label_output` cannot collide with physical sources.
 
-Aggregate mode requires plain numeric layers without missing sentinels, factors or regex extraction. Source resolution additionally verifies native numeric read dtypes, so interpretation cannot change the contributions after summation. A `<=` threshold such as `"<=0"` is permitted: presence removes every contribution at or below it before summation. For a threshold of zero or more, the sum of the remaining larger values therefore stays above it and is never masked afterwards. The runtime aggregate retains a dtype guard; the MaxQuant aggregate rule satisfies these restrictions.
+The `sum` mode requires plain numeric layers without missing sentinels, factors or regex extraction. Source resolution additionally verifies native numeric read dtypes, so interpretation cannot change the contributions after summation. A `<=` threshold such as `"<=0"` is permitted: presence removes every contribution at or below it before summation. For a threshold of zero or more, the sum of the remaining larger values therefore stays above it and is never masked afterwards. The runtime aggregate retains a dtype guard; the MaxQuant `sum` rules satisfy these restrictions. The `max` mode shares every restriction through `NUMERIC_DUPLICATE_MODES`, although it needs fewer: it selects one present value, so it never falls to or below any threshold, and the exact-sentinel ban is stricter than max requires.
 
 #### C.4 Physical input policy
 
@@ -2514,15 +2518,13 @@ Before reduction, the layer parser's `present()` expressions null-mask absent ce
 mutates `RawLayerTable`.
 
 All policies preserve raw var-key columns and input group order. Error and keep-first copy the
-selected scalar unchanged. Numeric aggregate is the only policy that creates a new scalar, and it
-does so only by the declared additive reduction.
+selected scalar unchanged. `sum` is the only policy that creates a new scalar, and only by addition; `max` selects the largest present scalar.
 
 - `ErrorOnDuplicates` counts semantically present values per raw wide cell and raises when the
   count exceeds one.
 - `KeepFirstDuplicate` selects the first semantically present raw value per observation column,
   independently. A missing sentinel is skipped, but a selected value is not encoded.
-- `AggregateNumericDuplicates` accepts only numeric Polars dtypes and sums present values per
-  observation column. When no scalar is semantically present, the result stays null; it never
+- `AggregateNumericDuplicates` accepts only numeric Polars dtypes and reduces present values per observation column with its configured Polars reduction, `pl.Expr.sum` or `pl.Expr.max`. Each layer and column reduces separately, so with several layers one feature's cells can come from different repeated rows. When no scalar is semantically present, the result stays null; it never
   manufactures `0.0` from missing data.
 
 The aggregate policy never invokes a regex, localized-number, factor, or missing-sentinel encoder.
@@ -2576,7 +2578,7 @@ The packaged rules, loaded and inventoried against `b6ef79b` on 2026-09-21, cont
 - two delimiter-packed positional fragment declarations;
 - token-regex, site-list and embedded-site-list sequence normalization, plus independent stripping;
 - numeric, regex-numeric, and factor layer encodings;
-- 18 `error`, 16 `keep_first`, and 1 numeric `aggregate` duplicate configurations;
+- 18 `error`, 16 `keep_first`, and 1 numeric `sum` duplicate configurations;
 - ordered sourced and computed column entries, including nested and multi-column keys;
 - configured var and layer roles, including authored abundance tags;
 - parameter gates and a DIA-NN primary-layer override.
@@ -2668,7 +2670,7 @@ Tests must cover:
   the sentinel while the retained scalar remains unencoded;
 - invalid non-null regex tokens and unknown factor labels remaining present—so `keep_first`
   cannot hide them—without producing encoded layer values;
-- error, keep-first, and numeric aggregate policies over nullable values;
+- error, keep-first, numeric sum and numeric max policies over nullable values;
 - numeric aggregate leaving an all-missing cell null rather than manufacturing zero;
 - strings and factors rejected by numeric aggregate;
 - canonical collisions under every duplicate policy;

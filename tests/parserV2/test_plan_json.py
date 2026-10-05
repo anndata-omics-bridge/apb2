@@ -194,6 +194,25 @@ def test_a_compiled_parser_stores_the_plan_beside_the_rule_it_came_from(tmp_path
     assert "rule_json" in parsed.uns
 
 
+def test_a_max_rule_reads_numbers_keeps_the_largest_and_records_its_mode(tmp_path: Path) -> None:
+    path = tmp_path / "report.tsv"
+    path.write_text(
+        "Sample\tFeature\tQuantity\nA\tF1\t1.5\nA\tF1\t4.0\nB\tF1\t2.0\nA\tF2\t3.0\n",
+        encoding="utf-8",
+    )
+    document = synthetic.long_document(
+        obs_select={"sample": "Sample"}, var_select={"Feature": "Feature"}, duplicates="max"
+    )
+    parser = compile_level(synthetic.facade(document), SingleFile(path=path), "standard")
+
+    parsed = parser.parse()
+
+    plan = json.loads(str(parsed.uns[PLAN_JSON_KEY]))
+    assert plan["duplicate_mode"] == "max"
+    assert plan["read"]["native_numeric_sources"] == ["Quantity"]
+    assert parsed.layers["Quantity"].values.rows() == [(4.0, 2.0), (3.0, None)]
+
+
 def test_the_plan_reaches_the_parse_namespace_of_a_written_h5ad(tmp_path: Path) -> None:
     document = synthetic.long_document(
         obs_select={"sample": "Sample"}, var_select={"Feature": "Feature"}

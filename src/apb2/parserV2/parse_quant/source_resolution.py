@@ -33,6 +33,7 @@ from apb2.parserV2.parse_quant.modifications import (
     TokenRegexNormalizer,
 )
 from apb2.parserV2.parse_quant.operations import (
+    NUMERIC_DUPLICATE_MODES,
     ComputedOperation,
     WorkingAxisConfiguration,
     WorkingParseConfiguration,
@@ -443,8 +444,8 @@ class SourcePlanResolver:
         native = (
             frozenset()
             if evidence.number_format.thousands_marks
-            or self._configuration.measurements.duplicate_mode != "aggregate"
-            # The facade already rejects aggregate rules with non-plain numeric layers.
+            or self._configuration.measurements.duplicate_mode not in NUMERIC_DUPLICATE_MODES
+            # The facade already rejects number-reducing rules with non-plain numeric layers.
             else layers.source_columns - lexical
         )
         return LevelReadPlan(
@@ -514,12 +515,13 @@ class SourcePlanResolver:
     def _require_aggregatable(
         self, evidence: SourceEvidence, read: LevelReadPlan, layers: _ResolvedLayers
     ) -> None:
-        """Reject an aggregate rule whose values this source cannot deliver as numbers.
+        """Reject a number-reducing rule whose values this source cannot deliver as numbers.
 
         Checked here rather than at runtime because it is a property of the rule and the
         source together, and the alternative is discovering it after reading a large table.
         """
-        if self._configuration.measurements.duplicate_mode != "aggregate":
+        mode = self._configuration.measurements.duplicate_mode
+        if mode not in NUMERIC_DUPLICATE_MODES:
             return
         if isinstance(evidence, FrameSourceEvidence):
             numeric = frozenset(name for name, dtype in evidence.dtypes if dtype.is_numeric())
@@ -528,7 +530,7 @@ class SourcePlanResolver:
             offenders = sorted(layers.source_columns - read.native_numeric_sources)
         if offenders:
             raise IncompatibleSourceError(
-                f"{self._label()} aggregates duplicate cells, which requires native numeric "
+                f"{self._label()} takes the {mode} of duplicate cells, which requires native numeric "
                 f"layer values; these resolve to text: {offenders}"
             )
 

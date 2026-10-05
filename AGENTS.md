@@ -60,12 +60,10 @@ must execute `lint-imports`, so the prose rule is also a merge-blocking check.
 
 ## Physical input preparation
 
-- Join and preparation hooks are allowed only when one conversion consumes
-  multiple physical input files.
-- A single-file input must use the rule document and standard input reader;
-  never add vendor-specific preprocessing for a single table.
-- Do not use preparation hooks to repair duplicate rows, normalize columns, or
-  otherwise transform one physical input file.
+- Join and preparation hooks are allowed in two cases: one conversion consumes multiple physical input files, or a single file's rows are not any hierarchy level, so no rule can declare them as one. MetaMorpheus FlashLFQ `AllQuantifiedPeaks.tsv` is the example: its rows are peaks, not ions.
+- A hook contains only the work that brings rows to a hierarchy level. Everything a rule document covers stays in the rule; [docs/rule-coverage.md](docs/rule-coverage.md) lists what that is.
+- Any other single-file input must use the rule document and standard input reader; never add vendor-specific preprocessing for it.
+- Do not use preparation hooks to repair duplicate rows, normalize columns, or otherwise transform a table whose rows already are a hierarchy level.
 - Multi-file vendor inputs use their canonical directory as the source. Do not
   add per-file companion options to the CLI or conversion facade.
 

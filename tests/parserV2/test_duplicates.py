@@ -22,7 +22,11 @@ from apb2.parserV2.parse_quant.duplicates import (
     ErrorOnDuplicates,
     KeepFirstDuplicate,
 )
-from apb2.parserV2.parse_quant.operations import duplicate_policy_for, make_layer_parser
+from apb2.parserV2.parse_quant.operations import (
+    NUMERIC_DUPLICATE_MODES,
+    duplicate_policy_for,
+    make_layer_parser,
+)
 from apb2.parserV2.parse_quant.parameters.measurements import (
     DuplicateMode,
     FactorLayerDeclaration,
@@ -45,6 +49,11 @@ ASCORE = make_layer_parser(
 NONPOSITIVE = make_layer_parser(
     "L", PlainNumericLayerDeclaration(missing_values=(), missing_at_or_below=0.0), DOT
 )
+
+# A PEP 695 alias holds its literal union in ``__value__``.
+MODES: tuple[DuplicateMode, ...] = get_args(DuplicateMode.__value__)
+SUM = duplicate_policy_for("sum")
+MAX = duplicate_policy_for("max")
 
 
 def layer(frame: pl.DataFrame, *, keys: tuple[str, ...] = ("Feature",)) -> RawLayerTable:
@@ -241,7 +250,7 @@ def test_numeric_aggregate_sums_only_the_claiming_values() -> None:
         pl.DataFrame({"Feature": ["F1", "F1", "F1", "F2"], "obs_0": [1.0, 0.0, 2.0, 7.0]})
     )
 
-    resolved = AggregateNumericDuplicates().resolve(repeated, ZERO_SENTINEL)
+    resolved = SUM.resolve(repeated, ZERO_SENTINEL)
 
     assert resolved.values.to_dicts() == [
         {"Feature": "F1", "obs_0": 3.0},
@@ -254,7 +263,7 @@ def test_numeric_aggregate_drops_nonpositive_values_before_summing() -> None:
         pl.DataFrame({"Feature": ["F1", "F1", "F1", "F2"], "obs_0": [1.0, -2.0, 0.0, -7.0]})
     )
 
-    resolved = AggregateNumericDuplicates().resolve(repeated, NONPOSITIVE)
+    resolved = SUM.resolve(repeated, NONPOSITIVE)
 
     assert resolved.values.to_dicts() == [
         {"Feature": "F1", "obs_0": 1.0},
@@ -262,39 +271,87 @@ def test_numeric_aggregate_drops_nonpositive_values_before_summing() -> None:
     ]
 
 
+@pytest.mark.parametrize("policy", [SUM, MAX], ids=["sum", "max"])
 @pytest.mark.parametrize("missing", [0.0, None, float("nan")])
 def test_a_cell_with_nothing_present_stays_null_instead_of_becoming_zero(
+    policy: DuplicatePolicy,
     missing: float | None,
 ) -> None:
     repeated = layer(pl.DataFrame({"Feature": ["F1", "F1"], "obs_0": [missing, None]}))
 
-    resolved = AggregateNumericDuplicates().resolve(repeated, ZERO_SENTINEL)
+    resolved = policy.resolve(repeated, ZERO_SENTINEL)
 
     assert resolved.values.to_dicts() == [{"Feature": "F1", "obs_0": None}]
 
 
-def test_numeric_aggregate_refuses_values_that_are_not_numbers() -> None:
+@pytest.mark.parametrize("policy", [SUM, MAX], ids=["sum", "max"])
+def test_numeric_aggregate_refuses_values_that_are_not_numbers(policy: DuplicatePolicy) -> None:
     text = layer(pl.DataFrame({"Feature": ["F1"], "obs_0": ["MBR"]}))
 
     with pytest.raises(AggregateTypeError, match="needs numeric"):
-        AggregateNumericDuplicates().resolve(text, NULL_ONLY)
+        policy.resolve(text, NULL_ONLY)
 
 
-def test_numeric_aggregate_accepts_a_layer_that_resolved_to_no_values_at_all() -> None:
+@pytest.mark.parametrize("policy", [SUM, MAX], ids=["sum", "max"])
+def test_numeric_aggregate_accepts_a_layer_that_resolved_to_no_values_at_all(
+    policy: DuplicatePolicy,
+) -> None:
     empty = layer(
         pl.DataFrame({"Feature": ["F1"], "obs_0": [None]}, schema_overrides={"obs_0": pl.Null})
     )
 
-    resolved = AggregateNumericDuplicates().resolve(empty, NULL_ONLY)
+    resolved = policy.resolve(empty, NULL_ONLY)
 
     assert resolved.values.to_dicts() == [{"Feature": "F1", "obs_0": None}]
 
 
-@pytest.mark.parametrize(
-    "policy",
-    [ErrorOnDuplicates(), KeepFirstDuplicate(), AggregateNumericDuplicates()],
-    ids=lambda policy: type(policy).__name__,
-)
+def test_numeric_max_never_selects_a_value_presence_masked() -> None:
+    repeated = layer(
+        pl.DataFrame({"Feature": ["F1", "F1", "F2", "F2"], "obs_0": [1.0, 3.0, -7.0, -1.0]})
+    )
+
+    resolved = MAX.resolve(repeated, NONPOSITIVE)
+
+    assert resolved.values.to_dicts() == [
+        {"Feature": "F1", "obs_0": 3.0},
+        {"Feature": "F2", "obs_0": None},
+    ]
+
+
+@pytest.mark.parametrize("policy", [SUM, MAX], ids=["sum", "max"])
+def test_nan_is_absent_before_a_numeric_reduction(policy: DuplicatePolicy) -> None:
+    repeated = layer(pl.DataFrame({"Feature": ["F1", "F1"], "obs_0": [float("nan"), 1.0]}))
+
+    resolved = policy.resolve(repeated, NULL_ONLY)
+
+    assert resolved.values.to_dicts() == [{"Feature": "F1", "obs_0": 1.0}]
+
+
+def test_numeric_max_stays_above_a_negative_threshold() -> None:
+    """Values above -1 can sum to -1 or less; their max cannot, so parsing keeps it."""
+    above_minus_one = make_layer_parser(
+        "L", PlainNumericLayerDeclaration(missing_values=(), missing_at_or_below=-1.0), DOT
+    )
+    repeated = layer(pl.DataFrame({"Feature": ["F1", "F1"], "obs_0": [-0.5, -0.8]}))
+
+    resolved = MAX.resolve(repeated, above_minus_one)
+    final = FinalLayerTable(
+        layer_name="L", values=resolved.values.drop("Feature"), semantic_roles=("abundance",)
+    )
+
+    assert above_minus_one.parse(final).values.get_column("obs_0").to_list() == [-0.5]
+
+
+def test_numeric_max_keeps_an_integer_layer_integer() -> None:
+    repeated = layer(pl.DataFrame({"Feature": ["F1", "F1"], "obs_0": [3, 5]}))
+
+    resolved = MAX.resolve(repeated, NULL_ONLY)
+
+    assert resolved.values.to_dicts() == [{"Feature": "F1", "obs_0": 5}]
+    assert resolved.values.schema["obs_0"] == pl.Int64
+
+
+@pytest.mark.parametrize("policy", [duplicate_policy_for(mode) for mode in MODES], ids=MODES)
 @pytest.mark.parametrize("empty", [False, True])
 def test_every_policy_keeps_the_keys_the_group_order_and_the_layer_name(
     policy: DuplicatePolicy,
@@ -321,11 +378,7 @@ def test_every_policy_keeps_the_keys_the_group_order_and_the_layer_name(
     assert resolved.values.get_column("Feature").to_list() == ([] if empty else ["F2", "F1", "F3"])
 
 
-@pytest.mark.parametrize(
-    "policy",
-    [ErrorOnDuplicates(), KeepFirstDuplicate(), AggregateNumericDuplicates()],
-    ids=lambda policy: type(policy).__name__,
-)
+@pytest.mark.parametrize("policy", [duplicate_policy_for(mode) for mode in MODES], ids=MODES)
 def test_a_multi_column_raw_key_groups_as_one_identity(policy: DuplicatePolicy) -> None:
     values = layer(
         pl.DataFrame(
@@ -363,12 +416,11 @@ def test_a_layer_with_no_observation_columns_resolves_to_its_keys() -> None:
 
     assert resolved.values.to_dicts() == [{"Feature": "F1"}]
     assert ErrorOnDuplicates().resolve(values, NULL_ONLY).values.height == 1
-    assert AggregateNumericDuplicates().resolve(values, NULL_ONLY).values.height == 1
+    assert SUM.resolve(values, NULL_ONLY).values.height == 1
+    assert MAX.resolve(values, NULL_ONLY).values.height == 1
 
 
-@pytest.mark.parametrize(
-    "policy", [ErrorOnDuplicates(), KeepFirstDuplicate(), AggregateNumericDuplicates()]
-)
+@pytest.mark.parametrize("policy", [duplicate_policy_for(mode) for mode in MODES], ids=MODES)
 @pytest.mark.parametrize(
     "names",
     [
@@ -404,17 +456,21 @@ def test_the_declared_mode_selects_one_stateless_policy() -> None:
     """The removed legacy mode is not a value this selector can be given."""
     assert isinstance(duplicate_policy_for("error"), ErrorOnDuplicates)
     assert isinstance(duplicate_policy_for("keep_first"), KeepFirstDuplicate)
-    assert isinstance(duplicate_policy_for("aggregate"), AggregateNumericDuplicates)
-    # A PEP 695 alias holds its literal union in ``__value__``.
-    assert set(get_args(DuplicateMode.__value__)) == {"error", "keep_first", "aggregate"}
+    assert isinstance(duplicate_policy_for("sum"), AggregateNumericDuplicates)
+    assert isinstance(duplicate_policy_for("max"), AggregateNumericDuplicates)
+    assert set(MODES) == {"error", "keep_first", "sum", "max"}
+
+
+def test_the_numeric_modes_are_exactly_those_whose_policy_reduces_numbers() -> None:
+    reducing = {
+        mode for mode in MODES if isinstance(duplicate_policy_for(mode), AggregateNumericDuplicates)
+    }
+
+    assert reducing == NUMERIC_DUPLICATE_MODES
 
 
 def test_no_duplicate_policy_retains_its_discriminator() -> None:
-    for value in (
-        ErrorOnDuplicates(),
-        KeepFirstDuplicate(),
-        AggregateNumericDuplicates(),
-    ):
+    for value in (duplicate_policy_for(mode) for mode in MODES):
         assert not hasattr(value, "kind")
         assert not hasattr(value, "mode")
         assert not hasattr(value, "layer_name")

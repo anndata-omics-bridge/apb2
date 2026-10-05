@@ -40,7 +40,7 @@
         },
         "measurements": {
           "duplicates": {
-            "mode": "aggregate"
+            "mode": "sum"
           },
           "primary_layer": "Intensity"
         }
