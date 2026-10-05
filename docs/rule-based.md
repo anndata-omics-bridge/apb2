@@ -6,7 +6,7 @@ The current rule format is schema `0.8`. The generated [document schema](../src/
 
 ## One software, multiple input tables
 
-Software metadata belongs at the document root. Each `tables` entry contains `input`, `base`, `levels`, and optionally `prepare: {"how": "maxquant"}`, `prepare: {"how": "alphadia"}` or `prepare: {"how": "metamorpheus"}`. Preparation is table-local: a direct-input group and a prepared group can coexist. Each rule describes one physical or prepared table; there is no separate join schema. Shared declarations merge only within a table, and each level belongs to one group.
+Software metadata belongs at the document root. Each `tables` entry contains `input`, `base`, `levels`, and optionally `prepare: {"how": "maxquant"}` or `prepare: {"how": "alphadia"}` for a multi-file input. Preparation is table-local: a direct-input group and a prepared group can coexist. Each rule describes one physical or prepared table; there is no separate join schema. Shared declarations merge only within a table, and each level belongs to one group.
 
 The [MaxQuant document](../src/apb2/parserV2/vendor_parse_rules/documents/maxquant/rules.json) has two groups: direct evidence at run resolution, and joined wide exports at experiment resolution.
 
@@ -21,7 +21,17 @@ The function in [joins/maxquant.py](../src/apb2/parserV2/joins/maxquant.py) acce
 
 The function in [joins/alphadia.py](../src/apb2/parserV2/joins/alphadia.py) enriches AlphaDIA 1.12 matrix intensities with precursor metadata and returns long rows. Parent composition prepares once per requested group. Each level projects from that group's shared frame, excluding wholly absent identities before ordinary decomposition. Tool modules import neither schemas nor parser orchestration. After parsing, explicit bijective observation mappings permit alignment; incompatible resolutions are [written separately](conversion.md#output-naming).
 
-The function in [joins/metamorpheus.py](../src/apb2/parserV2/joins/metamorpheus.py) keeps FlashLFQ peaks mapped to exactly one peptidoform and casts `Peak intensity` to a number, so the rule can sum repeated peaks of one ion and run.
+## Rule-declared row filtering
+
+An input may declare `row_filters`, applied before decomposition and numeric aggregation by the standard reader. Every filter compares a physical column's text representation with an exact string; all filters must match, and null values do not match. Filter columns are required for recognition and reading but are retained in the parsed result only when independently declared as axis or measurement sources. Delimited, Parquet, Excel and prepared inputs share these semantics.
+
+For example, the [MetaMorpheus rule](../src/apb2/parserV2/vendor_parse_rules/documents/metamorpheus/rules.json) keeps peaks mapped to exactly one peptidoform:
+
+```json
+"row_filters": [{"source": "Full Sequences Mapped", "equals": "1"}]
+```
+
+Its `duplicates.mode = "aggregate"` makes the standard reader parse `Peak intensity` numerically and the parser sum repeated peaks of one ion and run. Filtering happens before numeric conversion, so excluded ambiguous peaks cannot trigger numeric errors. A malformed quantity in a retained row still fails conversion.
 
 ## Software-only column evidence
 

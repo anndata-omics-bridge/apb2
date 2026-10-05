@@ -288,7 +288,9 @@ class DelimitedInputReader:
         nothing new.
         """
         overrides: dict[str, pl.DataType] = {name: pl.String() for name in self.plan.text_sources}
-        overrides.update({name: pl.Float64() for name in self.plan.native_numeric_sources})
+        # Filter first, so an excluded row's malformed quantity cannot fail a numeric read.
+        numeric_dtype = pl.String() if self.plan.row_filters else pl.Float64()
+        overrides.update(dict.fromkeys(self.plan.native_numeric_sources, numeric_dtype))
         encoding = self.evidence.encoding
         if encoding not in ("utf8", "utf8-lossy"):
             frame = pl.read_csv(
@@ -296,31 +298,32 @@ class DelimitedInputReader:
                 separator=self.evidence.delimiter,
                 quote_char=self.evidence.quote_char,
                 encoding=encoding,
-                columns=list(self.plan.projected_columns),
-                schema_overrides=overrides,
-                decimal_comma=self.evidence.number_format.decimal_mark == ",",
-            ).select(list(self.plan.projected_columns))
-            return LevelSourceTable(frame=_without_empty_rows(frame))
-        frame = (
-            pl.scan_csv(
-                self.path,
-                separator=self.evidence.delimiter,
-                quote_char=self.evidence.quote_char,
-                encoding=encoding,
+                columns=list(self.plan.read_columns),
                 schema_overrides=overrides,
                 decimal_comma=self.evidence.number_format.decimal_mark == ",",
             )
-            .select(list(self.plan.projected_columns))
-            .collect()
-        )
-        return LevelSourceTable(frame=_without_empty_rows(frame))
+            return LevelSourceTable(frame=self._project(frame.lazy()).collect())
+        frame = pl.scan_csv(
+            self.path,
+            separator=self.evidence.delimiter,
+            quote_char=self.evidence.quote_char,
+            encoding=encoding,
+            schema_overrides=overrides,
+            decimal_comma=self.evidence.number_format.decimal_mark == ",",
+        ).select(list(self.plan.read_columns))
+        return LevelSourceTable(frame=self._project(frame).collect())
 
-
-def _without_empty_rows(frame: pl.DataFrame) -> pl.DataFrame:
-    """Discard physical spacer rows carrying no value in any projected column."""
-    if not frame.columns:
-        return frame
-    return frame.filter(pl.any_horizontal(pl.all().is_not_null()))
+    def _project(self, frame: pl.LazyFrame) -> pl.LazyFrame:
+        """Filter physical rows before native numeric parsing and final projection."""
+        frame = frame.filter(self.plan.row_predicate()).select(self.plan.projected_columns)
+        if self.plan.row_filters:
+            frame = frame.with_columns(
+                pl.col(name)
+                .str.replace_all(self.evidence.number_format.decimal_mark, ".", literal=True)
+                .cast(pl.Float64, strict=True)
+                for name in self.plan.native_numeric_sources
+            )
+        return frame.filter(pl.any_horizontal(pl.all().is_not_null()))
 
 
 def make_delimited_reader(

@@ -9,7 +9,7 @@ from time import perf_counter
 
 import polars as pl
 
-from apb2.parserV2.joins import alphadia, maxquant, metamorpheus
+from apb2.parserV2.joins import alphadia, maxquant
 from apb2.parserV2.parse_quant.data.errors import ConversionError
 from apb2.parserV2.parse_quant.errors import IncompatibleSourceError
 from apb2.parserV2.parse_quant.parameters.source import (
@@ -25,7 +25,6 @@ type Join = Callable[[Mapping[str, pl.DataFrame]], pl.DataFrame]
 _PREPARATIONS: dict[str, tuple[Identify, Join]] = {
     "alphadia": (alphadia.identify, alphadia.join),
     "maxquant": (maxquant.identify, maxquant.join),
-    "metamorpheus": (metamorpheus.identify, metamorpheus.join),
 }
 
 

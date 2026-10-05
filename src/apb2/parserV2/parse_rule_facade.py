@@ -79,6 +79,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
     PositionalFragmentLayout,
     SourceEvidence,
     SourceLayoutDeclaration,
+    SourceRowFilter,
     WideSourceLayout,
 )
 from apb2.parserV2.parse_quant.parser import ParseStrategy
@@ -183,6 +184,7 @@ class ParseRuleFacade:
                 ParseRuleFacade._project_format(extension, declared)
                 for extension in dict.fromkeys(declared.extensions)
             ),
+            row_filters=tuple(SourceRowFilter(f.source, f.equals) for f in declared.row_filters),
         )
 
     @staticmethod

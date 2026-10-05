@@ -101,11 +101,15 @@ class WorkingParseConfiguration:
 
     def accepts_header(self, header: tuple[str, ...]) -> bool:
         """Whether all required physical sources occur in a candidate header."""
-        required = {
-            selection.source
-            for axis in (self.obs, self.var)
-            for selection in axis.required_selections
-        } | set(self.source_layout.packed_sources())
+        required = (
+            {
+                selection.source
+                for axis in (self.obs, self.var)
+                for selection in axis.required_selections
+            }
+            | set(self.source_layout.packed_sources())
+            | {row_filter.source for row_filter in self.input.row_filters}
+        )
         return required <= set(header) and all(
             self.source_layout.has_layer_source(layer.source, header)
             for layer in self.measurements.required_layers

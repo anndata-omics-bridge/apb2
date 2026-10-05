@@ -26,7 +26,7 @@ from apb2.parserV2.detect_document import (
     detect_rule_documents,
     select_document_levels,
 )
-from apb2.parserV2.joins import alphadia, maxquant, metamorpheus
+from apb2.parserV2.joins import alphadia, maxquant
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels
 from apb2.parserV2.parse_quant.parameters.source import (
     Folder,
@@ -116,26 +116,6 @@ def test_alphadia_rejects_conflicting_or_missing_metadata() -> None:
         alphadia.join(tables)
     with pytest.raises(ValueError, match="companion"):
         alphadia.join({"matrix": tables["matrix"]})
-
-
-def test_metamorpheus_drops_ambiguous_peaks_and_types_intensity() -> None:
-    columns = ("Full Sequence", "Full Sequences Mapped", "Peak intensity")
-    assert metamorpheus.identify({"renamed.tsv": columns, "other.tsv": ("x",)}) == {
-        "peaks": "renamed.tsv"
-    }
-    assert metamorpheus.identify({"other.tsv": ("x",)}) == {}
-    peaks = pl.DataFrame(
-        {
-            "Full Sequence": ["PEPTIDEK", "SEQA|SEQB"],
-            "Full Sequences Mapped": ["1", "2"],
-            "Peak intensity": ["10.5", "7"],
-        }
-    )
-    result = metamorpheus.join({"peaks": peaks})
-    assert result["Full Sequence"].to_list() == ["PEPTIDEK"]
-    assert result["Peak intensity"].to_list() == [10.5]
-    with pytest.raises(pl.exceptions.InvalidOperationError):
-        metamorpheus.join({"peaks": peaks.with_columns(pl.lit("n/a").alias("Peak intensity"))})
 
 
 def test_maxquant_higher_join_fanout_preserves_original_cells(tmp_path: Path) -> None:

@@ -2,7 +2,7 @@
 
 ## 2026-10-05
 
-- Added the MetaMorpheus 1.x rule for FlashLFQ `AllQuantifiedPeaks.tsv` at ion level (category DDA), with the new `metamorpheus` preparation. The preparation keeps peaks with `Full Sequences Mapped` = 1, because an ambiguous `SEQA|SEQB` peak would otherwise parse into one concatenated peptide, and casts `Peak intensity` to a number so that repeated peaks of one ion and run are summed (`aggregate`). Modification tokens such as `Common Fixed:Carbamidomethyl on C` map to UniMod. The committed fixture records five runs and 178 ions. The ProteoBench DDA QExactive sample reproduces the legacy ProteoBench ion set and metrics.
+- Added the MetaMorpheus 1.x rule for FlashLFQ `AllQuantifiedPeaks.tsv` at ion level (category DDA). Its declarative `input.row_filters` keeps peaks with `Full Sequences Mapped` = 1, excluding ambiguous sequences; standard numeric reading and `aggregate` sum repeated peaks of one ion and run. Row filters apply across supported input readers before decomposition and discard filter-only columns from the result. Modification tokens such as `Common Fixed:Carbamidomethyl on C` map to UniMod. The committed fixture records five runs and 178 ions.
 - `uv.lock` is no longer committed: `make sync` and CI resolve the environment from `pyproject.toml`, `make check` drops `uv lock --check`, CI caches by `pyproject.toml`, and the dev group pins `ruff==0.16.10` and `pyright==1.1.414` so lint and type results stay stable.
 - README shows the Zenodo DOI badge, linking the concept DOI that resolves to the latest archived release, and the PyPI version badge.
 - 0.1.1: `CITATION.cff` records the author's ORCID, so the Zenodo archive of each GitHub release carries complete citation metadata and a DOI.

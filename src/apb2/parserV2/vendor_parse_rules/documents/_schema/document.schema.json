@@ -241,6 +241,13 @@
             }
           ],
           "default": null
+        },
+        "row_filters": {
+          "items": {
+            "$ref": "#/$defs/RowFilter"
+          },
+          "title": "Row Filters",
+          "type": "array"
         }
       },
       "required": [
@@ -256,6 +263,27 @@
     },
     "QuantificationLevel": {
       "type": "string"
+    },
+    "RowFilter": {
+      "additionalProperties": false,
+      "description": "Keep rows whose source value exactly equals the declared text; nulls do not match.",
+      "properties": {
+        "source": {
+          "minLength": 1,
+          "title": "Source",
+          "type": "string"
+        },
+        "equals": {
+          "title": "Equals",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "equals"
+      ],
+      "title": "RowFilter",
+      "type": "object"
     },
     "SampleAnnotation": {
       "additionalProperties": false,
@@ -372,8 +400,7 @@
         "how": {
           "enum": [
             "alphadia",
-            "maxquant",
-            "metamorpheus"
+            "maxquant"
           ],
           "title": "How",
           "type": "string"

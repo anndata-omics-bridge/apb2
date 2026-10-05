@@ -171,7 +171,7 @@ def test_every_compatible_level_resolves_both_axis_key_plans(
 
 
 @pytest.mark.parametrize(("pair", "level"), _LEVEL_CASES)
-def test_a_delimited_plan_decides_every_projected_column_dtype(
+def test_a_delimited_plan_decides_every_read_column_dtype(
     pair: PackagedDocument, level: QuantificationLevel
 ) -> None:
     if (pair.key, level) in _INCOMPATIBLE:
@@ -179,7 +179,8 @@ def test_a_delimited_plan_decides_every_projected_column_dtype(
     read = _facade_for(pair, level).resolve_source(delimited(pair.header())).read
 
     assert read.text_sources.isdisjoint(read.native_numeric_sources)
-    assert read.text_sources | read.native_numeric_sources == set(read.projected_columns)
+    assert read.text_sources | read.native_numeric_sources == set(read.read_columns)
+    assert set(read.projected_columns) <= set(read.read_columns)
     assert len(read.projected_columns) == len(set(read.projected_columns))
 
 

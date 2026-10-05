@@ -31,6 +31,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
     ParquetFormatContract,
     PreparedTable,
     SingleFile,
+    SourceRowFilter,
 )
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.prepare_source import prepare_source
@@ -663,3 +664,32 @@ def test_every_cached_vendor_export_resolves_to_one_unambiguous_reading(
     else:
         assert isinstance(bound.format, DelimitedFormatContract)
         assert evidence.number_format in bound.format.number_format_candidates
+
+
+def test_workbook_filters_before_casting_and_drops_filter_dependencies(tmp_path: Path) -> None:
+    rows = (
+        '<row r="1"><c r="A1" t="inlineStr"><is><t>ID</t></is></c>'
+        '<c r="B1" t="inlineStr"><is><t>Quantity</t></is></c>'
+        '<c r="C1" t="inlineStr"><is><t>Selected</t></is></c></row>'
+        '<row r="2"><c r="A2" t="inlineStr"><is><t>001</t></is></c>'
+        '<c r="B2" t="inlineStr"><is><t>10.5</t></is></c>'
+        '<c r="C2" t="inlineStr"><is><t>yes</t></is></c></row>'
+        '<row r="3"><c r="A3" t="inlineStr"><is><t>002</t></is></c>'
+        '<c r="B3" t="inlineStr"><is><t>n/a</t></is></c>'
+        '<c r="C3" t="inlineStr"><is><t>no</t></is></c></row>'
+    )
+    path = _workbook_sheet(tmp_path, rows)
+    evidence = ExcelSourceEvidence(
+        columns=("ID", "Quantity", "Selected"),
+        sheet_name=WORKBOOK.sheet_name,
+        number_format=NumericTextFormat(".", ()),
+    )
+    read = LevelReadPlan(
+        projected_columns=("ID", "Quantity"),
+        text_sources=frozenset({"ID", "Selected"}),
+        native_numeric_sources=frozenset({"Quantity"}),
+        row_filters=(SourceRowFilter("Selected", "yes"),),
+    )
+    got = excel_input.make_excel_reader(path, evidence, read).read().frame
+
+    assert got.to_dict(as_series=False) == {"ID": ["001"], "Quantity": [10.5]}

@@ -6,13 +6,16 @@
   "software_version_pattern": "^1\\.",
   "tables": [
     {
-      "prepare": {
-        "how": "metamorpheus"
-      },
       "input": {
         "shape": "long",
         "extensions": [
           ".tsv"
+        ],
+        "row_filters": [
+          {
+            "source": "Full Sequences Mapped",
+            "equals": "1"
+          }
         ]
       },
       "base": {

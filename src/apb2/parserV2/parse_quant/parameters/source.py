@@ -124,11 +124,24 @@ type PhysicalFormatContract = DelimitedFormatContract | ParquetFormatContract | 
 
 
 @dataclass(frozen=True, slots=True)
+class SourceRowFilter:
+    """An exact textual equality predicate on a physical source column."""
+
+    source: str
+    equals: str
+
+    def predicate(self) -> pl.Expr:
+        """Compare text representations without changing the retained source values."""
+        return pl.col(self.source).cast(pl.String) == self.equals
+
+
+@dataclass(frozen=True, slots=True)
 class InputContract:
     """The single table one level reads and its permitted physical form."""
 
     file_name: str | None
     formats: tuple[PhysicalFormatContract, ...]
+    row_filters: tuple[SourceRowFilter, ...] = ()
 
 
 # ---------------------------------------------------------------- projected source layouts
@@ -261,12 +274,25 @@ class LevelReadPlan:
     """Exactly what one level reads, with every projected column's read dtype decided.
 
     For delimited input ``text_sources`` and ``native_numeric_sources`` are disjoint and
-    their union is ``projected_columns``: no column is left to inference.
+    their union is ``read_columns``: no column is left to inference. Filter-only columns
+    are discarded before returning the projected source table.
     """
 
     projected_columns: tuple[str, ...]
     text_sources: frozenset[str]
     native_numeric_sources: frozenset[str]
+    row_filters: tuple[SourceRowFilter, ...] = ()
+
+    @property
+    def read_columns(self) -> tuple[str, ...]:
+        """Include filter-only dependencies while keeping the output projection separate."""
+        return tuple(
+            dict.fromkeys((*self.projected_columns, *(f.source for f in self.row_filters)))
+        )
+
+    def row_predicate(self) -> pl.Expr:
+        """Require every authored filter; an empty declaration retains all rows."""
+        return pl.all_horizontal(pl.lit(True), *(f.predicate() for f in self.row_filters))
 
 
 @dataclass(frozen=True, slots=True)

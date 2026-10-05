@@ -31,7 +31,7 @@ exhaustive = True
 containers =
     apb2.parserV2.joins
 layers =
-    alphadia | maxquant | metamorpheus
+    alphadia | maxquant
 
 [importlinter:contract:vendor-parameter-directory-nesting-is-the-import-rule]
 name = vendor parameter dispatch descends into its parser package

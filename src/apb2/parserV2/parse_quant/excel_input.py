@@ -80,7 +80,7 @@ class ExcelInputReader:
         projected = pl.read_excel(
             self.path,
             sheet_name=self.evidence.sheet_name,
-            columns=self.plan.projected_columns,
+            columns=self.plan.read_columns,
             infer_schema_length=None,
             drop_empty_rows=False,
             drop_empty_cols=False,
@@ -88,11 +88,13 @@ class ExcelInputReader:
         )
         # Calamine's previous Python reader exposed Excel numbers as floats and empty
         # cells as empty strings. Preserve those axis semantics using whole-frame casts.
-        projected = projected.with_columns(cs.integer().cast(pl.Float64)).with_columns(
+        projected = (
+            projected.filter(self.plan.row_predicate()).with_columns(cs.integer().cast(pl.Float64))
+        ).with_columns(
             pl.col(self.plan.text_sources).cast(pl.String).fill_null(""),
             pl.col(self.plan.native_numeric_sources).cast(pl.Float64),
         )
-        return LevelSourceTable(frame=projected)
+        return LevelSourceTable(frame=projected.select(self.plan.projected_columns))
 
 
 def make_excel_reader(

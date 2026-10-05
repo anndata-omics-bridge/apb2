@@ -24,6 +24,13 @@ class SoftwareOnlyEvidence(ModelBase):
     acquisition_method_otherwise: Literal["DDA", "DIA", "unknown"] = "unknown"
 
 
+class RowFilter(ModelBase):
+    """Keep rows whose source value exactly equals the declared text; nulls do not match."""
+
+    source: str = Field(min_length=1)
+    equals: str
+
+
 class Input(ModelBase):
     """One table's shape, actual extensions, folder name, and exceptional detection."""
 
@@ -35,6 +42,7 @@ class Input(ModelBase):
     numbers: DetectedNumberFormat | None = None
     encoding: DetectedEncoding | None = None
     software_only: SoftwareOnlyEvidence | None = None
+    row_filters: list[RowFilter] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _workbook_consistency(self) -> Input:

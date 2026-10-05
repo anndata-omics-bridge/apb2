@@ -107,6 +107,11 @@ class SourcePlanResolver:
         """Compile source-dependent decisions directly into the executable strategy."""
         working = self._configuration
         present = frozenset(evidence.columns)
+        missing_filters = {f.source for f in working.input.row_filters} - present
+        if missing_filters:
+            raise IncompatibleSourceError(
+                f"{self._label()} lacks row-filter columns: {sorted(missing_filters)}"
+            )
         numbers = self._resolved_numbers(evidence)
         var_source, var, var_json = self._resolve_axis(
             working.var, present, self._var_synthesized(), numbers
@@ -433,12 +438,14 @@ class SourcePlanResolver:
         )
         needed = lexical | layers.source_columns
         projected = tuple(name for name in evidence.columns if name in needed)
+        row_filters = self._configuration.input.row_filters
         if isinstance(evidence, FrameSourceEvidence):
             # Parquet carries its own schema; overriding it would discard physical types.
             return LevelReadPlan(
                 projected_columns=projected,
                 text_sources=frozenset(),
                 native_numeric_sources=frozenset(),
+                row_filters=row_filters,
             )
         native = (
             frozenset()
@@ -449,8 +456,9 @@ class SourcePlanResolver:
         )
         return LevelReadPlan(
             projected_columns=projected,
-            text_sources=frozenset(projected) - native,
+            text_sources=(frozenset(projected) | {f.source for f in row_filters}) - native,
             native_numeric_sources=native,
+            row_filters=row_filters,
         )
 
     def _decomposition(
