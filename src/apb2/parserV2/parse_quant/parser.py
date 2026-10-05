@@ -53,6 +53,7 @@ from apb2.parserV2.parse_quant.data.raw import (
     VarRaw,
 )
 from apb2.parserV2.parse_quant.data.source import LevelSourceTable
+from apb2.parserV2.parse_quant.data.step_log import logged_step
 from apb2.parserV2.parse_quant.parameters.level import QuantificationLevel
 from apb2.parserV2.parse_quant.parameters.source import LevelReadPlan
 
@@ -137,12 +138,15 @@ class Parser:
 
     def parse(self) -> ParsedLevel:
         """Read the bound input once, then execute the compiled strategy."""
-        return self.strategy.parse(self.input_reader.read())
+        with logged_step("read", level=self.level):
+            source = self.input_reader.read()
+        return self.strategy.parse(source)
 
     def parse_with_timings(self) -> tuple[ParsedLevel, LevelParseTimings]:
         """Read and parse once, reporting the two separate wall times."""
         started = perf_counter()
-        source = self.input_reader.read()
+        with logged_step("read", level=self.level):
+            source = self.input_reader.read()
         read_seconds = perf_counter() - started
         started = perf_counter()
         parsed = self.strategy.parse(source)
@@ -169,12 +173,16 @@ class ParseStrategy:
 
     def parse(self, source: LevelSourceTable) -> ParsedLevel:
         """Execute the shared parsing pipeline on an already-read source table."""
-        raw = self.decomposer.decompose(source)
-
-        obs, obs_map = self._prepare_obs(raw.obs)
-        var, var_map, unknown_mod_tokens = self._prepare_var(raw.var)
-        layers = self._prepare_layers(raw.layers, obs_map, var_map)
-        self.layer_validator.validate(layers)
+        with logged_step("parse.decompose", level=self.level):
+            raw = self.decomposer.decompose(source)
+        with logged_step("parse.obs", level=self.level):
+            obs, obs_map = self._prepare_obs(raw.obs)
+        with logged_step("parse.var", level=self.level):
+            var, var_map, unknown_mod_tokens = self._prepare_var(raw.var)
+        with logged_step("parse.layers", level=self.level):
+            layers = self._prepare_layers(raw.layers, obs_map, var_map)
+        with logged_step("parse.validate", level=self.level):
+            self.layer_validator.validate(layers)
         uns = dict(self.provenance)
         raw_columns = uns.pop("column_roles", {})
         raw_layers = uns.pop("layer_roles", {})

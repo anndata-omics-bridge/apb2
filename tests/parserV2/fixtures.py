@@ -54,6 +54,10 @@ TABLE_FIXTURES: dict[tuple[str, QuantificationLevel], str] = {
     ("maxquant", "peptidoform"): "maxquant_modificationspecificpeptides",
     ("maxquant", "peptide"): "maxquant_peptides",
     ("maxquant", "protein"): "maxquant_proteingroups",
+    ("maxquant_wide", "ion"): "maxquant",
+    ("maxquant_wide", "peptidoform"): "maxquant_modificationspecificpeptides",
+    ("maxquant_wide", "peptide"): "maxquant_peptides",
+    ("maxquant_wide", "protein"): "maxquant_proteingroups",
 }
 """Separate input fixtures belonging to one consolidated rule document, not rule aliases."""
 

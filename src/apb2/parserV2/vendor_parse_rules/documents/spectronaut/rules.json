@@ -12,7 +12,8 @@
           ".tsv"
         ],
         "software_only": {
-          "forbidden_columns": ["EG.Comment", "EG.LibraryQvalue"]
+          "required_columns": ["E.Errors"],
+          "forbidden_columns": ["EG.LibraryQvalue"]
         },
         "delimiter": {
           "mode": "detect",

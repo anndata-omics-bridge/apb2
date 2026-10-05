@@ -329,6 +329,10 @@
               {
                 "name": "PG_Q_Value",
                 "source": "PG.Q.Value"
+              },
+              {
+                "name": "Global_PG_Q_Value",
+                "source": "Global.PG.Q.Value"
               }
             ]
           },

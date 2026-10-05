@@ -65,6 +65,8 @@ _NON_PRIMARY_ABUNDANCE: dict[tuple[str, QuantificationLevel], tuple[str, ...]] =
     ("diann/v2", "protein"): ("Genes_MaxLFQ",),
     ("maxquant", "peptide"): ("LFQ_Intensity",),
     ("maxquant", "protein"): ("LFQ_Intensity", "iBAQ"),
+    ("maxquant_wide", "peptide"): ("LFQ_Intensity",),
+    ("maxquant_wide", "protein"): ("LFQ_Intensity", "iBAQ"),
     ("msangel", "ion"): ("Raw_Abundance",),
     ("spectronaut", "ion"): (
         "EG_ReferenceQuantity_Settings",
@@ -256,6 +258,7 @@ def test_packaged_integer_measurements_are_exactly_the_declared_counts() -> None
     assert actual == {
         ("fragpipe", "ion", "Spectral_Count"),
         ("maxquant", "ion", "MS_MS_Count"),
+        ("maxquant_wide", "ion", "MS_MS_Count"),
         ("msangel", "ion", "PSM_Count"),
         ("prolinestudio", "ion", "PSM_Count"),
         ("spectronaut", "protein", "PG_RunEvidenceCount"),
@@ -309,6 +312,27 @@ def test_maxquant_keeps_evidence_outside_the_higher_level_prepared_table() -> No
     for level in ("peptidoform", "peptide", "protein"):
         assert document.declared(level).preparation == "maxquant"
         assert document.declared(level).declaration.axis.obs_keys == ["Experiment"]
+
+
+def test_maxquant_wide_joins_higher_levels_wide_and_replaces_the_long_rule_in_detection() -> None:
+    """The long rule stays packaged for ``--rule-config``; detection uses only the wide one."""
+    documents = {
+        pair.key: load_rule_document(pair.parser_v2_path)
+        for pair in document_pairs()
+        if pair.key in {"maxquant", "maxquant_wide"}
+    }
+    wide = documents["maxquant_wide"]
+
+    assert documents["maxquant"].selection == "explicit"
+    assert wide.selection == "automatic"
+    assert wide.declared("ion").declaration.model_dump(exclude={"file_version"}) == documents[
+        "maxquant"
+    ].declared("ion").declaration.model_dump(exclude={"file_version"})
+    assert wide.table_levels == (("ion",), ("peptidoform", "peptide", "protein"))
+    for level in ("peptidoform", "peptide", "protein"):
+        assert wide.declared(level).preparation == "maxquant_wide"
+        assert wide.declared(level).declaration.shape == "wide"
+        assert wide.declared(level).declaration.axis.obs_keys == ["Experiment"]
 
 
 def test_peaks_declares_the_persisted_sample_annotation_matching_policy() -> None:
@@ -840,12 +864,12 @@ def test_both_rule_shapes_are_represented_by_the_packaged_generation() -> None:
         for pair, level in level_pairs()
     ]
 
-    assert sum(isinstance(rule, LongRule) for rule in shapes) == 27
-    assert sum(isinstance(rule, WideRule) for rule in shapes) == 10
+    assert sum(isinstance(rule, LongRule) for rule in shapes) == 28
+    assert sum(isinstance(rule, WideRule) for rule in shapes) == 13
     modes = [rule.measurements.duplicates.mode for rule in shapes]
     assert modes.count("error") == 19
-    assert modes.count("keep_first") == 17
-    assert modes.count("aggregate") == 1
+    assert modes.count("keep_first") == 20
+    assert modes.count("aggregate") == 2
     assert sum(isinstance(rule.fragments, ColumnLabeledFragments) for rule in shapes) == 0
 
 

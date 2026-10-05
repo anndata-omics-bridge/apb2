@@ -254,6 +254,14 @@
                 "source": "PG.Q.Value"
               },
               {
+                "name": "Lib_PG_Q_Value",
+                "source": "Lib.PG.Q.Value"
+              },
+              {
+                "name": "Global_PG_Q_Value",
+                "source": "Global.PG.Q.Value"
+              },
+              {
                 "name": "PG_PEP",
                 "source": "PG.PEP"
               }

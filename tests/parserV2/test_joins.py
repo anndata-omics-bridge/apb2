@@ -12,6 +12,7 @@ import pytest
 from loguru import logger
 from polars.testing import assert_frame_equal
 
+from apb2.api import ParseRuleCompiler
 from apb2.cli.app import app
 from apb2.cli.conversion import (
     ConversionError,
@@ -151,6 +152,42 @@ def test_maxquant_higher_join_fanout_preserves_original_cells(tmp_path: Path) ->
     assert parsed["peptide"].layers["Intensity"].values.row(0) == (25.0,)
 
 
+def test_maxquant_reshape_keeps_feature_columns_and_drops_per_sample_ones() -> None:
+    """Per-sample columns are not copied into every sample's rows; feature columns are."""
+    peptides = pl.DataFrame(
+        {
+            "id": ["0", "1"],
+            "Sequence": ["PEPTIDE", "PEPTIDES"],
+            "Protein names": ["P", "Q"],
+            "Mod. peptide IDs": ["0", "1"],
+            "Evidence IDs": ["0", "1"],
+            "Intensity A": ["1", "2"],
+            "Intensity names": ["3", "4"],
+            "Experiment A": ["1", "1"],
+            "Experiment names": ["1", None],
+            "Identification type A": ["By MS/MS", "By matching"],
+            "Identification type names": ["By MS/MS", None],
+        }
+    )
+
+    joined = maxquant.join({"peptide": peptides})
+
+    assert sorted(joined.columns) == sorted(
+        [
+            "peptide.id",
+            "peptide.Sequence",
+            "peptide.Protein names",
+            "peptide.Mod. peptide IDs",
+            "peptide.Evidence IDs",
+            "peptide.sample",
+            "peptide.Intensity",
+            "Experiment",
+        ]
+    )
+    assert joined.height == 4
+    assert joined["peptide.Intensity"].to_list() == ["1", "2", "3", "4"]
+
+
 def test_maxquant_join_does_not_accept_evidence() -> None:
     tables = maxquant_tables()
     with pytest.raises(ValueError, match="evidence is parsed directly"):
@@ -220,6 +257,30 @@ def test_conflicting_renamed_inputs_are_rejected(tmp_path: Path) -> None:
         select_document_levels(
             document, Folder(tmp_path), document.levels, UNKNOWN_SEARCH_PARAMETERS
         )
+
+
+@pytest.mark.parametrize("roles", MAXQUANT_SUBSETS, ids="+".join)
+def test_maxquant_wide_rule_parses_what_the_long_rule_parses(
+    tmp_path: Path, roles: tuple[str, ...]
+) -> None:
+    """Joining wide changes memory use, not one identity, value or missing cell."""
+    tables = maxquant_tables()
+    for role in roles:
+        tables[role].write_csv(tmp_path / MAXQUANT_FILES[role], separator="\t")
+
+    long = ParseRuleCompiler.from_rule(tmp_path, RULES / "maxquant/rules.json").compile().parse()
+    wide = (
+        ParseRuleCompiler.from_rule(tmp_path, RULES / "maxquant_wide/rules.json").compile().parse()
+    )
+
+    assert list(wide.levels) == list(long.levels)
+    for name, expected in long.levels.items():
+        actual = wide.levels[name]
+        assert_frame_equal(actual.obs.frame, expected.obs.frame)
+        assert_frame_equal(actual.var.frame, expected.var.frame)
+        assert actual.layers.keys() == expected.layers.keys()
+        for layer, values in expected.layers.items():
+            assert_frame_equal(actual.layers[layer].values, values.values)
 
 
 @pytest.mark.parametrize("roles", MAXQUANT_SUBSETS, ids="+".join)
@@ -474,6 +535,38 @@ def test_cli_reports_both_resolution_outputs(tmp_path: Path) -> None:
     assert "output.raw_file.parquet" in captured.getvalue()
     assert "output.experiment.parquet" in captured.getvalue()
     assert not (tmp_path / "output.parquet").exists()
+
+
+def test_maxquant_preparation_logs_each_table_and_the_join(tmp_path: Path) -> None:
+    """A run killed while preparing still names the table or join it was in."""
+    for role, frame in maxquant_tables().items():
+        frame.write_csv(tmp_path / MAXQUANT_FILES[role], separator="\t")
+    captured = StringIO()
+    sink = logger.add(captured, format="{message}")
+    try:
+        with pytest.raises(SystemExit) as result:
+            app(
+                [
+                    "convert",
+                    str(tmp_path),
+                    "--rule-config",
+                    str(RULES / "maxquant/rules.json"),
+                    "--format",
+                    "parquet",
+                    "--output",
+                    str(tmp_path / "output"),
+                ]
+            )
+    finally:
+        logger.remove(sink)
+    assert result.value.code == 0
+    messages = captured.getvalue()
+    for table in ("modificationSpecificPeptides.txt", "peptides.txt", "proteinGroups.txt"):
+        assert f"step=prepare.read start how=maxquant table={table}" in messages
+        assert f"step=prepare.read done how=maxquant table={table} seconds=" in messages
+    assert "step=prepare.join start how=maxquant tables=" in messages
+    assert "step=prepare.join done how=maxquant tables=" in messages
+    assert "prepare.join how=maxquant rows=" in messages
 
 
 def test_cli_directory_joins_before_ion_conversion(tmp_path: Path) -> None:

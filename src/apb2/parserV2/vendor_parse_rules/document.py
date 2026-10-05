@@ -79,7 +79,7 @@ class EffectiveRule:
 class _PreparationSchema(ModelBase):
     """Select a registered function; the level rules describe its output."""
 
-    how: Literal["alphadia", "maxquant"]
+    how: Literal["alphadia", "maxquant", "maxquant_wide"]
 
 
 class _RuleTableSchema(ModelBase):
@@ -107,6 +107,8 @@ class RuleDocument(ModelBase):
     software_version_pattern: str
     hierarchy: str
     parameter_file: Literal["required", "none"] = "required"
+    # "explicit" keeps a packaged rule out of automatic detection; --rule-config selects it.
+    selection: Literal["automatic", "explicit"] = "automatic"
     sample_annotation: SampleAnnotation | None = None
     tables: list[_RuleTableSchema] = Field(min_length=1)
 

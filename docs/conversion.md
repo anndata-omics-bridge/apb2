@@ -71,7 +71,7 @@ apb2 convert maxquant-results --params mqpar.xml --output results/maxquant
 apb2 convert maxquant-results peptide --params mqpar.xml --output results/peptides
 ```
 
-MaxQuant accepts any nonempty subset of its four exports. Evidence is parsed directly into ions keyed by `Raw_File`, retaining `Experiment` and `Fraction` as metadata. The other exports are unpivoted and joined through shared evidence-ID references plus experiment; their table group declares `Experiment` once in `base`. No evidence rows enter that join. Omitting `LEVEL` produces only supplied levels; explicitly requesting an unavailable level fails before writing.
+MaxQuant accepts any nonempty subset of its four exports. Evidence is parsed directly into ions keyed by `Raw_File`, retaining `Experiment` and `Fraction` as metadata. The other exports are joined through their shared evidence-ID references, kept wide, and decomposed into peptidoform, peptide and protein levels with `Experiment` observations. No evidence rows enter that join. The explicit long-join MaxQuant rule, which unpivots before joining, produces the same result through `--rule-config`. Omitting `LEVEL` produces only supplied levels; explicitly requesting an unavailable level fails before writing.
 
 AlphaDIA matrix and precursor metadata are one directory input:
 
