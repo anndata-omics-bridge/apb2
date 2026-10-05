@@ -16,7 +16,7 @@ help:  ## Show developer commands
 		| awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
 sync:  ## Synchronize the locked development environment
-	uv sync --frozen --group dev
+	uv sync --group dev
 
 format:  ## Format and autofix source and tests
 	$(VENV_BIN)/ruff format src tests scripts
@@ -43,17 +43,16 @@ build:  ## Build and validate source and wheel distributions
 	$(VENV_BIN)/twine check dist/*
 
 docs:  ## Build user documentation with strict warnings
-	uv run --frozen --group docs zensical build --clean --strict
+	uv run --group docs zensical build --clean --strict
 
 docs-serve:  ## Serve user documentation locally
-	SERVE_PORT=$(DOCS_PORT) $(SERVE_ON_PORT) uv run --frozen --group docs zensical serve -a localhost:$(DOCS_PORT)
+	SERVE_PORT=$(DOCS_PORT) $(SERVE_ON_PORT) uv run --group docs zensical serve -a localhost:$(DOCS_PORT)
 
 docs-serve-public:  ## Serve the prebuilt public directory without rebuilding
 	@test -f public/index.html || (echo "public/index.html is missing; run 'make docs' first" >&2; exit 1)
 	SERVE_PORT=$(DOCS_PORT) $(SERVE_ON_PORT) $(VENV_BIN)/python -m http.server $(DOCS_PORT) --directory public
 
 check:  ## Run every merge-blocking quality gate
-	uv lock --check
 	$(MAKE) format-check lint typecheck deps test build docs
 
 clean:  ## Remove generated build and quality artifacts

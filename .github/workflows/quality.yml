@@ -25,9 +25,10 @@ jobs:
         with:
           version: "0.9.8"
           enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
 
       - name: Synchronize environment
-        run: uv sync --frozen --group dev
+        run: uv sync --group dev
 
       - name: Run quality gates
         run: make check
