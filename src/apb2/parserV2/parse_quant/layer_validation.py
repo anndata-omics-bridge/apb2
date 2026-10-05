@@ -34,11 +34,7 @@ class LayerContractValidator:
 
         candidates: dict[str, pl.DataFrame] = {}
         for name, layer in layers.items():
-            candidates.update(
-                layer.role.occupancy_candidates(
-                    name, layer.values.select(pl.exclude(layer.var_key_columns))
-                )
-            )
+            candidates.update(layer.role.occupancy_candidates(name, layer.values))
         ratios = {name: _occupancy(values) for name, values in candidates.items()}
         populated = [name for name, ratio in ratios.items() if ratio >= self.populated_ratio]
         empty = [name for name, ratio in ratios.items() if ratio < self.empty_ratio]

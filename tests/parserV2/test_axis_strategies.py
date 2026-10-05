@@ -440,23 +440,6 @@ def test_a_terminal_token_renders_before_the_sequence() -> None:
     assert result.value == "[UNIMOD:1]-PEPTIDE"
 
 
-def test_a_token_after_the_final_residue_is_c_terminal_only_when_a_c_terminal_entry_fits() -> None:
-    amidated = ModificationMapEntry(
-        token="am",
-        name="Amidated",
-        accession="UNIMOD:2",
-        target=("C-term",),
-        position="C-term",
-        mass_delta=-0.984016,
-    )
-    rules = token_regex(entries=(OXIDATION, amidated))
-
-    assert rules.transform(("PEPTIDEM(ox)",)).value == "PEPTIDEM[UNIMOD:35]"
-    assert rules.transform(("PEPTIDEM(am)",)).value == "PEPTIDEM-[UNIMOD:2]"
-    # An explicit terminus marker keeps an unfitting token terminal and unknown.
-    assert rules.transform(("PEPTIDEM-(ox)",)).value == "PEPTIDEM-[ox]"
-
-
 def test_a_before_residue_vendor_attaches_the_token_to_what_follows() -> None:
     rules = token_regex(
         pattern="[a-z]+",
@@ -552,6 +535,28 @@ def test_embedded_sites_localize_residue_and_terminal_modifications() -> None:
 def test_an_embedded_site_must_point_to_the_declared_residue() -> None:
     with pytest.raises(PackedSiteMismatchError, match="points to"):
         embedded_site_list().transform(("PEPMIDE", "Oxidation (M3)"))
+
+
+def test_a_modification_after_the_last_residue_belongs_to_that_residue() -> None:
+    """DIA-NN writes carbamidomethylated C-terminal cysteine as ``…C(UniMod:4)``."""
+    result = token_regex().transform(("PEPTIDEM(ox)",))
+
+    assert result.value == "PEPTIDEM[UNIMOD:35]"
+    assert result.unknown_tokens == ()
+
+
+def test_a_terminal_only_modification_after_the_last_residue_stays_c_terminal() -> None:
+    amidated = ModificationMapEntry(
+        token="am",
+        name="Amidated",
+        accession="UNIMOD:2",
+        target=("C-term",),
+        position="C-term",
+        mass_delta=-0.984016,
+    )
+    result = token_regex(entries=(OXIDATION, amidated)).transform(("PEPTIDEM(am)",))
+
+    assert result.value == "PEPTIDEM-[UNIMOD:2]"
 
 
 def test_two_modifications_on_one_residue_concatenate() -> None:

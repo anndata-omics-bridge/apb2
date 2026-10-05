@@ -10,3 +10,4 @@ public/
 .import_linter_cache/
 *.h5ad
 .DS_Store
+uv.lock

@@ -4,20 +4,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Literal
 
 import polars as pl
 import pytest
 from loguru import logger
 from polars.testing import assert_frame_equal
 
-from apb2.annotation.application.policies import (
-    AllAnnotationSelections,
-    AnnotationApplication,
-    BooleanAnnotationSelection,
-    KeepUnmatchedAnnotation,
-    MatchedAnnotationSelection,
-    SelectAnnotatedObservations,
-)
 from apb2.annotation.compiler import AnnotationCompiler
 from apb2.annotation.data.model import (
     IN_MEMORY_ANNOTATION,
@@ -32,8 +25,9 @@ from apb2.annotation.matching.core import (
     match_annotation,
     normalize_mass_spec_basename,
 )
-from apb2.annotation.prolfquapp import ProlfquappAnnotationParameters
-from apb2.cli import annotate as annotate_command
+from apb2.annotation.sdrf import SdrfSource
+from apb2.annotation.source.load import load_annotation_file
+from apb2.cli.app import annotate as annotate_command
 from apb2.parserV2.parse_quant.data.parsed import (
     AuxiliaryLayerRole,
     CategoricalLayerSemantics,
@@ -82,18 +76,21 @@ def _parsed(
     pair_rows[1::2] = range(1, len(runs))
     layer = FinalLayerTable(
         layer_name="Intensity",
-        var_key_columns=("feature",),
-        values=pl.DataFrame(
-            {
-                "feature": ["p1", "p2"],
-                **{
-                    f"obs_{index}": [float(index + 1), float(index + 11)]
-                    for index in range(len(runs))
-                },
-            }
-        ),
+        values=(
+            pl.DataFrame(
+                {
+                    "feature": ["p1", "p2"],
+                    **{
+                        f"obs_{index}": [float(index + 1), float(index + 11)]
+                        for index in range(len(runs))
+                    },
+                }
+            )
+        ).drop(("feature",), strict=False),
+        semantic_roles=("abundance",),
     )
     uns: dict[str, JsonValue] = {
+        "hierarchy": "lfq",
         "quantification_level": "ion",
         "software_name": "Synthetic",
         "plan_json": _plan(),
@@ -122,14 +119,6 @@ def _parsed(
     return ParsedLevels(levels={"ion": level}, uns={"produced_by": "apb2"})
 
 
-def _prolfquapp_compiler(
-    parameters: ProlfquappAnnotationParameters | None = None,
-) -> AnnotationCompiler:
-    return AnnotationCompiler(
-        prolfquapp=parameters or ProlfquappAnnotationParameters(),
-    )
-
-
 def test_parser_constructs_a_dataset_bound_annotation_with_inspectable_matches() -> None:
     source = pl.DataFrame(
         {
@@ -139,7 +128,7 @@ def test_parser_constructs_a_dataset_bound_annotation_with_inspectable_matches()
     )
     parsed = _parsed()
 
-    annotation = _prolfquapp_compiler().compile(source).parse(parsed)
+    annotation = AnnotationCompiler().compile(source).parse(parsed)
 
     coverage = annotation.matches.levels["ion"].coverage
     assert coverage.matched_observation_count == 2
@@ -172,7 +161,7 @@ def test_prolfquapp_parser_does_not_construct_an_annotation_with_zero_matches() 
     source = pl.DataFrame({"raw_file": ["elsewhere"], "condition": ["A"]})
 
     with pytest.raises(AnnotationError, match="matched no observations"):
-        _prolfquapp_compiler().compile(source).parse(_parsed(("run_A",)))
+        AnnotationCompiler().compile(source).parse(_parsed(("run_A",)))
 
 
 @pytest.mark.parametrize("suffix", [".csv", ".tsv"])
@@ -224,25 +213,13 @@ def test_compilation_reads_a_file_once(
 
 
 def test_drop_and_boolean_selection_subsets_every_observation_aligned_value() -> None:
-    application = SelectAnnotatedObservations(
-        AllAnnotationSelections(
-            (
-                MatchedAnnotationSelection(),
-                BooleanAnnotationSelection("include"),
-            )
-        )
-    )
     source = pl.DataFrame(
         {
             "raw_file": ["run_A", "run_B", "run_C"],
             "include": [True, False, True],
         }
     )
-    annotation = (
-        _prolfquapp_compiler(ProlfquappAnnotationParameters(application=application))
-        .compile(source)
-        .parse(_parsed())
-    )
+    annotation = AnnotationCompiler("drop", "include").compile(source).parse(_parsed())
 
     result = annotation.annotate().parsed.levels["ion"]
 
@@ -250,28 +227,22 @@ def test_drop_and_boolean_selection_subsets_every_observation_aligned_value() ->
         "run": ["run_A", "run_C"],
         "include": [True, True],
     }
-    assert result.layers["Intensity"].values.columns == ["feature", "obs_0", "obs_1"]
+    assert result.layers["Intensity"].values.columns == ["obs_0", "obs_1"]
     assert result.layers["Intensity"].values.get_column("obs_1").to_list() == [3.0, 13.0]
     assert result.obsm["quality"].get_column("score").to_list() == [0, 2]
     assert result.obsp["links"].is_empty()
 
 
 def test_boolean_selection_rejects_null_for_a_matched_annotation() -> None:
-    application = SelectAnnotatedObservations(BooleanAnnotationSelection("include"))
     source = pl.DataFrame({"raw_file": ["run_A"], "include": [None]})
 
     with pytest.raises(AnnotationError, match="must be Boolean"):
-        _prolfquapp_compiler(ProlfquappAnnotationParameters(application=application)).compile(
-            source
-        ).parse(_parsed(("run_A",)))
+        AnnotationCompiler("drop", "include").compile(source).parse(_parsed(("run_A",)))
 
 
 @pytest.mark.parametrize(
-    ("application", "kept"),
-    [
-        (KeepUnmatchedAnnotation(), (0, 1, 2)),
-        (SelectAnnotatedObservations(MatchedAnnotationSelection()), (0, 2)),
-    ],
+    ("unmatched", "kept"),
+    [("keep", (0, 1, 2)), ("drop", (0, 2))],
     ids=["retain-all", "select-subset"],
 )
 @pytest.mark.parametrize(
@@ -283,7 +254,7 @@ def test_boolean_selection_rejects_null_for_a_matched_annotation() -> None:
     ids=["categorical", "integer"],
 )
 def test_annotation_preserves_layer_semantics_and_round_trips(
-    application: AnnotationApplication,
+    unmatched: Literal["keep", "drop"],
     kept: tuple[int, ...],
     semantics: FinalLayerSemantics,
     tmp_path: Path,
@@ -291,22 +262,17 @@ def test_annotation_preserves_layer_semantics_and_round_trips(
     parsed = _parsed()
     layer = FinalLayerTable(
         layer_name="Evidence",
-        var_key_columns=("feature",),
-        values=pl.DataFrame(
-            {"feature": ["p1", "p2"], "obs_0": [1, -1], "obs_1": [2, 1], "obs_2": [-1, 2]}
-        ),
+        values=(
+            pl.DataFrame(
+                {"feature": ["p1", "p2"], "obs_0": [1, -1], "obs_1": [2, 1], "obs_2": [-1, 2]}
+            )
+        ).drop(("feature",), strict=False),
         role=AuxiliaryLayerRole(),
         semantics=semantics,
     )
     parsed.levels["ion"].layers["Evidence"] = layer
     source = pl.DataFrame({"raw_file": ["run_C", "run_A"], "condition": ["C", "A"]})
-    result = (
-        _prolfquapp_compiler(ProlfquappAnnotationParameters(application=application))
-        .compile(source)
-        .parse(parsed)
-        .annotate()
-        .parsed
-    )
+    result = AnnotationCompiler(unmatched).compile(source).parse(parsed).annotate().parsed
     annotated = result.levels["ion"].layers["Evidence"]
     assert annotated.semantics is semantics
     assert annotated.role is layer.role
@@ -314,17 +280,17 @@ def test_annotation_preserves_layer_semantics_and_round_trips(
     write_parsed_levels(result, target)
     restored = read_parsed_levels(target)
     expected = layer.values.select(
-        "feature", *(pl.col(f"obs_{old}").alias(f"obs_{new}") for new, old in enumerate(kept))
+        *(pl.col(f"obs_{old}").alias(f"obs_{new}") for new, old in enumerate(kept))
     )
     for level in (result.levels["ion"], restored.levels["ion"]):
         copied = level.layers["Evidence"]
         assert copied.semantics == semantics
         assert copied.layer_name == layer.layer_name
-        assert copied.var_key_columns == layer.var_key_columns
+        assert copied.semantic_roles == layer.semantic_roles
         assert isinstance(copied.role, AuxiliaryLayerRole)
         assert_frame_equal(copied.values, expected)
         assert level.obs.frame["run"].to_list() == [["run_A", "run_B", "run_C"][i] for i in kept]
-    assert layer.values.columns == ["feature", "obs_0", "obs_1", "obs_2"]
+    assert layer.values.columns == ["obs_0", "obs_1", "obs_2"]
 
 
 def test_exact_matching_supports_composite_keys() -> None:
@@ -388,7 +354,7 @@ def test_exact_aliases_match_without_fuzzy_correction() -> None:
         }
     )
 
-    annotation = _prolfquapp_compiler().compile(source).parse(_parsed(("alias_B",)))
+    annotation = AnnotationCompiler().compile(source).parse(_parsed(("alias_B",)))
 
     match = annotation.matches.levels["ion"]
     assert match.matched_rows.to_list() == [True]
@@ -540,7 +506,7 @@ def test_prolfquapp_logs_annotation_only_as_warning_and_quant_only_as_info() -> 
             "condition": ["A", "X"],
         }
     )
-    annotation = _prolfquapp_compiler().compile(source).parse(_parsed(("run_A", "run_B")))
+    annotation = AnnotationCompiler().compile(source).parse(_parsed(("run_A", "run_B")))
 
     messages: list[str] = []
     sink = logger.add(messages.append, format="{level}:{message}")
@@ -591,7 +557,7 @@ def test_cli_annotation_round_trips_through_every_result_format(
 
 def test_annotation_does_not_recompute_matching_during_application() -> None:
     source = pl.DataFrame({"raw_file": ["run_A"], "condition": ["A"]})
-    annotation = _prolfquapp_compiler().compile(source).parse(_parsed(("run_A",)))
+    annotation = AnnotationCompiler().compile(source).parse(_parsed(("run_A",)))
     before = annotation.matches
 
     first = annotation.annotate()
@@ -602,3 +568,159 @@ def test_annotation_does_not_recompute_matching_during_application() -> None:
         first.parsed.levels["ion"].obs.frame,
         second.parsed.levels["ion"].obs.frame,
     )
+
+
+_SDRF_HEADER = (
+    "source name",
+    "characteristics[organism]",
+    "characteristics[spiked compound]",
+    "characteristics[spiked compound]",
+    "assay name",
+    "comment[label]",
+    "comment[data file]",
+    "factor value[spiked compound]",
+)
+_LABEL_FREE = "AC=MS:1002038;NT=label free sample"
+
+
+def _sdrf_rows(*runs: str, label: str = _LABEL_FREE) -> list[tuple[str, ...]]:
+    return [
+        (
+            f"mixture_{run[-1]}",
+            "homo sapiens",
+            "CT=mixture;SP=Saccharomyces cerevisiae;QY=30%",
+            "CT=mixture;SP=Escherichia coli;QY=5%",
+            f"assay_{run}",
+            label,
+            f"/data/{run}.raw",
+            run[-1],
+        )
+        for run in runs
+    ]
+
+
+def _write_sdrf(path: Path, rows: list[tuple[str, ...]]) -> Path:
+    path.write_text(
+        "\n".join("\t".join(row) for row in (_SDRF_HEADER, *rows)) + "\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_loader_keeps_verbatim_repeated_sdrf_headers(tmp_path: Path) -> None:
+    loaded = load_annotation_file(_write_sdrf(tmp_path / "design.sdrf.tsv", _sdrf_rows("run_A")))
+
+    sdrf = SdrfSource(loaded)
+
+    assert loaded.headers == _SDRF_HEADER
+    spiked = sdrf.columns("Characteristics[Spiked Compound]")
+    assert [loaded.frame.get_column(name).to_list() for name in spiked] == [
+        ["CT=mixture;SP=Saccharomyces cerevisiae;QY=30%"],
+        ["CT=mixture;SP=Escherichia coli;QY=5%"],
+    ]
+    with pytest.raises(AnnotationError, match="must occur exactly once; found 2"):
+        sdrf.column("characteristics[spiked compound]")
+
+
+def test_compiler_recognises_sdrf_and_matches_extensionless_runs(tmp_path: Path) -> None:
+    source = _write_sdrf(tmp_path / "design.sdrf.tsv", _sdrf_rows("run_A", "run_B"))
+
+    annotation = AnnotationCompiler().compile(source).parse(_parsed(("run_A", "run_B")))
+    result = annotation.annotate()
+
+    obs = result.parsed.levels["ion"].obs.frame
+    assert obs.columns == [
+        "run",
+        "source_name",
+        "characteristics_organism",
+        "characteristics_spiked_compound",
+        "characteristics_spiked_compound_duplicated_0",
+        "assay_name",
+        "comment_label",
+        "factor_value_spiked_compound",
+    ]
+    assert obs.get_column("assay_name").to_list() == ["assay_run_A", "assay_run_B"]
+    root = result.parsed.metadata["sdrf"]
+    assert isinstance(root, dict)
+    provenance = root["provenance"]
+    assert isinstance(provenance, dict)
+    record = provenance["annotation"]
+    assert isinstance(record, dict)
+    assert record["source"] == {"path": str(source.resolve())}
+    columns = record["columns"]
+    assert isinstance(columns, list)
+    assert {
+        "header": "characteristics[spiked compound]",
+        "column": "characteristics_spiked_compound",
+    } in columns
+    assert {
+        "header": "characteristics[spiked compound]",
+        "column": "characteristics_spiked_compound_duplicated_0",
+    } in columns
+    assert all(
+        isinstance(entry, dict) and entry["header"] != "comment[data file]" for entry in columns
+    )
+
+
+def test_in_memory_sdrf_headers_ignore_case() -> None:
+    source = pl.DataFrame(
+        {
+            "Source Name": ["mixture_A"],
+            "Comment[Data File]": ["run_A.d"],
+            "Factor Value[spiked compound]": ["A"],
+        }
+    )
+
+    annotation = AnnotationCompiler().compile(source).parse(_parsed(("run_A",)))
+
+    match = annotation.matches.levels["ion"]
+    assert match.matched_rows.to_list() == [True]
+    assert match.corrections == ()
+
+
+def test_sdrf_rejects_multiplexed_rows(tmp_path: Path) -> None:
+    source = _write_sdrf(
+        tmp_path / "design.sdrf.tsv",
+        _sdrf_rows("run_A", label="AC=MS:1002624;NT=TMT126"),
+    )
+
+    with pytest.raises(AnnotationError, match="label-free rows only"):
+        AnnotationCompiler().compile(source)
+
+
+def test_sdrf_rejects_a_data_file_on_two_rows(tmp_path: Path) -> None:
+    rows = _sdrf_rows("run_A", "run_B")
+    rows[1] = (*rows[1][:6], rows[0][6], rows[1][7])
+    parser = AnnotationCompiler().compile(_write_sdrf(tmp_path / "design.sdrf.tsv", rows))
+
+    with pytest.raises(AnnotationError, match="duplicate annotation identifier"):
+        parser.parse(_parsed(("run_A",)))
+
+
+def test_sdrf_applies_the_configured_application(tmp_path: Path) -> None:
+    compiler = AnnotationCompiler("error")
+    parser = compiler.compile(_write_sdrf(tmp_path / "design.sdrf.tsv", _sdrf_rows("run_A")))
+
+    with pytest.raises(AnnotationError, match="complete sample annotation required"):
+        parser.parse(_parsed(("run_A", "run_B")))
+
+
+def test_cli_annotates_with_sdrf(tmp_path: Path) -> None:
+    source = tmp_path / "input.parquet"
+    target = tmp_path / "annotated.parquet"
+    write_parsed_levels(_parsed(("run_A", "run_B")), source)
+    annotation = _write_sdrf(tmp_path / "design.sdrf.tsv", _sdrf_rows("run_A", "run_B"))
+
+    exit_code = annotate_command(source, annotation, target)
+
+    assert exit_code == 0
+    restored = read_parsed_levels(target)
+    obs = restored.levels["ion"].obs.frame
+    assert obs.get_column("factor_value_spiked_compound").to_list() == ["A", "B"]
+    local = restored.levels["ion"].metadata["sdrf"]
+    assert isinstance(local, dict) and "annotation" in local
+
+
+def test_include_requires_dropping_unmatched_observations() -> None:
+    with pytest.raises(AnnotationError, match="include requires unmatched='drop'"):
+        AnnotationCompiler("keep", "include")

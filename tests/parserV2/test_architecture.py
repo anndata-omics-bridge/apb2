@@ -83,23 +83,24 @@ def test_the_top_level_production_tree_contains_only_products_facades_and_comman
     assert entries == {
         "__init__.py",
         "annotation",
-        "annotation_extension.py",
-        "annotation_facade.py",
         "api.py",
-        "cli.py",
-        "command",
-        "modification_facade.py",
+        "cli",
         "parserV2",
         "py.typed",
-        "result_facade.py",
     }
 
 
-def test_the_cli_imports_only_annotation_and_its_command_workflow() -> None:
-    imported = _imported_modules(APB2 / "cli.py")
-    internal = {name for name in imported if name.startswith("apb2")}
+def test_the_cli_imports_apb2_only_through_its_api() -> None:
+    offenders = {
+        f"{path}: {name}"
+        for path in sorted((APB2 / "cli").glob("*.py"))
+        for name in _imported_modules(path)
+        if name.split(".")[0] == "apb2"
+        and name != "apb2.api"
+        and name.split(".")[:2] != ["apb2", "cli"]
+    }
 
-    assert internal == {"apb2", "apb2.command"}
+    assert offenders == set()
 
 
 @pytest.mark.parametrize(

@@ -3,7 +3,7 @@ message: "If you use this software, please cite it as below."
 type: software
 title: "apb2"
 abstract: "Rules-driven conversion of quantitative proteomics software output to AnnData, with search-parameter parsing and storage-neutral result tooling."
-version: 0.1.0
+version: 0.1.1
 license: MIT
 repository-code: "https://github.com/anndata-omics-bridge/apb2"
 authors:
@@ -11,7 +11,7 @@ authors:
     given-names: Witold E.
     email: wew@fgcz.ethz.ch
     affiliation: "Functional Genomics Center Zurich, ETH Zurich / University of Zurich; SIB Swiss Institute of Bioinformatics"
-    # orcid: "https://orcid.org/XXXX-XXXX-XXXX-XXXX"   # fill before the release
+    orcid: "https://orcid.org/0000-0002-6468-120X"
 keywords:
   - proteomics
   - mass spectrometry

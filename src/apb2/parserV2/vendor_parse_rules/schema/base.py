@@ -6,9 +6,11 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from apb2.parserV2.vendor_parse_rules.schema.hierarchy import HIERARCHIES
+
 type TableShape = Literal["long", "wide"]
 type SchemaVersion = Literal["0.8"]
-type QuantificationLevel = Literal["ion", "peptidoform", "peptide", "protein", "fragment"]
+type QuantificationLevel = str
 type AxisColumnType = Literal["string", "integer", "number", "boolean"]
 type DuplicateMode = Literal["error", "aggregate", "keep_first"]
 type TokenPosition = Literal[
@@ -18,12 +20,8 @@ type UnknownPolicy = Literal["preserve", "drop", "error"]
 
 SCHEMA_VERSION: SchemaVersion = "0.8"
 
-LEVELS: tuple[QuantificationLevel, ...] = (
-    "ion",
-    "peptidoform",
-    "peptide",
-    "protein",
-    "fragment",
+LEVELS: tuple[QuantificationLevel, ...] = tuple(
+    dict.fromkeys(level for identities in HIERARCHIES.values() for level, _identity in identities)
 )
 
 

@@ -59,25 +59,28 @@ def _parsed() -> ParsedLevels:
         layers={
             "Intensity": FinalLayerTable(
                 layer_name="Intensity",
-                var_key_columns=("feature",),
-                values=pl.DataFrame(
-                    {
-                        "feature": ["F1", "F2", "F3", "F4"],
-                        "obs_0": [1.0, None, float("nan"), float("inf")],
-                        "obs_1": [0.0, 2.0, 3.0, float("-inf")],
-                    }
-                ),
+                values=(
+                    pl.DataFrame(
+                        {
+                            "feature": ["F1", "F2", "F3", "F4"],
+                            "obs_0": [1.0, None, float("nan"), float("inf")],
+                            "obs_1": [0.0, 2.0, 3.0, float("-inf")],
+                        }
+                    )
+                ).drop(("feature",), strict=False),
+                semantic_roles=("abundance",),
             ),
             "Count": FinalLayerTable(
                 layer_name="Count",
-                var_key_columns=("feature",),
-                values=pl.DataFrame(
-                    {
-                        "feature": ["F1", "F2", "F3", "F4"],
-                        "obs_0": [1, 2, 3, 4],
-                        "obs_1": [4, 3, 2, 1],
-                    }
-                ),
+                values=(
+                    pl.DataFrame(
+                        {
+                            "feature": ["F1", "F2", "F3", "F4"],
+                            "obs_0": [1, 2, 3, 4],
+                            "obs_1": [4, 3, 2, 1],
+                        }
+                    )
+                ).drop(("feature",), strict=False),
                 role=AuxiliaryLayerRole(),
                 semantics=QuantitativeLayerSemantics(logical_type="integer"),
             ),
@@ -87,6 +90,7 @@ def _parsed() -> ParsedLevels:
         obsp={"neighbors": pl.DataFrame({"row": [0], "column": [1], "value": [0.5]})},
         varp={},
         uns={
+            "hierarchy": "lfq",
             "quantification_level": "ion",
             "source_path": "/private/input/vendor.tsv",
         },
@@ -118,7 +122,7 @@ def _parsed() -> ParsedLevels:
 def _empty_level() -> ParsedLevel:
     return ParsedLevel(
         obs=ObsFinal(
-            frame=pl.DataFrame(schema={"sample": pl.String}),
+            frame=pl.DataFrame({"sample": ["sample A", "sample B"]}),
             key_columns=("sample",),
         ),
         var=VarFinal(
@@ -129,8 +133,8 @@ def _empty_level() -> ParsedLevel:
         layers={
             "Intensity": FinalLayerTable(
                 layer_name="Intensity",
-                var_key_columns=("protein",),
-                values=pl.DataFrame(schema={"protein": pl.String}),
+                values=pl.DataFrame(schema={"obs_0": pl.Float64, "obs_1": pl.Float64}),
+                semantic_roles=("abundance",),
             )
         },
         obsm={},
@@ -147,14 +151,15 @@ def _factor_result() -> ParsedLevels:
     level.uns["plan_json"] = _factor_plan()
     level.layers["Status"] = FinalLayerTable(
         layer_name="Status",
-        var_key_columns=("feature",),
-        values=pl.DataFrame(
-            {
-                "feature": ["F1", "F2", "F3", "F4"],
-                "obs_0": [1, 2, -1, -1],
-                "obs_1": [2, 1, 1, -1],
-            }
-        ),
+        values=(
+            pl.DataFrame(
+                {
+                    "feature": ["F1", "F2", "F3", "F4"],
+                    "obs_0": [1, 2, -1, -1],
+                    "obs_1": [2, 1, 1, -1],
+                }
+            )
+        ).drop(("feature",), strict=False),
         role=AuxiliaryLayerRole(),
         semantics=CategoricalLayerSemantics(
             categories=(("MS/MS", 1), ("MBR", 2)),
@@ -260,28 +265,23 @@ def test_multiple_levels_and_empty_axes_have_a_complete_json_shape(tmp_path: Pat
 
     assert [level["name"] for level in document["levels"]] == ["ion", "protein"]
     empty = document["levels"][1]
-    assert empty["dimensions"] == {"observations": 0, "variables": 0}
-    assert empty["observations"] == {
-        "total_count": 0,
-        "emitted_count": 0,
-        "truncated": False,
-        "items": [],
-    }
-    assert empty["layers"][0]["observation_summaries"]["items"] == []
+    assert empty["dimensions"] == {"observations": 2, "variables": 0}
+    assert empty["observations"] == document["levels"][0]["observations"]
+    assert len(empty["layers"][0]["observation_summaries"]["items"]) == 2
     assert empty["layers"][0]["statistics"]["finite_count"] == 0
     assert empty["layers"][0]["statistics"]["median"] is None
     assert document["root"]["apb"]["parse"]["nonfinite_extension"] is None
     json.dumps(document, allow_nan=False)
 
 
-def test_levels_follow_the_same_canonical_order_as_physical_mudata() -> None:
+def test_levels_preserve_authored_order_without_a_declared_hierarchy() -> None:
     parsed = _parsed()
     ion = parsed.levels["ion"]
     parsed.levels = {"protein": _empty_level(), "ion": ion}
 
     document: dict[str, Any] = project_result(parsed)
 
-    assert [level["name"] for level in document["levels"]] == ["ion", "protein"]
+    assert [level["name"] for level in document["levels"]] == ["protein", "ion"]
 
 
 def test_enum_axis_categories_and_nonfinite_descriptors_do_not_leak_into_json(
@@ -313,6 +313,7 @@ def test_known_embedded_json_containers_are_projected_recursively_without_mutati
     parsed = _parsed()
     rule_text = json.dumps(
         {
+            "hierarchy": "lfq",
             "schema_version": "0.3",
             "software_name": "Sage",
             "separator": "/",
@@ -343,12 +344,8 @@ def test_known_embedded_json_containers_are_projected_recursively_without_mutati
             "provenance": {"rule_json": rule_text},
         }
     )
-    aggregate_text = json.dumps(
-        [{"source_level": "ion", "target_level": "protein", "method": "mean"}]
-    )
     level = parsed.levels["ion"]
     level.uns.update({"rule_json": rule_text, "plan_json": plan_text})
-    level.metadata["aggregate"] = aggregate_text
     parsed.annotation_tables["proteins"].metadata.update(
         {
             "rule_json": "{not valid JSON",
@@ -361,6 +358,7 @@ def test_known_embedded_json_containers_are_projected_recursively_without_mutati
 
     projected_level = document["levels"][0]
     assert projected_level["apb"]["parse"]["rule_json"] == {
+        "hierarchy": "lfq",
         "schema_version": "0.3",
         "software_name": "Sage",
         "separator": "/",
@@ -388,6 +386,7 @@ def test_known_embedded_json_containers_are_projected_recursively_without_mutati
         },
         "provenance": {
             "rule_json": {
+                "hierarchy": "lfq",
                 "schema_version": "0.3",
                 "software_name": "Sage",
                 "separator": "/",
@@ -397,16 +396,12 @@ def test_known_embedded_json_containers_are_projected_recursively_without_mutati
         },
     }
     assert document["root"]["apb"]["parse"] == {"produced_by": "apb2"}
-    assert projected_level["apb"]["aggregate"] == [
-        {"source_level": "ion", "target_level": "protein", "method": "mean"}
-    ]
     projected_annotation = document["annotation_tables"][0]["metadata"]
     assert projected_annotation["rule_json"] == "{not valid JSON"
     assert projected_annotation["plan_json"] == "42"
     assert projected_annotation["note"] == '{"looks":"like JSON"}'
     assert level.uns["rule_json"] == rule_text
     assert level.uns["plan_json"] == plan_text
-    assert level.metadata["aggregate"] == aggregate_text
 
 
 def test_sidecar_publication_replaces_atomically_and_preserves_artifact(tmp_path: Path) -> None:
@@ -610,13 +605,17 @@ def test_observation_identifiers_and_layer_summaries_share_one_fixed_cap(
         layers={
             "Intensity": FinalLayerTable(
                 layer_name="Intensity",
-                var_key_columns=("feature",),
-                values=pl.DataFrame(
-                    {
-                        "feature": ["F1"],
-                        **{f"obs_{index}": [float(index)] for index in range(observation_count)},
-                    }
-                ),
+                values=(
+                    pl.DataFrame(
+                        {
+                            "feature": ["F1"],
+                            **{
+                                f"obs_{index}": [float(index)] for index in range(observation_count)
+                            },
+                        }
+                    )
+                ).drop(("feature",), strict=False),
+                semantic_roles=("abundance",),
             )
         },
         obsm={},

@@ -1,4 +1,5 @@
 {
+  "hierarchy": "lfq",
   "schema_version": "0.8",
   "file_version": "4",
   "software_name": "DIA-NN",
@@ -80,6 +81,9 @@
                 "source": "Ms1.Normalised",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               },
               {
@@ -87,6 +91,9 @@
                 "source": "Precursor.Normalised",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               },
               {
@@ -94,6 +101,9 @@
                 "source": "Precursor.Quantity",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               },
               {
@@ -101,11 +111,22 @@
                 "source": "Ms1.Area",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               },
               {
                 "name": "Q_Value",
                 "source": "Q.Value"
+              },
+              {
+                "name": "Lib_Q_Value",
+                "source": "Lib.Q.Value"
+              },
+              {
+                "name": "Global_Q_Value",
+                "source": "Global.Q.Value"
               },
               {
                 "name": "PEP",
@@ -213,6 +234,9 @@
                 "source": "PG.MaxLFQ",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               },
               {
@@ -220,6 +244,9 @@
                 "source": "Genes.MaxLFQ",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               },
               {

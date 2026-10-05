@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from apb2.api import ParseRuleCompiler
-from apb2.cli import ConvertCliOptions, convert
+from apb2.cli.app import ConvertCliOptions, convert
 from apb2.parserV2.detect_document import RuleUnavailableError
 from parserV2.fixtures import committed_sample
 

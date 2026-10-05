@@ -13,11 +13,13 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from apb2.parserV2.parse_quant.data.errors import ConversionError
+
 _OBSERVATION_PREFIX = "obs"
 _SEPARATOR = "_"
 
 
-class StorageLabelError(ValueError):
+class StorageLabelError(ConversionError):
     """No positional label prefix is free of the key columns it must sit beside."""
 
 

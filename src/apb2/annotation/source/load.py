@@ -26,8 +26,26 @@ def load_annotation_file(path: Path, /) -> LoadedAnnotationSource:
     suffix = source.suffix.lower()
     try:
         if suffix in _DELIMITERS:
-            frame = pl.read_csv(source, separator=_DELIMITERS[suffix])
-            loaded = LoadedAnnotationSource(frame=frame, origin=AnnotationFileOrigin(source))
+            separator = _DELIMITERS[suffix]
+            frame = pl.read_csv(source, separator=separator)
+            header_row = pl.read_csv(
+                source,
+                separator=separator,
+                has_header=False,
+                n_rows=1,
+                infer_schema=False,
+            )
+            headers = tuple("" if value is None else str(value) for value in header_row.row(0))
+            if len(headers) != frame.width:
+                raise AnnotationError(
+                    f"annotation header has {len(headers)} fields but {frame.width} columns "
+                    f"were decoded: {source}"
+                )
+            loaded = LoadedAnnotationSource(
+                frame=frame,
+                origin=AnnotationFileOrigin(source),
+                headers=headers,
+            )
         else:
             raise AnnotationError(
                 f"unsupported annotation suffix {suffix or '<none>'!r}; expected .csv or .tsv"
@@ -46,4 +64,5 @@ def load_annotation_frame(frame: pl.DataFrame, /) -> LoadedAnnotationSource:
     return LoadedAnnotationSource(
         frame=frame,
         origin=IN_MEMORY_ANNOTATION,
+        headers=tuple(frame.columns),
     )

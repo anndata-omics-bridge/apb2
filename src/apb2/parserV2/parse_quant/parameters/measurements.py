@@ -26,6 +26,7 @@ class PlainNumericLayerDeclaration:
 
     missing_values: tuple[float, ...]
     type: NumericType = "number"
+    missing_at_or_below: float | None = None
     kind: Literal["plain_numeric"] = field(default="plain_numeric", init=False)
 
 
@@ -36,6 +37,7 @@ class RegexNumericLayerDeclaration:
     missing_values: tuple[float, ...]
     pattern: str
     type: NumericType = "number"
+    missing_at_or_below: float | None = None
     kind: Literal["regex_numeric"] = field(default="regex_numeric", init=False)
 
 

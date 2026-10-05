@@ -11,7 +11,7 @@ import polars as pl
 import pytest
 from pydantic import ValidationError
 
-from apb2.command.conversion import (
+from apb2.cli.conversion import (
     ConversionError,
     convert_all_from_rule_config,
     convert_from_rule_config,
@@ -52,6 +52,7 @@ def _table(level: str, filename: str) -> dict[str, Any]:
 
 def _payload() -> dict[str, Any]:
     return {
+        "hierarchy": "lfq",
         "schema_version": "0.8",
         "file_version": "1",
         "software_name": "Synthetic",
@@ -79,7 +80,7 @@ def test_table_local_shapes_and_merges_cannot_leak() -> None:
     table["base"]["measurements"]["layers"][0]["source"] = "^Intensity (?P<sample>.+)$"
     document = make_rule_document(Path("rules.json"), payload)
 
-    assert document.levels == ("ion", "protein")
+    assert document.levels == ("protein", "ion")
     assert document.table_levels == (("protein",), ("ion",))
     assert document.declared("ion").input.file_name == "ions.tsv"
     assert document.declared("ion").declaration.shape == "long"

@@ -18,14 +18,13 @@ from mudata import MuData
 from scipy import sparse
 
 from apb2.parserV2.parse_quant.data.parsed import (
-    LEVEL_ORDER,
     AnnotationTable,
     FeatureRelation,
     JsonValue,
+    LevelHierarchy,
     ParsedLevel,
     ParsedLevelName,
     ParsedLevels,
-    QuantitativeLayerSemantics,
 )
 from apb2.parserV2.parse_quant.io.errors import InvalidResultError
 from apb2.parserV2.parse_quant.io.layer_representation import represent_semantics
@@ -76,12 +75,10 @@ class AnnDataWriter:
         shared_metadata: Mapping[str, JsonValue],
         *,
         include_shared: bool = False,
+        hierarchy: LevelHierarchy | None = None,
     ) -> AnnData:
         validate_parsed_level(level_name, parsed)
-        arrays = {
-            name: layer.values.select(pl.exclude(layer.var_key_columns)).to_numpy().T
-            for name, layer in parsed.layers.items()
-        }
+        arrays = {name: layer.values.to_numpy().T for name, layer in parsed.layers.items()}
         layer_names = safe_names(parsed.layers, prefix="layer", suffix="")
         slot_names = {
             "obsm": safe_names(parsed.obsm, prefix="obsm", suffix=""),
@@ -110,7 +107,9 @@ class AnnDataWriter:
                 layer_names,
                 slot_names,
             ),
-            shared=(shared_scope(shared_uns, shared_metadata) if include_shared else None),
+            shared=(
+                shared_scope(shared_uns, shared_metadata, hierarchy) if include_shared else None
+            ),
         )
         return adata
 
@@ -262,13 +261,11 @@ class MuDataWriter:
             raise MuDataLevelError("no parsed levels supplied")
         modalities: dict[str, AnnData] = {}
         writer = AnnDataWriter()
-        for level in LEVEL_ORDER:
-            if level not in parsed.levels:
-                continue
+        for level in parsed.levels:
             adata = writer.to_anndata_for_level(
                 parsed.levels[level], level, parsed.uns, parsed.metadata
             )
-            prefix = LEVEL_VAR_PREFIXES[level]
+            prefix = LEVEL_VAR_PREFIXES.get(level, f"{level}:")
             adata.var_names = [f"{prefix}{name}" for name in adata.var_names]
             modalities[level] = adata
 
@@ -332,6 +329,7 @@ class H5adWriter:
                 parsed.uns,
                 parsed.metadata,
                 include_shared=True,
+                hierarchy=parsed.hierarchy,
             ).write_h5ad,
         )
 
@@ -344,29 +342,6 @@ class H5muWriter:
     def write(self, parsed: ParsedLevels, target: Path, /) -> None:
         validate_parsed_levels(parsed)
         MuDataWriter().write(parsed, target)
-
-
-def quantitative_layer_values(parsed: ParsedLevel, layer_name: str, /) -> pl.DataFrame:
-    """Return one canonical quantitative value block directly.
-
-    Args:
-        parsed: One validated APB2 level.
-        layer_name: The logical layer to project.
-
-    Returns:
-        A numeric value block with one row per variable and one column per
-        observation. Variable-key columns are not included.
-
-    Raises:
-        InvalidResultError: The layer is absent or categorical.
-    """
-    try:
-        layer = parsed.layers[layer_name]
-    except KeyError as error:
-        raise InvalidResultError(f"level has no layer {layer_name!r}") from error
-    if not isinstance(layer.semantics, QuantitativeLayerSemantics):
-        raise InvalidResultError(f"layer {layer_name!r} is categorical, not quantitative")
-    return layer.values.select(pl.exclude(layer.var_key_columns))
 
 
 def represent_layer_values(
@@ -383,14 +358,14 @@ def represent_layer_values(
         raise InvalidResultError(f"level has no layer {layer_name!r}") from error
     return represent_semantics(
         layer.semantics,
-        layer.values.select(pl.exclude(layer.var_key_columns)),
+        layer.values,
         observation_limit=observation_limit,
     )
 
 
 def _level_name(parsed: ParsedLevel) -> ParsedLevelName:
     value = parsed.uns.get("quantification_level")
-    if not isinstance(value, str) or value not in LEVEL_ORDER:
+    if not isinstance(value, str):
         raise InvalidResultError(
             "an AnnData write requires level provenance in uns['quantification_level']"
         )
@@ -414,7 +389,7 @@ def _level_storage_metadata(
                     if name == parsed.primary_layer_name
                     else {"physical_name": layer_names[name]}
                 ),
-                "value_columns": list(layer.values.columns[len(layer.var_key_columns) :]),
+                "value_columns": list(layer.values.columns),
                 "role": layer.role.persisted_name(),
                 "semantics": layer_semantics_metadata(layer.semantics),
             }

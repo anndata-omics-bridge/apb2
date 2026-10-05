@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from loguru import logger
 
 from apb2.annotation.application.policies import (
     AnnotationApplication,
-    KeepUnmatchedAnnotation,
     record_annotation_provenance,
 )
 from apb2.annotation.data.model import (
@@ -26,17 +25,7 @@ from apb2.annotation.matching.core import (
 )
 from apb2.parserV2.parse_quant.data.parsed import ParsedLevels
 
-
-def _default_key_pattern() -> re.Pattern[str]:
-    return re.compile(r"^channel|^Relative|^raw|^file|^run", re.IGNORECASE)
-
-
-@dataclass(frozen=True, slots=True)
-class ProlfquappAnnotationParameters:
-    """User-selected prolfquapp interpretation and application behavior."""
-
-    application: AnnotationApplication = field(default_factory=KeepUnmatchedAnnotation)
-    key_pattern: re.Pattern[str] = field(default_factory=_default_key_pattern)
+_KEY_PATTERN = re.compile(r"^channel|^Relative|^raw|^file|^run", re.IGNORECASE)
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,22 +33,22 @@ class ProlfquappAnnotationParser:
     """A prolfquapp parser bound to one already loaded source."""
 
     source: LoadedAnnotationSource
-    parameters: ProlfquappAnnotationParameters
+    application: AnnotationApplication
 
     def parse(self, parsed: ParsedLevels, /) -> ProlfquappAnnotation:
         """Validate, match, and construct only an applicable dataset annotation."""
-        table = _table(self.source, self.parameters)
+        table = _table(self.source)
         matches = match_annotation(
             table,
             parsed,
             {name: annotation_matching_for(level) for name, level in parsed.levels.items()},
         )
-        self.parameters.application.validate(matches)
+        self.application.validate(matches)
         return ProlfquappAnnotation(
             table=table,
             parsed=parsed,
             matches=matches,
-            application=self.parameters.application,
+            application=self.application,
         )
 
 
@@ -102,24 +91,17 @@ class ProlfquappAnnotation:
         )
 
 
-def prolfquapp_signature(
-    source: LoadedAnnotationSource,
-    parameters: ProlfquappAnnotationParameters,
-    /,
-) -> bool:
+def prolfquapp_signature(source: LoadedAnnotationSource, /) -> bool:
     """Return whether the source envelope and columns identify prolfquapp input."""
-    return bool(_primary_candidates(source, parameters))
+    return bool(_primary_candidates(source))
 
 
-def _table(
-    source: LoadedAnnotationSource,
-    parameters: ProlfquappAnnotationParameters,
-) -> AnnotationTable:
-    candidates = _primary_candidates(source, parameters)
+def _table(source: LoadedAnnotationSource) -> AnnotationTable:
+    candidates = _primary_candidates(source)
     if len(candidates) != 1:
         raise AnnotationError(
             "prolfquapp annotation requires exactly one identifier column matching "
-            f"{parameters.key_pattern.pattern!r}; candidates={candidates}"
+            f"{_KEY_PATTERN.pattern!r}; candidates={candidates}"
         )
     primary = candidates[0]
     aliases = tuple(
@@ -133,14 +115,11 @@ def _table(
     )
 
 
-def _primary_candidates(
-    source: LoadedAnnotationSource,
-    parameters: ProlfquappAnnotationParameters,
-) -> tuple[str, ...]:
+def _primary_candidates(source: LoadedAnnotationSource) -> tuple[str, ...]:
     return tuple(
         name
         for name in source.frame.columns
-        if parameters.key_pattern.search(name)
+        if _KEY_PATTERN.search(name)
         and not name.endswith("_alias")
         and not name.endswith("_aliases")
     )

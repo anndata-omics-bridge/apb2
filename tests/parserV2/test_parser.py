@@ -151,7 +151,11 @@ def parser_for(
             duplicates=duplicate_policy_for(duplicates),
             layer_parsers={name: numeric_layer_parser(name) for name, _source in layers},
             layer_validator=layer_validator(layers[0][0]),
-            provenance={"software_name": "Synthetic", "quantification_level": "ion"},
+            provenance={
+                "hierarchy": "lfq",
+                "software_name": "Synthetic",
+                "quantification_level": "ion",
+            },
             read=LevelReadPlan((), frozenset(), frozenset()),
         ),
         writer=writer or Writer(),
@@ -329,10 +333,10 @@ def test_a_simple_parse_produces_both_axes_and_one_aligned_layer() -> None:
 
     assert parsed.obs.frame.to_dicts() == [{"Run": "A"}, {"Run": "B"}]
     assert parsed.var.frame.to_dicts() == [{"Feature": "F1"}, {"Feature": "F2"}]
-    assert parsed.layers["Intensity"].var_key_columns == ("Feature",)
+    assert parsed.layers["Intensity"].values.width == parsed.obs.frame.height
     assert parsed.layers["Intensity"].values.to_dicts() == [
-        {"Feature": "F1", "obs_0": 1.0, "obs_1": 3.0},
-        {"Feature": "F2", "obs_0": 2.0, "obs_1": 4.0},
+        {"obs_0": 1.0, "obs_1": 3.0},
+        {"obs_0": 2.0, "obs_1": 4.0},
     ]
 
 
@@ -368,10 +372,7 @@ def test_a_computed_key_is_materialized_before_identity_is_checked() -> None:
     assert parsed.var.key_columns == ("ProForma_ion",)
     assert parsed.var.frame.columns == ["ProForma_ion", "Sequence", "Charge", "Gene"]
     assert parsed.var.frame.get_column("ProForma_ion").to_list() == ["PEP/2", "OTH/3"]
-    assert parsed.layers["Intensity"].values.get_column("ProForma_ion").to_list() == [
-        "PEP/2",
-        "OTH/3",
-    ]
+    assert parsed.layers["Intensity"].values.rows() == [(1.0,), (2.0,)]
 
 
 def test_two_raw_identities_collapsing_into_one_final_key_are_reported() -> None:
@@ -500,7 +501,7 @@ def test_a_repeated_raw_key_reaches_the_duplicate_policy_instead() -> None:
         var=SIMPLE_VAR,
         duplicates="keep_first",
     ).parse()
-    assert kept.layers["Intensity"].values.to_dicts() == [{"Feature": "F1", "obs_0": 1.0}]
+    assert kept.layers["Intensity"].values.to_dicts() == [{"obs_0": 1.0}]
 
 
 def test_a_nan_key_is_the_same_absence_as_a_null_key() -> None:
@@ -536,7 +537,7 @@ def test_a_nan_key_is_the_same_absence_as_a_null_key() -> None:
     ).parse()
 
     assert parsed.var.frame.get_column("Mass").to_list() == [1.5]
-    assert parsed.layers["Intensity"].values.to_dicts() == [{"Mass": 1.5, "obs_0": 1.0}]
+    assert parsed.layers["Intensity"].values.to_dicts() == [{"obs_0": 1.0}]
 
 
 class _LenientNumber:
@@ -576,9 +577,7 @@ def test_an_incomplete_final_key_removes_its_axis_row_and_its_layer_cells() -> N
     ).parse()
 
     assert parsed.var.frame.to_dicts() == [{"Feature": "F1"}]
-    assert parsed.layers["Intensity"].values.to_dicts() == [
-        {"Feature": "F1", "obs_0": 1.0, "obs_1": 3.0}
-    ]
+    assert parsed.layers["Intensity"].values.to_dicts() == [{"obs_0": 1.0, "obs_1": 3.0}]
 
 
 class _BlankToNull:
@@ -614,10 +613,8 @@ def test_an_observation_whose_key_is_incomplete_loses_its_value_column() -> None
     ).parse()
 
     assert parsed.obs.frame.to_dicts() == [{"Run": "A"}, {"Run": "B"}]
-    assert parsed.layers["Intensity"].values.columns == ["Feature", "obs_0", "obs_1"]
-    assert parsed.layers["Intensity"].values.to_dicts() == [
-        {"Feature": "F1", "obs_0": 1.0, "obs_1": 3.0}
-    ]
+    assert parsed.layers["Intensity"].values.rows() == [(1.0, 3.0)]
+    assert parsed.layers["Intensity"].values.to_dicts() == [{"obs_0": 1.0, "obs_1": 3.0}]
 
 
 # ---------------------------------------------------------------------- layers and results
@@ -643,8 +640,8 @@ def test_a_final_variable_a_layer_never_measured_becomes_a_row_of_nulls() -> Non
 
     assert list(parsed.layers) == ["Intensity", "Score"]
     assert parsed.layers["Score"].values.to_dicts() == [
-        {"Feature": "F1", "obs_0": 0.5},
-        {"Feature": "F2", "obs_0": None},
+        {"obs_0": 0.5},
+        {"obs_0": None},
     ]
 
 
@@ -679,7 +676,7 @@ def test_a_composite_observation_identity_stays_in_the_axis_not_in_a_column_name
         {"Run": "A", "Fraction": "2"},
     ]
     # The value columns are positions, so nothing concatenated "A" and "1" into a name.
-    assert parsed.layers["Intensity"].values.columns == ["Feature", "obs_0", "obs_1"]
+    assert parsed.layers["Intensity"].values.rows() == [(1.0, 2.0)]
 
 
 def test_a_parsed_level_is_a_direct_composition_and_keeps_no_key_map() -> None:
@@ -703,7 +700,10 @@ def test_a_parsed_level_is_a_direct_composition_and_keeps_no_key_map() -> None:
         "varp",
         "metadata",
     }
-    assert parsed.uns == {"software_name": "Synthetic", "quantification_level": "ion"}
+    assert parsed.uns == {
+        "software_name": "Synthetic",
+        "quantification_level": "ion",
+    }
     assert isinstance(parsed.obs.frame, pl.DataFrame)
     assert isinstance(parsed.layers["Intensity"].values, pl.DataFrame)
 

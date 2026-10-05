@@ -10,8 +10,9 @@ from typing import Annotated, Literal
 from cyclopts import App, Parameter
 from loguru import logger
 
-from apb2 import annotation_facade
-from apb2.command import conversion
+from apb2.api import ConversionError, QuantificationLevel, ResultIOError
+from apb2.cli import annotation as annotation_workflow
+from apb2.cli import conversion
 
 app = App(name="apb2", help="Rules-driven vendor-result conversion", help_on_error=True)
 
@@ -44,7 +45,7 @@ _MULTI_LEVEL_SUFFIX = {"hdf5": ".h5mu", "parquet": ".parquet", "duckdb": ".duckd
 @app.command
 def convert(
     data: Path,
-    level: conversion.QuantificationLevel | None = None,
+    level: QuantificationLevel | None = None,
     options: Annotated[ConvertCliOptions, Parameter(name="*")] = DEFAULT_CONVERT_CLI_OPTIONS,
 ) -> int:
     """Convert one vendor table or result directory.
@@ -132,7 +133,7 @@ def convert(
             )
         if options.timings_output is not None:
             conversion.write_conversion_timings(result.timings, options.timings_output)
-    except (conversion.ConversionError, OSError) as error:
+    except (ConversionError, ResultIOError, OSError) as error:
         logger.error(str(error))
         return 1
     _log_result(result)
@@ -144,7 +145,7 @@ def reformat(source: Path, target: Path) -> int:
     """Convert one APB2-authored result between h5ad, h5mu, Parquet, and DuckDB."""
     try:
         conversion.reformat_result(source, target)
-    except (conversion.ReformatError, OSError) as error:
+    except (ResultIOError, OSError) as error:
         logger.error(str(error))
         return 1
     return 0
@@ -155,7 +156,7 @@ def annotate(
     source: Path,
     annotation: Path,
     target: Path,
-    unmatched: annotation_facade.UnmatchedObservations | None = None,
+    unmatched: annotation_workflow.UnmatchedObservations | None = None,
     include: str | None = None,
 ) -> int:
     """Attach a delimited sample table to an APB2 result.
@@ -164,7 +165,7 @@ def annotate(
     drop mode by one Boolean annotation field.
     """
     try:
-        result = annotation_facade.annotate_result(
+        result = annotation_workflow.annotate_result(
             source,
             annotation,
             target,
@@ -172,7 +173,7 @@ def annotate(
             include=include,
         )
     except (
-        annotation_facade.AnnotationWorkflowError,
+        annotation_workflow.AnnotationWorkflowError,
         OSError,
     ) as error:
         logger.error(str(error))

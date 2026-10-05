@@ -11,7 +11,6 @@ from pydantic import Field, model_validator
 
 from apb2.parserV2.vendor_parse_rules.schema.annotation import SampleAnnotation
 from apb2.parserV2.vendor_parse_rules.schema.base import (
-    LEVELS,
     ModelBase,
     QuantificationLevel,
     SchemaVersion,
@@ -106,6 +105,7 @@ class RuleDocument(ModelBase):
     file_version: str
     software_name: str
     software_version_pattern: str
+    hierarchy: str
     parameter_file: Literal["required", "none"] = "required"
     sample_annotation: SampleAnnotation | None = None
     tables: list[_RuleTableSchema] = Field(min_length=1)
@@ -119,8 +119,7 @@ class RuleDocument(ModelBase):
 
     @property
     def levels(self) -> tuple[QuantificationLevel, ...]:
-        declared = {level for table in self.tables for level in table.levels}
-        return tuple(level for level in LEVELS if level in declared)
+        return tuple(dict.fromkeys(level for table in self.tables for level in table.levels))
 
     @property
     def table_levels(self) -> tuple[tuple[QuantificationLevel, ...], ...]:
@@ -196,6 +195,7 @@ class RuleDocument(ModelBase):
             "software_name": self.software_name,
             "software_version_pattern": self.software_version_pattern,
             "quantification_level": level,
+            "hierarchy": self.hierarchy,
             "shape": table.input.shape,
             **(
                 {"sample_annotation": self.sample_annotation.model_dump(mode="json")}

@@ -1,4 +1,5 @@
 {
+  "hierarchy": "lfq",
   "schema_version": "0.8",
   "file_version": "2",
   "software_name": "PEAKS",
@@ -76,28 +77,29 @@
           },
           "measurements": {
             "primary_layer": "Normalized_Area",
+            "sample_layer": "Sample_Mz",
             "layers": [
               {
                 "name": "Normalized_Area",
-                "source": "^(?P<sample>LFQ_.+?)(?:\\.raw|_raw)? Normalized Area$",
+                "source": "^(?P<sample>.+?)(?:\\.raw|_raw)? Normalized Area$",
                 "roles": [
                   "abundance"
                 ],
                 "missing_values": [
-                  0
+                  "<=0"
                 ]
               },
               {
                 "name": "Sample_Mz",
-                "source": "^(?P<sample>LFQ_.+?)(?:\\.raw|_raw)? m/z$"
+                "source": "^(?P<sample>.+?)(?:\\.raw|_raw)? m/z$"
               },
               {
                 "name": "Sample_RT_Mean",
-                "source": "^(?P<sample>LFQ_.+?)(?:\\.raw|_raw)? RT mean$"
+                "source": "^(?P<sample>.+?)(?:\\.raw|_raw)? RT mean$"
               },
               {
                 "name": "AScore",
-                "source": "^(?P<sample>LFQ_.+?)(?:\\.raw|_raw)? AScore$",
+                "source": "^(?P<sample>.+?)(?:\\.raw|_raw)? AScore$",
                 "value_pattern": {
                   "mode": "regex",
                   "pattern": ":(-?\\d+(?:\\.\\d+)?)(?:;|$)"

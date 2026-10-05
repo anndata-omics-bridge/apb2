@@ -177,6 +177,8 @@ P2	20	21
 
 The expression matches both measurement headers and captures `a` and `b` as observation keys. Long and wide inputs produce the same observations-by-variables result contract.
 
+By default the primary layer's captures are the sample names, and every other layer keeps only columns whose capture is one of them. When the primary layer's header shape is shared by non-sample columns, `measurements.sample_layer` names the layer whose captures are the sample names instead. PEAKS sets it to `Sample_Mz`: only runs have `<run> m/z` columns, so group averages such as `A Normalized Area` are not samples. The sample layer is required, and long rules reject the field because their observations come from `columns.obs`.
+
 ## Column entries
 
 `columns.obs` and `columns.var` are ordered lists. Every physical column entry carries its own facts:
@@ -272,11 +274,13 @@ Numeric layers default to logical `"type": "number"`. Declare `"type": "integer"
 "measurements": {
   "primary_layer": "Intensity",
   "layers": [
-    {"name": "Intensity", "source": "Intensity", "roles": ["abundance"]},
-    {"name": "LFQ_Intensity", "source": "LFQ intensity", "roles": ["abundance"]}
+    {"name": "Intensity", "source": "Intensity", "roles": ["abundance"], "missing_values": ["<=0"]},
+    {"name": "LFQ_Intensity", "source": "LFQ intensity", "roles": ["abundance"], "missing_values": ["<=0"]}
   ]
 }
 ```
+
+`missing_values` lists what a vendor writes for "not measured": exact numbers such as `0`, and at most one `<=` threshold such as `"<=0"`, which makes every number at or below it missing. Both apply before duplicate resolution and in the final layer. Every packaged `abundance` layer declares `"<=0"`, because a linear abundance is positive by definition and log-scale consumers cannot use zero or negative values; a package test enforces this. Leave it off layers where zero or negative values are meaningful, such as scores, mass errors, or retention-time deltas.
 
 Conversion provenance projects var roles as `column_roles`, mapping each role to one logical name. It projects layer roles as `layer_roles`, mapping each role to the ordered retained layer names. Optional layers absent from the bound source are omitted from `layer_roles`.
 

@@ -18,7 +18,6 @@ from typing import cast
 import polars as pl
 
 from apb2.parserV2.parse_quant.data.parsed import (
-    LEVEL_ORDER,
     AnnotationTable,
     FeatureRelation,
     JsonScalar,
@@ -43,14 +42,13 @@ FORMAT_VERSION = "4"
 SIDECAR_SUFFIX = ".apb.json"
 _EMBEDDED_JSON_FIELDS = frozenset(
     {
-        "aggregate",
         "plan_json",
         "rule_json",
     }
 )
 
 
-def sidecar_path(artifact: Path, /) -> Path:
+def sidecar_path(artifact: Path) -> Path:
     """Return the representation path adjacent to one scientific artifact."""
     return artifact.with_name(f"{artifact.name}{SIDECAR_SUFFIX}")
 
@@ -71,7 +69,7 @@ def project_result(
     root = (
         collection_shared_scope(parsed)
         if physical_format == ".h5mu"
-        else shared_scope(parsed.uns, parsed.metadata)
+        else shared_scope(parsed.uns, parsed.metadata, parsed.hierarchy)
     )
     scopes = {name: level_scope(level) for name, level in parsed.levels.items()}
     root_document: JsonValue = {"apb": _portable(root)}
@@ -86,11 +84,7 @@ def project_result(
         "format_version": FORMAT_VERSION,
         "artifact": _artifact_descriptor(artifact),
         "root": root_document,
-        "levels": [
-            _level(name, parsed.levels[name], scopes[name])
-            for name in LEVEL_ORDER
-            if name in parsed.levels
-        ],
+        "levels": [_level(name, parsed.levels[name], scopes[name]) for name in parsed.levels],
         "annotation_tables": [
             _annotation_table(name, table) for name, table in parsed.annotation_tables.items()
         ],

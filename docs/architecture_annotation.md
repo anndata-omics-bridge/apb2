@@ -33,11 +33,12 @@ level with zero matches because such an annotation is not an annotation for that
 
 ```text
 apb2/
-├── annotation_facade.py       generic result I/O + orchestration
-├── annotation_extension.py    public external-interpreter capabilities
+├── api.py                     AnnotationCompiler, AnnotationError, SdrfSource
+├── cli/annotation.py          `apb2 annotate`: result I/O + orchestration
 └── annotation/
     ├── compiler.py            generic delimited-source composition
     ├── prolfquapp.py           source-bound parser + bound annotation
+    ├── sdrf.py                 SDRF source view, source-bound parser + bound annotation
     ├── source/                 CSV/TSV decoding
     ├── application/            retention and selection behavior
     ├── matching/               exact/fuzzy matching
@@ -46,12 +47,10 @@ apb2/
 
 Modules directly in `annotation/` compose children. The child packages import only the innermost
 data package. Annotation computation depends on the `ParsedLevels` value model but never on result
-I/O, Pydantic rule documents, pandas, AnnData, or MuData. `annotation_facade.py` is the outer adapter
+I/O, Pydantic rule documents, pandas, AnnData, or MuData. `cli/annotation.py` is the outer adapter
 that reads and writes physical results.
 
-External packages explicitly compose `make_annotation_table`, matching, an application policy,
-and `record_annotation_provenance` through `apb2.annotation_extension`. APB2 does not discover or
-branch on convention names. `apb-proteobench` is the first external interpreter.
+External packages use `apb2.api.AnnotationCompiler` like any other caller; apb-proteobench compiles its module samples as a prolfquapp table with `unmatched="error"`. `SdrfSource.read(path)` gives them SDRF header lookup and data-file basenames without a second SDRF reader.
 
 The optional rule declaration `sample_annotation.matching` is a Pydantic storage schema. Parser V2
 projects its exact/fuzzy mode and optional key normalization into JSON-compatible level provenance.

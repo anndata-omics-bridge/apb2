@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "apb2"
-version = "0.1.0"
+version = "0.1.1"
 description = "Convert proteomics software output to AnnData (rules-driven parser, second generation)"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -12,6 +12,16 @@ license = "MIT"
 license-files = ["LICENSE"]
 authors = [
     { name = "Witold Wolski", email = "wew@fgcz.ethz.ch" },
+]
+keywords = ["proteomics", "mass spectrometry", "anndata", "mudata", "quantification"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Typing :: Typed",
 ]
 dependencies = [
     "anndata>=0.11",
@@ -36,7 +46,7 @@ Documentation = "https://anndata-omics-bridge.github.io/apb2/"
 Repository = "https://github.com/anndata-omics-bridge/apb2"
 
 [project.scripts]
-apb2 = "apb2.cli:main"
+apb2 = "apb2.cli.app:main"
 
 [dependency-groups]
 dev = [
@@ -46,10 +56,10 @@ dev = [
     "import-linter>=2,<3",
     "pandas-stubs>=3.0.5.260730",
     "pre-commit>=4,<5",
-    "pyright>=1.1.400,<2",
+    "pyright==1.1.414",
     "pytest>=9,<10",
     "pytest-cov>=7,<8",
-    "ruff>=0.15,<1",
+    "ruff==0.16.10",
     "twine>=6,<7",
 ]
 docs = [
@@ -86,7 +96,7 @@ max-complexity = 10
 docstring-code-format = true
 
 [tool.pyright]
-include = ["src", "tests"]
+include = ["src", "tests", "scripts"]
 venvPath = "."
 venv = ".venv"
 pythonVersion = "3.13"
@@ -113,8 +123,9 @@ xfail_strict = true
 
 [tool.deptry]
 known_first_party = ["apb2"]
-# documentation/ holds executable benchmark tooling, not importable package code.
-exclude = ["documentation", "tests", "venv", "[.]venv", "[.]direnv", "[.]git", "setup[.]py"]
+# documentation/ and scripts/ hold executable tooling, not importable package code; .claude/
+# holds agent worktrees, each a full checkout.
+exclude = ["documentation", "scripts", "tests", "venv", "[.]venv", "[.]direnv", "[.]git", "[.]claude", "setup[.]py"]
 
 [tool.deptry.per_rule_ignores]
 # DuckDB asks Polars for Arrow record batches when a DataFrame is registered. Polars imports

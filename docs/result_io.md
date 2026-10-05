@@ -22,54 +22,24 @@ apb2 reformat results.duckdb results.h5mu
 The command performs storage conversion only. It does not load rules, read vendor parameter files,
 parse vendor tables, annotate FASTA data, or run protein inference.
 
-## Explicit Python API
+## Python API
 
-Format selection is explicit in the primary API:
-
-```python
-from pathlib import Path
-
-from apb2.parserV2.parse_quant.io.formats import ResultFormat, reader_for, writer_for
-
-source = Path("results.parquet")
-target = Path("results.duckdb")
-
-parsed = reader_for(ResultFormat.PARQUET).read(source)
-writer_for(ResultFormat.DUCKDB).write(parsed, target)
-```
-
-`read()` returns `ParsedLevels`. `write()` persists the supplied value and returns `None`.
-
-Low-level adapters write only their physical format. The path-inferred public writer below composes physical persistence with the compact JSON representation sidecar.
-
-## Path-inferred conveniences
-
-Use the convenience functions when the paths already carry the format:
+The suffix selects the format:
 
 ```python
 from pathlib import Path
 
-from apb2.result_facade import read_parsed_levels, write_parsed_levels
+from apb2.api import read_parsed_levels, write_parsed_levels
 
 parsed = read_parsed_levels(Path("results.duckdb"))
 write_parsed_levels(parsed, Path("results.h5mu"))
 ```
 
-The programmatic equivalent of the CLI command is:
-
-```python
-from pathlib import Path
-
-from apb2.parserV2.parse_quant.io.formats import reformat
-
-reformat(Path("results.parquet"), Path("results.duckdb"))
-```
-
-Both `write_parsed_levels()` and `reformat()` automatically publish an adjacent `<artifact>.apb.json` document after the scientific artifact succeeds. The `apb2 convert` and `apb2 annotate` workflows use the same sidecar lifecycle.
+`read_parsed_levels()` returns `ParsedLevels`. `write_parsed_levels()` persists the supplied value, then publishes an adjacent `<artifact>.apb.json` document once the scientific artifact succeeds; `apb2.api.sidecar_path(artifact)` names it. The programmatic equivalent of the CLI command is `write_parsed_levels(read_parsed_levels(source), target)`. The `apb2 convert` and `apb2 annotate` workflows use the same sidecar lifecycle.
 
 ## Compact JSON representation
 
-The sidecar is a versioned scientific view with `format: "apb2-result-representation"` and `format_version: "4"`. It is derived from `ParsedLevels`, so h5ad, h5mu, Parquet, and DuckDB results expose the same semantic sections. `project_result(parsed)` also produces the document before a physical artifact exists; its `artifact` member is then `null`.
+The sidecar is a versioned scientific view with `format: "apb2-result-representation"` and `format_version: "4"`. It is derived from `ParsedLevels`, so h5ad, h5mu, Parquet, and DuckDB results expose the same semantic sections. Projected before a physical artifact exists, its `artifact` member is `null`.
 
 It records the artifact basename, physical format and byte size; root and per-level tool metadata; axis schemas, key columns and null counts; structural layer roles, semantic column and layer roles, primary status and shapes; aligned-slot schemas; annotation-table schemas; and feature-relation structure. Collection formats expose `root.apb` and each level's `apb`. H5AD exposes `root: null` and its combined metadata once on the single level. Persistence and representation reuse the same projection helpers; there is no `shared` field. Optional layer `unit` and `scale` values come from `ParsedLevel.metadata["layer_descriptors"][<layer>]` when a producer records them.
 
@@ -77,7 +47,7 @@ Quantitative layers expose both logical `type` (`number` or `integer`) and physi
 
 The representation never contains matrix cells, complete observation or variable rows, distinct/category values, absolute filesystem paths in path-bearing provenance fields, or generated timestamps. At most 100 observation identities appear once in each level and quantitative summaries refer to them by index. Every bounded collection records total, emitted and truncated status. Absolute values stored under `path`, `paths`, `*_path`, or `*_paths` fields are reduced to their basename; slash-prefixed separators and patterns in other fields retain their exact meaning.
 
-Provenance containers that AnnData persistence stores as JSON text (`rule_json`, `plan_json`, and aggregation metadata) are projected back into JSON objects or arrays. Invalid and scalar JSON text remains text, and the scientific artifact's stored `.uns` and extension metadata are not changed. Typed vendor parameters are application inputs and are never embedded into parsed provenance.
+Provenance containers that AnnData persistence stores as JSON text (`rule_json` and `plan_json`) are projected back into JSON objects or arrays. Invalid and scalar JSON text remains text, and the scientific artifact's stored `.uns` and extension metadata are not changed. Typed vendor parameters are application inputs and are never embedded into parsed provenance.
 
 Sidecar publication invalidates any previous sidecar after the new scientific artifact succeeds, then uses a temporary file plus atomic replacement. If projection or publication fails, the producing call fails, the newly valid scientific artifact remains, and no stale sidecar can describe it.
 

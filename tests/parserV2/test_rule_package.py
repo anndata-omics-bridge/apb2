@@ -24,6 +24,7 @@ from apb2.parserV2.vendor_parse_rules.schema.base import (
     QuantificationLevel,
 )
 from apb2.parserV2.vendor_parse_rules.schema.fragments import ColumnLabeledFragments
+from apb2.parserV2.vendor_parse_rules.schema.hierarchy import HIERARCHIES
 from apb2.parserV2.vendor_parse_rules.schema.input import Input
 from apb2.parserV2.vendor_parse_rules.schema.measurements import (
     FactorLayer,
@@ -107,7 +108,7 @@ def test_entry_shaped_columns_project_roles_and_runtime_selections(tmp_path: Pat
         {
             "name": "feature",
             "source": "Feature",
-            "type": "integer",
+            "type": "string",
             "roles": ["protein_assignment", "fasta_accessions"],
         }
     ]
@@ -115,7 +116,7 @@ def test_entry_shaped_columns_project_roles_and_runtime_selections(tmp_path: Pat
     document = make_rule_document(tmp_path / "rules.json", payload)
     working = ParseRuleFacade(document, "ion", NO_EVIDENCE).working_parameters
 
-    assert working.var.required_selections[0].logical_type == "integer"
+    assert working.var.required_selections[0].logical_type == "string"
     assert working.provenance["column_roles"] == {
         "protein_assignment": "feature",
         "fasta_accessions": "feature",
@@ -189,7 +190,7 @@ def test_the_primary_layer_names_exactly_one_layer_and_is_required(
 
     assert len(names) == len(set(names))
     assert len(primary) == 1
-    assert layer_required(rule.measurements.primary_layer, primary[0])
+    assert layer_required(rule.measurements, primary[0])
     assert "abundance" in primary[0].roles
     # Promotion changes what is required, never the authored order.
     assert names == [layer.name for layer in rule.measurements.layers]
@@ -207,6 +208,39 @@ def test_every_declared_abundance_layer_is_tagged(
     }
 
     assert actual == expected
+
+
+@pytest.mark.parametrize(("pair", "level"), _LEVEL_CASES)
+def test_every_abundance_layer_treats_zero_and_negative_values_as_missing(
+    pair: PackagedDocument, level: QuantificationLevel
+) -> None:
+    rule = load_rule_document(pair.parser_v2_path).declared(level).declaration
+    unmasked = [
+        layer.name
+        for layer in rule.measurements.layers
+        if "abundance" in layer.roles
+        and not (isinstance(layer, NumericLayer) and layer.missing_at_or_below == 0.0)
+    ]
+
+    assert unmasked == []
+
+
+def test_missing_values_combine_exact_sentinels_with_one_at_or_below_bound() -> None:
+    layer = NumericLayer(name="I", source="I", missing_values=[-1, "<= 0", 7])
+
+    assert layer.missing_sentinels == (-1.0, 7.0)
+    assert layer.missing_at_or_below == 0.0
+
+
+def test_missing_values_reject_a_second_threshold() -> None:
+    with pytest.raises(ValidationError, match="more than one threshold"):
+        NumericLayer(name="I", source="I", missing_values=["<=0", "<=-2.5"])
+
+
+@pytest.mark.parametrize("token", [">=0", "<0", "<=zero"])
+def test_a_missing_value_text_must_be_an_at_or_below_bound(token: str) -> None:
+    with pytest.raises(ValidationError):
+        NumericLayer(name="I", source="I", missing_values=[token])
 
 
 def test_packaged_integer_measurements_are_exactly_the_declared_counts() -> None:
@@ -386,6 +420,17 @@ def test_protein_assignment_names_the_group_not_its_accessions(
     }
 
 
+def test_alphadia_v1_10_genes_are_both_assignment_and_fasta_identifiers() -> None:
+    # AlphaDIA 1.10 exports no accession column; ``genes`` holds UniProt entry names.
+    pair = next(candidate for candidate in document_pairs() if candidate.key == "alphadia/v1_10")
+    document = load_rule_document(pair.parser_v2_path)
+    roles = ParseRuleFacade(document, "ion", NO_EVIDENCE).working_parameters.provenance[
+        "column_roles"
+    ]
+
+    assert roles == {"protein_assignment": "Genes", "fasta_accessions": "Genes"}
+
+
 def test_spectronaut_fragment_exposes_its_parent_ion_identity() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "spectronaut")
     fragment = load_rule_document(pair.parser_v2_path).declared("fragment").declaration
@@ -447,6 +492,7 @@ def test_a_level_without_a_gate_is_applicable_without_any_evidence() -> None:
 
 def _document_payload() -> dict[str, Any]:
     return {
+        "hierarchy": "lfq",
         "schema_version": SCHEMA_VERSION,
         "file_version": "1",
         "software_name": "Test",
@@ -807,3 +853,28 @@ def test_the_published_artifact_is_the_schema_the_models_declare() -> None:
     committed = json.loads(artifact_path().read_text(encoding="utf-8"))
 
     assert committed == rule_json_schema()
+
+
+@pytest.mark.parametrize(("pair", "level"), _LEVEL_CASES)
+def test_packaged_levels_declare_reachable_hierarchy_identities(
+    pair: PackagedDocument, level: str
+) -> None:
+    rule = load_rule_document(pair.parser_v2_path).declared(level).declaration
+    hierarchy = dict(HIERARCHIES[rule.hierarchy])
+    assert level in hierarchy
+    roles = {role: column.name for column in rule.columns.var for role in column.roles}
+    available = {*rule.axis.var_keys, *(column.name for column in rule.columns.var)}
+    coarser = list(hierarchy)[list(hierarchy).index(level) + 1 :]
+    assert not coarser or any(
+        roles.get(hierarchy[name], hierarchy[name]) in available for name in coarser
+    )
+
+
+@pytest.mark.parametrize("dtype", ["integer", "number", "boolean"])
+def test_rule_var_roles_reject_non_string_types(dtype: str, tmp_path: Path) -> None:
+    payload = _document_payload()
+    payload["tables"][0]["levels"]["ion"]["columns"]["var"][0].update(
+        {"type": dtype, "roles": ["protein_assignment"]}
+    )
+    with pytest.raises(ValidationError, match="string"):
+        _declared(payload, tmp_path)

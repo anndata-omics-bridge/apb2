@@ -11,6 +11,10 @@ from pydantic import Discriminator, Field, Tag, model_validator
 from apb2.parserV2.vendor_parse_rules.schema.base import DuplicateMode, ModelBase
 from apb2.parserV2.vendor_parse_rules.schema.roles import SemanticRole
 
+_MISSING_BOUND = r"^<=\s*(-?\d+(?:\.\d+)?)$"
+type MissingBound = Annotated[str, Field(pattern=_MISSING_BOUND)]
+"""A ``<=`` threshold: every number at or below it is missing, e.g. ``"<=0"``."""
+
 
 class Duplicates(ModelBase):
     """How repeated raw measurement cells are resolved."""
@@ -56,10 +60,30 @@ class NumericLayer(ModelBase):
     type: Literal["number", "integer"] = "number"
     name: str
     source: str
-    missing_values: list[float] = Field(default_factory=list)
+    missing_values: list[float | MissingBound] = Field(default_factory=list)
     value_pattern: ValuePattern = Field(default_factory=NoValuePattern)
     required: bool = False
     roles: list[SemanticRole] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _validate_one_threshold(self) -> NumericLayer:
+        thresholds = [value for value in self.missing_values if isinstance(value, str)]
+        if len(thresholds) > 1:
+            raise ValueError(f"missing_values declares more than one threshold: {thresholds}")
+        return self
+
+    @property
+    def missing_sentinels(self) -> tuple[float, ...]:
+        """The exact numbers declared missing."""
+        return tuple(value for value in self.missing_values if isinstance(value, float))
+
+    @property
+    def missing_at_or_below(self) -> float | None:
+        """The declared ``<=`` threshold, or ``None`` without one."""
+        for value in self.missing_values:
+            if isinstance(value, str) and (match := re.match(_MISSING_BOUND, value)):
+                return float(match.group(1))
+        return None
 
 
 class FactorLayer(ModelBase):
@@ -86,13 +110,18 @@ type Layer = Annotated[
 
 
 class Measurements(ModelBase):
-    """Named measurements, their primary layer, and raw duplicate policy."""
+    """Named measurements, their primary layer, and raw duplicate policy.
+
+    ``sample_layer`` names the wide layer whose header captures are the sample names;
+    omitted, the primary layer supplies them.
+    """
 
     primary_layer: str
+    sample_layer: str | None = None
     duplicates: Duplicates = Field(default_factory=Duplicates)
     layers: list[Layer] = Field(min_length=1)
 
 
-def layer_required(primary_layer: str, layer: Layer) -> bool:
-    """Whether a layer is primary or explicitly required."""
-    return layer.required or layer.name == primary_layer
+def layer_required(measurements: Measurements, layer: Layer) -> bool:
+    """Whether a layer is primary, supplies the sample names, or is explicitly required."""
+    return layer.required or layer.name in {measurements.primary_layer, measurements.sample_layer}

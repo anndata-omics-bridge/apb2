@@ -13,7 +13,7 @@ import polars as pl
 import pytest
 from polars.testing import assert_frame_equal
 
-from apb2.cli import reformat as reformat_command
+from apb2.cli.app import reformat as reformat_command
 from apb2.parserV2.parse_quant.data.parsed import (
     AnnotationTable,
     AuxiliaryLayerRole,
@@ -21,6 +21,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
     FeatureRelation,
     FinalLayerTable,
     JsonValue,
+    LevelHierarchy,
     MeasurementLayerRole,
     ObsFinal,
     ParsedLevel,
@@ -28,7 +29,6 @@ from apb2.parserV2.parse_quant.data.parsed import (
     QuantitativeLayerSemantics,
     VarFinal,
 )
-from apb2.parserV2.parse_quant.io.anndata_writer import quantitative_layer_values
 from apb2.parserV2.parse_quant.io.duckdb import METADATA_TABLE
 from apb2.parserV2.parse_quant.io.errors import InvalidResultError, UnsupportedResultFormatError
 from apb2.parserV2.parse_quant.io.formats import (
@@ -37,7 +37,6 @@ from apb2.parserV2.parse_quant.io.formats import (
     ResultFormat,
     read_parsed_levels,
     reader_for,
-    reformat,
     result_format_for,
     write_parsed_levels,
     writer_for,
@@ -101,26 +100,29 @@ def _level(name: str, feature_column: str) -> ParsedLevel:
     layers = {
         "Intensity": FinalLayerTable(
             layer_name="Intensity",
-            var_key_columns=var_key_columns,
-            values=pl.DataFrame(
-                {
-                    **layer_keys,
-                    "obs_0": [100.5, None],
-                    "obs_1": [200.5, None],
-                }
-            ),
+            values=(
+                pl.DataFrame(
+                    {
+                        **layer_keys,
+                        "obs_0": [100.5, None],
+                        "obs_1": [200.5, None],
+                    }
+                )
+            ).drop(var_key_columns, strict=False),
             semantics=QuantitativeLayerSemantics(),
+            semantic_roles=("abundance",),
         ),
         "Status": FinalLayerTable(
             layer_name="Status",
-            var_key_columns=var_key_columns,
-            values=pl.DataFrame(
-                {
-                    **layer_keys,
-                    "obs_0": [1, 2],
-                    "obs_1": [2, -1],
-                }
-            ),
+            values=(
+                pl.DataFrame(
+                    {
+                        **layer_keys,
+                        "obs_0": [1, 2],
+                        "obs_1": [2, -1],
+                    }
+                )
+            ).drop(var_key_columns, strict=False),
             role=AuxiliaryLayerRole(),
             semantics=CategoricalLayerSemantics(
                 categories=(("MS/MS", 1), ("MBR", 2)),
@@ -129,14 +131,15 @@ def _level(name: str, feature_column: str) -> ParsedLevel:
         ),
         "Count": FinalLayerTable(
             layer_name="Count",
-            var_key_columns=var_key_columns,
-            values=pl.DataFrame(
-                {
-                    **layer_keys,
-                    "obs_0": pl.Series([1, None], dtype=pl.Int64),
-                    "obs_1": pl.Series([2, 3], dtype=pl.Int64),
-                }
-            ),
+            values=(
+                pl.DataFrame(
+                    {
+                        **layer_keys,
+                        "obs_0": pl.Series([1, None], dtype=pl.Int64),
+                        "obs_1": pl.Series([2, 3], dtype=pl.Int64),
+                    }
+                )
+            ).drop(var_key_columns, strict=False),
             role=AuxiliaryLayerRole(),
             semantics=QuantitativeLayerSemantics(logical_type="integer"),
         ),
@@ -158,6 +161,7 @@ def _level(name: str, feature_column: str) -> ParsedLevel:
         },
         varp={"similarity": pl.DataFrame({"row": [0], "column": [1], "value": [0.25]})},
         uns={
+            "hierarchy": "lfq",
             "quantification_level": name,
             "software_name": "Synthetic Ω",
             "plan_json": _plan(tuple(layers)),
@@ -246,7 +250,7 @@ def _assert_layer_mapping(
     for name, wanted in expected.items():
         got = actual[name]
         assert got.layer_name == wanted.layer_name
-        assert got.var_key_columns == wanted.var_key_columns
+        assert got.semantic_roles == wanted.semantic_roles
         assert type(got.role) is type(wanted.role)
         assert got.semantics == wanted.semantics
         assert_frame_equal(got.values, wanted.values)
@@ -383,7 +387,7 @@ def test_columnar_crossings_are_exact(
     target = tmp_path / f"target{suffix[target_format]}"
     writer_for(source_format).write(rich_result(), source)
 
-    reformat(source, target)
+    write_parsed_levels(read_parsed_levels(source), target)
 
     _assert_result_equal(reader_for(target_format).read(target), rich_result())
 
@@ -442,7 +446,7 @@ def test_columnar_to_h5mu_yields_the_declared_matrix_projection(
     writer_for(ResultFormat.H5MU).write(rich_result(), projected_path)
     expected = reader_for(ResultFormat.H5MU).read(projected_path)
 
-    reformat(source, crossed_path)
+    write_parsed_levels(read_parsed_levels(source), crossed_path)
 
     _assert_result_equal(reader_for(ResultFormat.H5MU).read(crossed_path), expected)
 
@@ -458,7 +462,7 @@ def test_h5mu_to_columnar_preserves_the_represented_projection(
     writer_for(ResultFormat.H5MU).write(rich_result(), source)
     expected = reader_for(ResultFormat.H5MU).read(source)
 
-    reformat(source, target)
+    write_parsed_levels(read_parsed_levels(source), target)
 
     _assert_result_equal(reader_for(target_format).read(target), expected)
 
@@ -475,9 +479,9 @@ def test_one_level_h5ad_crosses_columnar_formats_in_both_directions(
     restored = tmp_path / f"restored{suffix}"
     writer_for(columnar_format).write(raw, columnar)
 
-    reformat(columnar, h5ad)
+    write_parsed_levels(read_parsed_levels(columnar), h5ad)
     projection = reader_for(ResultFormat.H5AD).read(h5ad)
-    reformat(h5ad, restored)
+    write_parsed_levels(read_parsed_levels(h5ad), restored)
 
     _assert_result_equal(reader_for(columnar_format).read(restored), projection)
 
@@ -510,17 +514,15 @@ def test_writers_validate_aligned_and_pairwise_values_before_touching_target(
     assert target.read_bytes() == b"previous"
 
 
-def test_a_layer_with_permuted_var_keys_is_rejected_before_writing(tmp_path: Path) -> None:
+def test_layer_rows_are_positional_after_writing(tmp_path: Path) -> None:
     parsed = rich_result()
-    parsed.levels["ion"].layers["Intensity"].values = (
-        parsed.levels["ion"].layers["Intensity"].values.reverse()
-    )
+    layer = parsed.levels["ion"].layers["Intensity"]
+    layer.values = layer.values.reverse()
     target = tmp_path / "result.duckdb"
-
-    with pytest.raises(InvalidResultError, match="do not match var row-for-row"):
-        writer_for(ResultFormat.DUCKDB).write(parsed, target)
-
-    assert not target.exists()
+    write_parsed_levels(parsed, target)
+    assert_frame_equal(
+        read_parsed_levels(target).levels["ion"].layers["Intensity"].values, layer.values
+    )
 
 
 def test_a_layer_with_a_different_var_key_is_rejected_before_writing(tmp_path: Path) -> None:
@@ -529,7 +531,7 @@ def test_a_layer_with_a_different_var_key_is_rejected_before_writing(tmp_path: P
     layer.values = layer.values.with_columns(pl.Series("Ion", ["different", "F2"]))
     target = tmp_path / "result.duckdb"
 
-    with pytest.raises(InvalidResultError, match="do not match var row-for-row"):
+    with pytest.raises(InvalidResultError, match="observation columns"):
         writer_for(ResultFormat.DUCKDB).write(parsed, target)
 
     assert not target.exists()
@@ -538,10 +540,10 @@ def test_a_layer_with_a_different_var_key_is_rejected_before_writing(tmp_path: P
 def test_a_layer_whose_var_keys_are_not_leading_columns_is_rejected(tmp_path: Path) -> None:
     parsed = rich_result()
     layer = parsed.levels["protein"].layers["Intensity"]
-    layer.values = layer.values.select("Isoform", "Protein", "obs_0", "obs_1")
+    layer.values = layer.values.with_columns(pl.lit("unexpected").alias("Protein"))
     target = tmp_path / "result.duckdb"
 
-    with pytest.raises(InvalidResultError, match="must begin with var keys"):
+    with pytest.raises(InvalidResultError, match="observation columns"):
         writer_for(ResultFormat.DUCKDB).write(parsed, target)
 
     assert not target.exists()
@@ -649,10 +651,10 @@ def test_h5_writer_ignores_missing_and_corrupt_plan_json(tmp_path: Path) -> None
     _assert_result_equal(restored, expected)
 
 
-def test_quantitative_layer_values_returns_canonical_values_directly() -> None:
+def test_quantitative_values_returns_canonical_values_directly() -> None:
     ion = _level("ion", "Ion")
 
-    projected = quantitative_layer_values(ion, "Intensity")
+    projected = ion.layers["Intensity"].quantitative_values()
 
     assert projected.to_dict(as_series=False) == {
         "obs_0": [100.5, None],
@@ -667,14 +669,16 @@ def test_h5_writer_accepts_an_added_numeric_layer_missing_from_the_parse_plan(
     ion = parsed.levels["ion"]
     ion.layers["medpolish_from_fragment"] = FinalLayerTable(
         layer_name="medpolish_from_fragment",
-        var_key_columns=ion.var.key_columns,
-        values=pl.DataFrame(
-            {
-                "Ion": ["F1", "F2"],
-                "obs_0": [10.0, 20.0],
-                "obs_1": [11.0, None],
-            }
-        ),
+        values=(
+            pl.DataFrame(
+                {
+                    "Ion": ["F1", "F2"],
+                    "obs_0": [10.0, 20.0],
+                    "obs_1": [11.0, None],
+                }
+            )
+        ).drop(ion.var.key_columns, strict=False),
+        semantic_roles=("abundance",),
     )
     target = tmp_path / "result.h5mu"
 
@@ -695,6 +699,7 @@ def test_h5_writer_accepts_a_planless_derived_level(tmp_path: Path) -> None:
         key_columns=("Protein",),
     )
     protein.uns = {
+        "hierarchy": "lfq",
         "produced_by": "apb-aggregate",
         "quantification_level": "protein",
     }
@@ -702,14 +707,16 @@ def test_h5_writer_accepts_a_planless_derived_level(tmp_path: Path) -> None:
     protein.layers = {
         "medpolish_from_ion": FinalLayerTable(
             layer_name="medpolish_from_ion",
-            var_key_columns=protein.var.key_columns,
-            values=pl.DataFrame(
-                {
-                    "Protein": ["F1", "F2"],
-                    "obs_0": [10.0, 20.0],
-                    "obs_1": [11.0, None],
-                }
-            ),
+            values=(
+                pl.DataFrame(
+                    {
+                        "Protein": ["F1", "F2"],
+                        "obs_0": [10.0, 20.0],
+                        "obs_1": [11.0, None],
+                    }
+                )
+            ).drop(protein.var.key_columns, strict=False),
+            semantic_roles=("abundance",),
         )
     }
     target = tmp_path / "protein.h5ad"
@@ -726,14 +733,16 @@ def test_h5_writer_rejects_an_unplanned_nonnumeric_layer(tmp_path: Path) -> None
     ion = parsed.levels["ion"]
     ion.layers["derived_text"] = FinalLayerTable(
         layer_name="derived_text",
-        var_key_columns=ion.var.key_columns,
-        values=pl.DataFrame(
-            {
-                "Ion": ["F1", "F2"],
-                "obs_0": ["one", "two"],
-                "obs_1": ["three", "four"],
-            }
-        ),
+        values=(
+            pl.DataFrame(
+                {
+                    "Ion": ["F1", "F2"],
+                    "obs_0": ["one", "two"],
+                    "obs_1": ["three", "four"],
+                }
+            )
+        ).drop(ion.var.key_columns, strict=False),
+        semantic_roles=("abundance",),
     )
 
     with pytest.raises(InvalidResultError, match=r"not numeric"):
@@ -769,7 +778,7 @@ def test_tool_namespaces_preserve_overlapping_ownership_and_empty_objects(
     initial = tmp_path / "initial.h5ad"
     write_parsed_levels(ParsedLevels(levels={"ion": _level("ion", "Ion")}, uns={}), initial)
     level = read_parsed_levels(initial).levels["ion"]
-    level.uns["layer_roles"] = {"abundance": ["Intensity"]}
+    level.layers["Intensity"].semantic_roles = ("abundance",)
     level.metadata = {
         "tool": {"annotation": {"count": 2}, "scoring": {"Intensity": {"score": 0.5}}},
         "extension": {"empty": {}, "level": None, "items": [], "nested": {"level": {}}},
@@ -923,3 +932,46 @@ def test_previous_hdf_metadata_layout_is_rejected(tmp_path: Path) -> None:
     stored.write_h5ad(target)
     with pytest.raises(InvalidResultError, match="version"):
         read_parsed_levels(target)
+
+
+@pytest.mark.parametrize("suffix", [".h5mu", ".parquet", ".duckdb"])
+def test_open_hierarchy_and_typed_roles_round_trip(suffix: str, tmp_path: Path) -> None:
+    level = _level("site", "site_id")
+    level.var.roles = {"site_identity": "site_id"}
+    parsed = ParsedLevels(
+        levels={"site": level},
+        uns={},
+        hierarchy=LevelHierarchy(
+            "custom_enrichment", (("peptidoform", "form_id"), ("site", "site_identity"))
+        ),
+    )
+    path = tmp_path / f"sites{suffix}"
+    write_parsed_levels(parsed, path)
+    restored = read_parsed_levels(path)
+    assert restored.hierarchy == parsed.hierarchy
+    assert restored.levels["site"].var.roles == level.var.roles
+    assert restored.levels["site"].layers["Intensity"].semantic_roles == ("abundance",)
+    assert restored.levels["site"].layers["Intensity"].values.width == level.obs.frame.height
+    assert "hierarchy" not in restored.metadata
+    assert "column_roles" not in restored.levels["site"].uns
+
+
+@pytest.mark.parametrize("dtype", [pl.Int64, pl.Categorical])
+def test_var_role_requires_string_values(
+    dtype: pl.DataType | type[pl.DataType], tmp_path: Path
+) -> None:
+    parsed = rich_result()
+    level = parsed.levels["ion"]
+    level.var.frame = level.var.frame.with_columns(
+        pl.Series("assignment", [1, 2]).cast(pl.String).cast(dtype)
+    )
+    level.var.roles = {"protein_assignment": "assignment"}
+    with pytest.raises(InvalidResultError, match="requires String"):
+        write_parsed_levels(parsed, tmp_path / "invalid.parquet")
+
+
+def test_result_requires_same_observation_values_and_order(tmp_path: Path) -> None:
+    parsed = rich_result()
+    parsed.levels["protein"].obs.frame = parsed.levels["protein"].obs.frame.reverse()
+    with pytest.raises(InvalidResultError, match="share the observation axis"):
+        write_parsed_levels(parsed, tmp_path / "invalid.h5mu")

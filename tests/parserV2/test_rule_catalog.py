@@ -10,8 +10,14 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
-from apb2.api import QuantificationLevel, get_rules
+from apb2.api import (
+    ParseRuleCompiler,
+    QuantificationLevel,
+    get_rules,
+    packaged_rule_declarations,
+)
 from apb2.parserV2.vendor_parse_rules.catalog import RuleCatalog
+from parserV2.fixtures import committed_sample
 
 _CATALOG = Path(str(resources.files("apb2.parserV2.vendor_parse_rules"))) / "catalog.json"
 
@@ -130,3 +136,17 @@ def test_unclassified_rule_requires_a_reason(tmp_path: Path) -> None:
     assert [
         variant.rule for software in catalog.get_rules("DIA") for variant in software.variants
     ].count("alphadia/v1_10/rules.json") == 0
+
+
+def test_packaged_rule_declarations_hold_what_conversion_stores() -> None:
+    source = committed_sample("fragpipe")
+    assert source is not None
+    compiler = ParseRuleCompiler.from_software(
+        source, software="fragpipe", requested_levels=("ion",)
+    )
+    stored = compiler.compile().parse().levels["ion"].uns["rule_json"]
+
+    declarations = packaged_rule_declarations()
+
+    assert stored in declarations[("fragpipe/rules.json", "ion")]
+    assert all(texts and len(texts) == len(set(texts)) for texts in declarations.values())

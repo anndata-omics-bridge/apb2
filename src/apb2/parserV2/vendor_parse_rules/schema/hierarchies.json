@@ -1,0 +1,5 @@
+{
+  "lfq": [["fragment", "ProForma_fragment"], ["ion", "ProForma_ion"], ["peptidoform", "ProForma_peptidoform"], ["peptide", "ProForma_peptide"], ["protein", "protein_assignment"]],
+  "psm": [["psm", "PSM"], ["ion", "ProForma_ion"], ["peptidoform", "ProForma_peptidoform"], ["peptide", "ProForma_peptide"], ["protein", "protein_assignment"]],
+  "ptm_site": [["peptidoform", "ProForma_peptidoform"], ["multisite", "multisite"], ["site", "site"]]
+}

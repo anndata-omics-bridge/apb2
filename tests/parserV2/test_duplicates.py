@@ -13,6 +13,7 @@ import polars as pl
 import pytest
 
 from apb2.parserV2.parse_quant.contracts import DuplicatePolicy, RawValuePresence
+from apb2.parserV2.parse_quant.data.parsed import FinalLayerTable
 from apb2.parserV2.parse_quant.data.raw import RawLayerTable
 from apb2.parserV2.parse_quant.duplicates import (
     AggregateNumericDuplicates,
@@ -40,6 +41,9 @@ ASCORE = make_layer_parser(
     "L",
     RegexNumericLayerDeclaration(missing_values=(0.0,), pattern=r":(-?\d+(?:\.\d+)?)"),
     DOT,
+)
+NONPOSITIVE = make_layer_parser(
+    "L", PlainNumericLayerDeclaration(missing_values=(), missing_at_or_below=0.0), DOT
 )
 
 
@@ -94,6 +98,39 @@ def test_a_declared_sentinel_claims_nothing_without_replacing_the_value() -> Non
     assert presence_mask(ZERO_SENTINEL, values).to_list() == [True, False, False]
     # The strategy returned a mask; the value it was asked about is untouched.
     assert values.to_list() == [12.0, 0.0, None]
+
+
+def test_an_at_or_below_bound_claims_neither_zero_nor_negative_values() -> None:
+    values = pl.Series("obs_0", [12.0, 0.0, -3.5, None])
+
+    assert presence_mask(NONPOSITIVE, values).to_list() == [True, False, False, False]
+
+
+def test_an_at_or_below_bound_reads_the_number_inside_a_structured_token() -> None:
+    parser = make_layer_parser(
+        "L",
+        RegexNumericLayerDeclaration(
+            missing_values=(), pattern=r":(-?\d+(?:\.\d+)?)", missing_at_or_below=0.0
+        ),
+        DOT,
+    )
+    values = pl.Series("obs_0", ["a:4.5", "b:0", "c:-1"])
+
+    assert presence_mask(parser, values).to_list() == [True, False, False]
+
+
+def test_an_at_or_below_bound_leaves_only_positive_final_values() -> None:
+    final = FinalLayerTable(
+        layer_name="L",
+        values=(pl.DataFrame({"Feature": ["F1", "F2", "F3"], "obs_0": [5.0, 0.0, -1.0]})).drop(
+            ("Feature",), strict=False
+        ),
+        semantic_roles=("abundance",),
+    )
+
+    parsed = NONPOSITIVE.parse(final)
+
+    assert parsed.values.get_column("obs_0").to_list() == [5.0, None, None]
 
 
 def test_blank_text_is_the_written_spelling_of_a_missing_number() -> None:
@@ -209,6 +246,19 @@ def test_numeric_aggregate_sums_only_the_claiming_values() -> None:
     assert resolved.values.to_dicts() == [
         {"Feature": "F1", "obs_0": 3.0},
         {"Feature": "F2", "obs_0": 7.0},
+    ]
+
+
+def test_numeric_aggregate_drops_nonpositive_values_before_summing() -> None:
+    repeated = layer(
+        pl.DataFrame({"Feature": ["F1", "F1", "F1", "F2"], "obs_0": [1.0, -2.0, 0.0, -7.0]})
+    )
+
+    resolved = AggregateNumericDuplicates().resolve(repeated, NONPOSITIVE)
+
+    assert resolved.values.to_dicts() == [
+        {"Feature": "F1", "obs_0": 1.0},
+        {"Feature": "F2", "obs_0": None},
     ]
 
 

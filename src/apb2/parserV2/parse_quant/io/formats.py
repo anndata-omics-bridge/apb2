@@ -7,10 +7,7 @@ from functools import partial
 from pathlib import Path
 from typing import Protocol
 
-from loguru import logger
-
 from apb2.parserV2.parse_quant.data.parsed import (
-    LEVEL_ORDER,
     ParsedLevel,
     ParsedLevels,
 )
@@ -41,7 +38,7 @@ class ParsedLevelFormatWriter:
     def write(self, parsed: ParsedLevel, target: Path, /) -> None:
         """Wrap one canonical level and delegate to the ordinary result writer."""
         value = parsed.uns.get("quantification_level")
-        if not isinstance(value, str) or value not in LEVEL_ORDER:
+        if not isinstance(value, str):
             raise InvalidResultError(
                 "writing one parsed level requires uns['quantification_level']"
             )
@@ -101,12 +98,12 @@ def result_format_for(path: Path, /) -> ResultFormat:
         ) from error
 
 
-def read_parsed_levels(source: Path, /) -> ParsedLevels:
+def read_parsed_levels(source: Path) -> ParsedLevels:
     """Read a result after inferring its format from the source path."""
     return reader_for(result_format_for(source)).read(source)
 
 
-def write_parsed_levels(parsed: ParsedLevels, target: Path, /) -> None:
+def write_parsed_levels(parsed: ParsedLevels, target: Path) -> None:
     """Write a result and its compact APB JSON representation sidecar."""
     writer = writer_for(result_format_for(target))
     write_result_with_representation(
@@ -114,20 +111,3 @@ def write_parsed_levels(parsed: ParsedLevels, target: Path, /) -> None:
         target,
         partial(writer.write, parsed, target),
     )
-
-
-def reformat(source: Path, target: Path, /) -> None:
-    """Read one APB2 result and write the same value through another format adapter."""
-    input_format = result_format_for(source)
-    result_format_for(target)
-    parsed = reader_for(input_format).read(source)
-    for level, value in parsed.levels.items():
-        logger.info(
-            "level={} shape=({}, {}) layers={}",
-            level,
-            value.obs.frame.height,
-            value.var.frame.height,
-            list(value.layers),
-        )
-    write_parsed_levels(parsed, target)
-    logger.info("reformatted {} -> {}", source, target)

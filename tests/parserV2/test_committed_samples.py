@@ -1,8 +1,8 @@
 """Every packaged rule converts its committed sample to the recorded expectations.
 
 The artifacts under ``tests/parserV2/data/<rule_key>/`` are real vendor-export excerpts, created
-once by the workspace scripts (``apb_studio/scripts/make_apb2_test_samples.py`` and its
-``extend_directflq_benchmark`` twin) and append-only thereafter. They make end-to-end conversion
+once by ``scripts/make_test_samples.py`` from APB Studio's fixture store and by its
+``extend_directflq_benchmark`` twin, and append-only thereafter. They make end-to-end conversion
 testable everywhere, including CI; the downloaded corpus stays the ground truth where present.
 """
 
@@ -14,7 +14,7 @@ from typing import cast
 
 import pytest
 
-from apb2.command.conversion import convert_all_from_rule_config
+from apb2.cli.conversion import convert_all_from_rule_config
 from parserV2.fixtures import DATA_DIR, committed_dir, committed_sample, level_pairs
 
 _KEYS = tuple(sorted({pair.sample_key for pair, _level in level_pairs()}))

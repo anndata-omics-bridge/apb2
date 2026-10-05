@@ -329,7 +329,7 @@ class SourcePlanResolver:
         """Resolve every declared measurement against this header, by physical layout."""
         layout = self._configuration.source_layout
         if isinstance(layout, WideSourceLayout):
-            return self._resolve_wide_layers(columns, accounted)
+            return self._resolve_wide_layers(columns, accounted, layout.sample_layer_name)
         return self._resolve_long_layers(present)
 
     def _resolve_long_layers(self, present: frozenset[str]) -> _ResolvedLayers:
@@ -357,12 +357,12 @@ class SourcePlanResolver:
         )
 
     def _resolve_wide_layers(
-        self, columns: tuple[str, ...], accounted: frozenset[str]
+        self, columns: tuple[str, ...], accounted: frozenset[str], sample_layer: str
     ) -> _ResolvedLayers:
-        """Expand each layer's header regex, then align every layer to the primary samples.
+        """Expand each layer's header regex, then align every layer to the sample layer.
 
-        The primary layer defines the observation axis. A permissive pattern must not turn
-        an accounted-for column into an extra sample, and a layer that matched only tokens
+        The sample layer's captures define the observation axis. A permissive pattern must not
+        turn an accounted-for column into an extra sample, and a layer that matched only tokens
         outside that axis is not evidence of more observations.
         """
         measurements = self._configuration.measurements
@@ -371,11 +371,11 @@ class SourcePlanResolver:
             layer.name: self._match_samples(candidates, layer.source)
             for layer in measurements.layers
         }
-        primary = measurements.primary_layer_name
-        samples = self._ordered_unique(sample for _column, sample in matches[primary])
+        samples = self._ordered_unique(sample for _column, sample in matches[sample_layer])
         if not samples:
             raise IncompatibleSourceError(
-                f"{self._label()} matched no observation column for its primary layer {primary!r}"
+                f"{self._label()} matched no observation column for its sample layer "
+                f"{sample_layer!r}"
             )
         required = {layer.name for layer in measurements.required_layers}
         retained: list[WorkingMeasurementLayer] = []

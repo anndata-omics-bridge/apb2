@@ -721,16 +721,7 @@ key columns lead the layer in that order, and their values equal `VarFinal` row-
 must never infer alignment from matching dimensions alone. It also requires the primary layer to
 have `MeasurementLayerRole`; an `AuxiliaryLayerRole` cannot define the primary quantitative matrix.
 
-Downstream APB tools use the public result facade rather than importing adapter internals:
-
-```python
-from apb2.result_facade import observation_labels, quantitative_layer_values
-
-def observation_labels(count: int, reserved: Iterable[str]) -> tuple[str, ...]: ...
-def quantitative_layer_values(parsed: ParsedLevel, layer_name: str, /) -> pl.DataFrame: ...
-```
-
-The label helper establishes the collision-free positional observation columns used by wide layer tables. The value helper returns the already-canonical quantitative value block directly; it performs no interpretation or conversion.
+Downstream APB tools import only `apb2.api`. They build levels with `ParsedLevel.build()` and read values with `FinalLayerTable.quantitative_values()`, so the positional observation labels stay an APB2 convention.
 
 ### 6.1 Parquet
 
@@ -1914,7 +1905,7 @@ with:
       {
         "name": "Precursor_Intensity",
         "source": "precursor.intensity",
-        "missing_values": [0]
+        "missing_values": ["<=0"]
       },
       {"name": "QValue", "source": "precursor.qval"},
       {"name": "Proba", "source": "precursor.proba"},
@@ -2044,7 +2035,7 @@ These become `AxisValueCoercer` objects evaluated on small axis frames. Their de
 
 `fragments.value_columns` is an ordered list independent of `measurements.layers`. Resolution retains available packed sources in authored order and requires at least one; `label_output` cannot collide with physical sources.
 
-Aggregate mode requires plain numeric layers without missing sentinels, factors or regex extraction. Source resolution additionally verifies native numeric read dtypes, so interpretation cannot change the contributions after summation. The runtime aggregate retains a dtype guard; the MaxQuant aggregate rule satisfies these restrictions.
+Aggregate mode requires plain numeric layers without missing sentinels, factors or regex extraction. Source resolution additionally verifies native numeric read dtypes, so interpretation cannot change the contributions after summation. A `<=` threshold such as `"<=0"` is permitted: presence removes every contribution at or below it before summation. For a threshold of zero or more, the sum of the remaining larger values therefore stays above it and is never masked afterwards. The runtime aggregate retains a dtype guard; the MaxQuant aggregate rule satisfies these restrictions.
 
 #### C.4 Physical input policy
 
@@ -2519,7 +2510,7 @@ uses it as identity.
 
 #### F.3 Duplicate policies
 
-Before reduction, the layer parser's `present()` expressions null-mask absent cells while retaining the dtype and every claiming scalar. Factor presence and plain numeric presence without sentinels reject null/NaN but retain blank text. Plain numeric presence with sentinels and regex presence also reject blank text and matching numeric sentinels; they return only Boolean presence. An unreadable or unmatched nonblank token remains present so duplicate resolution cannot skip it in favor of a later readable value; canonical value parsing determines its diagnostic or missing result. Presence never returns parsed values or
+Before reduction, the layer parser's `present()` expressions null-mask absent cells while retaining the dtype and every claiming scalar. Factor presence and plain numeric presence without sentinels reject null/NaN but retain blank text. Plain numeric presence with sentinels or a `<=` threshold, and regex presence, also reject blank text, matching numeric sentinels and numbers at or below a declared threshold; they return only Boolean presence. An unreadable or unmatched nonblank token remains present so duplicate resolution cannot skip it in favor of a later readable value; canonical value parsing determines its diagnostic or missing result. Presence never returns parsed values or
 mutates `RawLayerTable`.
 
 All policies preserve raw var-key columns and input group order. Error and keep-first copy the
@@ -2932,7 +2923,7 @@ The parent and public composition modules have distinct responsibilities:
 - `parser_factory.py`: strategy resolution and I/O binding
 - `detect_document.py`: recognition, candidate binding and accepted selections
 - `compile.py`: public compiler inputs and collection assembly
-- `apb2/api.py`: public imports; `apb2/command/conversion.py`: file-to-file workflow
+- `apb2/api.py`: public imports; `apb2/cli/conversion.py`: the command's file-to-file workflow, through `apb2.api` only
 
 The parse-owned boundary modules are likewise narrow:
 

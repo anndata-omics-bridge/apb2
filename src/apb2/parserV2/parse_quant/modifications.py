@@ -25,6 +25,7 @@ from typing import Literal, Protocol
 
 import polars as pl
 
+from apb2.parserV2.parse_quant.data.errors import ConversionError
 from apb2.parserV2.parse_quant.parameters.axis import (
     ModificationMapEntry,
     ModificationTokenPosition,
@@ -45,11 +46,11 @@ _NUMERIC_TOKEN = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$")
 _INTEGER_SITE = re.compile(r"^[+-]?\d+$")
 
 
-class UnknownModificationError(ValueError):
+class UnknownModificationError(ConversionError):
     """A vendor token matched no declared modification and the rule refuses to guess."""
 
 
-class PackedSiteMismatchError(ValueError):
+class PackedSiteMismatchError(ConversionError):
     """A vendor row pairs a different number of modification names and sites."""
 
 
@@ -281,21 +282,15 @@ def _apply_unknown_policy(
 class _PendingToken:
     raw_token: str
     location: ModificationLocation
-    fallback: ResidueLocation | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class _TokenPlacement:
-    """Where one token sits, and which residues were consumed while placing it.
-
-    ``fallback`` is the final residue for an unmarked token after it: such a token is
-    C-terminal only when a C-terminal map entry fits, and otherwise modifies that residue.
-    """
+    """Where one token sits, and which residues were consumed while placing it."""
 
     location: ModificationLocation
     consumed_residues: tuple[str, ...]
     next_cursor: int
-    fallback: ResidueLocation | None = None
 
 
 def _place_token(
@@ -315,12 +310,7 @@ def _place_token(
         location = (
             TerminalLocation("C-term", residues[-1]) if residues else TerminalOnlyLocation("C-term")
         )
-        # ``PEPTIDE-[x]`` marks the terminus explicitly; ``PEPTIDEC[x]`` may be either.
-        marked = sequence[match.start() - 1 : match.start()] == "-"
-        fallback = (
-            ResidueLocation(len(residues) - 1, residues[-1]) if residues and not marked else None
-        )
-        return _TokenPlacement(location, (), match.end(), fallback)
+        return _TokenPlacement(location, (), match.end())
     if token_position == "before_residue":
         following = sequence[match.end() : match.end() + 1]
         if following.isalpha():
@@ -348,7 +338,7 @@ def _tokenize(
         raw_token = groups[0] if groups else match.group(0)
         placement = _place_token(sequence, match, token_position, residues)
         residues.extend(placement.consumed_residues)
-        pending.append(_PendingToken(raw_token, placement.location, placement.fallback))
+        pending.append(_PendingToken(raw_token, placement.location))
         cursor = placement.next_cursor
     residues.extend(character for character in sequence[cursor:] if character.isalpha())
     return residues, pending
@@ -374,15 +364,14 @@ class TokenRegexNormalizer:
         unknown_tokens: dict[int, str] = {}
         unknown_token_list: list[str] = []
         for token in pending:
-            matched = self._match(token)
-            if matched is not None:
-                entry, location = matched
+            location, entry = self._resolve(token, len(stripped))
+            if entry is not None:
                 location.record_label(labels, entry.accession or entry.name)
                 continue
             _apply_unknown_policy(
                 self.unknown_policy,
                 token.raw_token,
-                token.location,
+                location,
                 len(stripped),
                 unknown_tokens,
                 unknown_token_list,
@@ -392,19 +381,31 @@ class TokenRegexNormalizer:
             unknown_tokens=tuple(unknown_token_list),
         )
 
-    def _match(
-        self, token: _PendingToken
-    ) -> tuple[ModificationMapEntry, ModificationLocation] | None:
-        """The first map entry that fits the token's location, then its residue fallback."""
-        for location in (token.location, token.fallback):
-            if location is None:
-                continue
+    def _resolve(
+        self, token: _PendingToken, stripped_length: int
+    ) -> tuple[ModificationLocation, ModificationMapEntry | None]:
+        """Match one token where it sits.
+
+        A token written after the last residue is that residue's modification whenever the
+        map places it on that residue, as DIA-NN's ``…C(UniMod:4)``; it is C-terminal only
+        when no entry fits the residue.
+        """
+        location = token.location
+        if (
+            self.token_position == "after_residue"
+            and isinstance(location, TerminalLocation)
+            and location.position == "C-term"
+        ):
+            on_residue = ResidueLocation(stripped_length - 1, location.adjacent_residue)
             entry = _matched_entry(
-                self.entries, token.raw_token, location, case_sensitive=self.case_sensitive
+                self.entries, token.raw_token, on_residue, case_sensitive=self.case_sensitive
             )
             if entry is not None:
-                return entry, location
-        return None
+                return on_residue, entry
+        entry = _matched_entry(
+            self.entries, token.raw_token, location, case_sensitive=self.case_sensitive
+        )
+        return location, entry
 
 
 # ------------------------------------------------------------------- parallel name/site lists

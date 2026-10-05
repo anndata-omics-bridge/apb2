@@ -1,4 +1,5 @@
 {
+  "hierarchy": "lfq",
   "schema_version": "0.8",
   "file_version": "1",
   "software_name": "ProlineStudio",
@@ -35,6 +36,9 @@
               "source": "^abundance_(?P<sample>.+)$",
               "roles": [
                 "abundance"
+              ],
+              "missing_values": [
+                "<=0"
               ]
             },
             {

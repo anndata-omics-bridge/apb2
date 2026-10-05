@@ -255,13 +255,6 @@
       "type": "object"
     },
     "QuantificationLevel": {
-      "enum": [
-        "ion",
-        "peptidoform",
-        "peptide",
-        "protein",
-        "fragment"
-      ],
       "type": "string"
     },
     "SampleAnnotation": {
@@ -452,6 +445,10 @@
       "title": "Software Version Pattern",
       "type": "string"
     },
+    "hierarchy": {
+      "title": "Hierarchy",
+      "type": "string"
+    },
     "parameter_file": {
       "default": "required",
       "enum": [
@@ -486,6 +483,7 @@
     "file_version",
     "software_name",
     "software_version_pattern",
+    "hierarchy",
     "tables"
   ],
   "title": "RuleDocument",

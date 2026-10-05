@@ -28,12 +28,13 @@ jobs:
         uses: astral-sh/setup-uv@v9.0.0
         with:
           enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
 
       - name: Install Python
         run: uv python install
 
       - name: Synchronize documentation environment
-        run: uv sync --frozen --only-group docs
+        run: uv sync --only-group docs
 
       - name: Build documentation
         run: uv run --no-sync zensical build --clean --strict

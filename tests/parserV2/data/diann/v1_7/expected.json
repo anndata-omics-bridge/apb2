@@ -12,6 +12,8 @@
         "Precursor_Quantity",
         "Ms1_Area",
         "Q_Value",
+        "Lib_Q_Value",
+        "Global_Q_Value",
         "RT"
       ]
     },

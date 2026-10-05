@@ -13,7 +13,6 @@ import duckdb
 import polars as pl
 
 from apb2.parserV2.parse_quant.data.parsed import (
-    LEVEL_ORDER,
     AnnotationTable,
     FeatureRelation,
     FinalLayerTable,
@@ -31,6 +30,8 @@ from apb2.parserV2.parse_quant.io.metadata import (
     layer_semantics_metadata,
     level_scope,
     object_mapping,
+    read_hierarchy,
+    restore_level_roles,
     restore_table_schema,
     shared_scope,
     string_list,
@@ -42,7 +43,7 @@ from apb2.parserV2.parse_quant.io.metadata import (
 from apb2.parserV2.parse_quant.io.validation import validate_parsed_levels
 
 FORMAT = "apb2-parsed-levels-duckdb"
-FORMAT_VERSION = "4"
+FORMAT_VERSION = "5"
 METADATA_TABLE = "apb2_result_metadata"
 _REGISTERED_FRAME = "apb2_incoming_frame"
 _PHYSICAL_TABLE = re.compile(r"data_[0-9]{6}")
@@ -88,7 +89,7 @@ class DuckDBWriter:
                     "format_version": FORMAT_VERSION,
                     "level_order": list(parsed.levels),
                     "levels": levels,
-                    "apb": shared_scope(parsed.uns, parsed.metadata),
+                    "apb": shared_scope(parsed.uns, parsed.metadata, parsed.hierarchy),
                     "annotation_table_order": list(parsed.annotation_tables),
                     "annotation_tables": cast(
                         dict[str, JsonValue],
@@ -138,7 +139,6 @@ class DuckDBWriter:
             "layers": {
                 name: {
                     **tables.write(layer.values),
-                    "var_key_columns": list(layer.var_key_columns),
                     "role": layer.role.persisted_name(),
                     "semantics": layer_semantics_metadata(layer.semantics),
                 }
@@ -188,7 +188,7 @@ class DuckDBReader:
         entries = object_mapping(root.get("levels"), "levels")
         levels: dict[ParsedLevelName, ParsedLevel] = {}
         for name in order:
-            if name not in LEVEL_ORDER:
+            if not name:
                 raise InvalidResultError(f"unknown quantification level {name!r}")
             levels[name] = self._read_level(
                 connection,
@@ -198,6 +198,7 @@ class DuckDBReader:
             raise InvalidResultError("level order and level metadata name different levels")
         uns, metadata = unpack_shared_scope(root.get("apb"), "root APB metadata")
         return ParsedLevels(
+            hierarchy=read_hierarchy(metadata),
             levels=levels,
             uns=uns,
             metadata=metadata,
@@ -244,7 +245,7 @@ class DuckDBReader:
             target_level = string_value(
                 entry.get("target_level"), f"feature relation {name!r} target level"
             )
-            if target_level not in LEVEL_ORDER:
+            if not target_level:
                 raise InvalidResultError(
                     f"feature relation {name!r} has unknown target level {target_level!r}"
                 )
@@ -273,23 +274,29 @@ class DuckDBReader:
         obs_metadata = object_mapping(level.get("obs"), "obs metadata")
         var_metadata = object_mapping(level.get("var"), "var metadata")
         uns, extension_metadata = unpack_level_scope(level.get("apb"), "level APB metadata")
-        return ParsedLevel(
-            obs=ObsFinal(
-                frame=self._read_table(connection, obs_metadata),
-                key_columns=tuple(string_list(obs_metadata.get("key_columns"), "obs key columns")),
-            ),
-            var=VarFinal(
-                frame=self._read_table(connection, var_metadata),
-                key_columns=tuple(string_list(var_metadata.get("key_columns"), "var key columns")),
-            ),
-            primary_layer_name=string_value(level.get("primary_layer"), "primary layer"),
-            layers=self._read_layers(connection, level),
-            obsm=self._read_named(connection, level, "obsm"),
-            varm=self._read_named(connection, level, "varm"),
-            obsp=self._read_named(connection, level, "obsp"),
-            varp=self._read_named(connection, level, "varp"),
-            uns=uns,
-            metadata=extension_metadata,
+        return restore_level_roles(
+            ParsedLevel(
+                obs=ObsFinal(
+                    frame=self._read_table(connection, obs_metadata),
+                    key_columns=tuple(
+                        string_list(obs_metadata.get("key_columns"), "obs key columns")
+                    ),
+                ),
+                var=VarFinal(
+                    frame=self._read_table(connection, var_metadata),
+                    key_columns=tuple(
+                        string_list(var_metadata.get("key_columns"), "var key columns")
+                    ),
+                ),
+                primary_layer_name=string_value(level.get("primary_layer"), "primary layer"),
+                layers=self._read_layers(connection, level),
+                obsm=self._read_named(connection, level, "obsm"),
+                varm=self._read_named(connection, level, "varm"),
+                obsp=self._read_named(connection, level, "obsp"),
+                varp=self._read_named(connection, level, "varp"),
+                uns=uns,
+                metadata=extension_metadata,
+            )
         )
 
     def _read_layers(
@@ -305,9 +312,6 @@ class DuckDBReader:
             entry = object_mapping(entries.get(name), f"layer {name!r}")
             result[name] = FinalLayerTable(
                 layer_name=name,
-                var_key_columns=tuple(
-                    string_list(entry.get("var_key_columns"), f"layer {name!r} var keys")
-                ),
                 values=self._read_table(connection, entry),
                 role=layer_role_from_metadata(entry, f"layer {name!r}"),
                 semantics=layer_semantics_from_metadata(entry.get("semantics"), f"layer {name!r}"),

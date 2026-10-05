@@ -1,6 +1,9 @@
 # apb2
 
-APB2 is a [rules-driven framework](docs/rule-based.md) for converting outputs from proteomics
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23151445.svg)](https://doi.org/10.5281/zenodo.23151445)
+[![PyPI](https://img.shields.io/pypi/v/apb2.svg)](https://pypi.org/project/apb2/)
+
+APB2 is a [rules-driven framework](https://anndata-omics-bridge.github.io/apb2/rule-based/) for converting outputs from proteomics
 software into AnnData or MuData. It supports ion, peptidoform, peptide, protein, and fragment
 quantification levels and can also store the parsed data in Parquet or DuckDB.
 
@@ -11,14 +14,24 @@ input format can usually be supported by adding or updating a rule instead of wr
 reader.
 
 Read the rendered [APB2 documentation](https://anndata-omics-bridge.github.io/apb2/) or its
-[source index](docs/index.md). The [supported-software matrix](docs/supported_software.md) lists
+[source index](https://github.com/anndata-omics-bridge/apb2/blob/main/docs/index.md). The [supported-software matrix](https://anndata-omics-bridge.github.io/apb2/supported_software/) lists
 every packaged software version, quantification level, vendor input type, table shape, and
 parameter parser.
 
 Choose the documentation for your interface:
 
-- [CLI reference](docs/cli.md) and [command-line guides](docs/conversion.md)
-- [Python API reference](docs/api.md)
+- [CLI reference](https://anndata-omics-bridge.github.io/apb2/cli/) and [command-line guides](https://anndata-omics-bridge.github.io/apb2/conversion/)
+- [Python API reference](https://anndata-omics-bridge.github.io/apb2/api/)
+
+## Installation
+
+APB2 requires Python 3.13 or later.
+
+```bash
+pip install apb2
+```
+
+To install only the `apb2` command, use `uv tool install apb2`.
 
 ## Motivation and origin
 
@@ -26,7 +39,7 @@ APB2 is a refactoring and performance improvement of the now-discontinued [AnnDa
 
 APB2 is based on the work of [ProteoBench](https://github.com/proteobench/proteobench): it ports ProteoBench's parsing infrastructure — search-parameter parsing, vendor file-format parsing, modification parsing — into one rules-driven converter. See the ProteoBench preprint: [ProteoBench: the community-curated platform for comparing proteomics data analysis workflows](https://www.biorxiv.org/content/10.64898/2025.12.09.692895v2) (bioRxiv, 2025, doi:10.64898/2025.12.09.692895).
 
-Packaged conversion rules include AlphaDIA, AlphaPept, DIA-NN, FragPipe, i2MassChroQ, MaxQuant, MSAngel, PEAKS, ProteoBench Custom, ProlineStudio, quantms, Sage, Spectronaut, and WOMBAT; the complete version and input-format matrix is in [supported software](docs/supported_software.md).
+Packaged conversion rules include AlphaDIA, AlphaPept, DIA-NN, FragPipe, i2MassChroQ, MaxQuant, MSAngel, PEAKS, ProteoBench Custom, ProlineStudio, quantms, Sage, Spectronaut, and WOMBAT; the complete version and input-format matrix is in [supported software](https://anndata-omics-bridge.github.io/apb2/supported_software/).
 
 The work that became APB2 was discussed and started during the Copenhagen ProteoBench Hackathon,
 13–17 April 2026, as one of the efforts to improve the backend of the
@@ -67,7 +80,7 @@ apb2 convert DATA LEVEL --rule-config RULES_JSON [--params PARAMETER_FILE] \
   [--software VENDOR] [--output BASENAME]
 ```
 
-`LEVEL` is one of `ion`, `peptidoform`, `peptide`, `protein`, or `fragment`. MaxQuant accepts any nonempty subset of evidence, modification-specific peptide, peptide and protein-group exports. Evidence stays separate from the higher-level join; an omitted level converts every available level. `--format` selects `hdf5`, `parquet`, or `duckdb`. HDF5 uses `.h5ad` with an explicit level and `.h5mu` otherwise. Complete one-to-one observation aliases are aligned; fractionated or unmapped resolutions produce separate outputs such as `result.raw_file.h5mu` and `result.experiment.h5mu`. See [output naming](docs/conversion.md#output-naming). `--strict` promotes layer-contract warnings to errors. `--timings-output PATH` optionally writes a separate versioned JSON file containing internal compile, read, parse and write durations plus per-level read/parse durations; it does not enter the APB result or its scientific representation. The command performs conversion only; FASTA annotation and protein inference are outside Parser V2.
+`LEVEL` is one of `ion`, `peptidoform`, `peptide`, `protein`, or `fragment`. MaxQuant accepts any nonempty subset of evidence, modification-specific peptide, peptide and protein-group exports. Evidence stays separate from the higher-level join; an omitted level converts every available level. `--format` selects `hdf5`, `parquet`, or `duckdb`. HDF5 uses `.h5ad` with an explicit level and `.h5mu` otherwise. Complete one-to-one observation aliases are aligned; fractionated or unmapped resolutions produce separate outputs such as `result.raw_file.h5mu` and `result.experiment.h5mu`. See [output naming](https://anndata-omics-bridge.github.io/apb2/conversion/#output-naming). `--strict` promotes layer-contract warnings to errors. `--timings-output PATH` optionally writes a separate versioned JSON file containing internal compile, read, parse and write durations plus per-level read/parse durations; it does not enter the APB result or its scientific representation. The command performs conversion only; FASTA annotation and protein inference are outside Parser V2.
 
 ### Reformat a parsed result
 
@@ -91,7 +104,7 @@ The default prolfquapp behavior retains unmatched quantitative observations and 
 annotation fields. `--unmatched error` requires complete coverage; `--unmatched drop` explicitly
 subsets every observation-aligned value. ProteoBench-specific module annotation and scoring live
 in the separate `apb-proteobench` package. See the
-[sample-annotation guide](docs/sample_annotation.md).
+[sample-annotation guide](https://anndata-omics-bridge.github.io/apb2/sample_annotation/).
 
 ## Python API
 
@@ -101,22 +114,22 @@ storage-neutral values for custom pipelines. Result formats also have explicit a
 ```python
 from pathlib import Path
 
-from apb2.result_facade import read_parsed_levels, write_parsed_levels
+from apb2.api import read_parsed_levels, write_parsed_levels
 
 parsed = read_parsed_levels(Path("result.parquet"))
 write_parsed_levels(parsed, Path("result.duckdb"))
 ```
 
 Parquet and DuckDB preserve Polars result values exactly; h5ad and h5mu apply the stored
-numeric/factor matrix projection. Every public result write also publishes an adjacent compact `.apb.json` scientific representation for inspection without loading the full result. See the [Python API reference](docs/api.md) for vendor
+numeric/factor matrix projection. Every public result write also publishes an adjacent compact `.apb.json` scientific representation for inspection without loading the full result. See the [Python API reference](https://anndata-omics-bridge.github.io/apb2/api/) for vendor
 conversion, annotation, result values, and errors.
 
 ## Architecture
 
 The CLI delegates conversion to Parser V2 and annotation to the independent annotation facade.
 The controlling designs and dependency boundaries are documented in
-[`docs/architecture_converter.md`](docs/architecture_converter.md) and
-[`docs/architecture_annotation.md`](docs/architecture_annotation.md).
+[`docs/architecture_converter.md`](https://anndata-omics-bridge.github.io/apb2/architecture_converter/) and
+[`docs/architecture_annotation.md`](https://anndata-omics-bridge.github.io/apb2/architecture_annotation/).
 
 ## Development
 

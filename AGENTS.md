@@ -6,7 +6,7 @@ The closest `AGENTS.md` wins. Explicit user instructions override this file.
 
 | Task | Command |
 | --- | --- |
-| Synchronize | `uv sync --frozen --group dev` |
+| Synchronize | `uv sync --group dev` |
 | Format | `.venv/bin/ruff format src tests && .venv/bin/ruff check --fix src tests` |
 | Lint | `make lint` |
 | Typecheck | `.venv/bin/pyright` |
@@ -26,7 +26,7 @@ Keep integration scope equal to the tool being changed. For `apb2 convert`, run 
   blanket exclusions, file-wide ignores, or unqualified `# type: ignore`.
 - Ruff is the sole formatter and linter. Do not add Black, isort, Flake8, mypy,
   or another overlapping formatter/type checker.
-- Keep `__init__.py` empty and import public objects from their defining modules.
+- Keep `__init__.py` empty and import from defining modules inside this package. Other anndata_bridge packages import this one only from `apb2.api`, and it imports them only from theirs. The CLI imports this package only from `apb2.api` too.
 - Use Google-style docstrings for public APIs and the configured 100-character
   line length.
 
@@ -76,7 +76,7 @@ must execute `lint-imports`, so the prose rule is also a merge-blocking check.
 - Declare every imported runtime dependency directly in `[project.dependencies]`.
 - Put tests, linting, typing, building, and documentation tools in dependency
   groups; optional user-facing capabilities belong in extras.
-- Update `pyproject.toml` and `uv.lock` together and run `make check`.
+- Update `pyproject.toml` and run `make check`; the repository commits no `uv.lock`.
 
 ### SHOULD
 

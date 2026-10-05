@@ -1,4 +1,5 @@
 {
+  "hierarchy": "lfq",
   "schema_version": "0.8",
   "file_version": "2",
   "software_name": "AlphaPept",
@@ -77,6 +78,9 @@
                 "source": "ms1_int_sum_apex_dn",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               },
               {
@@ -84,6 +88,9 @@
                 "source": "ms1_int_sum_apex",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               },
               {
@@ -91,6 +98,9 @@
                 "source": "ms1_int_sum_area",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               },
               {
@@ -98,6 +108,9 @@
                 "source": "ms1_int_max_apex",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               },
               {
@@ -105,6 +118,9 @@
                 "source": "ms1_int_max_area",
                 "roles": [
                   "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
                 ]
               },
               {

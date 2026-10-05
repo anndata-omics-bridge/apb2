@@ -34,10 +34,15 @@ IN_MEMORY_ANNOTATION = InMemoryAnnotationOrigin()
 
 @dataclass(frozen=True, slots=True)
 class LoadedAnnotationSource:
-    """One physically decoded tabular annotation source."""
+    """One physically decoded tabular annotation source.
+
+    ``headers`` holds the verbatim header text aligned with ``frame.columns``. Repeated headers
+    keep their text there while the frame columns stay unique.
+    """
 
     frame: pl.DataFrame
     origin: AnnotationOrigin
+    headers: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
