@@ -102,7 +102,7 @@ P2	b	21
 }
 ```
 
-`hierarchy` names a level hierarchy from [hierarchies.json](../src/apb2/parserV2/vendor_parse_rules/schema/hierarchies.json), and every level the document declares must belong to it. `lfq`, currently the only one, runs from fragment to protein and identifies a `protein` feature by its `protein_assignment` column.
+`hierarchy` names a level hierarchy from [hierarchies.json](../src/apb2/parserV2/vendor_parse_rules/schema/hierarchies.json), and every level the document declares must belong to it. Quantification tables use `lfq`, which runs from fragment to protein and identifies a `protein` feature by its `protein_assignment` column; `psm` and `ptm_site` cover PSM and modification-site tables.
 
 Convert it with:
 
@@ -293,5 +293,7 @@ Semantic rule roles are distinct from the result model's structural `Measurement
 Each table places shared declarations under `base` and level-specific declarations under `levels.<level>`. Composition produces one effective rule using that table's input and validates all references at that boundary. Search-parameter overrides may replace `measurements.primary_layer` without changing the authored layer inventory.
 
 Run `make check` in the APB2 repository after changing rules. A rule migration also requires the conversion corpus described in the workspace instructions because schema validation alone cannot prove real vendor files still bind and convert.
+
+To ship a rule as a packaged, detected format, follow [Add a vendor format](adding_a_format.md).
 
 See the [Python API](api.md) for programmatic conversion and [Read and write parsed results](result_io.md) for persisted formats and the compact JSON representation.

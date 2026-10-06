@@ -19,6 +19,7 @@ nav:
   - Guides:
       - How rules-driven conversion works: rule-based.md
       - What a rule document covers: rule-coverage.md
+      - Add a vendor format: adding_a_format.md
       - Convert vendor results: conversion.md
       - Read and write results: result_io.md
       - Annotate samples: sample_annotation.md

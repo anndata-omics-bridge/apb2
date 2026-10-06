@@ -14,9 +14,9 @@ The closest `AGENTS.md` wins. Explicit user instructions override this file.
 | Tests | `.venv/bin/pytest -q` |
 | Build | `uv build && .venv/bin/twine check dist/*` |
 | Full gate | `make check` |
-| Integration test | `uv run --project ../apb_studio corpus run --workflow convert` — 10 named fixtures through the real CLI; see the workspace `AGENTS.md` |
+| Integration test | `uv run --project ../apb_studio corpus run routine --workflow convert` — 10 named fixtures through the real CLI; see the workspace `AGENTS.md` |
 
-Keep integration scope equal to the tool being changed. For `apb2 convert`, run only `uv run --project ../apb_studio corpus run --workflow convert`; do not run annotation, FASTA, ProteoBench, the other converter, or a full corpus unless the user explicitly requests broader coverage. Apply the same rule to FASTA work: run only a FASTA-focused workflow. If no such workflow exists, report that fact instead of substituting a broader pipeline.
+Keep integration scope equal to the tool being changed. For `apb2 convert`, run only `uv run --project ../apb_studio corpus run routine --workflow convert`; do not run annotation, FASTA, ProteoBench, the other converter, or a full corpus unless the user explicitly requests broader coverage. Apply the same rule to FASTA work: run only a FASTA-focused workflow. If no such workflow exists, report that fact instead of substituting a broader pipeline.
 
 ## Code conventions
 
