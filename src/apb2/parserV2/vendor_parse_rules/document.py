@@ -79,7 +79,7 @@ class EffectiveRule:
 class _PreparationSchema(ModelBase):
     """Select a registered function; the level rules describe its output."""
 
-    how: Literal["alphadia", "maxquant", "maxquant_wide"]
+    how: Literal["alphadia", "maxquant", "maxquant_wide", "metamorpheus"]
 
 
 class _RuleTableSchema(ModelBase):

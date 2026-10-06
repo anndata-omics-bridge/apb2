@@ -1,0 +1,139 @@
+{
+  "hierarchy": "lfq",
+  "schema_version": "0.8",
+  "file_version": "1",
+  "software_name": "MetaMorpheus",
+  "software_version_pattern": "^1\\.",
+  "tables": [
+    {
+      "prepare": {
+        "how": "metamorpheus"
+      },
+      "input": {
+        "shape": "long",
+        "extensions": [
+          ".tsv"
+        ]
+      },
+      "base": {
+        "axis": {
+          "obs_keys": [
+            "Raw_File"
+          ]
+        },
+        "measurements": {
+          "duplicates": {
+            "mode": "max"
+          }
+        },
+        "columns": {
+          "obs": [
+            {
+              "name": "Raw_File",
+              "source": "File Name"
+            }
+          ]
+        },
+        "sequence_syntax": {
+          "vendor_sequence": {
+            "parser": "token_regex",
+            "token_pattern": "\\[([^\\]]+)\\]",
+            "token_position": "after_residue"
+          }
+        },
+        "modification_maps": {
+          "basic_modification_map": [
+            {
+              "token": "Common Fixed:Carbamidomethyl on C",
+              "accession": "UNIMOD:4"
+            },
+            {
+              "token": "Common Variable:Oxidation on M",
+              "accession": "UNIMOD:35"
+            },
+            {
+              "token": "Common Biological:Acetylation on X",
+              "accession": "UNIMOD:1"
+            }
+          ]
+        }
+      },
+      "levels": {
+        "ion": {
+          "axis": {
+            "var_keys": [
+              "ProForma_ion"
+            ]
+          },
+          "measurements": {
+            "primary_layer": "Intensity",
+            "layers": [
+              {
+                "name": "Intensity",
+                "source": "Peak intensity",
+                "roles": [
+                  "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
+                ]
+              }
+            ]
+          },
+          "columns": {
+            "var": [
+              {
+                "name": "Sequence",
+                "source": "Base Sequence"
+              },
+              {
+                "name": "Full_Sequence",
+                "source": "Full Sequence"
+              },
+              {
+                "name": "Charge",
+                "source": "Precursor Charge",
+                "type": "integer"
+              },
+              {
+                "name": "Proteins",
+                "source": "Protein Group",
+                "roles": [
+                  "protein_assignment",
+                  "fasta_accessions"
+                ]
+              },
+              {
+                "name": "ProForma_peptide",
+                "inputs": [
+                  "Full_Sequence"
+                ],
+                "how": "stripped_sequence",
+                "syntax": "vendor_sequence"
+              },
+              {
+                "name": "ProForma_peptidoform",
+                "inputs": [
+                  "Full_Sequence"
+                ],
+                "how": "proforma_sequence",
+                "syntax": "vendor_sequence",
+                "modification_map": "basic_modification_map",
+                "case_sensitive": false,
+                "unknown_policy": "preserve"
+              },
+              {
+                "name": "ProForma_ion",
+                "inputs": [
+                  "ProForma_peptidoform",
+                  "Charge"
+                ],
+                "how": "proforma_ion"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

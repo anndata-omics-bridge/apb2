@@ -30,6 +30,7 @@ EXPECTED_EXTENSIONS = {
     "i2masschroq": [".tsv", ".txt"],
     "maxquant": [".txt"],
     "maxquant_wide": [".txt"],
+    "metamorpheus": [".tsv"],
     "msangel": [".txt", ".xlsx"],
     "peaks": [".csv"],
     "pb_custom": [".txt", ".tsv"],

@@ -12,6 +12,7 @@
     {"rule": "i2masschroq/rules.json", "categories": ["DDA"]},
     {"rule": "maxquant/rules.json", "categories": ["DDA", "DIA"]},
     {"rule": "maxquant_wide/rules.json", "categories": ["DDA", "DIA"]},
+    {"rule": "metamorpheus/rules.json", "categories": ["DDA"]},
     {"rule": "msangel/rules.json", "categories": ["DDA"]},
     {"rule": "pb_custom/rules.json", "categories": ["DDA", "DIA"]},
     {"rule": "peaks/rules.json", "categories": ["DDA", "DIA"]},
