@@ -41,6 +41,7 @@ P2	b	21
 
 ```json title="rules.json"
 {
+  "hierarchy": "lfq",
   "schema_version": "0.8",
   "file_version": "1",
   "software_name": "MinimalLongExample",
@@ -101,6 +102,8 @@ P2	b	21
 }
 ```
 
+`hierarchy` names a level hierarchy from [hierarchies.json](../src/apb2/parserV2/vendor_parse_rules/schema/hierarchies.json), and every level the document declares must belong to it. `lfq`, currently the only one, runs from fragment to protein and identifies a `protein` feature by its `protein_assignment` column.
+
 Convert it with:
 
 ```bash
@@ -119,6 +122,7 @@ P2	20	21
 
 ```json title="rules.json"
 {
+  "hierarchy": "lfq",
   "schema_version": "0.8",
   "file_version": "1",
   "software_name": "MinimalWideExample",
