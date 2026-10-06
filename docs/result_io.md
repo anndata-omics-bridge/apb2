@@ -35,7 +35,7 @@ parsed = read_parsed_levels(Path("results.duckdb"))
 write_parsed_levels(parsed, Path("results.h5mu"))
 ```
 
-`read_parsed_levels()` returns `ParsedLevels`. `write_parsed_levels()` persists the supplied value, then publishes an adjacent `<artifact>.apb.json` document once the scientific artifact succeeds; `apb2.api.sidecar_path(artifact)` names it. The programmatic equivalent of the CLI command is `write_parsed_levels(read_parsed_levels(source), target)`. The `apb2 convert` and `apb2 annotate` workflows use the same sidecar lifecycle.
+`read_parsed_levels()` returns `ParsedLevels`. `write_parsed_levels()` persists the supplied value, then publishes an adjacent `<artifact>.apb.json` document once the scientific artifact succeeds; `apb2.api.sidecar_path(artifact)` names it. `write_container_representation(container, artifact)` publishes the same document for an AnnData or MuData APB2 did not write, such as an apb-export file: each AnnData or modality is one level keyed by its obs and var names, X and every layer are summarised as numbers, and `uns["apb"]` is the level's metadata. The programmatic equivalent of the CLI command is `write_parsed_levels(read_parsed_levels(source), target)`. The `apb2 convert` and `apb2 annotate` workflows use the same sidecar lifecycle.
 
 ## Compact JSON representation
 

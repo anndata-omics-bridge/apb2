@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Literal
 
 from apb2.parserV2.parse_quant.data.parsed import JsonValue
-from apb2.parserV2.parse_quant.io.formats import ParsedLevelFormatWriter
 from apb2.parserV2.parse_quant.parameters.source import (
     FrameSourceEvidence,
     InputSource,
@@ -59,4 +58,4 @@ def compile_level(
         strategy = facade.resolve_source(evidence, checks=checks)
         input_reader = bound.reader(evidence, strategy.read)
     strategy.provenance.update(preparation)
-    return Parser(input_reader, strategy, ParsedLevelFormatWriter())
+    return Parser(input_reader, strategy)

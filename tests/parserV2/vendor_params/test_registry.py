@@ -12,12 +12,29 @@ from apb2.parserV2.vendor_params.parsers.maxquant import extract_params as extra
 from apb2.parserV2.vendor_params.parsers.shared.model import ParamsError
 from apb2.parserV2.vendor_params.registry import (
     ParseFn,
-    available_software,
     get_parser,
     parse_params,
 )
 
 PARAMS = Path(__file__).resolve().parent / "params"
+REGISTERED = (
+    "alphadia",
+    "alphapept",
+    "dia-nn",
+    "diann",
+    "fragpipe",
+    "i2masschroq",
+    "maxquant",
+    "metamorpheus",
+    "msaid",
+    "msangel",
+    "peaks",
+    "prolinestudio",
+    "quantms",
+    "sage",
+    "spectronaut",
+    "wombat",
+)
 METAMORPHEUS_TOML = PARAMS / "metamorpheus_search_task_config.toml"
 METAMORPHEUS_VERSION = PARAMS / "metamorpheus_version_result.txt"
 MAXQUANT_XML = PARAMS / "mqpar_MQ2.1.3.0_noMBR.xml"
@@ -25,7 +42,7 @@ WOMBAT_YAML = PARAMS / "wombat_params.yaml"
 
 
 def test_every_registered_parser_has_the_uniform_callable_signature() -> None:
-    for software in available_software():
+    for software in REGISTERED:
         parser = get_parser(software)
         assert_type(parser, ParseFn)
         parameters = tuple(inspect.signature(parser).parameters.values())

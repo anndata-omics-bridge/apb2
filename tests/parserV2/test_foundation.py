@@ -7,8 +7,6 @@ and that the runtime plans accept the collaborators the compiler will inject.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import polars as pl
 import pytest
 
@@ -20,7 +18,6 @@ from apb2.parserV2.parse_quant.contracts import (
     ColumnComputer,
     DuplicatePolicy,
     FragmentTableSeparator,
-    ParsedLevelWriter,
     RawValuePresence,
     SelectedAxisColumn,
     SourceDecomposer,
@@ -529,11 +526,6 @@ class _Policy:
         return layer
 
 
-class _Writer:
-    def write(self, parsed: ParsedLevel, target: Path, /) -> None:
-        del parsed, target
-
-
 def test_the_intended_collaborators_satisfy_their_client_owned_contracts() -> None:
     reader: BoundInputReader = _Reader()
     decomposer: SourceDecomposer = _Decomposer()
@@ -542,7 +534,6 @@ def test_the_intended_collaborators_satisfy_their_client_owned_contracts() -> No
     computer: ColumnComputer = _Computer()
     presence: RawValuePresence = _Presence()
     policy: DuplicatePolicy = _Policy()
-    writer: ParsedLevelWriter = _Writer()
 
     assert reader.read().frame.height == 1
     assert separator.separate(LevelSourceTable(frame=pl.DataFrame({"a": [1]}))).frame.height == 1
@@ -555,7 +546,6 @@ def test_the_intended_collaborators_satisfy_their_client_owned_contracts() -> No
     ).to_series().to_list() == [True, False]
     assert decomposer is not None
     assert policy is not None
-    assert writer is not None
 
 
 def test_a_runtime_axis_plan_holds_configured_behaviour_and_no_discriminator() -> None:

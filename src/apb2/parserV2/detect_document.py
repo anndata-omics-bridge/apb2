@@ -34,7 +34,7 @@ from apb2.parserV2.vendor_parse_rules.document import (
     SearchParameterEvidence,
 )
 from apb2.parserV2.vendor_parse_rules.loader import PACKAGED, load_rule_document
-from apb2.parserV2.vendor_parse_rules.schema.base import LEVELS, QuantificationLevel
+from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
 from apb2.parserV2.vendor_parse_rules.schema.rule import LongRule
 
 
@@ -48,15 +48,6 @@ class RuleUnavailableError(RuleDetectionError):
 
 class AmbiguousRuleError(RuleDetectionError):
     """Several packaged rule documents accept the same evidence."""
-
-
-@dataclass(frozen=True, slots=True)
-class DetectedRuleDocument:
-    """The one packaged document identified by source and parameter evidence."""
-
-    document: RuleDocument
-    software: str
-    version: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,23 +115,6 @@ def guess_software(source: InputSource) -> str:
             f"could not recognize the vendor for {source.path}; pass --software or --rule-config"
         )
     return next(iter(slugs))
-
-
-def detect_rule_document(
-    parameters: Parameters,
-    source: InputSource,
-) -> DetectedRuleDocument:
-    """Identify exactly one packaged document without reading the full source table."""
-    detected = detect_rule_documents(parameters, source, LEVELS)
-    documents = {selection.document.path: selection.document for selection in detected.levels}
-    if len(documents) > 1:
-        paths = sorted(str(path) for path in documents)
-        raise AmbiguousRuleError(f"evidence matches several packaged documents: {paths}")
-    return DetectedRuleDocument(
-        document=next(iter(documents.values())),
-        software=detected.software,
-        version=detected.version,
-    )
 
 
 def detect_rule_documents(

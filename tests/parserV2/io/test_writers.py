@@ -16,7 +16,7 @@ import pandas as pd
 import polars as pl
 import pytest
 
-from apb2.parserV2.parse_quant.contracts import LayerValueParser, ParsedLevelWriter
+from apb2.parserV2.parse_quant.contracts import LayerValueParser
 from apb2.parserV2.parse_quant.data.parsed import (
     AuxiliaryLayerRole,
     CategoricalLayerSemantics,
@@ -31,6 +31,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
 from apb2.parserV2.parse_quant.errors import LayerContractError, LayerValueError
 from apb2.parserV2.parse_quant.io.anndata_writer import (
     AnnDataWriter,
+    H5adWriter,
     MuDataLevelError,
     MuDataWriter,
 )
@@ -45,7 +46,7 @@ from apb2.parserV2.parse_quant.io.metadata import (
 from apb2.parserV2.parse_quant.io.parquet_reader import ParquetReader
 from apb2.parserV2.parse_quant.io.parquet_writer import (
     MANIFEST_NAME,
-    ParquetWriter,
+    ParquetLevelsWriter,
 )
 from apb2.parserV2.parse_quant.layer_validation import LayerContractValidator
 from apb2.parserV2.parse_quant.operations import make_layer_parser
@@ -107,6 +108,11 @@ def level(
     )
 
 
+def one(parsed: ParsedLevel) -> ParsedLevels:
+    """Wrap one level as the one-level result the writers persist."""
+    return ParsedLevels(levels={"ion": parsed}, uns={})
+
+
 def manifest_of(target: Path) -> dict[str, JsonValue]:
     payload = json.loads((target / MANIFEST_NAME).read_text(encoding="utf-8"))
     assert isinstance(payload, dict)
@@ -137,7 +143,7 @@ def test_a_parquet_dataset_round_trips_every_value_and_dtype(tmp_path: Path) -> 
     )
     target = tmp_path / "ion"
 
-    ParquetWriter().write(parsed, target)
+    ParquetLevelsWriter().write(one(parsed), target)
     restored = ParquetReader().read(target).levels["ion"]
 
     assert restored.obs.frame.equals(parsed.obs.frame)
@@ -165,7 +171,7 @@ def test_the_manifest_states_what_every_file_is(tmp_path: Path) -> None:
     )
     target = tmp_path / "ion"
 
-    ParquetWriter().write(parsed, target)
+    ParquetLevelsWriter().write(one(parsed), target)
     manifest = manifest_of(target)
 
     assert manifest["format_version"] == "6"
@@ -208,7 +214,7 @@ def test_a_layer_name_is_mapped_to_a_file_name_never_interpolated(tmp_path: Path
     )
     target = tmp_path / "ion"
 
-    ParquetWriter().write(parsed, target)
+    ParquetLevelsWriter().write(one(parsed), target)
     manifest = manifest_of(target)
     levels = manifest["levels"]
     assert isinstance(levels, dict)
@@ -229,11 +235,11 @@ def test_a_layer_name_is_mapped_to_a_file_name_never_interpolated(tmp_path: Path
 
 def test_writing_over_an_existing_dataset_leaves_only_the_new_one(tmp_path: Path) -> None:
     target = tmp_path / "ion"
-    ParquetWriter().write(level(), target)
+    ParquetLevelsWriter().write(one(level()), target)
     layer_directory = target / "levels" / "ion" / "layers"
     (layer_directory / "Stale.parquet").write_bytes(b"stale")
 
-    ParquetWriter().write(level(), target)
+    ParquetLevelsWriter().write(one(level()), target)
 
     assert sorted(path.name for path in layer_directory.iterdir()) == ["Intensity.parquet"]
     assert sorted(path.name for path in tmp_path.iterdir()) == ["ion"]
@@ -244,7 +250,7 @@ def test_a_target_that_is_not_a_directory_is_refused(tmp_path: Path) -> None:
     target.write_text("not a dataset", encoding="utf-8")
 
     with pytest.raises(InvalidResultError, match="not a directory"):
-        ParquetWriter().write(level(), target)
+        ParquetLevelsWriter().write(one(level()), target)
 
     assert target.read_text(encoding="utf-8") == "not a dataset"
 
@@ -253,7 +259,7 @@ def test_a_failure_part_way_through_leaves_the_previous_dataset_intact(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "ion"
-    ParquetWriter().write(level(), target)
+    ParquetLevelsWriter().write(one(level()), target)
     before = (target / MANIFEST_NAME).read_bytes()
     broken = level(
         obs=pl.DataFrame({"Run": ["A"]}),
@@ -262,7 +268,7 @@ def test_a_failure_part_way_through_leaves_the_previous_dataset_intact(
     )
 
     with pytest.raises(Exception, match=r".*"):
-        ParquetWriter().write(broken, target)
+        ParquetLevelsWriter().write(one(broken), target)
 
     assert (target / MANIFEST_NAME).read_bytes() == before
     assert sorted(path.name for path in tmp_path.iterdir()) == ["ion"]
@@ -284,16 +290,6 @@ def test_the_parquet_writer_imports_no_encoder_backend() -> None:
 
     assert not {"numpy", "pandas", "anndata"} & imported
     assert not any(name.endswith("anndata_writer") for name in imported)
-
-
-def test_the_parquet_writer_satisfies_the_parser_owned_writer_contract(
-    tmp_path: Path,
-) -> None:
-    writer: ParsedLevelWriter = ParquetWriter()
-
-    writer.write(level(), tmp_path / "ion")
-
-    assert (tmp_path / "ion" / MANIFEST_NAME).is_file()
 
 
 # ---------------------------------------------------------------------------------- encoders
@@ -550,9 +546,8 @@ def test_a_factor_layer_of_unknown_codes_still_counts_as_populated() -> None:
 # ------------------------------------------------------------------------------- the writer
 
 
-def writer_for(parsed: ParsedLevel, *, checks: str = "standard") -> AnnDataWriter:
-    del parsed, checks
-    return AnnDataWriter()
+def write_h5ad(parsed: ParsedLevel, target: Path) -> None:
+    H5adWriter().write(one(parsed), target)
 
 
 def test_an_auxiliary_layer_cannot_be_the_primary_matrix(tmp_path: Path) -> None:
@@ -561,7 +556,7 @@ def test_an_auxiliary_layer_cannot_be_the_primary_matrix(tmp_path: Path) -> None
     target = tmp_path / "ion.h5ad"
 
     with pytest.raises(InvalidResultError, match=r"primary layer.*is auxiliary"):
-        writer_for(parsed).write(parsed, target)
+        write_h5ad(parsed, target)
 
     assert not target.exists()
 
@@ -592,7 +587,7 @@ def test_writer_excludes_an_auxiliary_layer_from_occupancy_comparisons(
     parsed.layers["ObservationCount"].role = AuxiliaryLayerRole()
     target = tmp_path / f"{checks}.h5ad"
 
-    writer_for(parsed, checks=checks).write(parsed, target)
+    write_h5ad(parsed, target)
 
     assert target.is_file()
 
@@ -622,7 +617,7 @@ def test_writer_does_not_repeat_parse_time_occupancy_checks(
     )
     target = tmp_path / f"{checks}.h5ad"
 
-    writer_for(parsed, checks=checks).write(parsed, target)
+    write_h5ad(parsed, target)
 
     assert target.exists()
 
@@ -633,7 +628,7 @@ def test_the_parser_owned_anndata_writer_validates_layer_key_alignment(tmp_path:
     target = tmp_path / "ion.h5ad"
 
     with pytest.raises(InvalidResultError, match="rows"):
-        writer_for(parsed).write(parsed, target)
+        write_h5ad(parsed, target)
 
     assert not target.exists()
 
@@ -644,7 +639,7 @@ def test_the_written_object_is_observations_by_variables_with_the_primary_layer_
     parsed = level()
     target = tmp_path / "ion.h5ad"
 
-    writer_for(parsed).write(parsed, target)
+    write_h5ad(parsed, target)
     stored = anndata.read_h5ad(target)
 
     assert stored.shape == (2, 2)
@@ -666,7 +661,7 @@ def test_the_primary_layer_is_stored_only_in_x(
     )
     target = tmp_path / "ion.h5ad"
 
-    writer_for(parsed).write(parsed, target)
+    write_h5ad(parsed, target)
     stored = anndata.read_h5ad(target)
 
     named = {name for name in stored.layers.keys() if name is not None}  # noqa: SIM118
@@ -687,7 +682,7 @@ def test_h5ad_namespaces_have_one_scientific_owner_and_one_storage_descriptor(
     )
     target = tmp_path / "ion.h5ad"
 
-    writer_for(parsed).write(parsed, target)
+    write_h5ad(parsed, target)
     stored = anndata.read_h5ad(target)
 
     apb = stored.uns[NAMESPACE]
@@ -715,7 +710,7 @@ def test_every_authored_key_stays_an_ordinary_column_beside_the_storage_index(
     )
     target = tmp_path / "ion.h5ad"
 
-    writer_for(parsed).write(parsed, target)
+    write_h5ad(parsed, target)
     stored = anndata.read_h5ad(target)
 
     assert list(stored.var.columns) == ["Feature", "Gene"]
@@ -734,7 +729,7 @@ def test_a_single_nonstring_key_becomes_a_typed_storage_string(tmp_path: Path) -
     )
     target = tmp_path / "ion.h5ad"
 
-    writer_for(parsed).write(parsed, target)
+    write_h5ad(parsed, target)
     stored = anndata.read_h5ad(target)
 
     assert list(stored.var.index) == ['[["Int64","2"]]', '[["Int64","3"]]']
@@ -759,7 +754,7 @@ def test_a_multi_column_key_index_survives_embedded_separators(tmp_path: Path) -
     )
     target = tmp_path / "ion.h5ad"
 
-    writer_for(parsed).write(parsed, target)
+    write_h5ad(parsed, target)
     stored = anndata.read_h5ad(target)
 
     assert len(set(stored.var.index)) == 2
@@ -791,7 +786,7 @@ def test_bulk_axis_conversion_preserves_scalar_spelling_and_json_escaping() -> N
         layers={"Intensity": keys.with_columns(obs_0=pl.lit(1.0), obs_1=pl.lit(2.0))},
     )
     with pytest.warns(pl.exceptions.PolarsInefficientMapWarning):
-        converted = AnnDataWriter().to_anndata(parsed).var
+        converted = AnnDataWriter().to_anndata_for_level(parsed, "ion", {}, {}).var
     expected = [
         json.dumps(
             [
@@ -820,7 +815,7 @@ def test_bulk_axis_conversion_preserves_empty_typed_columns() -> None:
             "Intensity": frame.select("key").with_columns(obs_0=pl.lit(1.0), obs_1=pl.lit(2.0))
         },
     )
-    converted = AnnDataWriter().to_anndata(parsed).var
+    converted = AnnDataWriter().to_anndata_for_level(parsed, "ion", {}, {}).var
     assert isinstance(converted, pd.DataFrame)
     assert converted.empty
     assert converted.dtypes.astype(str).tolist() == ["string", "boolean", "Int64", "float64"]
@@ -840,7 +835,7 @@ def test_a_string_one_and_an_integer_one_do_not_become_the_same_index(
             },
         )
         target = tmp_path / f"{frame.schema['Key']}.h5ad"
-        writer_for(parsed).write(parsed, target)
+        write_h5ad(parsed, target)
         return list(anndata.read_h5ad(target).var.index)
 
     assert written(pl.DataFrame({"Key": ["1"]})) == ["1"]
@@ -860,7 +855,7 @@ def test_axis_dtypes_are_normalized_to_what_hdf5_accepts(tmp_path: Path) -> None
     )
     target = tmp_path / "ion.h5ad"
 
-    writer_for(parsed).write(parsed, target)
+    write_h5ad(parsed, target)
     stored = anndata.read_h5ad(target)
 
     assert list(stored.var["Charge"]) == [2, pd.NA]
@@ -891,7 +886,7 @@ def test_only_repeated_axis_strings_are_dictionary_encoded(tmp_path: Path) -> No
     )
     target = tmp_path / "ion.h5ad"
 
-    writer_for(parsed).write(parsed, target)
+    write_h5ad(parsed, target)
     stored = anndata.read_h5ad(target)
 
     assert not isinstance(stored.var["ProForma_ion"].dtype, pd.CategoricalDtype)
@@ -920,7 +915,7 @@ def test_the_provenance_is_written_under_the_parse_tool_namespace(tmp_path: Path
     )
     target = tmp_path / "ion.h5ad"
 
-    writer_for(parsed).write(parsed, target)
+    write_h5ad(parsed, target)
     stored = anndata.read_h5ad(target)
 
     parse_namespace = stored.uns[NAMESPACE][PARSE_NAMESPACE]
@@ -934,7 +929,7 @@ def test_a_failed_write_leaves_the_previous_file_and_no_scratch_behind(
 ) -> None:
     target = tmp_path / "ion.h5ad"
     parsed = level()
-    writer_for(parsed).write(parsed, target)
+    write_h5ad(parsed, target)
     before = target.read_bytes()
     broken = level(
         layers={
@@ -948,21 +943,10 @@ def test_a_failed_write_leaves_the_previous_file_and_no_scratch_behind(
     )
 
     with pytest.raises(InvalidResultError, match="not numeric"):
-        writer_for(broken, checks="strict").write(broken, target)
+        write_h5ad(broken, target)
 
     assert target.read_bytes() == before
     assert sorted(path.name for path in tmp_path.iterdir()) == ["ion.h5ad"]
-
-
-def test_the_anndata_writer_satisfies_the_parser_owned_writer_contract(
-    tmp_path: Path,
-) -> None:
-    parsed = level()
-    writer: ParsedLevelWriter = writer_for(parsed)
-
-    writer.write(parsed, tmp_path / "ion.h5ad")
-
-    assert (tmp_path / "ion.h5ad").is_file()
 
 
 def test_mudata_writer_materializes_each_canonical_level(
@@ -1046,6 +1030,6 @@ def test_one_array_is_allocated_for_each_encoded_layer(
         var=pl.DataFrame({"Feature": ["F1"]}),
     )
 
-    writer_for(parsed).write(parsed, tmp_path / "ion.h5ad")
+    write_h5ad(parsed, tmp_path / "ion.h5ad")
 
     assert allocated == [(1, 2), (1, 2)]

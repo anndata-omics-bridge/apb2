@@ -3,8 +3,7 @@
 Detection is not an unrestricted guess. A candidate delimiter is viable only when the header
 it exposes satisfies the rule being constructed for, which is how the rule's required sources
 enter here — as a predicate over headers, never as a rule. Several viable candidates are
-ambiguous and reported as such; the caller binds an explicit dialect instead of having one
-chosen for it.
+ambiguous and reported as such; none is chosen silently.
 
 Reading happens once, with every projected column's dtype already decided: lexical sources
 stay text so a token like ``01`` cannot collapse before the canonicalization check, and plain
@@ -25,7 +24,6 @@ import polars as pl
 from apb2.parserV2.parse_quant.data.source import LevelSourceTable
 from apb2.parserV2.parse_quant.errors import AmbiguousDialectError, IncompatibleSourceError
 from apb2.parserV2.parse_quant.parameters.source import (
-    DelimitedFile,
     DelimitedFormatContract,
     DelimitedSourceEvidence,
     LevelReadPlan,
@@ -106,45 +104,9 @@ def _detected_header(
     if len(viable) > 1:
         raise AmbiguousDialectError(
             f"{path} exposes a usable header under several declared delimiters "
-            f"{[delimiter for delimiter, _header in viable]}; bind an explicit dialect instead"
+            f"{[delimiter for delimiter, _header in viable]}"
         )
     return viable[0]
-
-
-def stated_evidence(
-    source: DelimitedFile,
-    contract: DelimitedFormatContract,
-    accepts: HeaderPredicate,
-) -> DelimitedSourceEvidence:
-    """Accept a caller-stated dialect, once the rule permits it and the header satisfies it."""
-    if source.delimiter not in contract.delimiter_candidates:
-        raise IncompatibleSourceError(
-            f"{source.path}: delimiter {source.delimiter!r} is not among the declared "
-            f"candidates {list(contract.delimiter_candidates)}"
-        )
-    if source.encoding not in contract.encoding_candidates:
-        raise IncompatibleSourceError(
-            f"{source.path}: encoding {source.encoding!r} is not among the declared "
-            f"candidates {list(contract.encoding_candidates)}"
-        )
-    if source.numbers not in contract.number_format_candidates:
-        raise IncompatibleSourceError(
-            f"{source.path}: number format {source.numbers} is not among the declared "
-            f"candidates {list(contract.number_format_candidates)}"
-        )
-    header = _header_of(source.path, source.delimiter, contract, source.encoding)
-    if not accepts(header):
-        raise IncompatibleSourceError(
-            f"{source.path} does not carry the columns this level requires under the stated "
-            f"dialect {source.delimiter!r}"
-        )
-    return DelimitedSourceEvidence(
-        columns=header,
-        delimiter=source.delimiter,
-        quote_char=source.quote_char,
-        encoding=source.encoding,
-        number_format=source.numbers,
-    )
 
 
 def _header_of(
@@ -226,7 +188,7 @@ def _resolved_number_format(
     if len(marks) > 1:
         raise AmbiguousDialectError(
             f"{path} contains fields readable as decimals under several declared marks "
-            f"{sorted(marks)}; bind an explicit dialect instead"
+            f"{sorted(marks)}"
         )
     if not marks:
         return usable[0]

@@ -7,7 +7,6 @@ from pathlib import Path
 from apb2.parserV2.parse_quant import delimited_input, excel_input, parquet_input
 from apb2.parserV2.parse_quant.errors import AmbiguousDialectError, IncompatibleSourceError
 from apb2.parserV2.parse_quant.parameters.source import (
-    DelimitedFile,
     ExcelFormatContract,
     ExcelSourceEvidence,
     Folder,
@@ -29,7 +28,7 @@ class BoundTable:
 
     def __init__(self, source: InputSource, contract: InputContract) -> None:
         """Resolve the source path and its one unambiguous declared format."""
-        if isinstance(source, SingleFile | DelimitedFile):
+        if isinstance(source, SingleFile):
             path = source.path
         elif isinstance(source, Folder):
             if contract.file_name is None:
@@ -90,8 +89,6 @@ class BoundTable:
             return parquet_input.schema_evidence(self._path)
         if isinstance(self._format, ExcelFormatContract):
             return excel_input.schema_evidence(self._path, self._format, accepts)
-        if isinstance(self._source, DelimitedFile):
-            return delimited_input.stated_evidence(self._source, self._format, accepts)
         return delimited_input.detected_evidence(self._path, self._format, accepts)
 
     def recognition_evidence(self, accepts: delimited_input.HeaderPredicate) -> SourceEvidence:
@@ -100,8 +97,6 @@ class BoundTable:
             return parquet_input.schema_evidence(self._path)
         if isinstance(self._format, ExcelFormatContract):
             return excel_input.schema_evidence(self._path, self._format, accepts)
-        if isinstance(self._source, DelimitedFile):
-            return delimited_input.stated_evidence(self._source, self._format, accepts)
         return delimited_input.detected_header_evidence(self._path, self._format, accepts)
 
     def reader(

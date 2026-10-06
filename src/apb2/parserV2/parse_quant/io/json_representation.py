@@ -101,9 +101,20 @@ def write_result_representation(parsed: ParsedLevels, artifact: Path, /) -> Path
     fails. Any previous sidecar is invalidated before projection so it cannot describe a
     newly replaced artifact after a failed representation write.
     """
+    return _write_representation(artifact, lambda: project_result(parsed, artifact))
+
+
+def write_levels_representation(
+    levels: Mapping[str, tuple[ParsedLevel, Mapping[str, JsonValue]]], artifact: Path, /
+) -> Path:
+    """Atomically write the sidecar of standalone levels, each with its APB metadata."""
+    return _write_representation(artifact, lambda: _project_levels(levels, artifact))
+
+
+def _write_representation(artifact: Path, project: Callable[[], dict[str, JsonValue]]) -> Path:
     destination = sidecar_path(artifact)
     destination.unlink(missing_ok=True)
-    document = project_result(parsed, artifact)
+    document = project()
     destination.parent.mkdir(parents=True, exist_ok=True)
     payload = (
         json.dumps(
@@ -144,6 +155,23 @@ def write_result_with_representation(
     """
     write_artifact()
     return write_result_representation(parsed, artifact)
+
+
+def _project_levels(
+    levels: Mapping[str, tuple[ParsedLevel, Mapping[str, JsonValue]]], artifact: Path
+) -> dict[str, JsonValue]:
+    projected: list[JsonValue] = [
+        _level(name, level, metadata) for name, (level, metadata) in levels.items()
+    ]
+    return {
+        "format": FORMAT,
+        "format_version": FORMAT_VERSION,
+        "artifact": _artifact_descriptor(artifact),
+        "root": None,
+        "levels": projected,
+        "annotation_tables": [],
+        "feature_relations": [],
+    }
 
 
 def _level(

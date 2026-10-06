@@ -119,7 +119,7 @@ write_parsed_levels(parsed, Path("results.duckdb"))
 print(sidecar_path(Path("results.duckdb")))  # results.duckdb.apb.json
 ```
 
-The suffix selects the format: `.h5ad`, `.h5mu`, `.parquet` or `.duckdb`. `write_parsed_levels()` also publishes an adjacent compact `<artifact>.apb.json` representation, which `sidecar_path(artifact)` names. Converting between formats is `write_parsed_levels(read_parsed_levels(source), target)`; the CLI command `apb2 reformat` does the same.
+The suffix selects the format: `.h5ad`, `.h5mu`, `.parquet` or `.duckdb`. `write_parsed_levels()` also publishes an adjacent compact `<artifact>.apb.json` representation, which `sidecar_path(artifact)` names. `write_container_representation(container, artifact)` publishes the same sidecar for an AnnData or MuData APB2 did not write, such as an apb-export file. Converting between formats is `write_parsed_levels(read_parsed_levels(source), target)`; the CLI command `apb2 reformat` does the same.
 
 ## Result model
 
@@ -203,12 +203,7 @@ Catch `ResultIOError` for expected result-format failures: an unsupported suffix
 
 ## Parser/result boundary
 
-A compiled parser still owns the one-level strategy contract:
-
-```python
-parsed_level = parser.parse()
-parser.convert(parsed_level, Path("ion.h5ad"))
-```
+Parsing never writes: `parse()` returns `ParsedLevels`, and only `write_parsed_levels()` persists a result.
 
 Parsing and result I/O therefore meet at `ParsedLevel`/`ParsedLevels`; neither computation nor the
 result model imitates an AnnData container.

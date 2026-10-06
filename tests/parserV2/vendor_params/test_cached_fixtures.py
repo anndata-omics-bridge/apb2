@@ -17,9 +17,10 @@ from pathlib import Path
 
 import pytest
 
+from apb2.parserV2.vendor_params.parsers.shared.model import ParamsError
 from apb2.parserV2.vendor_params.registry import (
     ParameterInput,
-    available_software,
+    get_parser,
     parse_params,
 )
 from parserV2.fixtures import corpus_root
@@ -44,7 +45,7 @@ def cached_cases() -> list[tuple[str, str, ParameterInput]]:
             if row.get("status") != "ok":
                 continue
             slug = _slug(row["software_name"])
-            if slug not in available_software():
+            if not _has_parser(slug):
                 continue
             directory = root / Path(row["input_file_path"]).parent
             sources = sorted(directory.glob("param_0.*"))
@@ -59,6 +60,14 @@ def _slug(software_name: str) -> str:
     import re
 
     return re.sub(r"[^a-z0-9]", "", software_name.split("(")[0].strip().lower())
+
+
+def _has_parser(slug: str) -> bool:
+    try:
+        get_parser(slug)
+    except ParamsError:
+        return False
+    return True
 
 
 _CASES = cached_cases()

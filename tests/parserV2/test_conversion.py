@@ -25,7 +25,6 @@ from apb2.parserV2 import compile as compilation_module
 from apb2.parserV2 import detect_document as detection_module
 from apb2.parserV2.detect_document import (
     AmbiguousRuleError,
-    detect_rule_document,
     detect_rule_documents,
 )
 from apb2.parserV2.detect_document import guess_software as guess_packaged_software
@@ -514,7 +513,12 @@ def test_duplicate_packaged_matches_are_reported_as_ambiguous(
     monkeypatch.setattr(detection_module, "_packaged_documents", duplicate_document)
 
     with pytest.raises(AmbiguousRuleError, match="several packaged documents"):
-        detect_rule_document(parameters, SingleFile(path=data))
+        detect_rule_documents(parameters, SingleFile(path=data), LEVELS)
+
+
+def _selected_documents(parameters: Parameters, data: Path) -> set[Path]:
+    detected = detect_rule_documents(parameters, SingleFile(path=data), LEVELS)
+    return {selection.document.path for selection in detected.levels}
 
 
 @pytest.mark.parametrize(
@@ -536,9 +540,7 @@ def test_diann_v1_rule_ranges_are_disjoint(key: str, version: str) -> None:
         update={"software_version": version}
     )
 
-    detected = detect_rule_document(parameters, SingleFile(path=data))
-
-    assert detected.document.path == pair.parser_v2_path
+    assert _selected_documents(parameters, data) == {pair.parser_v2_path}
 
 
 @pytest.mark.parametrize("suffix", (".txt", ".tsv"))
@@ -555,9 +557,7 @@ def test_diann_v1_9_delimited_extensions_remain_accepted(
     shutil.copyfile(source, data)
     parameters = parse_params(fixture_dir / "param_0..txt", software="diann")
 
-    detected = detect_rule_document(parameters, SingleFile(path=data))
-
-    assert detected.document.path == pair.parser_v2_path
+    assert _selected_documents(parameters, data) == {pair.parser_v2_path}
 
 
 def test_diann_v1_9_parquet_produces_available_levels(tmp_path: Path) -> None:
@@ -589,9 +589,7 @@ def test_spectronaut_v21_selects_its_dedicated_rule() -> None:
     assert data is not None
     parameters = parse_params(fixture_dir / "param_0..txt", software="spectronaut")
 
-    detected = detect_rule_document(parameters, SingleFile(path=data))
-
-    assert detected.document.path == pair.parser_v2_path
+    assert _selected_documents(parameters, data) == {pair.parser_v2_path}
 
 
 def test_source_only_rule_recognition_never_inspects_data_rows(

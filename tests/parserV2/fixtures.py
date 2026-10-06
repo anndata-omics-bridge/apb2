@@ -22,7 +22,9 @@ from pathlib import Path
 import polars as pl
 import pytest
 
+from apb2.parserV2.parse_quant.data.parsed import ParsedLevel, ParsedLevels
 from apb2.parserV2.parse_quant.excel_input import sheet_header
+from apb2.parserV2.parse_quant.io.formats import write_parsed_levels
 from apb2.parserV2.parse_quant.parameters.source import PreparedTable, SingleFile
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.prepare_source import prepare_source
@@ -266,3 +268,10 @@ def level_pairs() -> tuple[tuple[PackagedDocument, QuantificationLevel], ...]:
         for document in document_pairs()
         for level in load_rule_document(document.parser_v2_path).levels
     )
+
+
+def write_level(parsed: ParsedLevel, target: Path) -> None:
+    """Write one parsed level as a one-level result in the format the target path names."""
+    level = parsed.uns["quantification_level"]
+    assert isinstance(level, str)
+    write_parsed_levels(ParsedLevels(levels={level: parsed}, uns={}), target)

@@ -32,7 +32,7 @@ from apb2.parserV2.parse_quant.plan_json import (
 from apb2.parserV2.parser_factory import compile_level
 from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
 from parserV2 import synthetic
-from parserV2.fixtures import PackagedDocument, level_pairs
+from parserV2.fixtures import PackagedDocument, level_pairs, write_level
 
 DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
 
@@ -222,7 +222,7 @@ def test_the_plan_reaches_the_parse_namespace_of_a_written_h5ad(tmp_path: Path) 
     )
     target = tmp_path / "ion.h5ad"
 
-    parser.convert(parser.parse(), target)
+    write_level(parser.parse(), target)
 
     stored = anndata.read_h5ad(target)
     plan = json.loads(stored.uns[NAMESPACE][PARSE_NAMESPACE][PLAN_JSON_KEY])
@@ -239,7 +239,7 @@ def test_the_plan_reaches_the_manifest_of_a_written_parquet_dataset(tmp_path: Pa
     )
     target = tmp_path / "ion.parquet"
 
-    parser.convert(parser.parse(), target)
+    write_level(parser.parse(), target)
 
     manifest = json.loads((target / MANIFEST_NAME).read_text(encoding="utf-8"))
     assert json.loads(manifest["levels"]["ion"]["apb"]["parse"][PLAN_JSON_KEY])["level"] == "ion"
@@ -273,7 +273,7 @@ def test_reading_results_does_not_reinterpret_old_rule_or_plan_provenance(tmp_pa
     )
     parsed.uns[PLAN_JSON_KEY] = old_plan
     target = tmp_path / "old-provenance.h5ad"
-    parser.convert(parsed, target)
+    write_level(parsed, target)
     restored = H5adReader().read(target).levels["ion"]
     assert restored.uns["rule_json"] == old_rule
     assert restored.uns[PLAN_JSON_KEY] == old_plan

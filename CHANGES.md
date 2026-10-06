@@ -1,5 +1,10 @@
 # Changes
 
+## 2026-10-06
+
+- `api.py` adds `write_container_representation(container, artifact)`, the version-4 `<artifact>.apb.json` sidecar for an AnnData or MuData APB2 did not write, such as an apb-export file, so APB Studio's viewer can show exports. Each AnnData, or MuData modality, is one level keyed by its obs and var names; X and every layer are summarised as numbers, unstored sparse cells as missing, and `uns["apb"]` becomes the level's metadata. Both sidecar writers share one atomic publication.
+- Code that only tests reached is removed, after a coverage run of every APB Studio corpus workflow found nothing else calling it: the single-level writer path (`ParsedLevelWriter`, `Parser.writer` and `Parser.convert`, `ParsedLevelFormatWriter`, `ParquetWriter`, `AnnDataWriter.write` and `.to_anndata`), since every write goes through `write_parsed_levels` and the `ParsedLevels` writers; the `DelimitedFile` input source and its stated-dialect evidence, which nothing constructed, so an ambiguous dialect error no longer suggests binding one; `detect_rule_document`, superseded by `detect_rule_documents`; and the registry's `available_software`. Conversion results and `api.py` are unchanged.
+
 ## 2026-10-05
 
 - New duplicate mode `max` keeps the largest present value of repeated cells, beside `sum`. Like `sum`, it requires plain numeric layers read as numbers and leaves a cell null when nothing is present; each layer reduces separately. FlashLFQ computes its own peptide intensity as the max over a run's peaks, so MetaMorpheus `AllQuantifiedPeaks.tsv` ([PR #2](https://github.com/anndata-omics-bridge/apb2/pull/2)) is its first user. `NUMERIC_DUPLICATE_MODES` in `operations.py` now drives the three numeric checks.

@@ -1,4 +1,7 @@
-"""Read APB2-authored h5ad and h5mu results into storage-neutral Polars values."""
+"""Read APB2-authored h5ad and h5mu results into storage-neutral Polars values.
+
+An AnnData or MuData APB2 did not write, such as an export, is read as levels for its sidecar.
+"""
 
 from __future__ import annotations
 
@@ -28,6 +31,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
     VarFinal,
 )
 from apb2.parserV2.parse_quant.io.errors import InvalidResultError
+from apb2.parserV2.parse_quant.io.json_representation import write_levels_representation
 from apb2.parserV2.parse_quant.io.metadata import (
     NAMESPACE,
     PARSE_NAMESPACE,
@@ -231,6 +235,62 @@ def _primary_layer_name(metadata: Mapping[str, object]) -> str:
 
 def _axis_frame(frame: pd.DataFrame) -> pl.DataFrame:
     return pl.from_pandas(frame.reset_index(drop=True), include_index=False)
+
+
+def write_container_representation(container: AnnData | mudata.MuData, artifact: Path, /) -> Path:
+    """Atomically write the sidecar of an AnnData or MuData APB2 did not write, such as an export.
+
+    Each AnnData, or MuData modality, is one level keyed by its obs and var names, X and every
+    layer described as numbers, and ``uns["apb"]`` as its metadata.
+    """
+    modalities = (
+        cast(Mapping[str, AnnData], container.mod)
+        if isinstance(container, mudata.MuData)
+        else {artifact.stem: container}
+    )
+    levels = {name: (_container_level(data), _apb(data)) for name, data in modalities.items()}
+    return write_levels_representation(levels, artifact)
+
+
+def _container_level(data: AnnData) -> ParsedLevel:
+    """One AnnData as a level keyed by its names; its role-less matrices count as measured."""
+    names = [str(name) for name in data.obs_names]
+    layers = {
+        str(name): FinalLayerTable(
+            str(name), pl.DataFrame(_numbers(matrix).T, schema=names, orient="row")
+        )
+        # anndata also lists X itself among the layers, under the key None.
+        for name, matrix in [("X", data.X), *data.layers.items()]
+        if name is not None
+    }
+    obs = cast(pd.DataFrame, data.obs).reset_index(names="obs_names")
+    var = cast(pd.DataFrame, data.var).reset_index(names="var_names")
+    return ParsedLevel(
+        obs=ObsFinal(_axis_frame(obs), ("obs_names",)),
+        var=VarFinal(_axis_frame(var), ("var_names",)),
+        primary_layer_name="X",
+        uns={},
+        layers=layers,
+        obsm={},
+        varm={},
+        obsp={},
+        varp={},
+    )
+
+
+def _apb(data: AnnData) -> dict[str, JsonValue]:
+    stored: object = data.uns.get("apb")
+    return cast(dict[str, JsonValue], stored) if isinstance(stored, dict) else {}
+
+
+def _numbers(matrix: object) -> np.ndarray:
+    """A matrix as floats; a sparse matrix's unstored cells are missing, not zero."""
+    if not sparse.issparse(matrix):
+        return np.asarray(matrix, dtype=np.float64)
+    stored = cast(sparse.csr_matrix, matrix).tocoo()
+    dense = np.full_like(cast(np.ndarray, stored.toarray()), np.nan, dtype=np.float64)
+    dense[stored.row, stored.col] = stored.data
+    return dense
 
 
 def _aligned_frames(

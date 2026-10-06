@@ -10,7 +10,6 @@ mistaken for another.
 from __future__ import annotations
 
 from dataclasses import replace
-from pathlib import Path
 from typing import get_args
 
 import polars as pl
@@ -28,11 +27,10 @@ from apb2.parserV2.parse_quant.contracts import (
     ColumnComputer,
     LayerSetValidator,
     LayerValueParser,
-    ParsedLevelWriter,
     RawValuePresence,
     SelectedAxisColumn,
 )
-from apb2.parserV2.parse_quant.data.parsed import FinalLayerTable, ObsFinal, ParsedLevel, VarFinal
+from apb2.parserV2.parse_quant.data.parsed import FinalLayerTable, ParsedLevel
 from apb2.parserV2.parse_quant.data.raw import (
     DecomposedDataRaw,
     LayersRaw,
@@ -109,16 +107,6 @@ def selected(name: str, source: str, *, integer: bool = False) -> SelectedAxisCo
     )
 
 
-class Writer:
-    """A writer that records what it was handed, and complains if parse called it."""
-
-    def __init__(self) -> None:
-        self.written: list[tuple[ParsedLevel, Path]] = []
-
-    def write(self, parsed: ParsedLevel, target: Path, /) -> None:
-        self.written.append((parsed, target))
-
-
 def parser_for(
     frame: pl.DataFrame,
     *,
@@ -128,7 +116,6 @@ def parser_for(
     var: AxisSourcePlan,
     layers: tuple[tuple[str, str], ...] = (("Intensity", "intensity"),),
     duplicates: DuplicateMode = "error",
-    writer: ParsedLevelWriter | None = None,
 ) -> Parser:
     class Reader:
         def read(self) -> LevelSourceTable:
@@ -159,7 +146,6 @@ def parser_for(
             },
             read=LevelReadPlan((), frozenset(), frozenset()),
         ),
-        writer=writer or Writer(),
     )
 
 
@@ -256,7 +242,6 @@ def test_parse_runs_its_collaborators_in_the_documented_order() -> None:
             provenance={},
             read=LevelReadPlan((), frozenset(), frozenset()),
         ),
-        writer=Writer(),
     )
 
     parsed = parser.parse()
@@ -271,53 +256,6 @@ def test_parse_runs_its_collaborators_in_the_documented_order() -> None:
     ]
     assert parsed.primary_layer_name == "Intensity"
     assert parsed.uns["unknown_mod_tokens"] == ["Mystery@M", "Other@C"]
-
-
-def test_convert_writes_the_result_it_is_given_and_parses_nothing(tmp_path: Path) -> None:
-    calls: list[str] = []
-
-    class Reader:
-        def read(self) -> LevelSourceTable:
-            calls.append("read")
-            raise AssertionError("convert must not read")
-
-    class Decomposer:
-        def decompose(self, table: LevelSourceTable, /) -> DecomposedDataRaw:
-            calls.append("decompose")
-            raise AssertionError("convert must not decompose")
-
-    writer = Writer()
-    parser = Parser(
-        input_reader=Reader(),
-        strategy=ParseStrategy(
-            level="ion",
-            decomposer=Decomposer(),
-            obs=SIMPLE_OBS_PLAN,
-            var=SIMPLE_VAR_PLAN,
-            duplicates=duplicate_policy_for("error"),
-            layer_parsers={},
-            layer_validator=layer_validator("Intensity"),
-            provenance={},
-            read=LevelReadPlan((), frozenset(), frozenset()),
-        ),
-        writer=writer,
-    )
-    parsed = ParsedLevel(
-        obs=ObsFinal(frame=pl.DataFrame({"Run": ["A"]}), key_columns=("Run",)),
-        var=VarFinal(frame=pl.DataFrame({"Feature": ["F1"]}), key_columns=("Feature",)),
-        primary_layer_name="Intensity",
-        uns={},
-        layers={},
-        obsm={},
-        varm={},
-        obsp={},
-        varp={},
-    )
-
-    parser.convert(parsed, tmp_path / "out")
-
-    assert calls == []
-    assert writer.written == [(parsed, tmp_path / "out")]
 
 
 # ------------------------------------------------------------------------------- identity
@@ -738,7 +676,7 @@ def test_the_parser_holds_only_configured_behaviour() -> None:
         var=SIMPLE_VAR,
     )
 
-    assert set(Parser.__slots__) == {"input_reader", "strategy", "writer"}
+    assert set(Parser.__slots__) == {"input_reader", "strategy"}
     assert set(ParseStrategy.__slots__) == {
         "level",
         "read",
@@ -812,7 +750,6 @@ def test_a_computed_column_of_the_wrong_length_fails_at_the_boundary() -> None:
             provenance={},
             read=LevelReadPlan((), frozenset(), frozenset()),
         ),
-        writer=Writer(),
     )
 
     with pytest.raises(pl.exceptions.InvalidOperationError):

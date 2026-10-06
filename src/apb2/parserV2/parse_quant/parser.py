@@ -19,7 +19,6 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from pathlib import Path
 from time import perf_counter
 
 import polars as pl
@@ -31,7 +30,6 @@ from apb2.parserV2.parse_quant.contracts import (
     DuplicatePolicy,
     LayerSetValidator,
     LayerValueParser,
-    ParsedLevelWriter,
     SourceDecomposer,
 )
 from apb2.parserV2.parse_quant.data.errors import ConversionError
@@ -125,11 +123,10 @@ class ParserCollection:
 
 @dataclass(frozen=True, slots=True)
 class Parser:
-    """Bind physical IO without duplicating the executable strategy."""
+    """Bind physical input without duplicating the executable strategy."""
 
     input_reader: BoundInputReader
     strategy: ParseStrategy
-    writer: ParsedLevelWriter
 
     @property
     def level(self) -> QuantificationLevel:
@@ -151,10 +148,6 @@ class Parser:
         started = perf_counter()
         parsed = self.strategy.parse(source)
         return parsed, LevelParseTimings(self.level, read_seconds, perf_counter() - started)
-
-    def convert(self, parsed: ParsedLevel, target: Path, /) -> None:
-        """Write a supplied result without reading or parsing again."""
-        self.writer.write(parsed, target)
 
 
 @dataclass(frozen=True, slots=True)

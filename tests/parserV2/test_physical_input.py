@@ -19,7 +19,6 @@ from apb2.parserV2.parse_quant import delimited_input, excel_input, parquet_inpu
 from apb2.parserV2.parse_quant.contracts import BoundInputReader
 from apb2.parserV2.parse_quant.errors import AmbiguousDialectError, IncompatibleSourceError
 from apb2.parserV2.parse_quant.parameters.source import (
-    DelimitedFile,
     DelimitedFormatContract,
     ExcelFormatContract,
     ExcelSourceEvidence,
@@ -189,40 +188,6 @@ def test_a_single_utf8_candidate_still_rejects_invalid_bytes(tmp_path: Path) -> 
     evidence = delimited_input.detected_evidence(path, TSV, accepts_sample_and_feature)
     with pytest.raises(pl.exceptions.ComputeError, match="invalid utf-8"):
         delimited_input.make_delimited_reader(path, evidence, plan("Sample", "Feature")).read()
-
-
-def test_a_stated_dialect_is_checked_against_the_declaration_and_the_header(
-    tmp_path: Path,
-) -> None:
-    path = write(tmp_path / "stated.txt", "Sample;Feature\nA;F\n")
-    stated = DelimitedFile(path=path, delimiter=";", encoding="utf8", numbers=DOT)
-
-    evidence = delimited_input.stated_evidence(stated, TEXT, accepts_sample_and_feature)
-
-    assert evidence.delimiter == ";"
-    assert evidence.number_format == DOT
-    with pytest.raises(IncompatibleSourceError, match="not among the declared candidates"):
-        delimited_input.stated_evidence(
-            DelimitedFile(path=path, delimiter="|", encoding="utf8", numbers=DOT),
-            TEXT,
-            accepts_sample_and_feature,
-        )
-    with pytest.raises(IncompatibleSourceError, match="number format"):
-        delimited_input.stated_evidence(
-            DelimitedFile(path=path, delimiter=";", encoding="utf8", numbers=GROUPED),
-            TEXT,
-            accepts_sample_and_feature,
-        )
-
-
-def test_a_stated_dialect_that_hides_the_required_columns_is_incompatible(
-    tmp_path: Path,
-) -> None:
-    path = write(tmp_path / "stated.txt", "Sample;Feature\nA;F\n")
-    stated = DelimitedFile(path=path, delimiter="\t", encoding="utf8", numbers=DOT)
-
-    with pytest.raises(IncompatibleSourceError, match="does not carry the columns"):
-        delimited_input.stated_evidence(stated, TEXT, accepts_sample_and_feature)
 
 
 # -------------------------------------------------------------------------- number notation

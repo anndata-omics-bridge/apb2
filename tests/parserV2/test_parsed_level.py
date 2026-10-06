@@ -54,6 +54,7 @@ def test_the_public_api_is_exactly_the_approved_names() -> None:
         "parse_search_parameters",
         "read_parsed_levels",
         "sidecar_path",
+        "write_container_representation",
         "write_parsed_levels",
     ]
     assert public_api.canonical_modification_names()["UNIMOD:35"] == "Oxidation"

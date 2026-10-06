@@ -63,10 +63,6 @@ class AnnDataWriter:
 
     __slots__ = ()
 
-    def to_anndata(self, parsed: ParsedLevel, /) -> AnnData:
-        """Materialize one canonical parsed level without writing it."""
-        return self.to_anndata_for_level(parsed, _level_name(parsed), {}, {})
-
     def to_anndata_for_level(
         self,
         parsed: ParsedLevel,
@@ -112,9 +108,6 @@ class AnnDataWriter:
             ),
         )
         return adata
-
-    def write(self, parsed: ParsedLevel, target: Path, /) -> None:
-        _write_atomically(target, self.to_anndata(parsed).write_h5ad)
 
     @staticmethod
     def _write_aligned(
@@ -361,15 +354,6 @@ def represent_layer_values(
         layer.values,
         observation_limit=observation_limit,
     )
-
-
-def _level_name(parsed: ParsedLevel) -> ParsedLevelName:
-    value = parsed.uns.get("quantification_level")
-    if not isinstance(value, str):
-        raise InvalidResultError(
-            "an AnnData write requires level provenance in uns['quantification_level']"
-        )
-    return value
 
 
 def _level_storage_metadata(

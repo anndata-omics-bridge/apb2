@@ -16,6 +16,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
     ParsedLevel,
     ParsedLevels,
 )
+from apb2.parserV2.parse_quant.io.anndata_reader import write_container_representation
 from apb2.parserV2.parse_quant.io.errors import ResultIOError
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels, write_parsed_levels
 from apb2.parserV2.parse_quant.io.json_representation import sidecar_path
@@ -61,5 +62,6 @@ __all__ = [
     "parse_search_parameters",
     "read_parsed_levels",
     "sidecar_path",
+    "write_container_representation",
     "write_parsed_levels",
 ]

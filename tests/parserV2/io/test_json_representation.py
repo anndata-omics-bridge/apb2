@@ -8,8 +8,12 @@ from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
+import pandas as pd
 import polars as pl
 import pytest
+from anndata import AnnData
+from mudata import MuData
+from scipy import sparse
 
 from apb2.parserV2.parse_quant.data.parsed import (
     AnnotationTable,
@@ -24,6 +28,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
     VarFinal,
 )
 from apb2.parserV2.parse_quant.io import formats, json_representation
+from apb2.parserV2.parse_quant.io.anndata_reader import write_container_representation
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels, write_parsed_levels
 from apb2.parserV2.parse_quant.io.json_representation import (
     FORMAT,
@@ -427,6 +432,40 @@ def test_public_result_writer_always_emits_the_adjacent_sidecar(tmp_path: Path) 
     document = json.loads(sidecar_path(target).read_text(encoding="utf-8"))
     assert document["artifact"]["physical_format"] == "parquet"
     assert document["artifact"]["size_bytes"] > 0
+
+
+def test_an_anndata_or_mudata_apb2_did_not_write_is_described_as_levels(tmp_path: Path) -> None:
+    obs = pd.DataFrame({"sample": ["A", "B"]}, index=["r1", "r2"])
+    adata = AnnData(
+        X=np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
+        obs=obs,
+        var=pd.DataFrame({"protein": ["P1", "P2", "P3"]}, index=["f1", "f2", "f3"]),
+        layers={"q": np.array([[0.01, 0.02, np.nan], [0.03, 0.04, 0.05]])},
+        uns={"apb": {"package": "export"}},
+    )
+    single = tmp_path / "export.h5ad"
+    adata.write_h5ad(single)
+    document = json.loads(write_container_representation(adata, single).read_text("utf-8"))
+    (level,) = document["levels"]
+
+    assert (document["format"], document["format_version"]) == (FORMAT, FORMAT_VERSION)
+    assert (level["name"], level["dimensions"]) == ("export", {"observations": 2, "variables": 3})
+    assert [layer["name"] for layer in level["layers"]] == ["X", "q"]
+    assert [column["name"] for column in level["var"]["columns"]] == ["var_names", "protein"]
+    assert level["apb"] == {"package": "export"}
+
+    # Long exports store each cell in its run's row only, as a block-diagonal sparse X.
+    cells = sparse.csr_matrix(([7.0, 8.0], ([0, 1], [0, 2])), shape=(2, 3))
+    psm = AnnData(X=cells, obs=obs, var=pd.DataFrame(index=["c1", "c2", "c3"]))
+    multiple = tmp_path / "export.h5mu"
+    mdata = MuData({"psm": psm, "protein": adata})
+    mdata.write_h5mu(multiple)
+    levels = json.loads(write_container_representation(mdata, multiple).read_text("utf-8"))[
+        "levels"
+    ]
+
+    assert [level["name"] for level in levels] == ["psm", "protein"]
+    assert levels[0]["layers"][0]["statistics"]["minimum"] == 7.0, "unstored cells are missing"
 
 
 def test_sidecar_failure_is_visible_after_the_scientific_artifact_is_written(

@@ -35,7 +35,7 @@ from apb2.parserV2.vendor_parse_rules.document import (
 )
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
-from parserV2.fixtures import PackagedDocument, document_pairs, level_pairs
+from parserV2.fixtures import PackagedDocument, document_pairs, level_pairs, write_level
 
 _SEPARATOR = "\x1f"
 """A unit separator, so a joined key cannot be confused with a key containing one."""
@@ -90,7 +90,7 @@ def parser_v2_conversion(
     parsed = parser.parse()
     with tempfile.TemporaryDirectory() as folder:
         target = Path(folder) / "level.h5ad"
-        parser.convert(parsed, target)
+        write_level(parsed, target)
         return parsed, anndata.read_h5ad(target)
 
 
@@ -142,7 +142,7 @@ def test_each_level_reads_only_its_own_columns_from_one_shared_source() -> None:
     assert list(ion.layers) != list(protein.layers)
 
 
-def test_parsing_once_and_writing_twice_never_reads_again(tmp_path: Path) -> None:
+def test_one_parsed_level_writes_to_both_backends(tmp_path: Path) -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v2")
     data = pair.required_data_path()
     document = load_rule_document(pair.parser_v2_path)
@@ -150,12 +150,9 @@ def test_parsing_once_and_writing_twice_never_reads_again(tmp_path: Path) -> Non
     parser = compile_level(facade, SingleFile(path=data), "standard")
 
     parsed = parser.parse()
-    reads: list[str] = []
-    _spy_on_reads(parser, reads)
-    parser.convert(parsed, tmp_path / "protein.parquet")
-    parser.convert(parsed, tmp_path / "protein.h5ad")
+    write_level(parsed, tmp_path / "protein.parquet")
+    write_level(parsed, tmp_path / "protein.h5ad")
 
-    assert reads == []
     assert (tmp_path / "protein.parquet" / MANIFEST_NAME).is_file()
     stored = anndata.read_h5ad(tmp_path / "protein.h5ad")
     assert stored.shape == (parsed.obs.frame.height, parsed.var.frame.height)
@@ -170,17 +167,6 @@ def test_parsing_once_and_writing_twice_never_reads_again(tmp_path: Path) -> Non
         tmp_path / "protein.parquet" / "levels" / level["directory"] / "layers" / layer["file"]
     )
     assert written.schema == parsed.layers["PG_MaxLFQ"].values.schema
-
-
-def _spy_on_reads(parser: object, calls: list[str]) -> None:
-    """Replace a compiled parser's reader with one that objects to being used."""
-
-    class Refusing:
-        def read(self) -> object:
-            calls.append("read")
-            raise AssertionError("convert must not read")
-
-    object.__setattr__(parser, "input_reader", Refusing())
 
 
 # ------------------------------------------------------------------- the outer boundary

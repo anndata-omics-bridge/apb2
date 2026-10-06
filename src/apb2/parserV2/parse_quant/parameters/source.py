@@ -43,21 +43,6 @@ class SingleFile:
 
 
 @dataclass(frozen=True, slots=True)
-class DelimitedFile:
-    """One delimited file whose dialect the caller states explicitly.
-
-    The escape hatch for a file whose detection is ambiguous. The stated dialect is still
-    checked against the rule's declared policy and against the header it exposes.
-    """
-
-    path: Path
-    delimiter: str
-    encoding: TextEncoding
-    numbers: NumericTextFormat
-    quote_char: str = '"'
-
-
-@dataclass(frozen=True, slots=True)
 class Folder:
     """A folder in which exactly one declared candidate file name must resolve."""
 
@@ -83,7 +68,7 @@ class PreparedTable:
     duration_seconds: float
 
 
-type InputSource = SingleFile | DelimitedFile | Folder | InputFiles | PreparedTable
+type InputSource = SingleFile | Folder | InputFiles | PreparedTable
 
 
 # ------------------------------------------------------------------- rule-permitted formats

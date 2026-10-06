@@ -8,14 +8,13 @@ from pathlib import Path
 from typing import Protocol
 
 from apb2.parserV2.parse_quant.data.parsed import (
-    ParsedLevel,
     ParsedLevels,
 )
 from apb2.parserV2.parse_quant.data.step_log import logged_step
 from apb2.parserV2.parse_quant.io.anndata_reader import H5adReader, H5muReader
 from apb2.parserV2.parse_quant.io.anndata_writer import H5adWriter, H5muWriter
 from apb2.parserV2.parse_quant.io.duckdb import DuckDBReader, DuckDBWriter
-from apb2.parserV2.parse_quant.io.errors import InvalidResultError, UnsupportedResultFormatError
+from apb2.parserV2.parse_quant.io.errors import UnsupportedResultFormatError
 from apb2.parserV2.parse_quant.io.json_representation import write_result_with_representation
 from apb2.parserV2.parse_quant.io.parquet_reader import ParquetReader
 from apb2.parserV2.parse_quant.io.parquet_writer import ParquetLevelsWriter
@@ -31,22 +30,6 @@ class ParsedLevelsWriter(Protocol):
     """Persist one storage-neutral APB2 result."""
 
     def write(self, parsed: ParsedLevels, target: Path, /) -> None: ...
-
-
-class ParsedLevelFormatWriter:
-    """Write one parsed level through the format selected by the target path."""
-
-    def write(self, parsed: ParsedLevel, target: Path, /) -> None:
-        """Wrap one canonical level and delegate to the ordinary result writer."""
-        value = parsed.uns.get("quantification_level")
-        if not isinstance(value, str):
-            raise InvalidResultError(
-                "writing one parsed level requires uns['quantification_level']"
-            )
-        write_parsed_levels(
-            ParsedLevels(levels={value: parsed}, uns={}),
-            target,
-        )
 
 
 class ResultFormat(StrEnum):

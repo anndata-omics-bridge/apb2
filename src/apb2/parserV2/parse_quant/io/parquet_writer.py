@@ -16,7 +16,6 @@ from apb2.parserV2.parse_quant.data.parsed import (
     FinalLayerTable,
     JsonValue,
     ParsedLevel,
-    ParsedLevelName,
     ParsedLevels,
 )
 from apb2.parserV2.parse_quant.io.errors import InvalidResultError
@@ -37,16 +36,6 @@ FORMAT = PARQUET_FORMAT
 FORMAT_VERSION = PARQUET_FORMAT_VERSION
 MANIFEST_NAME = PARQUET_MANIFEST_NAME
 LEVELS_DIRECTORY = PARQUET_LEVELS_DIRECTORY
-
-
-class ParquetWriter:
-    """Parser-owned single-level writer using the collection format on disk."""
-
-    __slots__ = ()
-
-    def write(self, parsed: ParsedLevel, target: Path, /) -> None:
-        level = _level_name(parsed)
-        ParquetLevelsWriter().write(ParsedLevels(levels={level: parsed}, uns={}), target)
 
 
 class ParquetLevelsWriter:
@@ -179,15 +168,6 @@ def _write_feature_relations(
             "metadata": dict(relation.metadata),
         }
     return result
-
-
-def _level_name(parsed: ParsedLevel) -> ParsedLevelName:
-    value = parsed.uns.get("quantification_level")
-    if not isinstance(value, str):
-        raise InvalidResultError(
-            "a parser-owned Parquet write requires uns['quantification_level']"
-        )
-    return value
 
 
 def _replace_directory(staged: Path, target: Path, scratch: Path) -> None:

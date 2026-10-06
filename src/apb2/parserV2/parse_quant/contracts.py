@@ -21,12 +21,11 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Protocol
 
 import polars as pl
 
-from apb2.parserV2.parse_quant.data.parsed import FinalLayerTable, ParsedLevel
+from apb2.parserV2.parse_quant.data.parsed import FinalLayerTable
 from apb2.parserV2.parse_quant.data.raw import DecomposedDataRaw, RawLayerTable
 from apb2.parserV2.parse_quant.data.source import LevelSourceTable
 from apb2.parserV2.parse_quant.parameters.axis import AxisKeyPlan
@@ -95,12 +94,6 @@ class LayerSetValidator(Protocol):
     """Validate relationships across the complete set of canonical layers."""
 
     def validate(self, layers: Mapping[str, FinalLayerTable], /) -> None: ...
-
-
-class ParsedLevelWriter(Protocol):
-    """Persist one parsed level."""
-
-    def write(self, parsed: ParsedLevel, target: Path, /) -> None: ...
 
 
 # ------------------------------------------------------------------------- runtime axis plans

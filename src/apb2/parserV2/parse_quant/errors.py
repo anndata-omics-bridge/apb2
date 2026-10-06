@@ -21,7 +21,7 @@ class IncompatibleSourceError(ConversionError):
 class AmbiguousDialectError(ConversionError):
     """Several allowed physical interpretations satisfy the same rule.
 
-    Never resolved by guessing. The caller binds an explicit dialect instead.
+    Never resolved by guessing; the conversion stops.
     """
 
 

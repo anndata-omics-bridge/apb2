@@ -127,7 +127,3 @@ def get_parser(software: str) -> ParseFn:
 def parse_params(path: ParameterInput, software: str) -> Parameters:
     """Look up a parser and run it on one source or an explicit source tuple."""
     return get_parser(software)(path)
-
-
-def available_software() -> list[str]:
-    return sorted(_REGISTRY)
