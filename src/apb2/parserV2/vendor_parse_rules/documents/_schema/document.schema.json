@@ -373,7 +373,8 @@
           "enum": [
             "alphadia",
             "maxquant",
-            "maxquant_wide"
+            "maxquant_wide",
+            "maxquant_evidence"
           ],
           "title": "How",
           "type": "string"

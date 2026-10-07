@@ -25,7 +25,7 @@ import pytest
 from apb2.parserV2.parse_quant.data.parsed import ParsedLevel, ParsedLevels
 from apb2.parserV2.parse_quant.excel_input import sheet_header
 from apb2.parserV2.parse_quant.io.formats import write_parsed_levels
-from apb2.parserV2.parse_quant.parameters.source import PreparedTable, SingleFile
+from apb2.parserV2.parse_quant.parameters.source import Folder, PreparedTable, SingleFile
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.prepare_source import prepare_source
 from apb2.parserV2.vendor_parse_rules.document import (
@@ -86,7 +86,10 @@ def _decompression_root() -> Path:
 
 @cache
 def committed_sample(key: str) -> Path | None:
-    """The committed sample of one rule key as a readable file, decompressed when needed."""
+    """The committed sample of one rule key as a readable file, decompressed when needed.
+
+    A sample with companion tables is returned as the folder holding it and its companions.
+    """
     folder = committed_dir(key)
     if folder is None:
         return None
@@ -97,7 +100,10 @@ def committed_sample(key: str) -> Path | None:
     target = _decompression_root() / key.replace("/", "__") / stored.stem
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(gzip.decompress(stored.read_bytes()))
-    return target
+    companions = [folder / str(name) for name in record.get("companions", ())]
+    for companion in companions:
+        (target.parent / companion.stem).write_bytes(gzip.decompress(companion.read_bytes()))
+    return target.parent if companions else target
 
 
 @cache
@@ -227,7 +233,10 @@ class PackagedDocument:
         )
         preparation = document.declared(level).preparation
         if preparation is not None:
-            source = prepare_source(SingleFile(self.required_data_path()), preparation)
+            data = self.required_data_path()
+            source = prepare_source(
+                Folder(data) if data.is_dir() else SingleFile(data), preparation
+            )
             assert isinstance(source, PreparedTable)
             return tuple(source.frame.columns)
         found = _admitted_export(self.parser_v2_path)

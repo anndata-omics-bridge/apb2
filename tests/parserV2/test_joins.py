@@ -39,6 +39,7 @@ from apb2.parserV2.prepare_source import InputPreparationError, prepare_source
 from apb2.parserV2.vendor_params.parsers.shared.model import Parameters
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
+from parserV2.fixtures import committed_dir, committed_sample
 from parserV2.join_fixtures import maxquant_tables
 
 RULES = Path("src/apb2/parserV2/vendor_parse_rules/documents")
@@ -117,6 +118,25 @@ def test_alphadia_rejects_conflicting_or_missing_metadata() -> None:
         alphadia.join(tables)
     with pytest.raises(ValueError, match="companion"):
         alphadia.join({"matrix": tables["matrix"]})
+    with pytest.raises(ValueError, match=r"precursor\.matrix\.tsv"):
+        alphadia.join({"precursors": tables["precursors"]})
+
+
+def test_alphadia_precursors_without_matrix_are_rejected(tmp_path: Path) -> None:
+    """precursors.tsv repeats protein-group intensities on precursor rows; alone it fails."""
+    folder = committed_dir("alphadia/v1_12")
+    sample = committed_sample("alphadia/v1_12")
+    assert folder is not None and sample is not None
+    with pytest.raises(ConversionError, match=r"precursor\.matrix\.tsv"):
+        convert_all_from_rule_config(
+            data=sample / "sample.tsv",
+            output=tmp_path / "converted.h5mu",
+            rule_config=RULES / "alphadia/v1_12/rules.json",
+            parameters_path=folder / "param_0..txt",
+            software=None,
+            checks="standard",
+        )
+    assert not (tmp_path / "converted.h5mu").exists()
 
 
 def test_maxquant_higher_join_fanout_preserves_original_cells(tmp_path: Path) -> None:
@@ -274,6 +294,12 @@ def test_maxquant_wide_rule_parses_what_the_long_rule_parses(
     )
 
     assert list(wide.levels) == list(long.levels)
+    if "ion" in wide.levels:
+        # Only the wide rule's evidence hook assigns ions to MaxQuant's razor protein group.
+        ion = wide.levels["ion"].var.frame
+        group = ["P"] if "protein" in roles else ["P;Q"]
+        assert ion.get_column("Protein_IDs").to_list() == group
+        wide.levels["ion"].var.frame = ion.drop("Protein_IDs", "Razor_Protein_Group", strict=False)
     for name, expected in long.levels.items():
         actual = wide.levels[name]
         assert_frame_equal(actual.obs.frame, expected.obs.frame)
@@ -302,7 +328,8 @@ def test_maxquant_every_nonempty_subset_round_trips_available_levels(
     prepared = [item.source for item in detected.levels if item.level != "ion"]
     assert all(source is prepared[0] for source in prepared)
     if "evidence" in roles:
-        assert isinstance(detected.levels[0].source, SingleFile)
+        evidence = detected.levels[0].source
+        assert isinstance(evidence, PreparedTable) and evidence.how == "maxquant_evidence"
 
     summary = convert_all_from_rule_config(
         data=tmp_path,

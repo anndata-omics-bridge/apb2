@@ -6,12 +6,14 @@
   "software_version_pattern": "^(1\\.5|1\\.6|2\\.)",
   "tables": [
     {
+      "prepare": {
+        "how": "maxquant_evidence"
+      },
       "input": {
         "shape": "long",
         "extensions": [
           ".txt"
-        ],
-        "file_name": "evidence.txt"
+        ]
       },
       "base": {
         "axis": {
@@ -23,16 +25,16 @@
           "obs": [
             {
               "name": "Raw_File",
-              "source": "Raw file"
+              "source": "evidence.Raw file"
             },
             {
               "name": "Experiment",
-              "source": "Experiment",
+              "source": "evidence.Experiment",
               "required": false
             },
             {
               "name": "Fraction",
-              "source": "Fraction",
+              "source": "evidence.Fraction",
               "required": false
             }
           ]
@@ -55,7 +57,7 @@
             "layers": [
               {
                 "name": "Intensity",
-                "source": "Intensity",
+                "source": "evidence.Intensity",
                 "roles": [
                   "abundance"
                 ],
@@ -65,20 +67,20 @@
               },
               {
                 "name": "MS_MS_Count",
-                "source": "MS/MS count",
+                "source": "evidence.MS/MS count",
                 "type": "integer"
               },
               {
                 "name": "Retention_Time",
-                "source": "Retention time"
+                "source": "evidence.Retention time"
               },
               {
                 "name": "Score",
-                "source": "Score"
+                "source": "evidence.Score"
               },
               {
                 "name": "PEP",
-                "source": "PEP"
+                "source": "evidence.PEP"
               }
             ]
           },
@@ -86,31 +88,30 @@
             "var": [
               {
                 "name": "Sequence",
-                "source": "Sequence"
+                "source": "evidence.Sequence"
               },
               {
                 "name": "Modified_Sequence",
-                "source": "Modified sequence"
+                "source": "evidence.Modified sequence"
               },
               {
                 "name": "Modifications",
-                "source": "Modifications"
+                "source": "evidence.Modifications"
               },
               {
                 "name": "Charge",
-                "source": "Charge",
+                "source": "evidence.Charge",
                 "type": "integer"
               },
               {
                 "name": "Mass",
-                "source": "Mass",
+                "source": "evidence.Mass",
                 "type": "number"
               },
               {
                 "name": "Proteins",
-                "source": "Proteins",
+                "source": "evidence.Proteins",
                 "roles": [
-                  "protein_assignment",
                   "fasta_accessions"
                 ],
                 "inputs": [
@@ -122,23 +123,39 @@
               },
               {
                 "name": "Leading_Proteins",
-                "source": "Leading proteins",
+                "source": "evidence.Leading proteins",
                 "required": false
               },
               {
                 "name": "Leading_Razor_Protein",
-                "source": "Leading razor protein",
+                "source": "evidence.Leading razor protein",
                 "required": false
               },
               {
                 "name": "Leading_Proteins_Legacy",
-                "source": "Leading Proteins",
+                "source": "evidence.Leading Proteins",
                 "required": false
               },
               {
                 "name": "Leading_Razor_Protein_Legacy",
-                "source": "Leading Razor Protein",
+                "source": "evidence.Leading Razor Protein",
                 "required": false
+              },
+              {
+                "name": "Razor_Protein_Group",
+                "source": "protein.Protein IDs",
+                "required": false
+              },
+              {
+                "name": "Protein_IDs",
+                "roles": [
+                  "protein_assignment"
+                ],
+                "inputs": [
+                  "Razor_Protein_Group",
+                  "Proteins"
+                ],
+                "how": "coalesce"
               },
               {
                 "name": "ProForma_peptidoform",

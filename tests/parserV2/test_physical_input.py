@@ -600,7 +600,7 @@ def test_every_cached_vendor_export_resolves_to_one_unambiguous_reading(
     if path is None:
         pytest.skip(f"no cached export for {pair.key}")
     facade = pair.first_admitted_facade()
-    source = SingleFile(path=path)
+    source = Folder(path=path) if path.is_dir() else SingleFile(path=path)
     if facade.working_parameters.preparation is not None:
         prepared = prepare_source(source, facade.working_parameters.preparation)
         assert isinstance(prepared, PreparedTable)

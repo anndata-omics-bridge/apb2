@@ -7,6 +7,8 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Literal
 
+import polars as pl
+
 from apb2.parserV2.parse_quant.axis_columns import CoalesceColumn, JoinNonemptyColumn
 from apb2.parserV2.parse_quant.contracts import (
     AxisPhaseRuntimePlan,
@@ -435,11 +437,17 @@ class SourcePlanResolver:
         needed = lexical | layers.source_columns
         projected = tuple(name for name in evidence.columns if name in needed)
         if isinstance(evidence, FrameSourceEvidence):
-            # Parquet carries its own schema; overriding it would discard physical types.
+            # Parquet and prepared frames keep their own types. Only text layers that a
+            # number-reducing rule must add up are read as numbers, as delimited input does.
+            text = frozenset(name for name, dtype in evidence.dtypes if dtype == pl.String)
             return LevelReadPlan(
                 projected_columns=projected,
                 text_sources=frozenset(),
-                native_numeric_sources=frozenset(),
+                native_numeric_sources=(
+                    (layers.source_columns - lexical) & text
+                    if self._configuration.measurements.duplicate_mode in NUMERIC_DUPLICATE_MODES
+                    else frozenset()
+                ),
             )
         native = (
             frozenset()
@@ -525,7 +533,7 @@ class SourcePlanResolver:
             return
         if isinstance(evidence, FrameSourceEvidence):
             numeric = frozenset(name for name, dtype in evidence.dtypes if dtype.is_numeric())
-            offenders = sorted(layers.source_columns - numeric)
+            offenders = sorted(layers.source_columns - numeric - read.native_numeric_sources)
         else:
             offenders = sorted(layers.source_columns - read.native_numeric_sources)
         if offenders:

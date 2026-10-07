@@ -3,9 +3,12 @@
   "sample": "sample.tsv.gz",
   "params": "param_0..txt",
   "sample_rows": 500,
+  "companions": [
+    "input_file_secondary.tsv.gz"
+  ],
   "levels": {
     "ion": {
-      "observations": 2,
+      "observations": 6,
       "variables": 458,
       "layers": [
         "Intensity",

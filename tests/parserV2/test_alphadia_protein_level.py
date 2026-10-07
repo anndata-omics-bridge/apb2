@@ -43,3 +43,28 @@ def test_the_protein_group_q_value_moves_from_ion_to_the_protein_level(tmp_path:
         joined.get_column("pg.qval"),
         check_names=False,
     )
+
+
+def test_ion_and_protein_levels_share_the_protein_identity_column(tmp_path: Path) -> None:
+    """Ions are assigned to the protein level's own key, so a rollup needs no name mapping."""
+    data = committed_sample("alphadia/v2")
+    folder = committed_dir("alphadia/v2")
+    assert data is not None
+    assert folder is not None
+    target = tmp_path / "converted.parquet"
+    convert_all_from_rule_config(
+        data=data,
+        output=target,
+        rule_config=RULE,
+        parameters_path=folder / "param_0..txt",
+        software=None,
+        checks="standard",
+    )
+
+    parsed = read_parsed_levels(target)
+    ion, protein = parsed.levels["ion"], parsed.levels["protein"]
+    assert ion.var.roles["protein_assignment"] == "Protein_Group"
+    assert ion.var.roles["fasta_accessions"] == "Proteins"
+    assert protein.var.key_columns == ("Protein_Group",)
+    assigned = set(ion.var.frame.get_column("Protein_Group").to_list())
+    assert assigned <= set(protein.var.frame.get_column("Protein_Group").to_list())

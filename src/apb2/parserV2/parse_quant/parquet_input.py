@@ -35,7 +35,12 @@ class ParquetInputReader:
 
     def read(self) -> LevelSourceTable:
         """Read the projected columns, preserving their physical types and order."""
-        frame = pl.scan_parquet(self.path).select(list(self.plan.projected_columns)).collect()
+        frame = (
+            pl.scan_parquet(self.path)
+            .select(list(self.plan.projected_columns))
+            .with_columns(pl.col(sorted(self.plan.native_numeric_sources)).cast(pl.Float64))
+            .collect()
+        )
         return LevelSourceTable(frame=frame)
 
 

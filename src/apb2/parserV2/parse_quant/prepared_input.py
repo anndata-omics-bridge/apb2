@@ -20,7 +20,9 @@ class PreparedInputReader:
 
     def read(self) -> LevelSourceTable:
         """Keep native prepared types and the rule's declared source closure."""
-        frame = self.frame.select(self.plan.projected_columns)
+        frame = self.frame.select(self.plan.projected_columns).with_columns(
+            pl.col(sorted(self.plan.native_numeric_sources)).cast(pl.Float64)
+        )
         # Full joins retain measurements absent from another level. Only an entirely
         # absent identity is skipped; partially malformed identities still fail parsing.
         for keys in self.raw_keys:

@@ -31,7 +31,7 @@ This table has one row per packaged rule document.
 
 `--software` uses lower-case software names; DIA-NN accepts both `diann` and `dia-nn`. The parameter-parser registry applies only to parameter-bearing rules; `pb_custom` is selected directly.
 
-MaxQuant uses two table groups: direct evidence → ion (`Raw_File`), and joined modification-specific peptide, peptide and protein exports → higher levels (`Experiment`). All nonempty subsets work from a vendor-result directory. A complete one-to-one run/experiment mapping aligns observations; fractionated or unmapped inputs produce separate results. See [conversion and output naming](conversion.md#output-naming).
+MaxQuant uses two table groups: evidence → ion (`Raw_File`), with each row's protein group looked up in proteinGroups.txt when present, and joined modification-specific peptide, peptide and protein exports → higher levels (`Experiment`). All nonempty subsets work from a vendor-result directory. A complete one-to-one run/experiment mapping aligns observations; fractionated or unmapped inputs produce separate results. See [conversion and output naming](conversion.md#output-naming).
 
 ## Quantification levels by rule
 

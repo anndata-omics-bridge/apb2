@@ -12,12 +12,23 @@ _ANNOTATIONS = (*_IDENTITY, "proteins", "pg", "pg_master", "pg_qval", "channel")
 
 
 def identify(headers: Mapping[str, tuple[str, ...]]) -> dict[str, str]:
-    """Identify matrix and precursor inputs by their columns, including renamed files."""
+    """Identify matrix and precursor inputs by their columns, including renamed files.
+
+    The precursor table is long, with a ``run`` column; the matrix carries only hashes and
+    run columns. A hashed table that is neither, such as ProteoBench's merged 1.10 matrix,
+    is not an input of this join.
+    """
     selected: dict[str, str] = {}
     for name, columns in headers.items():
-        if _KEY not in columns:
+        present = set(columns)
+        if _KEY not in present:
             continue
-        role = "precursors" if set(_IDENTITY) <= set(columns) else "matrix"
+        if {*_IDENTITY, "run"} <= present:
+            role = "precursors"
+        elif present.isdisjoint(_IDENTITY):
+            role = "matrix"
+        else:
+            continue
         if role in selected:
             raise ValueError(f"AlphaDIA has multiple {role} inputs: {selected[role]}, {name}")
         selected[role] = name
@@ -29,14 +40,18 @@ def join(tables: Mapping[str, pl.DataFrame]) -> pl.DataFrame:
 
     The matrix supplies the rows and their intensities. The secondary table supplies feature
     metadata by hash and its per-run identification values, such as q-values, by hash and
-    run, never substitute intensities. A precursor-only input already has the prepared long
-    layout.
+    run, never substitute intensities. Its own ``intensity`` column repeats the protein-group
+    intensity on every precursor row, so a precursor table without its matrix is rejected.
     """
     if "precursors" not in tables:
         raise ValueError("AlphaDIA matrix requires its precursor metadata companion")
-    precursors = tables["precursors"]
     if "matrix" not in tables:
-        return precursors
+        raise ValueError(
+            "AlphaDIA precursors.tsv holds protein-group intensities, not precursor "
+            "intensities; supply precursor.matrix.tsv (search_output.precursor_level_lfq: "
+            "true) in the same folder"
+        )
+    precursors = tables["precursors"]
     matrix = tables["matrix"]
     annotations = [column for column in _ANNOTATIONS if column in precursors.columns]
     metadata = precursors.select(_KEY, *annotations).unique(maintain_order=True)

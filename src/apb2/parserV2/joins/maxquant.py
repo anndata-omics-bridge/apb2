@@ -1,4 +1,4 @@
-"""Join MaxQuant's experiment-level wide exports; evidence is a separate run-level table."""
+"""Join MaxQuant's experiment-level wide exports; give run-level evidence its protein group."""
 
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ def _roles(columns: tuple[str, ...]) -> list[str]:
 
 
 def identify(headers: Mapping[str, tuple[str, ...]]) -> dict[str, str]:
-    """Bind higher-level exports; evidence belongs to its own direct-input rule."""
+    """Bind higher-level exports; evidence belongs to its own preparation."""
     selected: dict[str, str] = {}
     for name, columns in headers.items():
         candidates = _roles(columns)
@@ -203,3 +203,74 @@ def join_wide(tables: Mapping[str, pl.DataFrame]) -> pl.DataFrame:
             maintain_order="left",
         )
     return joined.drop(links.columns)
+
+
+_RAZOR_COLUMNS = ("Leading razor protein", "Leading razor proteins")
+
+EVIDENCE_KEY_COLUMNS = ("id", "Protein group IDs", *_RAZOR_COLUMNS, "Protein IDs")
+"""Columns ``join_evidence`` reads besides the rules' own: row and group IDs, razor protein."""
+
+
+def identify_evidence(headers: Mapping[str, tuple[str, ...]]) -> dict[str, str]:
+    """Bind evidence and, when present, proteinGroups, whose groups evidence rows reference."""
+    selected: dict[str, str] = {}
+    for name, columns in headers.items():
+        candidates = _roles(columns)
+        if name == "evidence.txt" and candidates != ["evidence"]:
+            raise ValueError(f"MaxQuant {name} lacks the columns for evidence")
+        if candidates not in (["evidence"], ["protein"]):
+            continue
+        role = candidates[0]
+        if role in selected:
+            raise ValueError(f"MaxQuant has multiple {role} inputs: {selected[role]}, {name}")
+        selected[role] = name
+    return selected if "evidence" in selected else {}
+
+
+def join_evidence(tables: Mapping[str, pl.DataFrame]) -> pl.DataFrame:
+    """Keep every evidence row and add its protein group's ``Protein IDs`` when bound.
+
+    ``Protein group IDs`` references every group of a shared peptide; MaxQuant assigns the
+    peptide to the group holding its leading razor protein, and so does this lookup. Evidence
+    alone is only namespaced: there is no protein table to agree with.
+    """
+    evidence = tables["evidence"]
+    if evidence["id"].null_count() or evidence["id"].is_duplicated().any():
+        raise ValueError("MaxQuant evidence has missing or duplicate row IDs")
+    prepared = _prefix(evidence, "evidence")
+    protein = tables.get("protein")
+    if protein is None:
+        return prepared
+    if protein["id"].null_count() or protein["id"].is_duplicated().any():
+        raise ValueError("MaxQuant protein has missing or duplicate row IDs")
+    razor = next((column for column in _RAZOR_COLUMNS if column in evidence.columns), None)
+    if razor is None:
+        raise ValueError("MaxQuant evidence names no leading razor protein to pick its group")
+    groups = (
+        evidence.select(
+            pl.col("id").alias("evidence.id"),
+            pl.col(razor).alias("_razor"),
+            pl.col("Protein group IDs").str.split(";").alias("_group"),
+        )
+        .explode("_group", empty_as_null=True)
+        .join(
+            protein.select(
+                pl.col("id").alias("_group"), pl.col("Protein IDs").alias("protein.Protein IDs")
+            ),
+            on="_group",
+            how="inner",
+        )
+        .filter(pl.col("protein.Protein IDs").str.split(";").list.contains(pl.col("_razor")))
+        .select("evidence.id", "protein.Protein IDs")
+    )
+    matches = groups.group_by("evidence.id").len()
+    unmatched = evidence.height - matches.height
+    ambiguous = matches.filter(pl.col("len") > 1).height
+    if unmatched or ambiguous:
+        raise ValueError(
+            f"MaxQuant evidence: {unmatched} rows reference no protein group holding their "
+            f"leading razor protein, {ambiguous} reference several"
+        )
+    return prepared.join(
+        groups, on="evidence.id", how="left", validate="1:1", maintain_order="left"
+    )

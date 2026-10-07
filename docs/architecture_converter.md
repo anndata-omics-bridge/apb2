@@ -2070,7 +2070,7 @@ DIA-NN 1.8/1.9 therefore says only:
 }
 ```
 
-DIA-NN v2 uses `"extensions": [".parquet"]`. MaxQuant's direct ion table group identifies evidence separately from its higher-level preparation group:
+DIA-NN v2 uses `"extensions": [".parquet"]`. A direct table names its file inside a vendor folder:
 
 ```json
 "input": {
@@ -2182,7 +2182,7 @@ nonempty candidate lists, and essential complete-rule references. We author and 
 these documents; the schema does not accumulate validators for harmless duplicate spellings or
 every theoretical combination.
 
-A vendor-result folder supplies table-local physical inputs. MaxQuant's direct evidence group produces ions at raw-file resolution; its preparation function unpivots only higher-level exports and joins evidence-ID references plus experiment. AlphaDIA 1.12 joins authoritative matrix quantities with precursor metadata. `prepare_source` composes reads with independent tool functions; `PreparedTable` shares the frame within its group. Direct evidence never acquires preparation provenance or join fan-out. The parsing-owned `observation_groups` module aligns explicit, complete bijections without changing measurement cells and otherwise separates observation identities. The CLI-owned command workflow writes each group and returns actual output paths; backend writers make no scientific alignment decisions. Relationship records are JSON in existing parse provenance, not a new storage schema.
+A vendor-result folder supplies table-local physical inputs. MaxQuant's evidence group produces ions at raw-file resolution, its own preparation adding each row's protein group from proteinGroups; its preparation function unpivots only higher-level exports and joins evidence-ID references plus experiment. AlphaDIA 1.12 joins authoritative matrix quantities with precursor metadata. `prepare_source` composes reads with independent tool functions; `PreparedTable` shares the frame within its group. Evidence keeps its rows: its preparation adds one looked-up column and no join fan-out. The parsing-owned `observation_groups` module aligns explicit, complete bijections without changing measurement cells and otherwise separates observation identities. The CLI-owned command workflow writes each group and returns actual output paths; backend writers make no scientific alignment decisions. Relationship records are JSON in existing parse provenance, not a new storage schema.
 
 #### C.5 Schema 0.3 rule-package migration (historical)
 
@@ -2589,7 +2589,7 @@ Tests must prove:
 - every input declaration has at least one supported extension hint;
 - shared delimited/Parquet defaults, named-sheet Excel input and explicit encoding fallback are tested;
 - only Spectronaut enables delimiter and numeric-format detection;
-- one MaxQuant document separates direct `evidence.txt` from a prepared higher-level group, recognizing all nonempty directory subsets and renamed internal bindings;
+- one MaxQuant document separates the evidence group from the prepared higher-level group, recognizing all nonempty directory subsets and renamed internal bindings;
 - every resolved delimited plan partitions all projected columns into disjoint text and
   native-numeric sets;
 - every fragment declaration retains at least one packed value source and has a collision-free

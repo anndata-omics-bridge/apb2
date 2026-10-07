@@ -8,6 +8,9 @@ every packaged rule document with an admitted export there, write into ``--outpu
 - ``header.txt`` — the export's column names, one per line;
 - ``sample.<ext>.gz`` (or ``sample.parquet``) — a stratified ~500-row sample: up to 250 rows of
   each of the first two runs for long tables, a plain head otherwise;
+- ``<companion>.gz`` — for each ``<export stem>_*`` table beside the export, such as
+  ProteoBench's ``input_file_secondary.tsv``, the rows whose key pairs with the sample; the
+  sample and its companions then convert together as one folder;
 - ``expected.json`` — per-level observation/variable counts and layer names from a real
   ``convert_all_from_rule_config`` run over that sample.
 
@@ -147,6 +150,29 @@ def sample_text(path: Path, run_indexes: list[int]) -> tuple[bytes, int]:
     return header_line + b"".join(kept), len(kept)
 
 
+def companion_text(companion: Path, sample: bytes) -> bytes | None:
+    """Header plus the companion rows whose first-column key occurs in the sample.
+
+    A companion is a table stored beside the export, such as AlphaDIA's
+    ``precursor.matrix.tsv`` beside ``precursors.tsv``. It has no rows of its own to sample:
+    the rows that pair with the sample are kept verbatim, or ``None`` when the sample lacks
+    the companion's key column.
+    """
+    sample_header, *sample_rows = sample.splitlines()
+    sample_delimiter = _delimiter_for(sample_header)
+    sample_columns = sample_header.split(sample_delimiter)
+    with companion.open("rb") as handle:
+        header_line = handle.readline()
+        delimiter = _delimiter_for(header_line)
+        key = header_line.rstrip(b"\r\n").split(delimiter)[0]
+        if key not in sample_columns:
+            return None
+        index = sample_columns.index(key)
+        keys = {row.split(sample_delimiter)[index] for row in sample_rows}
+        kept = [line for line in handle if line.rstrip(b"\r\n").split(delimiter)[0] in keys]
+    return header_line + b"".join(kept)
+
+
 def expectations(sample: Path, rule_config: Path, params: Path | None) -> dict[str, object]:
     """Convert the sample for real and record every produced level's dimensions."""
     with tempfile.TemporaryDirectory() as scratch:
@@ -175,6 +201,7 @@ def write_artifacts(key: str, export: Path, rule_config: Path, output: Path) -> 
     header = header_of(export)
     (target / "header.txt").write_text("\n".join(header) + "\n", encoding="utf-8")
 
+    companions: list[str] = []
     if export.suffix.lower() == ".parquet":
         sample_name = "sample.parquet"
         pl.scan_parquet(export).head(MAX_ROWS).collect().write_parquet(target / sample_name)
@@ -192,6 +219,15 @@ def write_artifacts(key: str, export: Path, rule_config: Path, output: Path) -> 
         scratch = tempfile.TemporaryDirectory()
         sample_for_convert = Path(scratch.name) / f"sample{suffix}"
         sample_for_convert.write_bytes(data)
+        for companion in sorted(export.parent.glob(f"{export.stem}_*")):
+            text = companion_text(companion, data)
+            if text is None:
+                continue
+            (target / f"{companion.name}.gz").write_bytes(gzip.compress(text, mtime=0))
+            (Path(scratch.name) / companion.name).write_bytes(text)
+            companions.append(f"{companion.name}.gz")
+        if companions:
+            sample_for_convert = Path(scratch.name)
 
     params = next(iter(sorted(export.parent.glob("param_0.*"))), None)
     params_copy: Path | None = None
@@ -209,6 +245,7 @@ def write_artifacts(key: str, export: Path, rule_config: Path, output: Path) -> 
         "sample": sample_name,
         "params": params_copy.name if params_copy is not None else None,
         "sample_rows": rows,
+        **({"companions": companions} if companions else {}),
         "levels": levels,
     }
     (target / "expected.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")

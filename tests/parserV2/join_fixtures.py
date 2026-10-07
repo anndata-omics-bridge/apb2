@@ -17,6 +17,7 @@ def maxquant_tables() -> dict[str, pl.DataFrame]:
             "Charge": ["2"] * 3,
             "Mass": ["800"] * 3,
             "Proteins": ["P;Q"] * 3,
+            "Leading razor protein": ["P"] * 3,
             "Intensity": ["7", "13", "5"],
             "Protein group IDs": ["0;1"] * 3,
             "Peptide ID": ["0"] * 3,

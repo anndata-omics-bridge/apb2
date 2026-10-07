@@ -44,8 +44,6 @@ A rule document and the standard reader handle everything listed here. A prepara
 - Dropping rows by a column value, such as FlashLFQ `Full Sequences Mapped` ≠ 1
 - Splitting or rejecting multi-valued identities such as `SEQA|SEQB`
 - Making rows that are not a hierarchy level, such as FlashLFQ peaks, parseable as one; combining their repeated cells stays a duplicate mode
+- Giving rows another table's identity through a vendor foreign key, such as MaxQuant evidence's protein group, so levels share one protein identity
 
-## Known gap
-
-- Prepared tables are read as text ([prepare_source.py](../src/apb2/parserV2/prepare_source.py)), so `sum` or `max` on a prepared table is rejected; the direct reader already delivers numeric layers for them
-- Until the prepared read path does the same, a hook whose rule uses `sum` or `max` must cast its layer columns itself
+Prepared tables are read as text ([prepare_source.py](../src/apb2/parserV2/prepare_source.py)); when a rule uses `sum` or `max`, their text layer columns are read as numbers, as the direct reader does.

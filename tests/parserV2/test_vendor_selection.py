@@ -151,10 +151,13 @@ def test_unhinted_recognition_visits_every_packaged_vendor(monkeypatch: pytest.M
     monkeypatch.setattr(ParseRuleFacade, "from_declared_rule", classmethod(record_document))
     ParseRuleCompiler(source, parameters)
 
+    # Prepared tables are recognized by their hook's header binding, not through a facade.
     assert visited == {
         document.software_name
         for path in detection.PACKAGED
         if (document := load_rule_document(path)).parameter_file == "required"
+        and document.selection == "automatic"
+        and any(document.declared(table[0]).preparation is None for table in document.table_levels)
     }
 
 
@@ -215,5 +218,5 @@ def test_hint_preserves_malformed_named_table_diagnostics(tmp_path: Path) -> Non
     _source, parameters = inputs("maxquant")
     source = tmp_path / "evidence.txt"
     source.write_text("wrong\tcolumns\n1\t2\n")
-    with pytest.raises(RuleUnavailableError, match="are present but incompatible"):
+    with pytest.raises(ConversionError, match=r"evidence\.txt lacks the columns for evidence"):
         ParseRuleCompiler(source, parameters, software="maxquant", requested_levels=("ion",))

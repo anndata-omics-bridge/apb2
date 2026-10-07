@@ -325,9 +325,11 @@ def test_maxquant_wide_joins_higher_levels_wide_and_replaces_the_long_rule_in_de
 
     assert documents["maxquant"].selection == "explicit"
     assert wide.selection == "automatic"
-    assert wide.declared("ion").declaration.model_dump(exclude={"file_version"}) == documents[
-        "maxquant"
-    ].declared("ion").declaration.model_dump(exclude={"file_version"})
+    ion = wide.declared("ion")
+    roles = {column.name: column.roles for column in ion.declaration.columns.var}
+    assert ion.preparation == "maxquant_evidence"
+    assert roles["Protein_IDs"] == ["protein_assignment"]
+    assert roles["Proteins"] == ["fasta_accessions"]
     assert wide.table_levels == (("ion",), ("peptidoform", "peptide", "protein"))
     for level in ("peptidoform", "peptide", "protein"):
         assert wide.declared(level).preparation == "maxquant_wide"
@@ -423,6 +425,14 @@ def test_msangel_measurements_canonicalize_the_dda_run_prefix() -> None:
             "PG_ProteinGroups",
             "PG_ProteinAccessions",
             id="spectronaut-protein",
+        ),
+        pytest.param("alphadia/v2", "ion", "Protein_Group", "Proteins", id="alphadia-v2-ion"),
+        pytest.param(
+            "alphadia/v2", "protein", "Protein_Group", "Protein_Group", id="alphadia-v2-protein"
+        ),
+        pytest.param("maxquant_wide", "ion", "Protein_IDs", "Proteins", id="maxquant-wide-ion"),
+        pytest.param(
+            "maxquant_wide", "protein", "Protein_IDs", "Protein_IDs", id="maxquant-wide-protein"
         ),
     ],
 )

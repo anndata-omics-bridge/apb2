@@ -119,13 +119,15 @@
                 "name": "Proteins",
                 "source": "pg.proteins",
                 "roles": [
-                  "protein_assignment",
                   "fasta_accessions"
                 ]
               },
               {
                 "name": "Protein_Group",
-                "source": "pg.name"
+                "source": "pg.name",
+                "roles": [
+                  "protein_assignment"
+                ]
               },
               {
                 "name": "Protein_Group_Master",
