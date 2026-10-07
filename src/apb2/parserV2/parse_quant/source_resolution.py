@@ -39,7 +39,7 @@ from apb2.parserV2.parse_quant.operations import (
     ComputedOperation,
     WorkingAxisConfiguration,
     WorkingParseConfiguration,
-    duplicate_policy_for,
+    duplicate_policy,
     make_axis_coercer,
     make_layer_parser,
 )
@@ -120,7 +120,9 @@ class SourcePlanResolver:
         )
         read = self._read_plan(evidence, obs_source, var_source, layers)
         self._require_aggregatable(evidence, read, layers)
-        decomposer, decomposition_json = self._decomposition(layers, obs_source, var_source)
+        decomposer, decomposition_json = self._decomposition(
+            layers, obs_source, var_source, present
+        )
         validator = LayerContractValidator(
             primary_layer_name=working.measurements.primary_layer_name,
             required_names=layers.required_names,
@@ -137,6 +139,7 @@ class SourcePlanResolver:
                 "obs": obs_json,
                 "var": var_json,
                 "duplicate_mode": working.measurements.duplicate_mode,
+                "duplicate_ranking": working.measurements.duplicate_ranking,
                 "layer_values": [
                     {"layer_name": layer.name, "value": layer.value} for layer in layers.retained
                 ],
@@ -154,7 +157,7 @@ class SourcePlanResolver:
             decomposer=decomposer,
             obs=obs,
             var=var,
-            duplicates=duplicate_policy_for(working.measurements.duplicate_mode),
+            duplicates=duplicate_policy(working.measurements),
             layer_parsers={
                 layer.name: make_layer_parser(layer.name, layer.value, numbers)
                 for layer in layers.retained
@@ -463,7 +466,11 @@ class SourcePlanResolver:
         )
 
     def _decomposition(
-        self, layers: _ResolvedLayers, obs: AxisSourcePlan, var: AxisSourcePlan
+        self,
+        layers: _ResolvedLayers,
+        obs: AxisSourcePlan,
+        var: AxisSourcePlan,
+        present: frozenset[str],
     ) -> tuple[SourceDecomposer, dict[str, object]]:
         """Construct the physical-shape strategy and record its source decisions."""
         layout = self._configuration.source_layout
@@ -482,7 +489,7 @@ class SourcePlanResolver:
         }
         if isinstance(layout, LongSourceLayout):
             return long, long_json
-        separator, separator_json = self._separator(layout, layers)
+        separator, separator_json = self._separator(layout, layers, present)
         return DelimitedFragmentSourceDecomposer(separator, long), {
             "kind": "delimited_fragment",
             "separator": separator_json,
@@ -493,6 +500,7 @@ class SourcePlanResolver:
         self,
         layout: PositionalFragmentLayout | ColumnLabeledFragmentLayout,
         layers: _ResolvedLayers,
+        present: frozenset[str],
     ) -> tuple[FragmentTableSeparator, dict[str, object]]:
         """Keep the retained packed sources in authored order; drop what is absent."""
         packed = tuple(
@@ -503,7 +511,8 @@ class SourcePlanResolver:
                 f"{self._label()} carries none of the packed fragment columns "
                 f"{list(layout.packed_value_sources)}"
             )
-        if isinstance(layout, ColumnLabeledFragmentLayout):
+        # An optional label column the source lacks leaves the scalars labelled by position.
+        if isinstance(layout, ColumnLabeledFragmentLayout) and layout.label_source in present:
             return ColumnLabeledFragmentTableSeparator(
                 layout.label_source, layout.label_output, layout.delimiter, packed
             ), {

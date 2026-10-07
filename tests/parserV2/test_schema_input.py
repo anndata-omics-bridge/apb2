@@ -28,7 +28,6 @@ EXPECTED_EXTENSIONS = {
     "diann/v2": [".parquet"],
     "fragpipe": [".tsv"],
     "i2masschroq": [".tsv", ".txt"],
-    "maxquant": [".txt"],
     "maxquant_wide": [".txt"],
     "metamorpheus": [".tsv"],
     "msangel": [".txt", ".xlsx"],

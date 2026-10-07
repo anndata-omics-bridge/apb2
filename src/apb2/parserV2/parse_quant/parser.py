@@ -52,6 +52,7 @@ from apb2.parserV2.parse_quant.data.raw import (
 )
 from apb2.parserV2.parse_quant.data.source import LevelSourceTable
 from apb2.parserV2.parse_quant.data.step_log import logged_step
+from apb2.parserV2.parse_quant.duplicates import KeepBestDuplicate
 from apb2.parserV2.parse_quant.parameters.level import QuantificationLevel
 from apb2.parserV2.parse_quant.parameters.source import LevelReadPlan
 
@@ -159,7 +160,7 @@ class ParseStrategy:
     decomposer: SourceDecomposer
     obs: AxisRuntimePlan
     var: AxisRuntimePlan
-    duplicates: DuplicatePolicy
+    duplicates: DuplicatePolicy | KeepBestDuplicate
     layer_parsers: Mapping[str, LayerValueParser]
     layer_validator: LayerSetValidator
     provenance: dict[str, JsonValue]
@@ -318,10 +319,11 @@ class ParseStrategy:
         var_map: RawToFinalKeyMap,
     ) -> dict[str, FinalLayerTable]:
         layers: dict[str, FinalLayerTable] = {}
+        duplicates = self._ranked_duplicates(raw, obs_map, var_map)
         for layer in raw.values:
             parser = self.layer_parsers[layer.layer_name]
             mappable = self._retain_mappable_layer(layer, obs_map, var_map)
-            resolved = self.duplicates.resolve(mappable, parser)
+            resolved = duplicates.resolve(mappable, parser)
             aligned = self._align_layer_keys(
                 resolved,
                 obs_map,
@@ -329,6 +331,24 @@ class ParseStrategy:
             )
             layers[layer.layer_name] = parser.parse(aligned)
         return layers
+
+    def _ranked_duplicates(
+        self, raw: LayersRaw, obs_map: RawToFinalKeyMap, var_map: RawToFinalKeyMap
+    ) -> DuplicatePolicy:
+        """keep_best ranks once, on its ``by`` layer; every other policy needs no ranking."""
+        if not isinstance(self.duplicates, KeepBestDuplicate):
+            return self.duplicates
+        ranking = next(
+            (layer for layer in raw.values if layer.layer_name == self.duplicates.by), None
+        )
+        if ranking is None:
+            raise ConversionError(
+                f"keep_best ranks by layer {self.duplicates.by!r}, which this source lacks"
+            )
+        return self.duplicates.ranked(
+            self._retain_mappable_layer(ranking, obs_map, var_map),
+            self.layer_parsers[ranking.layer_name],
+        )
 
     @staticmethod
     def _retain_mappable_layer(

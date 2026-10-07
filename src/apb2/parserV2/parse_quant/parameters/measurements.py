@@ -10,8 +10,17 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-type DuplicateMode = Literal["error", "keep_first", "sum", "max"]
+type DuplicateMode = Literal["error", "keep_first", "sum", "max", "keep_best"]
 """How several raw scalars claiming one measurement cell become one scalar."""
+
+
+@dataclass(frozen=True, slots=True)
+class DuplicateRanking:
+    """keep_best's ranking: the layer whose best value picks one repeated row per cell."""
+
+    layer: str
+    highest: bool
+
 
 type NumericType = Literal["number", "integer"]
 """Logical numeric type declared for a measurement layer."""
@@ -72,6 +81,8 @@ class WorkingMeasurements:
     duplicate_mode: DuplicateMode
     layers: tuple[WorkingMeasurementLayer, ...]
     required_names: frozenset[str]
+    # Set exactly for keep_best.
+    duplicate_ranking: DuplicateRanking | None = None
 
     @property
     def required_layers(self) -> tuple[WorkingMeasurementLayer, ...]:

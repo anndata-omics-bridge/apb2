@@ -26,7 +26,6 @@ REGISTERED = (
     "i2masschroq",
     "maxquant",
     "metamorpheus",
-    "msaid",
     "msangel",
     "peaks",
     "prolinestudio",

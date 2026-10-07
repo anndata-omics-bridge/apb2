@@ -34,6 +34,7 @@ from apb2.parserV2.parse_quant.contracts import (
 from apb2.parserV2.parse_quant.duplicates import (
     AggregateNumericDuplicates,
     ErrorOnDuplicates,
+    KeepBestDuplicate,
     KeepFirstDuplicate,
 )
 from apb2.parserV2.parse_quant.modifications import (
@@ -107,7 +108,7 @@ class WorkingParseConfiguration:
             selection.source
             for axis in (self.obs, self.var)
             for selection in axis.required_selections
-        } | set(self.source_layout.packed_sources())
+        } | set(self.source_layout.required_packed_sources())
         return required <= set(header) and all(
             self.source_layout.has_layer_source(layer.source, header)
             for layer in self.measurements.required_layers
@@ -120,7 +121,7 @@ _DUPLICATE_POLICIES: Mapping[DuplicateMode, DuplicatePolicy] = {
     "sum": AggregateNumericDuplicates(pl.Expr.sum),
     "max": AggregateNumericDuplicates(pl.Expr.max),
 }
-"""One policy per executable duplicate mode; schema 0.8 declares no others."""
+"""One policy per stateless duplicate mode; keep_best is built from its ranking instead."""
 
 NUMERIC_DUPLICATE_MODES: frozenset[DuplicateMode] = frozenset({"sum", "max"})
 """Modes that reduce numbers, so their layers must be plain numeric and read as numbers."""
@@ -141,8 +142,20 @@ def make_axis_coercer(
 
 
 def duplicate_policy_for(mode: DuplicateMode) -> DuplicatePolicy:
-    """Select the policy one resolved duplicate mode names."""
+    """Select the policy one stateless duplicate mode names."""
+    if mode == "keep_best":
+        raise ValueError("keep_best is built from its ranking layer; use duplicate_policy")
     return _DUPLICATE_POLICIES[mode]
+
+
+def duplicate_policy(measurements: WorkingMeasurements) -> DuplicatePolicy | KeepBestDuplicate:
+    """The duplicate policy one rule's measurements declare, keep_best with its ranking."""
+    ranking = measurements.duplicate_ranking
+    if measurements.duplicate_mode != "keep_best":
+        return duplicate_policy_for(measurements.duplicate_mode)
+    if ranking is None:
+        raise ValueError("keep_best duplicates need the layer they rank by")
+    return KeepBestDuplicate(by=ranking.layer, highest=ranking.highest)
 
 
 def make_layer_parser(

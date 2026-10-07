@@ -132,7 +132,9 @@ def test_the_four_coercers_are_four_different_implementations() -> None:
     assert len(selected) == 4
 
 
-@pytest.mark.parametrize("mode", get_args(DuplicateMode.__value__))
+@pytest.mark.parametrize(
+    "mode", [mode for mode in get_args(DuplicateMode.__value__) if mode != "keep_best"]
+)
 def test_every_executable_duplicate_mode_names_one_policy(mode: DuplicateMode) -> None:
     policy = duplicate_policy_for(mode)
 
@@ -351,6 +353,53 @@ def test_source_resolution_constructs_the_separator_and_long_decomposer(
     assert decomposer.separator.packed_value_sources == ("Quantity",)
     assert not hasattr(decomposer, "config")
     assert not hasattr(decomposer.separator, "kind")
+
+
+@pytest.mark.parametrize(
+    ("label_required", "header", "expected"),
+    [
+        (False, ("Sample", "Feature", "Quantity", "Info"), ColumnLabeledFragmentTableSeparator),
+        (False, ("Sample", "Feature", "Quantity"), PositionalFragmentTableSeparator),
+        (True, ("Sample", "Feature", "Quantity", "Info"), ColumnLabeledFragmentTableSeparator),
+        (True, ("Sample", "Feature", "Quantity"), None),
+    ],
+)
+def test_an_optional_label_column_labels_by_position_when_the_source_lacks_it(
+    label_required: bool, header: tuple[str, ...], expected: type | None
+) -> None:
+    document = synthetic.document(
+        shape="long",
+        base={
+            "axis": {"obs_keys": ["sample"], "var_keys": ["Feature"]},
+            "columns": {
+                "obs": [{"name": "sample", "source": "Sample"}],
+                "var": [{"name": "Feature", "source": "Feature"}],
+            },
+            "measurements": {
+                "primary_layer": "Quantity",
+                "layers": [{"name": "Quantity", "source": "Quantity"}],
+            },
+        },
+        levels={
+            "fragment": {
+                "fragments": {
+                    "label_strategy": "column",
+                    "value_columns": ["Quantity"],
+                    "label_column": "Info",
+                    "label_required": label_required,
+                }
+            }
+        },
+    )
+    facade = synthetic.facade(document, "fragment")
+
+    assert facade.working_parameters.accepts_header(header) == (expected is not None)
+    if expected is None:
+        return
+    strategy = facade.resolve_source(DelimitedSourceEvidence(header, "\t", '"', "utf8", DOT))
+    decomposer = strategy.decomposer
+    assert isinstance(decomposer, DelimitedFragmentSourceDecomposer)
+    assert isinstance(decomposer.separator, expected)
 
 
 @pytest.mark.parametrize("shape", ["long", "wide"])

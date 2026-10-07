@@ -54,6 +54,10 @@ class PackedSiteMismatchError(ConversionError):
     """A vendor row pairs a different number of modification names and sites."""
 
 
+class UnplaceableModificationError(ConversionError):
+    """A token has no residue to modify and sits at neither terminus, such as ``(ac)(ox)PEP``."""
+
+
 # --------------------------------------------------------------------- what normalizing yields
 
 
@@ -167,33 +171,7 @@ class TerminalOnlyLocation:
         unknown_tokens[_terminal_index(self.position, sequence_length)] = raw_token
 
 
-@dataclass(frozen=True, slots=True)
-class UnlocalizedLocation:
-    """A non-terminal token that cannot be attached to a residue."""
-
-    def target_position(self) -> str:
-        return "Anywhere"
-
-    def matches_residue(self, target: str) -> bool:
-        del target
-        return False
-
-    def record_label(self, labels: ModificationLabels, label: str) -> None:
-        del labels, label
-
-    def record_unknown_token(
-        self, unknown_tokens: dict[int, str], raw_token: str, sequence_length: int
-    ) -> None:
-        """Record nothing: an unlocalized token has no index to attach to.
-
-        The identity arm, stated rather than left as a chain ending in a bare ``elif``.
-        """
-        del unknown_tokens, raw_token, sequence_length
-
-
-type ModificationLocation = (
-    ResidueLocation | TerminalLocation | TerminalOnlyLocation | UnlocalizedLocation
-)
+type ModificationLocation = ResidueLocation | TerminalLocation | TerminalOnlyLocation
 
 
 def _terminal_index(position: Literal["N-term", "C-term"], sequence_length: int) -> int:
@@ -317,10 +295,12 @@ def _place_token(
             return _TokenPlacement(
                 ResidueLocation(len(residues), following), (following,), match.end() + 1
             )
-    location = (
-        ResidueLocation(len(residues) - 1, residues[-1]) if residues else UnlocalizedLocation()
-    )
-    return _TokenPlacement(location, (), match.end())
+    if not residues:
+        # Silently dropping the token would lose a modification; the sequence is malformed.
+        raise UnplaceableModificationError(
+            f"modification token {match.group(0)!r} in {sequence!r} has no residue to modify"
+        )
+    return _TokenPlacement(ResidueLocation(len(residues) - 1, residues[-1]), (), match.end())
 
 
 def _tokenize(

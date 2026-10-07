@@ -10,7 +10,6 @@
     {"rule": "diann/v2/rules.json", "categories": ["DDA", "DIA"]},
     {"rule": "fragpipe/rules.json", "categories": ["DDA", "DIA"]},
     {"rule": "i2masschroq/rules.json", "categories": ["DDA"]},
-    {"rule": "maxquant/rules.json", "categories": ["DDA", "DIA"]},
     {"rule": "maxquant_wide/rules.json", "categories": ["DDA", "DIA"]},
     {"rule": "metamorpheus/rules.json", "categories": ["DDA"]},
     {"rule": "msangel/rules.json", "categories": ["DDA"]},

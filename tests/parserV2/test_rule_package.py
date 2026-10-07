@@ -63,8 +63,6 @@ _NON_PRIMARY_ABUNDANCE: dict[tuple[str, QuantificationLevel], tuple[str, ...]] =
     ("diann/v1_7", "protein"): ("PG_Quantity", "Genes_MaxLFQ"),
     ("diann/v2", "ion"): ("Ms1_Normalised", "Precursor_Quantity", "Ms1_Area"),
     ("diann/v2", "protein"): ("Genes_MaxLFQ",),
-    ("maxquant", "peptide"): ("LFQ_Intensity",),
-    ("maxquant", "protein"): ("LFQ_Intensity", "iBAQ"),
     ("maxquant_wide", "peptide"): ("LFQ_Intensity",),
     ("maxquant_wide", "protein"): ("LFQ_Intensity", "iBAQ"),
     ("msangel", "ion"): ("Raw_Abundance",),
@@ -175,7 +173,7 @@ def test_measurement_ownership_is_separate_from_axis_identity(
     rule = load_rule_document(pair.parser_v2_path).declared(level).declaration
 
     assert rule.measurements.primary_layer
-    assert rule.measurements.duplicates.mode in {"error", "keep_first", "sum", "max"}
+    assert rule.measurements.duplicates.mode in {"error", "keep_first", "sum", "max", "keep_best"}
     assert not hasattr(rule.axis, "x_layer")
     assert not hasattr(rule.axis, "duplicates")
 
@@ -257,7 +255,6 @@ def test_packaged_integer_measurements_are_exactly_the_declared_counts() -> None
 
     assert actual == {
         ("fragpipe", "ion", "Spectral_Count"),
-        ("maxquant", "ion", "MS_MS_Count"),
         ("maxquant_wide", "ion", "MS_MS_Count"),
         ("msangel", "ion", "PSM_Count"),
         ("prolinestudio", "ion", "PSM_Count"),
@@ -300,32 +297,12 @@ def test_every_document_declares_the_new_generation_and_physical_extensions(
     assert effective.input.shape == effective.declaration.shape
 
 
-def test_maxquant_keeps_evidence_outside_the_higher_level_prepared_table() -> None:
-    pair = next(candidate for candidate in document_pairs() if candidate.key == "maxquant")
-    document = load_rule_document(pair.parser_v2_path)
+def test_maxquant_prepares_evidence_apart_from_the_wide_higher_level_join() -> None:
+    pair = next(candidate for candidate in document_pairs() if candidate.key == "maxquant_wide")
+    wide = load_rule_document(pair.parser_v2_path)
 
-    source = document.declared("ion").input
-    assert source.extensions == [".txt"]
-    assert source.file_name == "evidence.txt"
-    assert document.table_levels == (("ion",), ("peptidoform", "peptide", "protein"))
-    assert document.declared("ion").preparation is None
-    for level in ("peptidoform", "peptide", "protein"):
-        assert document.declared(level).preparation == "maxquant"
-        assert document.declared(level).declaration.axis.obs_keys == ["Experiment"]
-
-
-def test_maxquant_wide_joins_higher_levels_wide_and_replaces_the_long_rule_in_detection() -> None:
-    """The long rule stays packaged for ``--rule-config``; detection uses only the wide one."""
-    documents = {
-        pair.key: load_rule_document(pair.parser_v2_path)
-        for pair in document_pairs()
-        if pair.key in {"maxquant", "maxquant_wide"}
-    }
-    wide = documents["maxquant_wide"]
-
-    assert documents["maxquant"].selection == "explicit"
-    assert wide.selection == "automatic"
     ion = wide.declared("ion")
+    assert ion.input.extensions == [".txt"]
     roles = {column.name: column.roles for column in ion.declaration.columns.var}
     assert ion.preparation == "maxquant_evidence"
     assert roles["Protein_IDs"] == ["protein_assignment"]
@@ -877,14 +854,15 @@ def test_both_rule_shapes_are_represented_by_the_packaged_generation() -> None:
         for pair, level in level_pairs()
     ]
 
-    assert sum(isinstance(rule, LongRule) for rule in shapes) == 29
+    assert sum(isinstance(rule, LongRule) for rule in shapes) == 25
     assert sum(isinstance(rule, WideRule) for rule in shapes) == 13
     modes = [rule.measurements.duplicates.mode for rule in shapes]
     assert modes.count("error") == 19
-    assert modes.count("keep_first") == 20
-    assert modes.count("sum") == 2
+    assert modes.count("keep_first") == 16
+    assert modes.count("keep_best") == 1
+    assert modes.count("sum") == 1
     assert modes.count("max") == 1
-    assert sum(isinstance(rule.fragments, ColumnLabeledFragments) for rule in shapes) == 0
+    assert sum(isinstance(rule.fragments, ColumnLabeledFragments) for rule in shapes) == 1
 
 
 def test_the_published_artifact_is_the_schema_the_models_declare() -> None:

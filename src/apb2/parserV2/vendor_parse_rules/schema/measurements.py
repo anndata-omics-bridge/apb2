@@ -17,9 +17,28 @@ type MissingBound = Annotated[str, Field(pattern=_MISSING_BOUND)]
 
 
 class Duplicates(ModelBase):
-    """How repeated raw measurement cells are resolved."""
+    """How repeated raw measurement cells are resolved.
+
+    ``keep_best`` keeps, in each cell, the repeated row whose ``by`` layer is ``best``, and
+    takes every layer's value from that one row, so one feature's intensity, score and
+    q-value describe the same identification, such as one PSM.
+    """
 
     mode: DuplicateMode = "error"
+    by: str | None = Field(
+        default=None, description="keep_best: the numeric layer that ranks repeated rows"
+    )
+    best: Literal["highest", "lowest"] = Field(
+        default="highest", description="keep_best: which value of the 'by' layer wins"
+    )
+
+    @model_validator(mode="after")
+    def _ranking_only_for_keep_best(self) -> Duplicates:
+        if (self.mode == "keep_best") != (self.by is not None):
+            raise ValueError("'by' names the ranking layer exactly when mode is keep_best")
+        if self.mode != "keep_best" and self.best != "highest":
+            raise ValueError("'best' applies only to keep_best")
+        return self
 
 
 class NoValuePattern(ModelBase):
@@ -120,6 +139,13 @@ class Measurements(ModelBase):
     sample_layer: str | None = None
     duplicates: Duplicates = Field(default_factory=Duplicates)
     layers: list[Layer] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _ranking_layer_is_declared(self) -> Measurements:
+        ranking = self.duplicates.by
+        if ranking is not None and ranking not in {layer.name for layer in self.layers}:
+            raise ValueError(f"duplicates rank by {ranking!r}, which names no declared layer")
+        return self
 
 
 def layer_required(measurements: Measurements, layer: Layer) -> bool:

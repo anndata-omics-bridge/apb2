@@ -61,6 +61,7 @@ from apb2.parserV2.parse_quant.parameters.level import (
     QuantificationLevel,
 )
 from apb2.parserV2.parse_quant.parameters.measurements import (
+    DuplicateRanking,
     FactorLayerDeclaration,
     LayerValueDeclaration,
     PlainNumericLayerDeclaration,
@@ -266,6 +267,8 @@ class ParseRuleFacade:
                     f"{mode} duplicates require plain numeric layers without late decoding; "
                     f"offending layers: {offenders}"
                 )
+        if mode == "keep_best":
+            ParseRuleFacade._require_ranking_layer(rule)
         fragments = rule.fragments
         if fragments is None:
             return
@@ -311,6 +314,7 @@ class ParseRuleFacade:
                 delimiter=fragments.delimiter,
                 label_output=fragments.label_output,
                 packed_value_sources=tuple(fragments.value_columns),
+                label_required=fragments.label_required,
             )
         return PositionalFragmentLayout(
             delimiter=fragments.delimiter,
@@ -372,6 +376,21 @@ class ParseRuleFacade:
         return ProformaFragmentColumn(column.name, tuple(column.inputs))
 
     @staticmethod
+    def _require_ranking_layer(rule: LongRule | WideRule) -> None:
+        """keep_best ranks by a required, plain numeric layer, or it could not always rank."""
+        ranking = next(
+            layer
+            for layer in rule.measurements.layers
+            if layer.name == rule.measurements.duplicates.by
+        )
+        if not isinstance(ranking, NumericLayer) or not isinstance(
+            ranking.value_pattern, NoValuePattern
+        ):
+            raise ValueError(f"keep_best ranks by {ranking.name!r}, which is not plain numeric")
+        if not layer_required(rule.measurements, ranking):
+            raise ValueError(f"keep_best ranks by {ranking.name!r}, which must be required")
+
+    @staticmethod
     def _project_measurements(rule: LongRule | WideRule) -> WorkingMeasurements:
         """Promote the primary and sample layers into the required set, in authored order."""
         projected = tuple(
@@ -382,11 +401,17 @@ class ParseRuleFacade:
             for layer in rule.measurements.layers
             if layer_required(rule.measurements, layer)
         )
+        duplicates = rule.measurements.duplicates
         return WorkingMeasurements(
             primary_layer_name=rule.measurements.primary_layer,
-            duplicate_mode=rule.measurements.duplicates.mode,
+            duplicate_mode=duplicates.mode,
             layers=projected,
             required_names=required,
+            duplicate_ranking=(
+                None
+                if duplicates.by is None
+                else DuplicateRanking(layer=duplicates.by, highest=duplicates.best == "highest")
+            ),
         )
 
     @staticmethod

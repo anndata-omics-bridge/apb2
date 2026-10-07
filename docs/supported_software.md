@@ -17,7 +17,7 @@ This table has one row per packaged rule document.
 | [DIA-NN 2](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/diann/v2/rules.json) | 2.x | `.parquet` | long | DIA-NN log or captured command/cfg text |
 | [FragPipe](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/fragpipe/rules.json) | 22.x or 23.x | `.tsv` | wide | `fragpipe.workflow` |
 | [i2MassChroQ](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/i2masschroq/rules.json) | 1.x | `.tsv`, `.txt` | long | i2MassChroQ parameter TSV |
-| [MaxQuant](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant/rules.json) | 1.5.x, 1.6.x, or 2.x | `evidence.txt`, `modificationSpecificPeptides.txt`, `peptides.txt`, `proteinGroups.txt` | long / wide | `mqpar.xml` |
+| [MaxQuant](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant_wide/rules.json) | 1.5.x, 1.6.x, or 2.x | `evidence.txt`, `modificationSpecificPeptides.txt`, `peptides.txt`, `proteinGroups.txt` | long / wide | `mqpar.xml` |
 | [MetaMorpheus](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/metamorpheus/rules.json) | 1.x | `AllQuantifiedPeaks.tsv` (`.tsv`) | long | one TOML settings file plus one version-text file |
 | [MSAngel](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/msangel/rules.json) | 2.x | `Quantified peptide ions` sheet in an XLSX workbook (`.txt` or `.xlsx`) | wide | MSAngel workflow JSON |
 | [PEAKS](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/peaks/rules.json) | 13.x | `.csv` | wide | PEAKS settings text report |
@@ -49,7 +49,7 @@ A check mark means that the linked rule document can convert that level. APB2 re
 | [DIA-NN 2](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/diann/v2/rules.json) | ✓ | — | — | ✓ | — |
 | [FragPipe](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/fragpipe/rules.json) | ✓ | — | — | — | — |
 | [i2MassChroQ](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/i2masschroq/rules.json) | ✓ | — | — | — | — |
-| [MaxQuant](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant/rules.json) | ✓ | ✓ | ✓ | ✓ | — |
+| [MaxQuant](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant_wide/rules.json) | ✓ | ✓ | ✓ | ✓ | — |
 | [MetaMorpheus](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/metamorpheus/rules.json) | ✓ | — | — | — | — |
 | [MSAngel](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/msangel/rules.json) | ✓ | — | — | — | — |
 | [PEAKS](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/peaks/rules.json) | ✓ | — | — | — | — |
@@ -61,19 +61,6 @@ A check mark means that the linked rule document can convert that level. APB2 re
 | [Spectronaut 15](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/spectronaut/v15/rules.json) | ✓ | — | — | ✓ | ✓ |
 | [Spectronaut 21](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/spectronaut/v21/rules.json) | ✓ | — | — | ✓ | ✓ |
 | [WOMBAT](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/wombat/rules.json) | ✓ | ✓ | — | — | — |
-
-## Parameter parsers without packaged conversion rules
-
-Parameter parsing and vendor-table conversion are independent capabilities. These parsers produce
-typed search-parameter evidence, but APB2 does not currently ship a result-table rule for the same
-software:
-
-| Software | Parameter parser input | Conversion status |
-| --- | --- | --- |
-| MSAID | parameter CSV | no packaged vendor-table rule |
-
-The complete parser registry is defined in
-[`vendor_params/registry.py`](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_params/registry.py).
 
 ## Planned prolfquapp migrations
 

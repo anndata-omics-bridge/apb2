@@ -12,7 +12,6 @@ from apb2.parserV2.vendor_params.parsers import (
     fragpipe,
     maxquant,
     metamorpheus,
-    msaid,
     peaks,
     sage,
     spectronaut,
@@ -39,7 +38,6 @@ CASES: list[tuple[str, Parser, tuple[Path, ...]]] = [
             PROTEOBENCH_PARAMS / "metamorpheus_version_result.txt",
         ),
     ),
-    ("MSAID", msaid.extract_params, (PROTEOBENCH_PARAMS / "MSAID_default_params.csv",)),
     ("PEAKS", peaks.extract_params, (PROTEOBENCH_PARAMS / "PEAKS_parameters.txt",)),
     ("Sage", sage.extract_params, (PROTEOBENCH_PARAMS / "sage_parameterfile.json",)),
     (

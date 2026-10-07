@@ -127,3 +127,75 @@ class AggregateNumericDuplicates:
                 f"layer {layer.layer_name!r} aggregates duplicate cells, which needs numeric "
                 f"values; these columns hold {layer.values.schema[offenders[0]]}: {offenders}"
             )
+
+
+@dataclass(frozen=True, slots=True)
+class KeepBestDuplicate:
+    """keep_best before ranking: which layer ranks repeated rows, and whether high wins.
+
+    It resolves nothing itself. The parser first ranks the ``by`` layer once (``ranked``),
+    and the resulting policy then resolves every layer from the same winning rows.
+    """
+
+    by: str
+    highest: bool
+
+    def ranked(self, ranking: RawLayerTable, presence: RawValuePresence) -> RankedDuplicates:
+        """Read the ranking layer's numbers; text that is not a plain number is an error."""
+        masked = _masked(ranking, presence)
+        keys = ranking.raw_var_key_columns
+        try:
+            ranks = masked.select(pl.exclude(keys).cast(pl.Float64, strict=True).fill_nan(None))
+        except pl.exceptions.InvalidOperationError as error:
+            raise AggregateTypeError(
+                f"keep_best ranks by layer {self.by!r}, whose values are not plain numbers: {error}"
+            ) from error
+        return RankedDuplicates(
+            by=self.by, highest=self.highest, keys=masked.select(keys), ranks=ranks
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class RankedDuplicates:
+    """keep_best after ranking: in each cell, the repeated row whose ranking value is best.
+
+    Every layer copies the winning row's scalar, so all layers of one cell describe one
+    source row. A row without a ranking value loses to any row with one; ties, and cells
+    where no row has one, keep file order.
+    """
+
+    by: str
+    highest: bool
+    keys: pl.DataFrame
+    ranks: pl.DataFrame
+
+    def resolve(self, layer: RawLayerTable, presence: RawValuePresence, /) -> RawLayerTable:
+        keys = layer.raw_var_key_columns
+        masked = _masked(layer, presence)
+        columns = [name for name in masked.columns if name not in keys]
+        if not masked.select(keys).equals(self.keys) or not set(columns) <= set(self.ranks.columns):
+            raise ConversionError(
+                f"layer {layer.layer_name!r} does not repeat the rows of ranking layer {self.by!r}"
+            )
+        taken = set(masked.columns)
+        ranks: dict[str, str] = {}
+        for name in columns:
+            alias = f"_rank_{name}"
+            while alias in taken:
+                alias += "_"
+            taken.add(alias)
+            ranks[name] = alias
+        combined = masked.hstack(
+            self.ranks.select(pl.col(name).alias(alias) for name, alias in ranks.items())
+        )
+        resolved = combined.group_by(keys, maintain_order=True).agg(
+            pl.col(name)
+            .sort_by(
+                [pl.col(alias).is_null(), pl.col(alias)],
+                descending=[False, self.highest],
+                maintain_order=True,
+            )
+            .first()
+            for name, alias in ranks.items()
+        )
+        return replace(layer, values=resolved)

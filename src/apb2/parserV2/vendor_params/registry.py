@@ -17,7 +17,6 @@ from apb2.parserV2.vendor_params.parsers.maxquant import extract_params as _maxq
 from apb2.parserV2.vendor_params.parsers.metamorpheus import (
     extract_params as _metamorpheus_extract,
 )
-from apb2.parserV2.vendor_params.parsers.msaid import extract_params as _msaid_extract
 from apb2.parserV2.vendor_params.parsers.msangel import extract_params as _msangel_extract
 from apb2.parserV2.vendor_params.parsers.peaks import extract_params as _peaks_extract
 from apb2.parserV2.vendor_params.parsers.prolinestudio import (
@@ -85,7 +84,6 @@ _diann_parse = _single_source("DIA-NN", _diann_extract)
 _fragpipe_parse = _single_source("FragPipe", _fragpipe_extract)
 _i2masschroq_parse = _single_source("i2MassChroQ", _i2masschroq_extract)
 _maxquant_parse = _single_source("MaxQuant", _maxquant_extract)
-_msaid_parse = _single_source("MSAID", _msaid_extract)
 _msangel_parse = _single_source("MSAngel", _msangel_extract)
 _peaks_parse = _single_source("PEAKS", _peaks_extract)
 _prolinestudio_parse = _single_source("ProlineStudio", _prolinestudio_extract)
@@ -103,7 +101,6 @@ _REGISTRY: dict[str, ParseFn] = {
     "i2masschroq": _i2masschroq_parse,
     "maxquant": _maxquant_parse,
     "metamorpheus": _parse_metamorpheus,
-    "msaid": _msaid_parse,
     "msangel": _msangel_parse,
     "peaks": _peaks_parse,
     "prolinestudio": _prolinestudio_parse,

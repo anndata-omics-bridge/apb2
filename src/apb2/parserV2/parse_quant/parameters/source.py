@@ -127,6 +127,10 @@ class LongSourceLayout:
         """Return physical columns that require packed-value splitting."""
         return ()
 
+    def required_packed_sources(self) -> tuple[str, ...]:
+        """Return the packed columns a header must carry."""
+        return ()
+
     def has_layer_source(self, source: str, header: Collection[str]) -> bool:
         """Whether an exact long-layer source occurs in the header."""
         return source in header
@@ -144,6 +148,10 @@ class WideSourceLayout:
 
     def packed_sources(self) -> tuple[str, ...]:
         """Return physical columns that require packed-value splitting."""
+        return ()
+
+    def required_packed_sources(self) -> tuple[str, ...]:
+        """Return the packed columns a header must carry."""
         return ()
 
     def has_layer_source(self, source: str, header: Collection[str]) -> bool:
@@ -168,6 +176,10 @@ class PositionalFragmentLayout:
         """Return the value columns split in parallel."""
         return self.packed_value_sources
 
+    def required_packed_sources(self) -> tuple[str, ...]:
+        """Return the packed columns a header must carry."""
+        return self.packed_value_sources
+
     def has_layer_source(self, source: str, header: Collection[str]) -> bool:
         """Whether an exact packed layer source occurs in the header."""
         return source in header
@@ -185,10 +197,15 @@ class ColumnLabeledFragmentLayout:
     delimiter: str
     label_output: str
     packed_value_sources: tuple[str, ...]
+    label_required: bool = True
 
     def packed_sources(self) -> tuple[str, ...]:
         """Return the label column and value columns split in parallel."""
         return (self.label_source, *self.packed_value_sources)
+
+    def required_packed_sources(self) -> tuple[str, ...]:
+        """Return the packed columns a header must carry; an optional label is not one."""
+        return self.packed_sources() if self.label_required else self.packed_value_sources
 
     def has_layer_source(self, source: str, header: Collection[str]) -> bool:
         """Whether an exact packed layer source occurs in the header."""

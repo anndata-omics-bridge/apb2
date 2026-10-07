@@ -370,15 +370,15 @@ def test_a_folder_bound_to_a_rule_declaring_no_candidate_names_is_incompatible(
         composition.BoundTable(Folder(path=tmp_path), contract(TEXT))
 
 
-def test_the_maxquant_ion_table_selects_direct_evidence_input() -> None:
-    pair = next(candidate for candidate in document_pairs() if candidate.key == "maxquant")
+def test_the_maxquant_ion_table_is_prepared_from_evidence() -> None:
+    pair = next(candidate for candidate in document_pairs() if candidate.key == "maxquant_wide")
     facade = ParseRuleFacade(
         load_rule_document(pair.parser_v2_path),
         "ion",
         synthetic.NO_EVIDENCE,
     )
-    assert facade.working_parameters.preparation is None
-    assert facade.working_parameters.input.file_name == "evidence.txt"
+    assert facade.working_parameters.preparation == "maxquant_evidence"
+    assert facade.working_parameters.input.file_name is None
 
 
 # ------------------------------------------------------------------------------- parquet

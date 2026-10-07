@@ -28,7 +28,7 @@ src/apb2/parserV2/vendor_parse_rules/documents/
 - Discovered: `documents/<folder>/rules.json` and `documents/<folder>/v<suffix>/rules.json`; any other path is silently ignored
 - Folder name: free; `--software` matches `software_name` lowercased, alphanumerics only (`DIA-NN` → `diann`)
 - Required: `hierarchy`, `schema_version`, `file_version`, `software_name`, `software_version_pattern`; per table `input.shape`, `input.extensions`, `base`, `levels`
-- Optional: `parameter_file: "none"` when no parameter file exists (`pb_custom`); `selection: "explicit"` to skip detection
+- Optional: `parameter_file: "none"` when no parameter file exists (`pb_custom`)
 
 ```json title="toyquant/v1/rules.json"
 {

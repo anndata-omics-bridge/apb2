@@ -434,7 +434,8 @@ The supported answers are:
 
 - `ErrorOnDuplicates`: reject a cell with more than one present value;
 - `KeepFirstDuplicate`: select the first present value in stable physical order;
-- `AggregateNumericDuplicates`: sum already-numeric scalar values and reject strings or factors.
+- `AggregateNumericDuplicates`: sum already-numeric scalar values and reject strings or factors;
+- `KeepBestDuplicate` (`keep_best`): rank the repeated rows once by a declared numeric layer, then take every layer's value from the winning row, so one cell's layers describe one source row; a row without a ranking value loses, and ties keep stable physical order.
 
 `RawValuePresence` may recognize null, a declared numeric sentinel, or a sentinel extracted from a
 structured numeric token. It returns a Boolean mask and never changes a scalar value. Layer
@@ -545,7 +546,7 @@ The scalar split retains current vendor semantics: null or whitespace-only packe
 zero tokens; outer whitespace and every token's surrounding whitespace are removed; trailing
 delimiter terminators are removed before splitting; and an interior empty token remains an empty
 scalar at its aligned position. Column-labelled separation derives `label_output` from the trimmed
-label token before the first `/`. The separator performs no numeric conversion.
+label token before the first `/`. A column-labelled declaration with `label_required: false` accepts a source without its label column and labels that source's scalars by position; DIA-NN 1.8 and 1.9 declare `Fragment.Info` this way, which FragPipe's DIA-NN reports carry and DIA-NN's own reports do not. The separator performs no numeric conversion.
 
 The ordered `packed_value_sources` are physical vendor column names, not layer names and not cell
 values. They are not inferred from `measurements.layers`, because the current schema does not
@@ -2182,7 +2183,7 @@ nonempty candidate lists, and essential complete-rule references. We author and 
 these documents; the schema does not accumulate validators for harmless duplicate spellings or
 every theoretical combination.
 
-A vendor-result folder supplies table-local physical inputs. MaxQuant's evidence group produces ions at raw-file resolution, its own preparation adding each row's protein group from proteinGroups; its preparation function unpivots only higher-level exports and joins evidence-ID references plus experiment. AlphaDIA 1.12 joins authoritative matrix quantities with precursor metadata. `prepare_source` composes reads with independent tool functions; `PreparedTable` shares the frame within its group. Evidence keeps its rows: its preparation adds one looked-up column and no join fan-out. The parsing-owned `observation_groups` module aligns explicit, complete bijections without changing measurement cells and otherwise separates observation identities. The CLI-owned command workflow writes each group and returns actual output paths; backend writers make no scientific alignment decisions. Relationship records are JSON in existing parse provenance, not a new storage schema.
+A vendor-result folder supplies table-local physical inputs. MaxQuant's evidence group produces ions at raw-file resolution, its own preparation adding each row's protein group from proteinGroups; the higher-level preparation joins the other exports wide through their evidence-ID references. AlphaDIA 1.12 joins authoritative matrix quantities with precursor metadata. `prepare_source` composes reads with independent tool functions; `PreparedTable` shares the frame within its group. Evidence keeps its rows: its preparation adds one looked-up column and no join fan-out. The parsing-owned `observation_groups` module aligns explicit, complete bijections without changing measurement cells and otherwise separates observation identities. The CLI-owned command workflow writes each group and returns actual output paths; backend writers make no scientific alignment decisions. Relationship records are JSON in existing parse provenance, not a new storage schema.
 
 #### C.5 Schema 0.3 rule-package migration (historical)
 
@@ -2539,7 +2540,7 @@ The packaged rules, loaded and inventoried against `b6ef79b` on 2026-09-21, cont
 - 19 rule documents with 20 table groups;
 - 35 effective declared levels and therefore 70 obs/var axis plans;
 - 26 long levels and 9 wide levels;
-- two delimiter-packed positional fragment declarations;
+- two delimiter-packed fragment declarations: DIA-NN 1.7 positional, DIA-NN 1.8 column-labelled from an optional `Fragment.Info`;
 - token-regex, site-list and embedded-site-list sequence normalization, plus independent stripping;
 - numeric, regex-numeric, and factor layer encodings;
 - 18 `error`, 16 `keep_first`, and 1 numeric `sum` duplicate configurations;
@@ -2547,7 +2548,7 @@ The packaged rules, loaded and inventoried against `b6ef79b` on 2026-09-21, cont
 - configured var and layer roles, including authored abundance tags;
 - parameter gates and a DIA-NN primary-layer override.
 
-Column-labelled packed fragments are supported by the current schema but have no packaged document and therefore require focused contract fixtures. AlphaDIA 1.12 and the higher-level MaxQuant group prepare a shared table before rule-defined decomposition; MaxQuant evidence remains direct. Coherent join fixtures exercise every MaxQuant input subset, observation alignment/separation, and measurement-preserving backend round-trips.
+Column-labelled packed fragments are exercised by the DIA-NN 1.8 rule on a committed sample with an added `Fragment.Info` column and by focused contract fixtures. AlphaDIA 1.12 and the higher-level MaxQuant group prepare a shared table before rule-defined decomposition; MaxQuant evidence remains direct. Coherent join fixtures exercise every MaxQuant input subset, observation alignment/separation, and measurement-preserving backend round-trips.
 
 The architecture covers that set through declarations, not vendor-specific parser cases.
 

@@ -77,7 +77,6 @@ def test_dda_query_keeps_only_version_with_dda_evidence() -> None:
         "WOMBAT",
     }
     assert [variant.rule for variant in dda["DIA-NN"].variants] == ["diann/v2/rules.json"]
-    assert "MSAID" not in dda
 
 
 def test_level_filter_retains_version_level_association() -> None:

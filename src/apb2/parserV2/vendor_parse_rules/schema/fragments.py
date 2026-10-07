@@ -26,6 +26,8 @@ class ColumnLabeledFragments(ModelBase):
     label_strategy: Literal["column"]
     value_columns: list[str] = Field(min_length=1)
     label_column: str
+    # False: a source without the label column labels its scalars by position instead.
+    label_required: bool = True
     delimiter: Delimiter = ";"
     label_output: str = "fragment_label"
 

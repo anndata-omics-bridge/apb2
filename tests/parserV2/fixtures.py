@@ -52,10 +52,6 @@ DATA_DIR = Path(__file__).resolve().parent / "data"
 """Committed per-rule artifacts: header snapshot, ~500-row sample, conversion expectations."""
 
 TABLE_FIXTURES: dict[tuple[str, QuantificationLevel], str] = {
-    ("maxquant", "ion"): "maxquant",
-    ("maxquant", "peptidoform"): "maxquant_modificationspecificpeptides",
-    ("maxquant", "peptide"): "maxquant_peptides",
-    ("maxquant", "protein"): "maxquant_proteingroups",
     ("maxquant_wide", "ion"): "maxquant",
     ("maxquant_wide", "peptidoform"): "maxquant_modificationspecificpeptides",
     ("maxquant_wide", "peptide"): "maxquant_peptides",

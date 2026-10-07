@@ -50,7 +50,7 @@ exhaustive = True
 containers =
     apb2.parserV2.vendor_params.parsers
 layers =
-    alphadia | alphapept | diann | fragpipe | i2masschroq | maxquant | metamorpheus | msaid | msangel | peaks | prolinestudio | quantms | sage | spectronaut | wombat
+    alphadia | alphapept | diann | fragpipe | i2masschroq | maxquant | metamorpheus | msangel | peaks | prolinestudio | quantms | sage | spectronaut | wombat
     shared
 
 [importlinter:contract:shared-vendor-parameter-code-is-inward-only]

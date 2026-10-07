@@ -170,7 +170,6 @@ def test_unhinted_recognition_visits_every_packaged_vendor(monkeypatch: pytest.M
         document.software_name
         for path in detection.PACKAGED
         if (document := load_rule_document(path)).parameter_file == "required"
-        and document.selection == "automatic"
     }
 
 

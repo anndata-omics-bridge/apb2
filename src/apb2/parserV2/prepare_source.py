@@ -30,7 +30,6 @@ type Wanted = Callable[[str], bool]
 # those plus the columns its rules can use; ``None`` reads every column.
 _PREPARATIONS: dict[str, tuple[Identify, Join, tuple[str, ...] | None]] = {
     "alphadia": (alphadia.identify, alphadia.join, None),
-    "maxquant": (maxquant.identify, maxquant.join, None),
     "maxquant_wide": (maxquant.identify, maxquant.join_wide, maxquant.KEY_COLUMNS),
     "maxquant_evidence": (
         maxquant.identify_evidence,

@@ -150,7 +150,7 @@ _COMBINE_CHARGE_STATES: tuple[bool | None, ...] = (True, False, None)
 def packaged_rule_declarations() -> dict[tuple[str, str], tuple[str, ...]]:
     """Every distinct ``rule_json`` a packaged rule level can store, keyed by (rule, level).
 
-    ``rule`` is the document path :class:`RuleVariant` names, such as ``maxquant/rules.json``.
+    ``rule`` is the document path :class:`RuleVariant` names, such as ``maxquant_wide/rules.json``.
     Each value is exactly the text conversion stores in a level's ``rule_json``, once per
     distinct declaration that some search-parameter evidence selects, in first-selected order.
     """

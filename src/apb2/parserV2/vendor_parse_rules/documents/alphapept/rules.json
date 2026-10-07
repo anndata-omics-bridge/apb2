@@ -20,7 +20,9 @@
         },
         "measurements": {
           "duplicates": {
-            "mode": "keep_first"
+            "mode": "keep_best",
+            "by": "Score",
+            "best": "highest"
           }
         },
         "columns": {
@@ -125,7 +127,8 @@
               },
               {
                 "name": "Score",
-                "source": "score"
+                "source": "score",
+                "required": true
               },
               {
                 "name": "Q_Value",

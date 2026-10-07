@@ -132,6 +132,11 @@
           "title": "Label Column",
           "type": "string"
         },
+        "label_required": {
+          "default": true,
+          "title": "Label Required",
+          "type": "boolean"
+        },
         "delimiter": {
           "$ref": "#/$defs/Delimiter",
           "default": ";"
@@ -212,17 +217,41 @@
         "error",
         "sum",
         "max",
-        "keep_first"
+        "keep_first",
+        "keep_best"
       ],
       "type": "string"
     },
     "Duplicates": {
       "additionalProperties": false,
-      "description": "How repeated raw measurement cells are resolved.",
+      "description": "How repeated raw measurement cells are resolved.\n\n``keep_best`` keeps, in each cell, the repeated row whose ``by`` layer is ``best``, and\ntakes every layer's value from that one row, so one feature's intensity, score and\nq-value describe the same identification, such as one PSM.",
       "properties": {
         "mode": {
           "$ref": "#/$defs/DuplicateMode",
           "default": "error"
+        },
+        "by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "keep_best: the numeric layer that ranks repeated rows",
+          "title": "By"
+        },
+        "best": {
+          "default": "highest",
+          "description": "keep_best: which value of the 'by' layer wins",
+          "enum": [
+            "highest",
+            "lowest"
+          ],
+          "title": "Best",
+          "type": "string"
         }
       },
       "title": "Duplicates",

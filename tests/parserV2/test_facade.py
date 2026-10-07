@@ -33,6 +33,7 @@ from apb2.parserV2.parse_quant.modifications import (
     SequenceColumn,
     SiteListNormalizer,
     TokenRegexNormalizer,
+    UnplaceableModificationError,
 )
 from apb2.parserV2.parse_quant.parameters.axis import (
     AxisKeyPlan,
@@ -328,8 +329,43 @@ def test_a_modification_derived_key_pulls_every_source_that_can_change_it() -> N
     assert all(entry.mass_delta for entry in config.entries)
 
 
+def _peptidoform_normalizer(rule: str) -> TokenRegexNormalizer:
+    path = Path("src/apb2/parserV2/vendor_parse_rules/documents") / rule
+    facade = ParseRuleFacade(load_rule_document(path), "ion", _EVIDENCES[0])
+    column = next(
+        column
+        for column in facade.working_parameters.var.computed
+        if isinstance(column, SequenceColumn)
+        and isinstance(column.operation, TokenRegexNormalizer)
+        and column.name == "ProForma_peptidoform"
+    )
+    assert isinstance(column.operation, TokenRegexNormalizer)
+    return column.operation
+
+
+@pytest.mark.parametrize(
+    ("rule", "sequence", "expected"),
+    [
+        ("maxquant_wide/rules.json", "_PEPTIDEM(ox)K_", "PEPTIDEM[UNIMOD:35]K"),
+        ("maxquant_wide/rules.json", "_PEPTIDEM(ox)_", "PEPTIDEM[UNIMOD:35]"),
+        ("diann/v1_8/rules.json", "PEPTIDEM(UniMod:35)", "PEPTIDEM[UNIMOD:35]"),
+    ],
+)
+def test_a_token_after_the_last_residue_modifies_that_residue(
+    rule: str, sequence: str, expected: str
+) -> None:
+    assert _peptidoform_normalizer(rule).transform((sequence,)).value == expected
+
+
+def test_a_token_with_no_residue_to_modify_is_an_error() -> None:
+    normalizer = _peptidoform_normalizer("maxquant_wide/rules.json")
+
+    with pytest.raises(UnplaceableModificationError, match=r"'\(ox\)' in '\(ac\)\(ox\)PEPTIDE'"):
+        normalizer.transform(("_(ac)(ox)PEPTIDE_",))
+
+
 def test_a_token_regex_rule_resolves_its_accessions_at_projection() -> None:
-    path = Path("src/apb2/parserV2/vendor_parse_rules/documents/maxquant/rules.json")
+    path = Path("src/apb2/parserV2/vendor_parse_rules/documents/maxquant_wide/rules.json")
     facade = ParseRuleFacade(load_rule_document(path), "ion", _EVIDENCES[0])
     column = next(
         column

@@ -481,8 +481,7 @@ def _packaged_documents(
     return tuple(
         document
         for document in documents
-        if document.selection == "automatic"
-        and (vendors is None or software_slug(document.software_name) in vendors)
+        if (vendors is None or software_slug(document.software_name) in vendors)
         and (parameter_file is None or document.parameter_file == parameter_file)
     )
 

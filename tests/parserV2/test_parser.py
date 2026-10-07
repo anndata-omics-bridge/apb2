@@ -40,7 +40,7 @@ from apb2.parserV2.parse_quant.data.raw import (
 )
 from apb2.parserV2.parse_quant.data.source import LevelSourceTable
 from apb2.parserV2.parse_quant.decomposition import LongSourceDecomposer
-from apb2.parserV2.parse_quant.duplicates import DuplicateCellError
+from apb2.parserV2.parse_quant.duplicates import DuplicateCellError, KeepBestDuplicate
 from apb2.parserV2.parse_quant.layer_validation import LayerContractValidator
 from apb2.parserV2.parse_quant.operations import (
     duplicate_policy_for,
@@ -116,6 +116,7 @@ def parser_for(
     var: AxisSourcePlan,
     layers: tuple[tuple[str, str], ...] = (("Intensity", "intensity"),),
     duplicates: DuplicateMode = "error",
+    rank_by: str | None = None,
 ) -> Parser:
     class Reader:
         def read(self) -> LevelSourceTable:
@@ -136,7 +137,11 @@ def parser_for(
             decomposer=config,
             obs=obs_plan,
             var=var_plan,
-            duplicates=duplicate_policy_for(duplicates),
+            duplicates=(
+                KeepBestDuplicate(by=rank_by or layers[0][0], highest=True)
+                if duplicates == "keep_best"
+                else duplicate_policy_for(duplicates)
+            ),
             layer_parsers={name: numeric_layer_parser(name) for name, _source in layers},
             layer_validator=layer_validator(layers[0][0]),
             provenance={
@@ -441,6 +446,37 @@ def test_a_repeated_raw_key_reaches_the_duplicate_policy_instead() -> None:
         duplicates="keep_first",
     ).parse()
     assert kept.layers["Intensity"].values.to_dicts() == [{"obs_0": 1.0}]
+
+
+def test_keep_best_keeps_one_psm_per_cell_across_layers() -> None:
+    frame = pl.DataFrame(
+        {
+            "run": ["A", "A", "B", "A"],
+            "feature": ["F1", "F1", "F1", "F2"],
+            "intensity": [1.0, 2.0, 3.0, 4.0],
+            "score": [9.0, 5.0, 1.0, 2.0],
+        }
+    )
+
+    parsed = parser_for(
+        frame,
+        obs_plan=SIMPLE_OBS_PLAN,
+        var_plan=SIMPLE_VAR_PLAN,
+        obs=SIMPLE_OBS,
+        var=SIMPLE_VAR,
+        layers=(("Intensity", "intensity"), ("Score", "score")),
+        duplicates="keep_best",
+        rank_by="Score",
+    ).parse()
+
+    assert parsed.layers["Intensity"].values.to_dicts() == [
+        {"obs_0": 1.0, "obs_1": 3.0},
+        {"obs_0": 4.0, "obs_1": None},
+    ], "F1 in A keeps the PSM scored 9, not the first or the larger intensity"
+    assert parsed.layers["Score"].values.to_dicts() == [
+        {"obs_0": 9.0, "obs_1": 1.0},
+        {"obs_0": 2.0, "obs_1": None},
+    ]
 
 
 def test_a_nan_key_is_the_same_absence_as_a_null_key() -> None:

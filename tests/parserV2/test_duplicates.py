@@ -13,6 +13,7 @@ import polars as pl
 import pytest
 
 from apb2.parserV2.parse_quant.contracts import DuplicatePolicy, RawValuePresence
+from apb2.parserV2.parse_quant.data.errors import ConversionError
 from apb2.parserV2.parse_quant.data.parsed import FinalLayerTable
 from apb2.parserV2.parse_quant.data.raw import RawLayerTable
 from apb2.parserV2.parse_quant.duplicates import (
@@ -20,21 +21,26 @@ from apb2.parserV2.parse_quant.duplicates import (
     AggregateTypeError,
     DuplicateCellError,
     ErrorOnDuplicates,
+    KeepBestDuplicate,
     KeepFirstDuplicate,
 )
 from apb2.parserV2.parse_quant.operations import (
     NUMERIC_DUPLICATE_MODES,
+    duplicate_policy,
     duplicate_policy_for,
     make_layer_parser,
 )
 from apb2.parserV2.parse_quant.parameters.measurements import (
     DuplicateMode,
+    DuplicateRanking,
     FactorLayerDeclaration,
     LayerValueDeclaration,
     PlainNumericLayerDeclaration,
     RegexNumericLayerDeclaration,
+    WorkingMeasurements,
 )
 from apb2.parserV2.parse_quant.parameters.source import NumericTextFormat
+from apb2.parserV2.vendor_parse_rules.schema.measurements import Duplicates
 
 DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
 GROUPED = NumericTextFormat(decimal_mark=",", thousands_marks=(".",))
@@ -52,6 +58,8 @@ NONPOSITIVE = make_layer_parser(
 
 # A PEP 695 alias holds its literal union in ``__value__``.
 MODES: tuple[DuplicateMode, ...] = get_args(DuplicateMode.__value__)
+# keep_best is built from a ranking layer, so it is tested on its own below.
+STATELESS: tuple[DuplicateMode, ...] = tuple(mode for mode in MODES if mode != "keep_best")
 SUM = duplicate_policy_for("sum")
 MAX = duplicate_policy_for("max")
 
@@ -351,7 +359,9 @@ def test_numeric_max_keeps_an_integer_layer_integer() -> None:
     assert resolved.values.schema["obs_0"] == pl.Int64
 
 
-@pytest.mark.parametrize("policy", [duplicate_policy_for(mode) for mode in MODES], ids=MODES)
+@pytest.mark.parametrize(
+    "policy", [duplicate_policy_for(mode) for mode in STATELESS], ids=STATELESS
+)
 @pytest.mark.parametrize("empty", [False, True])
 def test_every_policy_keeps_the_keys_the_group_order_and_the_layer_name(
     policy: DuplicatePolicy,
@@ -378,7 +388,9 @@ def test_every_policy_keeps_the_keys_the_group_order_and_the_layer_name(
     assert resolved.values.get_column("Feature").to_list() == ([] if empty else ["F2", "F1", "F3"])
 
 
-@pytest.mark.parametrize("policy", [duplicate_policy_for(mode) for mode in MODES], ids=MODES)
+@pytest.mark.parametrize(
+    "policy", [duplicate_policy_for(mode) for mode in STATELESS], ids=STATELESS
+)
 def test_a_multi_column_raw_key_groups_as_one_identity(policy: DuplicatePolicy) -> None:
     values = layer(
         pl.DataFrame(
@@ -420,7 +432,9 @@ def test_a_layer_with_no_observation_columns_resolves_to_its_keys() -> None:
     assert MAX.resolve(values, NULL_ONLY).values.height == 1
 
 
-@pytest.mark.parametrize("policy", [duplicate_policy_for(mode) for mode in MODES], ids=MODES)
+@pytest.mark.parametrize(
+    "policy", [duplicate_policy_for(mode) for mode in STATELESS], ids=STATELESS
+)
 @pytest.mark.parametrize(
     "names",
     [
@@ -458,19 +472,118 @@ def test_the_declared_mode_selects_one_stateless_policy() -> None:
     assert isinstance(duplicate_policy_for("keep_first"), KeepFirstDuplicate)
     assert isinstance(duplicate_policy_for("sum"), AggregateNumericDuplicates)
     assert isinstance(duplicate_policy_for("max"), AggregateNumericDuplicates)
-    assert set(MODES) == {"error", "keep_first", "sum", "max"}
+    assert set(MODES) == {"error", "keep_first", "sum", "max", "keep_best"}
 
 
 def test_the_numeric_modes_are_exactly_those_whose_policy_reduces_numbers() -> None:
     reducing = {
-        mode for mode in MODES if isinstance(duplicate_policy_for(mode), AggregateNumericDuplicates)
+        mode
+        for mode in STATELESS
+        if isinstance(duplicate_policy_for(mode), AggregateNumericDuplicates)
     }
 
     assert reducing == NUMERIC_DUPLICATE_MODES
 
 
 def test_no_duplicate_policy_retains_its_discriminator() -> None:
-    for value in (duplicate_policy_for(mode) for mode in MODES):
+    for value in (duplicate_policy_for(mode) for mode in STATELESS):
         assert not hasattr(value, "kind")
         assert not hasattr(value, "mode")
         assert not hasattr(value, "layer_name")
+
+
+# ------------------------------------------------------------------------------- keep_best
+
+
+def _ranked_pair() -> tuple[RawLayerTable, RawLayerTable]:
+    """An intensity and a score layer from one pivot: F1 has two PSMs in obs_0."""
+    intensity = RawLayerTable(
+        layer_name="Intensity",
+        raw_var_key_columns=("Feature",),
+        values=pl.DataFrame(
+            {
+                "Feature": ["F1", "F1", "F2"],
+                "obs_0": [100.0, 200.0, 10.0],
+                "obs_1": [50.0, None, 20.0],
+            }
+        ),
+    )
+    score = RawLayerTable(
+        layer_name="Score",
+        raw_var_key_columns=("Feature",),
+        values=pl.DataFrame(
+            {
+                "Feature": ["F1", "F1", "F2"],
+                "obs_0": ["1.5", "7.0", "2.0"],
+                "obs_1": ["3.0", None, "1.0"],
+            }
+        ),
+    )
+    return intensity, score
+
+
+@pytest.mark.parametrize(("highest", "kept"), [(True, 200.0), (False, 100.0)])
+def test_keep_best_takes_every_layer_from_the_best_ranked_row(highest: bool, kept: float) -> None:
+    intensity, score = _ranked_pair()
+    policy = KeepBestDuplicate(by="Score", highest=highest).ranked(score, NULL_ONLY)
+
+    values = policy.resolve(intensity, NULL_ONLY).values.to_dicts()
+    scores = policy.resolve(score, NULL_ONLY).values.to_dicts()
+
+    assert values == [
+        {"Feature": "F1", "obs_0": kept, "obs_1": 50.0},
+        {"Feature": "F2", "obs_0": 10.0, "obs_1": 20.0},
+    ]
+    assert scores[0]["obs_0"] == ("7.0" if highest else "1.5"), "the score of the kept PSM"
+
+
+def test_keep_best_prefers_a_ranked_row_and_keeps_file_order_on_ties() -> None:
+    intensity = layer(pl.DataFrame({"Feature": ["F1", "F1", "F1"], "obs_0": [1.0, 2.0, 3.0]}))
+    score = layer(pl.DataFrame({"Feature": ["F1", "F1", "F1"], "obs_0": [None, 4.0, 4.0]}))
+
+    policy = KeepBestDuplicate(by="L", highest=False).ranked(score, NULL_ONLY)
+
+    assert policy.resolve(intensity, NULL_ONLY).values.to_dicts() == [
+        {"Feature": "F1", "obs_0": 2.0}
+    ]
+
+
+def test_keep_best_refuses_a_ranking_layer_that_is_not_numbers() -> None:
+    score = layer(pl.DataFrame({"Feature": ["F1"], "obs_0": ["high"]}))
+
+    with pytest.raises(AggregateTypeError, match="not plain numbers"):
+        KeepBestDuplicate(by="L", highest=True).ranked(score, NULL_ONLY)
+
+
+def test_keep_best_refuses_a_layer_that_does_not_repeat_the_ranking_rows() -> None:
+    intensity, score = _ranked_pair()
+    policy = KeepBestDuplicate(by="Score", highest=True).ranked(score, NULL_ONLY)
+    shorter = layer(intensity.values.head(2))
+
+    with pytest.raises(ConversionError, match="does not repeat the rows"):
+        policy.resolve(shorter, NULL_ONLY)
+
+
+def test_keep_best_is_built_from_the_declared_ranking_only() -> None:
+    declared = WorkingMeasurements(
+        primary_layer_name="Intensity",
+        duplicate_mode="keep_best",
+        layers=(),
+        required_names=frozenset(),
+        duplicate_ranking=DuplicateRanking(layer="Score", highest=True),
+    )
+
+    assert duplicate_policy(declared) == KeepBestDuplicate(by="Score", highest=True)
+    with pytest.raises(ValueError, match="ranking layer"):
+        duplicate_policy_for("keep_best")
+
+
+def test_a_rule_names_its_ranking_layer_exactly_for_keep_best() -> None:
+    assert Duplicates(mode="keep_best", by="Score").best == "highest"
+    for invalid in (
+        {"mode": "keep_best"},
+        {"mode": "max", "by": "Score"},
+        {"mode": "max", "best": "lowest"},
+    ):
+        with pytest.raises(ValueError, match="keep_best"):
+            Duplicates.model_validate(invalid)

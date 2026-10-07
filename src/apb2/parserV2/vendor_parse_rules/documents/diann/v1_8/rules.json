@@ -291,11 +291,13 @@
             ]
           },
           "fragments": {
-            "label_strategy": "positional",
+            "label_strategy": "column",
             "value_columns": [
               "Fragment.Quant.Raw",
               "Fragment.Correlations"
             ],
+            "label_column": "Fragment.Info",
+            "label_required": false,
             "delimiter": ";",
             "label_output": "fragment_label"
           }

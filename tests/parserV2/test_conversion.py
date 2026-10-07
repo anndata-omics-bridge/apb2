@@ -11,6 +11,7 @@ from typing import Literal, Never
 
 import anndata
 import mudata
+import polars as pl
 import pytest
 from loguru import logger
 
@@ -373,7 +374,7 @@ def test_maxquant_folder_per_level_parse_failure_aborts_before_write(tmp_path: P
 def test_explicit_rule_config_binds_its_one_document_from_a_folder(tmp_path: Path) -> None:
     folder = _maxquant_folder(tmp_path / "maxquant", ("ion", "peptide"))
     target = tmp_path / "ion.h5ad"
-    document = next(pair for pair in document_pairs() if pair.key == "maxquant")
+    document = next(pair for pair in document_pairs() if pair.key == "maxquant_wide")
 
     result = conversion_application.convert_from_rule_config(
         data=folder,
@@ -607,3 +608,42 @@ def test_source_only_rule_recognition_never_inspects_data_rows(
     monkeypatch.setattr(ParseRuleFacade, "resolve_source", refuse_row_inspection)
 
     assert guess_packaged_software(SingleFile(path=data)) == "spectronaut"
+
+
+def test_diann_fragments_take_their_labels_from_fragment_info_when_present(
+    tmp_path: Path,
+) -> None:
+    """FragPipe's DIA-NN reports carry ``Fragment.Info``; DIA-NN's own reports do not."""
+    source = committed_sample("diann/v1_8")
+    folder = committed_dir("diann/v1_8")
+    assert source is not None
+    assert folder is not None
+    report = pl.read_csv(source, separator="\t", infer_schema=False)
+    values = pl.col("Fragment.Quant.Raw").str.strip_chars().str.strip_chars_end(";")
+    labelled = report.with_columns(
+        pl.when(values.is_null() | (values == ""))
+        .then(None)
+        .otherwise(
+            values.str.split(";")
+            .list.eval(pl.format("y{}^1/100.0", pl.int_range(pl.len()) + 1))
+            .list.join(";")
+            + ";"
+        )
+        .alias("Fragment.Info")
+    )
+    labelled_path = tmp_path / "report.tsv"
+    labelled.write_csv(labelled_path, separator="\t")
+
+    def fragments(path: Path) -> list[str]:
+        compiler = ParseRuleCompiler(
+            path, folder / "param_0..txt", software="diann", requested_levels=("fragment",)
+        )
+        level = compiler.compile().parse().levels["fragment"]
+        return level.var.frame.get_column("ProForma_fragment").to_list()
+
+    positional = fragments(source)
+    from_info = fragments(labelled_path)
+
+    assert len(from_info) == len(positional)
+    assert all(re.search(r"/frag_\d+$", name) for name in positional)
+    assert all(re.search(r"/y\d+\^1$", name) for name in from_info)

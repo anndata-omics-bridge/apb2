@@ -12,7 +12,6 @@ import pytest
 from loguru import logger
 from polars.testing import assert_frame_equal
 
-from apb2.api import ParseRuleCompiler
 from apb2.cli.app import app
 from apb2.cli.conversion import (
     ConversionError,
@@ -23,7 +22,6 @@ from apb2.parserV2 import prepare_source as preparation_module
 from apb2.parserV2.compile import ExplicitRuleCompiler
 from apb2.parserV2.detect_document import (
     UNKNOWN_SEARCH_PARAMETERS,
-    AmbiguousRuleError,
     detect_rule_documents,
     select_document_levels,
 )
@@ -33,7 +31,6 @@ from apb2.parserV2.parse_quant.parameters.source import (
     Folder,
     InputFiles,
     PreparedTable,
-    SingleFile,
 )
 from apb2.parserV2.prepare_source import InputPreparationError, prepare_source
 from apb2.parserV2.vendor_params.parsers.shared.model import Parameters
@@ -165,12 +162,12 @@ def test_maxquant_higher_join_fanout_preserves_original_cells(tmp_path: Path) ->
     tables = maxquant_tables()
     del tables["evidence"]
     original = {name: frame.clone() for name, frame in tables.items()}
-    joined = maxquant.join(tables)
+    joined = maxquant.join_wide(tables)
     for name in tables:
         assert_frame_equal(tables[name], original[name])
     assert not any(column.startswith("evidence.") for column in joined.columns)
-    source = PreparedTable(tmp_path, joined, "maxquant", (), 0.0)
-    document = load_rule_document(RULES / "maxquant/rules.json")
+    source = PreparedTable(tmp_path, joined, "maxquant_wide", (), 0.0)
+    document = load_rule_document(RULES / "maxquant_wide/rules.json")
     parsed = (
         ExplicitRuleCompiler(
             document,
@@ -194,46 +191,10 @@ def test_maxquant_higher_join_fanout_preserves_original_cells(tmp_path: Path) ->
     assert parsed["peptide"].layers["Intensity"].values.row(0) == (25.0,)
 
 
-def test_maxquant_reshape_keeps_feature_columns_and_drops_per_sample_ones() -> None:
-    """Per-sample columns are not copied into every sample's rows; feature columns are."""
-    peptides = pl.DataFrame(
-        {
-            "id": ["0", "1"],
-            "Sequence": ["PEPTIDE", "PEPTIDES"],
-            "Protein names": ["P", "Q"],
-            "Mod. peptide IDs": ["0", "1"],
-            "Evidence IDs": ["0", "1"],
-            "Intensity A": ["1", "2"],
-            "Intensity names": ["3", "4"],
-            "Experiment A": ["1", "1"],
-            "Experiment names": ["1", None],
-            "Identification type A": ["By MS/MS", "By matching"],
-            "Identification type names": ["By MS/MS", None],
-        }
-    )
-
-    joined = maxquant.join({"peptide": peptides})
-
-    assert sorted(joined.columns) == sorted(
-        [
-            "peptide.id",
-            "peptide.Sequence",
-            "peptide.Protein names",
-            "peptide.Mod. peptide IDs",
-            "peptide.Evidence IDs",
-            "peptide.sample",
-            "peptide.Intensity",
-            "Experiment",
-        ]
-    )
-    assert joined.height == 4
-    assert joined["peptide.Intensity"].to_list() == ["1", "2", "3", "4"]
-
-
 def test_maxquant_join_does_not_accept_evidence() -> None:
     tables = maxquant_tables()
-    with pytest.raises(ValueError, match="evidence is parsed directly"):
-        maxquant.join(tables)
+    with pytest.raises(ValueError, match="evidence has its own preparation"):
+        maxquant.join_wide(tables)
 
 
 @pytest.mark.parametrize("suffix", [".parquet", ".h5mu", ".duckdb"])
@@ -249,7 +210,7 @@ def test_folder_conversion_joins_all_levels_and_round_trips(tmp_path: Path, suff
     result = convert_all_from_rule_config(
         data=tmp_path,
         output=tmp_path / f"output{suffix}",
-        rule_config=RULES / "maxquant/rules.json",
+        rule_config=RULES / "maxquant_wide/rules.json",
         parameters_path=None,
         software=None,
         checks="standard",
@@ -261,7 +222,9 @@ def test_folder_conversion_joins_all_levels_and_round_trips(tmp_path: Path, suff
     )
     assert not (tmp_path / f"output{suffix}").exists()
     ion = read_parsed_levels(result.outputs[0]).levels["ion"]
-    assert "input_preparation" not in ion.uns
+    ion_preparation = ion.uns["input_preparation"]
+    assert isinstance(ion_preparation, dict)
+    assert ion_preparation["how"] == "maxquant_evidence"
     loaded = read_parsed_levels(result.outputs[1])
     sources = [level.uns["input_preparation"] for level in loaded.levels.values()]
     assert all(item == sources[0] for item in sources)
@@ -288,47 +251,17 @@ def test_renamed_alphadia_companions_and_shared_preparation(tmp_path: Path) -> N
     assert prepare_source(prepared, "alphadia") is prepared
     assert prepared.frame["intensity"].to_list() == ["12", None]
     with pytest.raises(InputPreparationError, match="rule requests"):
-        prepare_source(prepared, "maxquant")
+        prepare_source(prepared, "maxquant_wide")
 
 
 def test_conflicting_renamed_inputs_are_rejected(tmp_path: Path) -> None:
     for index in range(2):
         maxquant_tables()["evidence"].write_csv(tmp_path / f"renamed_{index}.txt", separator="\t")
-    document = load_rule_document(RULES / "maxquant/rules.json")
-    with pytest.raises(AmbiguousRuleError, match="multiple inputs"):
+    document = load_rule_document(RULES / "maxquant_wide/rules.json")
+    with pytest.raises(InputPreparationError, match="multiple evidence inputs"):
         select_document_levels(
             document, Folder(tmp_path), document.levels, UNKNOWN_SEARCH_PARAMETERS
         )
-
-
-@pytest.mark.parametrize("roles", MAXQUANT_SUBSETS, ids="+".join)
-def test_maxquant_wide_rule_parses_what_the_long_rule_parses(
-    tmp_path: Path, roles: tuple[str, ...]
-) -> None:
-    """Joining wide changes memory use, not one identity, value or missing cell."""
-    tables = maxquant_tables()
-    for role in roles:
-        tables[role].write_csv(tmp_path / MAXQUANT_FILES[role], separator="\t")
-
-    long = ParseRuleCompiler.from_rule(tmp_path, RULES / "maxquant/rules.json").compile().parse()
-    wide = (
-        ParseRuleCompiler.from_rule(tmp_path, RULES / "maxquant_wide/rules.json").compile().parse()
-    )
-
-    assert list(wide.levels) == list(long.levels)
-    if "ion" in wide.levels:
-        # Only the wide rule's evidence hook assigns ions to MaxQuant's razor protein group.
-        ion = wide.levels["ion"].var.frame
-        group = ["P"] if "protein" in roles else ["P;Q"]
-        assert ion.get_column("Protein_IDs").to_list() == group
-        wide.levels["ion"].var.frame = ion.drop("Protein_IDs", "Razor_Protein_Group", strict=False)
-    for name, expected in long.levels.items():
-        actual = wide.levels[name]
-        assert_frame_equal(actual.obs.frame, expected.obs.frame)
-        assert_frame_equal(actual.var.frame, expected.var.frame)
-        assert actual.layers.keys() == expected.layers.keys()
-        for layer, values in expected.layers.items():
-            assert_frame_equal(actual.layers[layer].values, values.values)
 
 
 @pytest.mark.parametrize("roles", MAXQUANT_SUBSETS, ids="+".join)
@@ -356,7 +289,7 @@ def test_maxquant_every_nonempty_subset_round_trips_available_levels(
     summary = convert_all_from_rule_config(
         data=tmp_path,
         output=target,
-        rule_config=RULES / "maxquant/rules.json",
+        rule_config=RULES / "maxquant_wide/rules.json",
         parameters_path=None,
         software=None,
         checks="standard",
@@ -387,13 +320,18 @@ def test_maxquant_every_nonempty_subset_round_trips_available_levels(
             name, ["A", "B"] if "protein" in parsed else ["A"]
         )
         assert level.obs.frame[obs_key].to_list() == expected_samples
-        if name == "ion":
-            assert "input_preparation" not in level.uns
-            continue
         preparation = level.uns["input_preparation"]
         assert isinstance(preparation, dict)
         paths = preparation["sources"]
         assert isinstance(paths, list)
+        if name == "ion":
+            assert preparation["how"] == "maxquant_evidence"
+            assert set(paths) == {
+                str(tmp_path / MAXQUANT_FILES[role])
+                for role in roles
+                if role in {"evidence", "protein"}
+            }
+            continue
         assert set(paths) == {
             str(tmp_path / MAXQUANT_FILES[role]) for role in roles if role != "evidence"
         }
@@ -413,7 +351,7 @@ def test_maxquant_renamed_subsets_select_only_present_levels(
         path = tmp_path / f"input_{index}.txt"
         tables[role].write_csv(path, separator="\t")
         paths[path.name] = path
-    document = load_rule_document(RULES / "maxquant/rules.json")
+    document = load_rule_document(RULES / "maxquant_wide/rules.json")
     selected = select_document_levels(
         document, InputFiles(tmp_path, paths), document.levels, UNKNOWN_SEARCH_PARAMETERS
     )
@@ -421,25 +359,8 @@ def test_maxquant_renamed_subsets_select_only_present_levels(
     prepared = [item.source for item in selected if item.level != "ion"]
     assert all(source is prepared[0] for source in prepared)
     if "evidence" in roles:
-        assert isinstance(selected[0].source, SingleFile)
-
-
-def test_maxquant_higher_tables_join_by_both_evidence_reference_and_sample() -> None:
-    tables = maxquant_tables()
-    peptide = tables["peptide"].rename({"Intensity A": "Intensity C"})
-    joined = maxquant.join({"peptide": peptide, "protein": tables["protein"]})
-    assert joined.filter(
-        pl.col("peptide.id").is_not_null() & pl.col("protein.id").is_not_null()
-    ).is_empty()
-    assert set(joined["peptide.sample"].drop_nulls()) == {"C"}
-    assert set(joined["protein.sample"].drop_nulls()) == {"A", "B"}
-    assert "evidence.Intensity" not in joined.columns
-
-    joined = maxquant.join({"peptide": tables["peptide"], "protein": tables["protein"]})
-    paired = joined.filter(pl.col("peptide.id").is_not_null() & pl.col("protein.id").is_not_null())
-    assert paired.height == 2
-    assert paired["protein.sample"].unique().to_list() == ["A"]
-    assert set(paired["protein.id"]) == {"0", "1"}
+        evidence = selected[0].source
+        assert isinstance(evidence, PreparedTable) and evidence.how == "maxquant_evidence"
 
 
 def test_maxquant_repeated_evidence_references_do_not_expand_measurement_rows() -> None:
@@ -449,9 +370,9 @@ def test_maxquant_repeated_evidence_references_do_not_expand_measurement_rows() 
         tables[role] = frame.with_columns(
             pl.lit(";".join(map(str, range(1000)))).alias("Evidence IDs")
         )
-    joined = maxquant.join(tables)
-    assert joined.height == 6  # Three protein links times two experiments, not 6,000 rows.
-    assert joined["protein.Intensity"].to_list() == ["100", "101", "200", None, "300", "301"]
+    joined = maxquant.join_wide(tables)
+    assert joined.height == 3  # Three protein links, not 3,000 rows.
+    assert joined["protein.Intensity A"].to_list() == ["100", "200", "300"]
 
 
 def test_maxquant_absent_requested_level_fails_without_writing(tmp_path: Path) -> None:
@@ -464,7 +385,7 @@ def test_maxquant_absent_requested_level_fails_without_writing(tmp_path: Path) -
             data=tmp_path,
             level="ion",
             output=target,
-            rule_config=RULES / "maxquant/rules.json",
+            rule_config=RULES / "maxquant_wide/rules.json",
             parameters_path=None,
             software=None,
             checks="standard",
@@ -474,7 +395,7 @@ def test_maxquant_absent_requested_level_fails_without_writing(tmp_path: Path) -
 
 def test_maxquant_empty_subset_is_rejected() -> None:
     with pytest.raises(ValueError, match="at least one"):
-        maxquant.join({})
+        maxquant.join_wide({})
 
 
 @pytest.mark.parametrize("suffix", [".parquet", ".h5mu", ".duckdb"])
@@ -487,7 +408,7 @@ def test_maxquant_one_to_one_experiments_align_to_raw_files(tmp_path: Path, suff
     summary = convert_all_from_rule_config(
         data=tmp_path,
         output=target,
-        rule_config=RULES / "maxquant/rules.json",
+        rule_config=RULES / "maxquant_wide/rules.json",
         parameters_path=None,
         software=None,
         checks="standard",
@@ -508,25 +429,7 @@ def test_maxquant_one_to_one_experiments_align_to_raw_files(tmp_path: Path, suff
         assert set(stored.obs_names) == {"raw1", "raw2"}
 
 
-def test_ion_only_never_reads_or_joins_higher_table_rows(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    for role, frame in maxquant_tables().items():
-        frame.write_csv(tmp_path / MAXQUANT_FILES[role], separator="\t")
-
-    def unexpected_read(*args: object, **kwargs: object) -> pl.DataFrame:
-        pytest.fail("ion selection must not read rows for preparation")
-
-    monkeypatch.setattr(preparation_module.pl, "read_csv", unexpected_read)
-    document = load_rule_document(RULES / "maxquant/rules.json")
-    selected = select_document_levels(
-        document, Folder(tmp_path), ("ion",), UNKNOWN_SEARCH_PARAMETERS
-    )
-    assert len(selected) == 1
-    assert isinstance(selected[0].source, SingleFile)
-
-
-def test_higher_group_reads_each_input_once(
+def test_ion_only_reads_evidence_and_protein_groups_but_no_peptide_table(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     for role, frame in maxquant_tables().items():
@@ -539,10 +442,35 @@ def test_higher_group_reads_each_input_once(
         return original_read(path, separator="\t", infer_schema=False, null_values=[""])
 
     monkeypatch.setattr(preparation_module.pl, "read_csv", counted_read)
-    document = load_rule_document(RULES / "maxquant/rules.json")
-    select_document_levels(document, Folder(tmp_path), document.levels, UNKNOWN_SEARCH_PARAMETERS)
+    document = load_rule_document(RULES / "maxquant_wide/rules.json")
+    selected = select_document_levels(
+        document, Folder(tmp_path), ("ion",), UNKNOWN_SEARCH_PARAMETERS
+    )
+    assert len(selected) == 1
     assert sorted(calls) == sorted(
-        tmp_path / filename for role, filename in MAXQUANT_FILES.items() if role != "evidence"
+        tmp_path / MAXQUANT_FILES[role] for role in ("evidence", "protein")
+    )
+
+
+def test_each_preparation_reads_each_of_its_inputs_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for role, frame in maxquant_tables().items():
+        frame.write_csv(tmp_path / MAXQUANT_FILES[role], separator="\t")
+    original_read = preparation_module.pl.read_csv
+    calls: list[Path] = []
+
+    def counted_read(path: Path, **kwargs: object) -> pl.DataFrame:
+        calls.append(path)
+        return original_read(path, separator="\t", infer_schema=False, null_values=[""])
+
+    monkeypatch.setattr(preparation_module.pl, "read_csv", counted_read)
+    document = load_rule_document(RULES / "maxquant_wide/rules.json")
+    select_document_levels(document, Folder(tmp_path), document.levels, UNKNOWN_SEARCH_PARAMETERS)
+    # The evidence preparation reads proteinGroups for the group lookup, the higher join again.
+    assert sorted(calls) == sorted(
+        [tmp_path / filename for filename in MAXQUANT_FILES.values()]
+        + [tmp_path / MAXQUANT_FILES["protein"]]
     )
 
 
@@ -551,7 +479,7 @@ def test_unknown_explicit_companion_is_not_silently_ignored(tmp_path: Path) -> N
     maxquant_tables()["evidence"].write_csv(evidence, separator="\t")
     unknown = tmp_path / "unknown.txt"
     unknown.write_text("unrecognized\n1\n")
-    document = load_rule_document(RULES / "maxquant/rules.json")
+    document = load_rule_document(RULES / "maxquant_wide/rules.json")
     with pytest.raises(InputPreparationError, match="unrecognized explicit companion"):
         select_document_levels(
             document,
@@ -572,7 +500,7 @@ def test_cli_reports_both_resolution_outputs(tmp_path: Path) -> None:
                 "convert",
                 str(tmp_path),
                 "--rule-config",
-                str(RULES / "maxquant/rules.json"),
+                str(RULES / "maxquant_wide/rules.json"),
                 "--format",
                 "parquet",
                 "--output",
@@ -599,7 +527,7 @@ def test_maxquant_preparation_logs_each_table_and_the_join(tmp_path: Path) -> No
                     "convert",
                     str(tmp_path),
                     "--rule-config",
-                    str(RULES / "maxquant/rules.json"),
+                    str(RULES / "maxquant_wide/rules.json"),
                     "--format",
                     "parquet",
                     "--output",
@@ -611,11 +539,11 @@ def test_maxquant_preparation_logs_each_table_and_the_join(tmp_path: Path) -> No
     assert result.value.code == 0
     messages = captured.getvalue()
     for table in ("modificationSpecificPeptides.txt", "peptides.txt", "proteinGroups.txt"):
-        assert f"step=prepare.read start how=maxquant table={table}" in messages
-        assert f"step=prepare.read done how=maxquant table={table} seconds=" in messages
-    assert "step=prepare.join start how=maxquant tables=" in messages
-    assert "step=prepare.join done how=maxquant tables=" in messages
-    assert "prepare.join how=maxquant rows=" in messages
+        assert f"step=prepare.read start how=maxquant_wide table={table}" in messages
+        assert f"step=prepare.read done how=maxquant_wide table={table} seconds=" in messages
+    assert "step=prepare.join start how=maxquant_wide tables=" in messages
+    assert "step=prepare.join done how=maxquant_wide tables=" in messages
+    assert "prepare.join how=maxquant_wide rows=" in messages
 
 
 def test_cli_directory_joins_before_ion_conversion(tmp_path: Path) -> None:
