@@ -10,7 +10,7 @@ from time import perf_counter
 import polars as pl
 from loguru import logger
 
-from apb2.parserV2.joins import alphadia, maxquant
+from apb2.parserV2.joins import alphadia, maxquant, metamorpheus
 from apb2.parserV2.parse_quant.data.errors import ConversionError
 from apb2.parserV2.parse_quant.data.step_log import logged_step
 from apb2.parserV2.parse_quant.errors import IncompatibleSourceError
@@ -37,6 +37,7 @@ _PREPARATIONS: dict[str, tuple[Identify, Join, tuple[str, ...] | None]] = {
         maxquant.join_evidence,
         maxquant.EVIDENCE_KEY_COLUMNS,
     ),
+    "metamorpheus": (metamorpheus.identify, metamorpheus.join, None),
 }
 
 

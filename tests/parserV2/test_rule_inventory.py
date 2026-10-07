@@ -9,7 +9,7 @@ from parserV2.rule_inventory import (
 )
 
 
-def test_parser_v2_packages_twenty_one_documents_and_forty_one_levels() -> None:
+def test_parser_v2_packages_twenty_two_documents_and_forty_two_levels() -> None:
     levels = packaged_levels()
 
     assert len({key for key, _level in levels}) == EXPECTED_DOCUMENT_COUNT

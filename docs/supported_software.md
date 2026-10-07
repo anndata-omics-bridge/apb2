@@ -18,6 +18,7 @@ This table has one row per packaged rule document.
 | [FragPipe](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/fragpipe/rules.json) | 22.x or 23.x | `.tsv` | wide | `fragpipe.workflow` |
 | [i2MassChroQ](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/i2masschroq/rules.json) | 1.x | `.tsv`, `.txt` | long | i2MassChroQ parameter TSV |
 | [MaxQuant](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant/rules.json) | 1.5.x, 1.6.x, or 2.x | `evidence.txt`, `modificationSpecificPeptides.txt`, `peptides.txt`, `proteinGroups.txt` | long / wide | `mqpar.xml` |
+| [MetaMorpheus](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/metamorpheus/rules.json) | 1.x | `AllQuantifiedPeaks.tsv` (`.tsv`) | long | one TOML settings file plus one version-text file |
 | [MSAngel](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/msangel/rules.json) | 2.x | `Quantified peptide ions` sheet in an XLSX workbook (`.txt` or `.xlsx`) | wide | MSAngel workflow JSON |
 | [PEAKS](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/peaks/rules.json) | 13.x | `.csv` | wide | PEAKS settings text report |
 | [ProteoBench Custom](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/pb_custom/rules.json) | version-free | `.txt`, `.tsv` | wide | none; `--software pb_custom` required |
@@ -49,6 +50,7 @@ A check mark means that the linked rule document can convert that level. APB2 re
 | [FragPipe](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/fragpipe/rules.json) | ✓ | — | — | — | — |
 | [i2MassChroQ](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/i2masschroq/rules.json) | ✓ | — | — | — | — |
 | [MaxQuant](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant/rules.json) | ✓ | ✓ | ✓ | ✓ | — |
+| [MetaMorpheus](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/metamorpheus/rules.json) | ✓ | — | — | — | — |
 | [MSAngel](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/msangel/rules.json) | ✓ | — | — | — | — |
 | [PEAKS](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/peaks/rules.json) | ✓ | — | — | — | — |
 | [ProteoBench Custom](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/pb_custom/rules.json) | ✓ | — | — | — | — |
@@ -68,7 +70,6 @@ software:
 
 | Software | Parameter parser input | Conversion status |
 | --- | --- | --- |
-| MetaMorpheus | one TOML settings file plus one version-text file | no packaged vendor-table rule |
 | MSAID | parameter CSV | no packaged vendor-table rule |
 
 The complete parser registry is defined in

@@ -148,16 +148,29 @@ def test_unhinted_recognition_visits_every_packaged_vendor(monkeypatch: pytest.M
         visited.add(document.software_name)
         return original(document, level)
 
+    # A prepared-only document is recognized from headers, never through a facade.
+    prepared = {
+        preparation: document.software_name
+        for path in detection.PACKAGED
+        for document in [load_rule_document(path)]
+        for level in document.levels
+        if (preparation := document.declared(level).preparation) is not None
+    }
+    original_recognizes = detection.recognizes_preparation
+
+    def record_preparation(source: InputSource, how: str) -> bool:
+        visited.add(prepared[how])
+        return original_recognizes(source, how)
+
     monkeypatch.setattr(ParseRuleFacade, "from_declared_rule", classmethod(record_document))
+    monkeypatch.setattr(detection, "recognizes_preparation", record_preparation)
     ParseRuleCompiler(source, parameters)
 
-    # Prepared tables are recognized by their hook's header binding, not through a facade.
     assert visited == {
         document.software_name
         for path in detection.PACKAGED
         if (document := load_rule_document(path)).parameter_file == "required"
         and document.selection == "automatic"
-        and any(document.declared(table[0]).preparation is None for table in document.table_levels)
     }
 
 

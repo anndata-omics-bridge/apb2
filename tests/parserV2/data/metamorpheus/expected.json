@@ -1,0 +1,15 @@
+{
+  "source": "AllQuantifiedPeaks.tsv",
+  "sample": "sample.tsv.gz",
+  "params": null,
+  "sample_rows": 240,
+  "levels": {
+    "ion": {
+      "observations": 5,
+      "variables": 178,
+      "layers": [
+        "Intensity"
+      ]
+    }
+  }
+}
