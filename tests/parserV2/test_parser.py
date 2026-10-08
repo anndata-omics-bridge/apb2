@@ -565,41 +565,6 @@ class _BlankToNull:
         return pl.when(text.is_null() | (text == "")).then(None).otherwise(text).alias(name)
 
 
-def test_an_empty_text_key_is_as_absent_as_a_null_key_but_empty_payload_text_stays() -> None:
-    frame = pl.DataFrame(
-        {
-            "run": ["A", "A", "B", "B"],
-            "feature": ["F1", "", "F1", "F2"],
-            "group": ["G1", "G1", "G1", ""],
-            "intensity": [1.0, 2.0, 3.0, 4.0],
-        }
-    )
-    var = axis_source(("feature",), ("Feature",), ("Feature",), payload=("group",))
-    var_plan = AxisRuntimePlan(
-        keys=var.keys,
-        key_phase=phase((selected("Feature", "feature"),)),
-        output_phase=phase((selected("Group", "group"),)),
-        outputs=("Feature", "Group"),
-    )
-
-    parsed = parser_for(
-        frame,
-        obs_plan=SIMPLE_OBS_PLAN,
-        var_plan=var_plan,
-        obs=SIMPLE_OBS,
-        var=var,
-    ).parse()
-
-    assert parsed.var.frame.to_dicts() == [
-        {"Feature": "F1", "Group": "G1"},
-        {"Feature": "F2", "Group": ""},
-    ], "the empty feature is no feature; an empty group on a real feature is kept verbatim"
-    assert parsed.layers["Intensity"].values.to_dicts() == [
-        {"obs_0": 1.0, "obs_1": 3.0},
-        {"obs_0": None, "obs_1": 4.0},
-    ]
-
-
 def test_an_observation_whose_key_is_incomplete_loses_its_value_column() -> None:
     frame = pl.DataFrame(
         {

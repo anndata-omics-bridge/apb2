@@ -27,7 +27,7 @@ A rule document and the standard reader handle everything listed here. A prepara
 - Sequence grammars: `token_regex`, `site_list`, `embedded_site_list`, `plain_sequence`
 - Sequence characters: residue letters or declared tokens and markers; anything else fails
 - Modification maps to UniMod, with unknown tokens kept, dropped or rejected
-- Rows with a missing or empty-text final key component are dropped
+- Rows with a missing final key component are dropped
 - Two raw keys mapping to one final key raise an error
 
 ## Measurements
