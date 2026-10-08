@@ -45,8 +45,8 @@ class LayerContractValidator:
         for name in empty:
             message = (
                 f"layer {name!r} is effectively empty ({ratios[name]:.2%}) while {reference} is "
-                "populated — the source column was read but its values did not parse; check the "
-                "vendor number format and the missing-value sentinels"
+                "populated: its source column holds no readable values; unreadable tokens, if "
+                "any, are reported separately"
             )
             if self.strict or name == self.primary_layer_name:
                 raise LayerContractError(message)
