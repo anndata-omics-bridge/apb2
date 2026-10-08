@@ -296,6 +296,11 @@ def test_missing_values_reject_a_second_threshold() -> None:
         NumericLayer(name="I", source="I", missing_values=["<=0", "<=-2.5"])
 
 
+def test_missing_tokens_reject_blank_text() -> None:
+    with pytest.raises(ValidationError, match="blank text"):
+        NumericLayer(name="I", source="I", missing_tokens=["-", " "])
+
+
 @pytest.mark.parametrize("token", [">=0", "<0", "<=zero"])
 def test_a_missing_value_text_must_be_an_at_or_below_bound(token: str) -> None:
     with pytest.raises(ValidationError):

@@ -163,6 +163,15 @@ def test_a_nonblank_token_that_cannot_be_read_stays_present() -> None:
     assert presence_mask(ZERO_SENTINEL, values).to_list() == [True, True]
 
 
+def test_a_declared_missing_token_claims_nothing() -> None:
+    dashes = make_layer_parser(
+        "L", PlainNumericLayerDeclaration(missing_values=(), missing_tokens=("-",)), DOT
+    )
+    values = pl.Series("obs_0", ["12", "-", "not a number", None])
+
+    assert presence_mask(dashes, values).to_list() == [True, False, True, False]
+
+
 def test_a_localized_sentinel_is_recognized_under_its_own_notation() -> None:
     presence = make_layer_parser(
         "L",

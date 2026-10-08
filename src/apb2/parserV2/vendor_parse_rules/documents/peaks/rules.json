@@ -103,11 +103,17 @@
               },
               {
                 "name": "Sample_Mz",
-                "source": "^(?P<sample>.+?)(?:\\.raw|_raw)? m/z$"
+                "source": "^(?P<sample>.+?)(?:\\.raw|_raw)? m/z$",
+                "missing_tokens": [
+                  "-"
+                ]
               },
               {
                 "name": "Sample_RT_Mean",
-                "source": "^(?P<sample>.+?)(?:\\.raw|_raw)? RT mean$"
+                "source": "^(?P<sample>.+?)(?:\\.raw|_raw)? RT mean$",
+                "missing_tokens": [
+                  "-"
+                ]
               },
               {
                 "name": "AScore",

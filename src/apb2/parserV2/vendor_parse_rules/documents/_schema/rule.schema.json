@@ -951,6 +951,13 @@
           "title": "Missing Values",
           "type": "array"
         },
+        "missing_tokens": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Missing Tokens",
+          "type": "array"
+        },
         "value_pattern": {
           "$ref": "#/$defs/ValuePattern"
         },

@@ -116,6 +116,9 @@
                 ],
                 "missing_values": [
                   "<=0"
+                ],
+                "missing_tokens": [
+                  "NA"
                 ]
               }
             ]
@@ -155,6 +158,9 @@
                 ],
                 "missing_values": [
                   "<=0"
+                ],
+                "missing_tokens": [
+                  "NA"
                 ]
               },
               {

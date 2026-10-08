@@ -31,16 +31,17 @@ class PlainNumericLayerParser:
     layer_name: str
     missing_values: tuple[float, ...]
     missing_at_or_below: float | None
+    missing_tokens: tuple[str, ...]
     number_format: NumericTextFormat
     numeric_type: NumericLayerType
 
     def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr:
         """Without sentinels blank text claims a cell; unreadable tokens always do."""
-        if not self.missing_values and self.missing_at_or_below is None:
+        if not self.missing_values and self.missing_at_or_below is None and not self.missing_tokens:
             return ~absent(values, dtype)
         numbers = as_numbers(values, dtype, self.number_format)
         sentinel = _declared_missing(numbers, self.missing_values, self.missing_at_or_below)
-        return ~(blank(values, dtype) | sentinel.fill_null(False))
+        return ~(_missing_text(values, dtype, self.missing_tokens) | sentinel.fill_null(False))
 
     def parse(self, layer: FinalLayerTable) -> tuple[FinalLayerTable, dict[str, JsonValue]]:
         values = layer.values
@@ -52,7 +53,7 @@ class PlainNumericLayerParser:
                 pl.struct(
                     pl.col(column).alias("raw"),
                     as_numbers(pl.col(column), dtype, self.number_format).alias("number"),
-                    blank(pl.col(column), dtype).alias("blank"),
+                    _missing_text(pl.col(column), dtype, self.missing_tokens).alias("blank"),
                 ).alias(column)
                 for column, dtype in values.schema.items()
             )
@@ -80,6 +81,7 @@ class RegexNumericLayerParser:
     layer_name: str
     missing_values: tuple[float, ...]
     missing_at_or_below: float | None
+    missing_tokens: tuple[str, ...]
     pattern: str
     number_format: NumericTextFormat
     numeric_type: NumericLayerType
@@ -89,7 +91,7 @@ class RegexNumericLayerParser:
         extracted = values.cast(pl.String, strict=False).str.extract(self.pattern, 1)
         numbers = as_numbers(extracted, pl.String(), self.number_format)
         sentinel = _declared_missing(numbers, self.missing_values, self.missing_at_or_below)
-        return ~(blank(values, dtype) | sentinel.fill_null(False))
+        return ~(_missing_text(values, dtype, self.missing_tokens) | sentinel.fill_null(False))
 
     def parse(self, layer: FinalLayerTable) -> tuple[FinalLayerTable, dict[str, JsonValue]]:
         values = layer.values
@@ -101,7 +103,7 @@ class RegexNumericLayerParser:
                     pl.String(),
                     self.number_format,
                 ).alias("number"),
-                blank(pl.col(column), dtype).alias("blank"),
+                _missing_text(pl.col(column), dtype, self.missing_tokens).alias("blank"),
             ).alias(column)
             for column, dtype in values.schema.items()
         )
@@ -206,6 +208,15 @@ def _parsed_layer(
         role=role,
         semantics=semantics,
     )
+
+
+def _missing_text(values: pl.Expr, dtype: pl.DataType, tokens: tuple[str, ...]) -> pl.Expr:
+    """Blank cells, and cells holding a declared missing-value token such as ``-``."""
+    if not tokens or dtype.is_numeric():
+        return blank(values, dtype)
+    return blank(values, dtype) | values.cast(pl.String, strict=False).str.strip_chars().is_in(
+        tokens
+    ).fill_null(False)
 
 
 def _declared_missing(

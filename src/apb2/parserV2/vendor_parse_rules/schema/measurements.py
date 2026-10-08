@@ -88,6 +88,9 @@ class NumericLayer(ModelBase):
     name: str
     source: str
     missing_values: list[float | MissingBound] = Field(default_factory=list)
+    missing_tokens: list[str] = Field(default_factory=list)
+    """Text the vendor writes for a missing value, such as ``-`` or ``NA``; such cells are
+    missing, not unreadable."""
     value_pattern: ValuePattern = Field(default_factory=NoValuePattern)
     required: bool = False
     roles: list[SemanticRole] = Field(default_factory=list)
@@ -97,6 +100,8 @@ class NumericLayer(ModelBase):
         thresholds = [value for value in self.missing_values if isinstance(value, str)]
         if len(thresholds) > 1:
             raise ValueError(f"missing_values declares more than one threshold: {thresholds}")
+        if any(not token.strip() for token in self.missing_tokens):
+            raise ValueError("missing_tokens declares blank text, which is already missing")
         return self
 
     @property

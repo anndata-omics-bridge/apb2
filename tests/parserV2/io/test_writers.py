@@ -362,6 +362,28 @@ def test_numeric_diagnostics_count_all_cells_and_tokens_before_bounding_examples
     assert parsed.values.get_column("obs_0").to_list() == [*([None] * 11), 1.5]
 
 
+@pytest.mark.parametrize(
+    "declaration",
+    [
+        PlainNumericLayerDeclaration(missing_values=(), missing_tokens=("-", "NA")),
+        RegexNumericLayerDeclaration(
+            missing_values=(), pattern=r"^(-?\d+(?:\.\d+)?)$", missing_tokens=("-", "NA")
+        ),
+    ],
+)
+def test_a_declared_missing_token_is_missing_and_not_reported_as_unreadable(
+    declaration: PlainNumericLayerDeclaration | RegexNumericLayerDeclaration,
+) -> None:
+    parser = make_layer_parser("Intensity", declaration, DOT)
+
+    parsed, evidence = parser.parse(
+        FinalLayerTable(layer_name="Intensity", values=block(["12.5", "-", " NA ", "n/a"]))
+    )
+
+    assert parsed.values.get_column("obs_0").to_list() == [12.5, None, None, None]
+    assert evidence == {"cell_count": 1, "distinct_token_count": 1, "examples": ["n/a"]}
+
+
 def test_regex_numeric_diagnostics_count_nonblank_failed_captures() -> None:
     parser = make_layer_parser(
         "AScore",

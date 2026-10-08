@@ -264,6 +264,7 @@ def test_the_alphadia_wide_ion_level_resolves_exactly_as_specified() -> None:
                 "missing_values": [],
                 "type": "number",
                 "missing_at_or_below": 0.0,
+                "missing_tokens": [],
             },
         }
     ]

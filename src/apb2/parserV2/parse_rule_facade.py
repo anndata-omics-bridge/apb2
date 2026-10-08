@@ -452,11 +452,13 @@ class ParseRuleFacade:
                 pattern=layer.value_pattern.pattern,
                 type=layer.type,
                 missing_at_or_below=layer.missing_at_or_below,
+                missing_tokens=tuple(layer.missing_tokens),
             )
         return PlainNumericLayerDeclaration(
             missing_values=layer.missing_sentinels,
             type=layer.type,
             missing_at_or_below=layer.missing_at_or_below,
+            missing_tokens=tuple(layer.missing_tokens),
         )
 
     @staticmethod

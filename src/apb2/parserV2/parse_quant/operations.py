@@ -169,6 +169,7 @@ def make_layer_parser(
             layer_name=layer_name,
             missing_values=value.missing_values,
             missing_at_or_below=value.missing_at_or_below,
+            missing_tokens=value.missing_tokens,
             number_format=numbers,
             numeric_type=value.type,
         )
@@ -177,6 +178,7 @@ def make_layer_parser(
             layer_name=layer_name,
             missing_values=value.missing_values,
             missing_at_or_below=value.missing_at_or_below,
+            missing_tokens=value.missing_tokens,
             pattern=value.pattern,
             number_format=numbers,
             numeric_type=value.type,

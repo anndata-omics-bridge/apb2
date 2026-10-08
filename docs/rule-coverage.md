@@ -34,6 +34,7 @@ A rule document and the standard reader handle everything listed here. A prepara
 
 - Numeric layers (`number`, `integer`) and factor layers with a category map
 - `missing_values`: exact numbers and one `<=` threshold
+- `missing_tokens`: text written for a missing value, such as `-` or `NA`
 - `value_pattern`: one number extracted from structured cells by regex
 - Repeated cells: `error`, `keep_first`, `sum`, `max`, or `keep_best` (one row per cell by a ranking layer, with optional summed layers); another reduction is a new mode here, never hook work
 - `sum` and `max` leave a cell null when nothing is present, and reduce each layer separately, so with several layers one feature's cells can come from different repeated rows

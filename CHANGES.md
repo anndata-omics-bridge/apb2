@@ -2,6 +2,8 @@
 
 ## 2026-10-08
 
+- Numeric layers accept `missing_tokens`, the text a vendor writes for a missing value. Such a cell is missing, not an unreadable cell, and claims no duplicate cell. PEAKS declares `-` on `Sample_Mz` and `Sample_RT_Mean`, and WOMBAT declares `NA` on `Abundance`; these were the only unreadable cells in the ProteoBench corpus (22 datasets).
+
 - A row whose final key has an empty-text component is dropped, like one with a null component. A delimited reader already reads an empty cell as null, but Parquet keeps `""`, so DIA-NN 2 precursors without a protein group (1,771 of 7,357 in a ProteoBench Astral submission) formed a protein feature `""` with no abundances. That feature is gone; the ion level keeps those precursors, with an empty `Protein_Group`. The other 14 routine datasets convert unchanged.
 
 - **Breaking:** a `token_pattern` names the site of every token: each capturing group is `nterm`, `cterm` or `residue`, and a pattern with any other or unnamed group is refused. apb2 places a token where its group says instead of guessing from its place in the text, so the start-is-N-terminal and end-is-C-terminal guesses and the C-terminal fallback are gone. AlphaPept's `cC…` and `oxM…` at the sequence start now resolve on their residue, PEAKS' N-terminal acetyl written after the first residue (`A(+42.01)…`) resolves, all 15 token-pattern syntaxes name their groups, Sage maps `+42` and Spectronaut `Deamidation (NQ)`, and the Unimod registry gains UNIMOD:7 Deamidated.
