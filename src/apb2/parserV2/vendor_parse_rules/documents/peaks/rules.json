@@ -35,7 +35,7 @@
         "sequence_syntax": {
           "vendor_sequence": {
             "parser": "token_regex",
-            "token_pattern": "\\(([^()]+)\\)",
+            "token_pattern": "(?:(?<=^[A-Z])|(?<=^C\\(\\+57\\.02\\)))\\((?P<nterm>\\+42\\.01|\\+42\\.0106)\\)|\\((?P<residue>[^()]+)\\)",
             "token_position": "after_residue"
           }
         },

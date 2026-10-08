@@ -101,7 +101,7 @@
         "sequence_syntax": {
           "vendor_sequence": {
             "parser": "token_regex",
-            "token_pattern": "^\\[([^\\]]+)\\]-|-\\[([^\\]]+)\\]$|\\[([^\\]]+)\\]",
+            "token_pattern": "^\\[(?P<nterm>[^\\]]+)\\]-|-\\[(?P<cterm>[^\\]]+)\\]$|\\[(?P<residue>[^\\]]+)\\]",
             "token_position": "after_residue"
           }
         },
@@ -117,6 +117,10 @@
             },
             {
               "token": "+42.010567",
+              "accession": "UNIMOD:1"
+            },
+            {
+              "token": "+42",
               "accession": "UNIMOD:1"
             }
           ]

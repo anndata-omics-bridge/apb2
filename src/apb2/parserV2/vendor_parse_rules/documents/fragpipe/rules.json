@@ -26,7 +26,7 @@
         "sequence_syntax": {
           "vendor_sequence": {
             "parser": "token_regex",
-            "token_pattern": "^n\\[([^\\]]+)\\]|c\\[([^\\]]+)\\]$|\\[([^\\]]+)\\]",
+            "token_pattern": "^n\\[(?P<nterm>[^\\]]+)\\]|c\\[(?P<cterm>[^\\]]+)\\]$|\\[(?P<residue>[^\\]]+)\\]",
             "token_position": "after_residue"
           }
         },

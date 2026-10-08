@@ -59,7 +59,7 @@ class PackedSiteMismatchError(ConversionError):
 
 
 class UnplaceableModificationError(ConversionError):
-    """A token has no residue to modify and sits at neither terminus, such as ``(ac)(ox)PEP``."""
+    """A residue token has no residue to modify, such as ``(ac)(ox)PEP``."""
 
 
 class UnrecognizedSequenceCharacterError(ConversionError):
@@ -292,67 +292,43 @@ def _apply_unknown_policy(
 
 @dataclass(frozen=True, slots=True)
 class _PendingToken:
+    """One token, the site its pattern group names, and the residue index beside it."""
+
     raw_token: str
-    location: ModificationLocation
+    site: str
+    index: int
 
-
-@dataclass(frozen=True, slots=True)
-class _TokenPlacement:
-    """Where one token sits, and which residues were consumed while placing it."""
-
-    location: ModificationLocation
-    consumed_residues: tuple[str, ...]
-    next_cursor: int
-
-
-def _place_token(
-    sequence: str,
-    match: re.Match[str],
-    token_position: str,
-    residues: list[str],
-) -> _TokenPlacement:
-    """Locate one regex match relative to the residues parsed before it."""
-    if not residues and match.start() == 0:
-        adjacent = sequence[match.end() : match.end() + 1]
-        location: ModificationLocation = (
-            TerminalLocation("N-term", adjacent) if adjacent else TerminalOnlyLocation("N-term")
-        )
-        return _TokenPlacement(location, (), match.end())
-    if match.end() == len(sequence) and token_position != "before_residue":
-        location = (
-            TerminalLocation("C-term", residues[-1]) if residues else TerminalOnlyLocation("C-term")
-        )
-        return _TokenPlacement(location, (), match.end())
-    if token_position == "before_residue":
-        following = sequence[match.end() : match.end() + 1]
-        if following in _RESIDUES:
-            return _TokenPlacement(
-                ResidueLocation(len(residues), following), (following,), match.end() + 1
-            )
-    if not residues:
-        # Silently dropping the token would lose a modification; the sequence is malformed.
-        raise UnplaceableModificationError(
-            f"modification token {match.group(0)!r} in {sequence!r} has no residue to modify"
-        )
-    return _TokenPlacement(ResidueLocation(len(residues) - 1, residues[-1]), (), match.end())
+    def location(self, stripped: str) -> ModificationLocation:
+        match self.site:
+            case "nterm":
+                return TerminalLocation("N-term", stripped[:1])
+            case "cterm":
+                return TerminalLocation("C-term", stripped[-1:])
+            case _:
+                return ResidueLocation(self.index, stripped[self.index])
 
 
 def _tokenize(
     sequence: str, pattern: re.Pattern[str], token_position: str
 ) -> tuple[list[str], list[_PendingToken]]:
-    """Walk the regex matches, building the stripped residues and the placed tokens."""
+    """Walk the regex matches; each token's site is the named group that matched it."""
     residues: list[str] = []
     pending: list[_PendingToken] = []
     cursor = 0
     for match in pattern.finditer(sequence):
         residues.extend(_residues(sequence, sequence[cursor : match.start()]))
-        groups = [group for group in match.groups() if group is not None]
-        raw_token = groups[0] if groups else match.group(0)
-        placement = _place_token(sequence, match, token_position, residues)
-        residues.extend(placement.consumed_residues)
-        pending.append(_PendingToken(raw_token, placement.location))
-        cursor = placement.next_cursor
+        site = match.lastgroup
+        if site is None:
+            raise UnplaceableModificationError(f"token {match.group(0)!r} names no site group")
+        index = len(residues) if token_position == "before_residue" else len(residues) - 1
+        pending.append(_PendingToken(match.group(site), site, index))
+        cursor = match.end()
     residues.extend(_residues(sequence, sequence[cursor:]))
+    for token in pending:
+        if token.site == "residue" and not 0 <= token.index < len(residues):
+            raise UnplaceableModificationError(
+                f"modification token {token.raw_token!r} in {sequence!r} has no residue to modify"
+            )
     return residues, pending
 
 
@@ -377,7 +353,10 @@ class TokenRegexNormalizer:
         unknown_tokens: dict[int, str] = {}
         unknown_token_list: list[str] = []
         for token in pending:
-            location, entry = self._resolve(token, len(stripped))
+            location = token.location(stripped)
+            entry = _matched_entry(
+                self.entries, token.raw_token, location, case_sensitive=self.case_sensitive
+            )
             if entry is not None:
                 location.record_label(labels, entry.accession or entry.name)
                 continue
@@ -393,32 +372,6 @@ class TokenRegexNormalizer:
             value=render_proforma(stripped, labels, unknown_tokens),
             unknown_tokens=tuple(unknown_token_list),
         )
-
-    def _resolve(
-        self, token: _PendingToken, stripped_length: int
-    ) -> tuple[ModificationLocation, ModificationMapEntry | None]:
-        """Match one token where it sits.
-
-        A token written after the last residue is that residue's modification whenever the
-        map places it on that residue, as DIA-NN's ``…C(UniMod:4)``; it is C-terminal only
-        when no entry fits the residue.
-        """
-        location = token.location
-        if (
-            self.token_position == "after_residue"
-            and isinstance(location, TerminalLocation)
-            and location.position == "C-term"
-        ):
-            on_residue = ResidueLocation(stripped_length - 1, location.adjacent_residue)
-            entry = _matched_entry(
-                self.entries, token.raw_token, on_residue, case_sensitive=self.case_sensitive
-            )
-            if entry is not None:
-                return on_residue, entry
-        entry = _matched_entry(
-            self.entries, token.raw_token, location, case_sensitive=self.case_sensitive
-        )
-        return location, entry
 
 
 # ------------------------------------------------------------------- parallel name/site lists

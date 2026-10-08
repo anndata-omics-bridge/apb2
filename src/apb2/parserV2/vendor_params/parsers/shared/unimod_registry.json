@@ -17,6 +17,14 @@
       "mass_delta": 57.021464
     },
     {
+      "accession": "UNIMOD:7",
+      "name": "Deamidated",
+      "aliases": ["Deamidation"],
+      "target": ["N", "Q"],
+      "position": "Anywhere",
+      "mass_delta": 0.984016
+    },
+    {
       "accession": "UNIMOD:21",
       "name": "Phospho",
       "target": ["S", "T", "Y"],

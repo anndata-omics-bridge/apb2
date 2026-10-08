@@ -34,7 +34,7 @@ from parserV2.test_facade import delimited
 
 INLINE: dict[str, Any] = {
     "parser": "token_regex",
-    "token_pattern": r"\(([^()]*)\)",
+    "token_pattern": r"^\((?P<nterm>[^()]*)\)|\((?P<residue>[^()]*)\)",
     "token_position": "after_residue",
 }
 STRIP: dict[str, Any] = {
@@ -313,7 +313,10 @@ def test_named_definitions_are_replaced_whole_after_base_composition(tmp_path: P
     declaration = base([NORMALIZE])
     level: dict[str, Any] = {
         "sequence_syntax": {
-            "vendor_sequence": {"parser": "token_regex", "token_pattern": r"\[([^\]]+)\]"}
+            "vendor_sequence": {
+                "parser": "token_regex",
+                "token_pattern": r"\[(?P<residue>[^\]]+)\]",
+            }
         },
         "modification_maps": {
             "basic_modification_map": [{"token": "new", "accession": "UNIMOD:35"}]
@@ -331,6 +334,15 @@ def test_named_definitions_are_replaced_whole_after_base_composition(tmp_path: P
     level["sequence_syntax"]["vendor_sequence"].pop("token_pattern")
     with pytest.raises(ValidationError, match="token_pattern"):
         document(declaration, level).declared("ion")
+
+
+@pytest.mark.parametrize("pattern", [r"\[([^\]]+)\]", r"\[(?P<site>[^\]]+)\]", r"\[[^\]]+\]"])
+def test_a_token_pattern_names_every_group_after_its_site(pattern: str) -> None:
+    level: dict[str, Any] = {
+        "sequence_syntax": {"vendor_sequence": {"parser": "token_regex", "token_pattern": pattern}}
+    }
+    with pytest.raises(ValidationError, match="must name every capturing group"):
+        document(base([NORMALIZE]), level).declared("ion")
 
 
 def test_memoization_is_local_to_each_operation() -> None:
@@ -354,9 +366,9 @@ def test_memoization_is_local_to_each_operation() -> None:
 @pytest.mark.parametrize(
     ("pattern", "position", "modified"),
     [
-        (r"\(([^()]*)\)", "after_residue", "_(ac)PEPM(ox)IDE_"),
-        (r"\[([^\]]+)\]", "after_residue", "_PEPM[15.9949]IDE_"),
-        (r"[a-z]+", "before_residue", "PEPoxMIDE"),
+        (r"^\((?P<nterm>[^()]*)\)|\((?P<residue>[^()]*)\)", "after_residue", "_(ac)PEPM(ox)IDE_"),
+        (r"\[(?P<residue>[^\]]+)\]", "after_residue", "_PEPM[15.9949]IDE_"),
+        (r"(?P<residue>[a-z]+)", "before_residue", "PEPoxMIDE"),
     ],
 )
 def test_independent_stripping_handles_vendor_syntax_terminals_and_nulls(
@@ -373,9 +385,14 @@ def test_independent_stripping_handles_vendor_syntax_terminals_and_nulls(
 @pytest.mark.parametrize(
     ("pattern", "position", "modified", "expected"),
     [
-        (r"\(([^()]*(?:\([^()]*\)[^()]*)*)\)", "after_residue", "_M(Oxidation (M))PEP_", "MPEP"),
-        (r"(?<=M)\(ox\)", "after_residue", "M(ox)PEP", "MPEP"),
-        (r"[a-z]+", "before_residue", "PEPoxMIDE", "PEPMIDE"),
+        (
+            r"\((?P<residue>[^()]*(?:\([^()]*\)[^()]*)*)\)",
+            "after_residue",
+            "_M(Oxidation (M))PEP_",
+            "MPEP",
+        ),
+        (r"(?<=M)\((?P<residue>ox)\)", "after_residue", "M(ox)PEP", "MPEP"),
+        (r"(?P<residue>[a-z]+)", "before_residue", "PEPoxMIDE", "PEPMIDE"),
     ],
 )
 def test_stripping_preserves_nested_and_python_only_token_grammars(
@@ -395,7 +412,9 @@ def test_native_stripping_does_not_tokenize_or_map_python_rows(
         pytest.fail("native stripping must not call the scalar tokenizer")
 
     monkeypatch.setattr(TokenRegexStripper, "transform", forbidden)
-    computer = TokenRegexStripper("Peptide", ("Sequence",), r"\[([^\]]+)\]", "after_residue")
+    computer = TokenRegexStripper(
+        "Peptide", ("Sequence",), r"\[(?P<residue>[^\]]+)\]", "after_residue"
+    )
     result, _ = computer.compute(pl.DataFrame({"Sequence": ["_M[unknown]PEP_", "_M[unknown]PEP_"]}))
     assert result["Peptide"].to_list() == ["MPEP", "MPEP"]
 
@@ -415,14 +434,16 @@ def test_plain_stripping_and_site_lists_refuse_the_same_non_residues() -> None:
 
 
 def test_native_stripping_refuses_a_character_that_is_no_residue() -> None:
-    computer = TokenRegexStripper("Peptide", ("Sequence",), r"\[([^\]]+)\]", "after_residue")
+    computer = TokenRegexStripper(
+        "Peptide", ("Sequence",), r"\[(?P<residue>[^\]]+)\]", "after_residue"
+    )
     with pytest.raises(UnrecognizedSequenceCharacterError, match=r"examples=\['SEQA\|SEQB'\]"):
         computer.compute(pl.DataFrame({"Sequence": ["PEPTIDE", "SEQA|SEQB"]}))
 
 
 def test_declared_markers_are_removed_before_tokenizing() -> None:
     computer = TokenRegexStripper(
-        "Peptide", ("Sequence",), r"\[([^\]]+)\]", "after_residue", "_decoy$"
+        "Peptide", ("Sequence",), r"\[(?P<residue>[^\]]+)\]", "after_residue", "_decoy$"
     )
     result, _ = computer.compute(pl.DataFrame({"Sequence": ["PEP[x]TIDE_decoy", "PEPTIDE"]}))
     assert result["Peptide"].to_list() == ["PEPTIDE", "PEPTIDE"]

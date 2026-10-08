@@ -59,7 +59,7 @@
         "sequence_syntax": {
           "vendor_sequence": {
             "parser": "token_regex",
-            "token_pattern": "\\[([^\\[\\]]+)\\]",
+            "token_pattern": "^\\[(?P<nterm>[^\\[\\]]+)\\]|\\[(?P<residue>[^\\[\\]]+)\\]",
             "token_position": "after_residue"
           }
         },
@@ -76,6 +76,10 @@
             {
               "token": "Carbamidomethyl (C)",
               "accession": "UNIMOD:4"
+            },
+            {
+              "token": "Deamidation (NQ)",
+              "accession": "UNIMOD:7"
             }
           ]
         }

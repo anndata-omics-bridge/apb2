@@ -1505,12 +1505,14 @@
           "type": "string"
         },
         "token_pattern": {
+          "description": "each capturing group named for its token's site: nterm, cterm or residue",
           "title": "Token Pattern",
           "type": "string"
         },
         "token_position": {
           "$ref": "#/$defs/TokenPosition",
-          "default": "after_residue"
+          "default": "after_residue",
+          "description": "whether a 'residue' token follows or precedes its residue"
         },
         "marker_pattern": {
           "anyOf": [

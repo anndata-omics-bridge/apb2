@@ -205,7 +205,10 @@ def test_every_computed_column_declaration_names_one_computer(
             },
             "sequence_syntax": {
                 "plain": {"parser": "plain_sequence"},
-                "tokens": {"parser": "token_regex", "token_pattern": r"\(([^()]*)\)"},
+                "tokens": {
+                    "parser": "token_regex",
+                    "token_pattern": r"^\((?P<nterm>[^()]*)\)|\((?P<residue>[^()]*)\)",
+                },
             },
             "modification_maps": {"basic": [{"token": "ox", "accession": "UNIMOD:35"}]},
         },
@@ -297,7 +300,7 @@ def test_normalizers_own_their_settings_without_configuration_wrappers() -> None
         entries=(),
     )
     token_regex = TokenRegexNormalizer(
-        token_pattern=r"\(([^()]*)\)",
+        token_pattern=r"^\((?P<nterm>[^()]*)\)|\((?P<residue>[^()]*)\)",
         token_position="after_residue",
         case_sensitive=False,
         unknown_policy="preserve",

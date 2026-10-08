@@ -75,7 +75,7 @@ COMMA_NUMBERS = NumericTextFormat(decimal_mark=",", thousands_marks=(".", " "))
 
 def token_regex(
     *,
-    pattern: str = r"\(([^()]*)\)",
+    pattern: str = r"^\((?P<nterm>[^()]*)\)|\((?P<residue>[^()]*)\)",
     position: ModificationTokenPosition = "after_residue",
     policy: UnknownModificationPolicy = "preserve",
     entries: tuple[ModificationMapEntry, ...] = (OXIDATION, ACETYL),
@@ -294,7 +294,7 @@ def test_a_stripping_column_consumes_the_sequence_directly(
     computer = TokenRegexStripper(
         name="ProForma_peptide",
         inputs=("Modified_Sequence",),
-        token_pattern=r"\(([^()]*)\)",
+        token_pattern=r"^\((?P<nterm>[^()]*)\)|\((?P<residue>[^()]*)\)",
         token_position=position,
     )
     result, tokens = computer.compute(pl.DataFrame({"Modified_Sequence": [sequence]}))
@@ -415,7 +415,9 @@ def test_a_marker_marks_the_rows_the_vendor_marks_and_is_never_missing(
 @pytest.mark.parametrize("sequences", [[], [None, None]])
 def test_sequence_mapping_handles_empty_and_all_null_frames(sequences: list[str | None]) -> None:
     frame = pl.DataFrame({"Sequence": sequences}, schema={"Sequence": pl.String})
-    computer = TokenRegexStripper("Peptide", ("Sequence",), r"\(([^()]*)\)", "after_residue")
+    computer = TokenRegexStripper(
+        "Peptide", ("Sequence",), r"^\((?P<nterm>[^()]*)\)|\((?P<residue>[^()]*)\)", "after_residue"
+    )
     result, tokens = computer.compute(frame)
     assert result["Peptide"].to_list() == [""] * len(sequences)
     assert result.schema["Peptide"] == pl.String
@@ -429,7 +431,7 @@ def test_sequence_mapping_preserves_other_columns_and_first_seen_diagnostics() -
     computer = SequenceColumn("Sequence", ("Sequence",), token_regex())
     result, tokens = computer.compute(frame)
     assert result.to_dict(as_series=False) == {
-        "Sequence": ["M-[second]", "M-[first]", "M-[second]", "M-[third]"],
+        "Sequence": ["M[second]", "M[first]", "M[second]", "M[third]"],
         "_result": [4, 3, 2, 1],
     }
     assert tokens == ("second", "first", "third")
@@ -484,7 +486,7 @@ def test_a_terminal_token_renders_before_the_sequence() -> None:
 
 def test_a_before_residue_vendor_attaches_the_token_to_what_follows() -> None:
     rules = token_regex(
-        pattern="[a-z]+",
+        pattern="(?P<residue>[a-z]+)",
         position="before_residue",
         entries=(
             ModificationMapEntry(
@@ -504,7 +506,7 @@ def test_a_before_residue_vendor_attaches_the_token_to_what_follows() -> None:
 
 
 def test_a_numeric_token_matches_on_mass_target_and_position() -> None:
-    rules = token_regex(pattern=r"\[([^\]]+)\]")
+    rules = token_regex(pattern=r"\[(?P<residue>[^\]]+)\]")
 
     result = rules.transform(("PEPM[15.9949]IDE",))
 
@@ -587,7 +589,7 @@ def test_a_modification_after_the_last_residue_belongs_to_that_residue() -> None
     assert result.unknown_tokens == ()
 
 
-def test_a_terminal_only_modification_after_the_last_residue_stays_c_terminal() -> None:
+def test_a_cterm_group_places_its_token_c_terminally() -> None:
     amidated = ModificationMapEntry(
         token="am",
         name="Amidated",
@@ -596,7 +598,9 @@ def test_a_terminal_only_modification_after_the_last_residue_stays_c_terminal() 
         position="C-term",
         mass_delta=-0.984016,
     )
-    result = token_regex(entries=(OXIDATION, amidated)).transform(("PEPTIDEM(am)",))
+    result = token_regex(
+        pattern=r"\((?P<cterm>am)\)$|\((?P<residue>[^()]*)\)", entries=(OXIDATION, amidated)
+    ).transform(("PEPTIDEM(am)",))
 
     assert result.value == "PEPTIDEM-[UNIMOD:2]"
 

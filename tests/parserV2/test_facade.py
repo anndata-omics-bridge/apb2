@@ -369,7 +369,7 @@ def test_a_token_after_the_last_residue_modifies_that_residue(
 def test_a_token_with_no_residue_to_modify_is_an_error() -> None:
     normalizer = _peptidoform_normalizer("maxquant_wide/rules.json")
 
-    with pytest.raises(UnplaceableModificationError, match=r"'\(ox\)' in '\(ac\)\(ox\)PEPTIDE'"):
+    with pytest.raises(UnplaceableModificationError, match=r"'ox' in '\(ac\)\(ox\)PEPTIDE'"):
         normalizer.transform(("_(ac)(ox)PEPTIDE_",))
 
 
@@ -386,6 +386,18 @@ def test_a_token_with_no_residue_to_modify_is_an_error() -> None:
             "[UNIMOD:1]-PEPTIDEC[UNIMOD:4]K",
         ),
         ("alphapept/rules.json", "aMoxMPEPTIDE_decoy", "[UNIMOD:1]-MM[UNIMOD:35]PEPTIDE"),
+        ("alphapept/rules.json", "cCPEPoxMK", "C[UNIMOD:4]PEPM[UNIMOD:35]K"),
+        ("alphapept/rules.json", "oxMPEPTIDE", "M[UNIMOD:35]PEPTIDE"),
+        ("peaks/rules.json", "A(+42.01)AAAAR", "[UNIMOD:1]-AAAAAR"),
+        ("peaks/rules.json", "M(+42.01)(+15.99)PEPK", "[UNIMOD:1]-M[UNIMOD:35]PEPK"),
+        ("peaks/rules.json", "C(+57.02)(+42.01)PEPK", "[UNIMOD:1]-C[UNIMOD:4]PEPK"),
+        ("diann/v2/rules.json", "(UniMod:1)PEPTIDEC(UniMod:4)", "[UNIMOD:1]-PEPTIDEC[UNIMOD:4]"),
+        ("sage/rules.json", "[+42]-MPEPTIDE", "[UNIMOD:1]-MPEPTIDE"),
+        (
+            "spectronaut/v21/rules.json",
+            "_[Acetyl (Protein N-term)]PEPN[Deamidation (NQ)]K_",
+            "[UNIMOD:1]-PEPN[UNIMOD:7]K",
+        ),
     ],
 )
 def test_a_rule_declares_every_non_residue_its_vendor_writes(

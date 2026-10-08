@@ -44,7 +44,7 @@
         "sequence_syntax": {
           "vendor_sequence": {
             "parser": "token_regex",
-            "token_pattern": "[a-z]+",
+            "token_pattern": "^(?P<nterm>a)|(?P<residue>[a-z]+)",
             "token_position": "before_residue",
             "marker_pattern": "_decoy$"
           }

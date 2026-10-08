@@ -235,7 +235,7 @@ Map vendor columns to logical names first. A sequence computation consumes exact
   "sequence_syntax": {
     "vendor_sequence": {
       "parser": "token_regex",
-      "token_pattern": "\\[([^\\]]+)\\]",
+      "token_pattern": "^n\\[(?P<nterm>[^\\]]+)\\]|\\[(?P<residue>[^\\]]+)\\]",
       "token_position": "after_residue"
     }
   },
@@ -274,6 +274,8 @@ Map vendor columns to logical names first. A sequence computation consumes exact
 | `token_regex` | sequence | `token_pattern`, `token_position`, `marker_pattern` |
 | `site_list` | sequence, modifications, sites | `delimiter`, `site_base` |
 | `embedded_site_list` | sequence, modifications | `delimiter`, `entry_pattern`, `site_base` |
+
+A token pattern names the site of each token through its capturing groups: `nterm`, `cterm` or `residue`. Every capturing group carries one of these names, and apb2 places a token where its group says, never by where it sits in the text. A `residue` token modifies the residue it follows or, with `"token_position": "before_residue"`, the one it precedes. So DIA-NN's `…C(UniMod:4)` is a `residue` token on that cysteine, because its pattern has no `cterm` group; AlphaPept's `cC…` is a `residue` token before the cysteine, and its `^(?P<nterm>a)` names the N-terminal acetyl; PEAKS writes N-terminal acetyl after the first residue, or after that residue's carbamidomethyl, so its pattern lists those tokens and places, `(?:(?<=^[A-Z])|(?<=^C\(\+57\.02\)))\((?P<nterm>\+42\.01|\+42\.0106)\)`.
 
 Every character that is not part of a declared token must be a residue letter (ProForma's: the twenty amino acids, `U`, `O`, `B`, `J`, `Z`, `X`); anything else fails the conversion with `UnrecognizedSequenceCharacterError` instead of being dropped. `_`, `-` and `.` are stripped only at the ends. A rule therefore declares every non-residue its vendor writes: FragPipe's terminal `n[…]` and `c[…]` and ProForma's `[…]-` and `-[…]` join the token pattern, anchored to the ends, and `marker_pattern` removes vendor text that is neither residue nor modification, such as AlphaPept's `_decoy` suffix, before tokenizing.
 
