@@ -447,7 +447,7 @@ Axis preparation checks a different invariant:
 raw_key_a != raw_key_b  implies  final_key_a != final_key_b
 ```
 
-Rows with a missing final-key component are excluded from this implication because they cannot
+Rows with a missing or empty-text final-key component are excluded from this implication because they cannot
 enter the parsed axis. If two distinct raw keys produce one valid final key,
 `CanonicalKeyCollisionError` reports the final key and representative raw evidence. The configured
 duplicate policy is never allowed to hide that information loss.
