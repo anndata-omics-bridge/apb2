@@ -21,6 +21,7 @@ from apb2.parserV2.parse_quant.axis_columns import (
     CoalesceColumn,
     IntegerAxisCoercer,
     JoinNonemptyColumn,
+    MarkerColumn,
     NumberAxisCoercer,
     ProformaFragmentColumn,
     ProformaIonColumn,
@@ -75,6 +76,7 @@ type ComputedOperation = (
     | TokenRegexStripper
     | ProformaIonColumn
     | ProformaFragmentColumn
+    | MarkerColumn
 )
 
 
@@ -155,7 +157,7 @@ def duplicate_policy(measurements: WorkingMeasurements) -> DuplicatePolicy | Kee
         return duplicate_policy_for(measurements.duplicate_mode)
     if ranking is None:
         raise ValueError("keep_best duplicates need the layer they rank by")
-    return KeepBestDuplicate(by=ranking.layer, highest=ranking.highest)
+    return KeepBestDuplicate(by=ranking.layer, highest=ranking.highest, summed=ranking.summed)
 
 
 def make_layer_parser(

@@ -12,7 +12,9 @@
           ".tsv"
         ],
         "software_only": {
-          "forbidden_columns": ["precursor_idx"]
+          "forbidden_columns": [
+            "precursor_idx"
+          ]
         }
       },
       "base": {
@@ -135,6 +137,18 @@
                   "Charge"
                 ],
                 "how": "proforma_ion"
+              },
+              {
+                "name": "apb_Decoy",
+                "inputs": [
+                  "Decoy"
+                ],
+                "how": "decoy",
+                "equals": "true"
+              },
+              {
+                "name": "apb_Contaminant",
+                "how": "contaminant"
               }
             ]
           }

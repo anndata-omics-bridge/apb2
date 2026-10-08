@@ -44,6 +44,10 @@ _TERMINUS_TARGETS = {
 }
 _NUMERIC_TOKEN = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$")
 _INTEGER_SITE = re.compile(r"^[+-]?\d+$")
+# ProForma's residue letters: the twenty standard amino acids, U and O, and B, J, Z, X.
+_RESIDUES = frozenset("ACDEFGHIKLMNPQRSTVWYUOBJZX")
+_NOT_A_RESIDUE = r"[^ACDEFGHIKLMNPQRSTVWYUOBJZX]"
+_EXAMPLE_LIMIT = 5
 
 
 class UnknownModificationError(ConversionError):
@@ -56,6 +60,36 @@ class PackedSiteMismatchError(ConversionError):
 
 class UnplaceableModificationError(ConversionError):
     """A token has no residue to modify and sits at neither terminus, such as ``(ac)(ox)PEP``."""
+
+
+class UnrecognizedSequenceCharacterError(ConversionError):
+    """A character is neither a residue nor part of a declared token, such as ``PEP|TIDE``."""
+
+
+def _residues(sequence: str, segment: str) -> list[str]:
+    """The residues of one stretch between tokens; anything else would silently change it."""
+    for character in segment:
+        if character not in _RESIDUES:
+            raise UnrecognizedSequenceCharacterError(
+                f"character {character!r} in sequence {sequence!r} is neither a residue nor "
+                "part of a declared modification token"
+            )
+    return list(segment)
+
+
+def _without_markers(sequence: str, marker_pattern: str | None) -> str:
+    """Remove the declared vendor markers, which are neither residues nor modifications."""
+    return re.sub(marker_pattern, "", sequence) if marker_pattern else sequence
+
+
+def _require_residues(column: pl.Series, sequences: pl.Series) -> None:
+    """Fail on the first rows whose stripped text still holds a non-residue character."""
+    invalid = sequences.filter(column.str.contains(_NOT_A_RESIDUE)).unique(maintain_order=True)
+    if invalid.len():
+        raise UnrecognizedSequenceCharacterError(
+            f"{invalid.len()} sequence(s) hold a character that is neither a residue nor part "
+            f"of a declared modification token, examples={invalid.head(_EXAMPLE_LIMIT).to_list()}"
+        )
 
 
 # --------------------------------------------------------------------- what normalizing yields
@@ -291,7 +325,7 @@ def _place_token(
         return _TokenPlacement(location, (), match.end())
     if token_position == "before_residue":
         following = sequence[match.end() : match.end() + 1]
-        if following.isalpha():
+        if following in _RESIDUES:
             return _TokenPlacement(
                 ResidueLocation(len(residues), following), (following,), match.end() + 1
             )
@@ -311,16 +345,14 @@ def _tokenize(
     pending: list[_PendingToken] = []
     cursor = 0
     for match in pattern.finditer(sequence):
-        residues.extend(
-            character for character in sequence[cursor : match.start()] if character.isalpha()
-        )
+        residues.extend(_residues(sequence, sequence[cursor : match.start()]))
         groups = [group for group in match.groups() if group is not None]
         raw_token = groups[0] if groups else match.group(0)
         placement = _place_token(sequence, match, token_position, residues)
         residues.extend(placement.consumed_residues)
         pending.append(_PendingToken(raw_token, placement.location))
         cursor = placement.next_cursor
-    residues.extend(character for character in sequence[cursor:] if character.isalpha())
+    residues.extend(_residues(sequence, sequence[cursor:]))
     return residues, pending
 
 
@@ -333,11 +365,12 @@ class TokenRegexNormalizer:
     case_sensitive: bool
     unknown_policy: UnknownModificationPolicy
     entries: tuple[ModificationMapEntry, ...]
+    marker_pattern: str | None = None
 
     def transform(self, row: tuple[str, ...], /) -> SequenceValue:
         (modified_sequence,) = row
         pattern = re.compile(self.token_pattern)
-        sequence = modified_sequence.strip(_TERM_MARKERS)
+        sequence = _without_markers(modified_sequence, self.marker_pattern).strip(_TERM_MARKERS)
         residues, pending = _tokenize(sequence, pattern, self.token_position)
         stripped = "".join(residues)
         labels: ModificationLabels = {}
@@ -418,7 +451,7 @@ class SiteListNormalizer:
 
     def transform(self, row: tuple[str, ...], /) -> SequenceValue:
         sequence, modifications, sites = row
-        stripped = "".join(character for character in sequence if character.isalpha())
+        stripped = "".join(_residues(sequence, sequence.strip(_TERM_MARKERS)))
         tokens = [token for token in modifications.split(self.delimiter) if token]
         raw_sites = [site for site in sites.split(self.delimiter) if site]
         if len(tokens) != len(raw_sites):
@@ -494,7 +527,7 @@ class EmbeddedSiteListNormalizer:
 
     def transform(self, row: tuple[str, ...], /) -> SequenceValue:
         sequence, modifications = row
-        stripped = "".join(character for character in sequence if character.isalpha())
+        stripped = "".join(_residues(sequence, sequence.strip(_TERM_MARKERS)))
         pattern = re.compile(self.entry_pattern)
         labels: ModificationLabels = {}
         unknown_tokens: dict[int, str] = {}
@@ -543,15 +576,17 @@ class SequenceOperation(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class PlainSequenceStripper:
-    """Select residues with a native Unicode-letter expression, without modification lookup."""
+    """Select residues natively, without modification lookup, refusing any other character."""
 
     name: str
     inputs: tuple[str, ...]
 
     def compute(self, frame: pl.DataFrame, /) -> tuple[pl.DataFrame, tuple[str, ...]]:
         (source,) = self.inputs
-        expression = pl.col(source).cast(pl.String).fill_null("").str.replace_all(r"[^\p{L}]", "")
-        return frame.with_columns(expression.alias(self.name)), ()
+        sequences = frame.get_column(source).cast(pl.String).fill_null("")
+        stripped = sequences.str.strip_chars(_TERM_MARKERS)
+        _require_residues(stripped, sequences)
+        return frame.with_columns(stripped.alias(self.name)), ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -562,6 +597,7 @@ class TokenRegexStripper:
     inputs: tuple[str, ...]
     token_pattern: str
     token_position: ModificationTokenPosition
+    marker_pattern: str | None = None
 
     def compute(self, frame: pl.DataFrame, /) -> tuple[pl.DataFrame, tuple[str, ...]]:
         # Before-residue tokenization may consume a letter in the next match; keep that
@@ -569,24 +605,25 @@ class TokenRegexStripper:
         if self.token_position == "before_residue":
             return SequenceColumn(self.name, self.inputs, self).compute(frame)
         try:
-            pl.select(pl.lit("").str.replace_all(self.token_pattern, ""))
+            for pattern in (self.token_pattern, self.marker_pattern or ""):
+                pl.select(pl.lit("").str.replace_all(pattern, ""))
         except pl.exceptions.ComputeError:
             return SequenceColumn(self.name, self.inputs, self).compute(frame)
         (source,) = self.inputs
-        stripped = (
-            pl.col(source)
-            .cast(pl.String)
-            .fill_null("")
-            .str.strip_chars(_TERM_MARKERS)
-            .str.replace_all(self.token_pattern, "")
-            .str.replace_all(r"[^\p{L}]", "")
+        sequences = frame.get_column(source).cast(pl.String).fill_null("")
+        unmarked = (
+            sequences.str.replace_all(self.marker_pattern, "") if self.marker_pattern else sequences
         )
+        stripped = unmarked.str.strip_chars(_TERM_MARKERS).str.replace_all(self.token_pattern, "")
+        _require_residues(stripped, sequences)
         return frame.with_columns(stripped.alias(self.name)), ()
 
     def transform(self, row: tuple[str, ...], /) -> SequenceValue:
         (sequence,) = row
         residues, _tokens = _tokenize(
-            sequence.strip(_TERM_MARKERS), re.compile(self.token_pattern), self.token_position
+            _without_markers(sequence, self.marker_pattern).strip(_TERM_MARKERS),
+            re.compile(self.token_pattern),
+            self.token_position,
         )
         return SequenceValue("".join(residues))
 

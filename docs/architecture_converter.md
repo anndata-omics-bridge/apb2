@@ -435,7 +435,7 @@ The supported answers are:
 - `ErrorOnDuplicates`: reject a cell with more than one present value;
 - `KeepFirstDuplicate`: select the first present value in stable physical order;
 - `AggregateNumericDuplicates`: sum already-numeric scalar values and reject strings or factors;
-- `KeepBestDuplicate` (`keep_best`): rank the repeated rows once by a declared numeric layer, then take every layer's value from the winning row, so one cell's layers describe one source row; a row without a ranking value loses, and ties keep stable physical order.
+- `KeepBestDuplicate` (`keep_best`): rank the repeated rows once by a declared numeric layer, then take every layer's value from the winning row, so one cell's layers describe one source row; a row without a ranking value loses, and ties keep stable physical order. Layers the rule lists in `sum` add up over the repeated rows instead, as MaxQuant's intensities and MS/MS counts do while its PEP, score and retention time come from the lowest-PEP evidence row.
 
 `RawValuePresence` may recognize null, a declared numeric sentinel, or a sentinel extracted from a
 structured numeric token. It returns a Boolean mask and never changes a scalar value. Layer

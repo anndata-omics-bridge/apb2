@@ -374,7 +374,8 @@
             "alphadia",
             "maxquant_wide",
             "maxquant_evidence",
-            "metamorpheus"
+            "metamorpheus",
+            "wombat"
           ],
           "title": "How",
           "type": "string"

@@ -22,6 +22,25 @@ from apb2.parserV2.vendor_parse_rules.document import (
 from apb2.parserV2.vendor_parse_rules.schema.base import SCHEMA_VERSION, QuantificationLevel
 
 NO_EVIDENCE = SearchParameterEvidence(acquisition_method="unknown", combine_charge_states=None)
+FLAGS: tuple[dict[str, Any], ...] = (
+    {"name": "apb_Decoy", "how": "decoy"},
+    {"name": "apb_Contaminant", "how": "contaminant"},
+)
+"""The vendor markings every rule declares once; a synthetic vendor writes none."""
+
+
+def without_flags(computers: tuple[Any, ...]) -> tuple[Any, ...]:
+    """The planned computations a test declared, leaving out the FLAGS every rule carries."""
+    names = {flag["name"] for flag in FLAGS}
+    return tuple(computer for computer in computers if computer.name not in names)
+
+
+def with_flags(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Add the undeclared FLAGS after the sourced entries, keeping both ends' indexes."""
+    declared = {entry["name"] for entry in entries}
+    at = next((index for index, entry in enumerate(entries) if "source" not in entry), len(entries))
+    missing = [dict(flag) for flag in FLAGS if flag["name"] not in declared]
+    return [*entries[:at], *missing, *entries[at:]]
 
 
 def plan_snapshot(strategy: ParseStrategy) -> dict[str, Any]:
@@ -108,7 +127,7 @@ def long_document(
             },
             "columns": {
                 "obs": _column_entries(obs_select),
-                "var": _column_entries(var_select, var_optional, var_types, computed),
+                "var": with_flags(_column_entries(var_select, var_optional, var_types, computed)),
             },
             "measurements": {
                 "primary_layer": primary_layer,
@@ -137,7 +156,7 @@ def wide_document(
                 "obs_keys": obs_keys or ["sample"],
                 "var_keys": var_keys or list(var_select)[:1],
             },
-            "columns": {"var": _column_entries(var_select)},
+            "columns": {"var": with_flags(_column_entries(var_select))},
             "measurements": {
                 "primary_layer": primary_layer,
                 **({"sample_layer": sample_layer} if sample_layer is not None else {}),

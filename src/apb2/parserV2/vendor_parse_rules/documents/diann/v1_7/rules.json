@@ -18,7 +18,9 @@
           ".tsv"
         ],
         "software_only": {
-          "forbidden_columns": ["Lib.PG.Q.Value"]
+          "forbidden_columns": [
+            "Lib.PG.Q.Value"
+          ]
         }
       },
       "base": {
@@ -37,6 +39,26 @@
             {
               "name": "Run",
               "source": "File.Name"
+            }
+          ],
+          "var": [
+            {
+              "name": "Decoy",
+              "source": "Decoy",
+              "type": "boolean",
+              "required": false
+            },
+            {
+              "name": "apb_Decoy",
+              "inputs": [
+                "Decoy"
+              ],
+              "how": "decoy",
+              "equals": "true"
+            },
+            {
+              "name": "apb_Contaminant",
+              "how": "contaminant"
             }
           ]
         },

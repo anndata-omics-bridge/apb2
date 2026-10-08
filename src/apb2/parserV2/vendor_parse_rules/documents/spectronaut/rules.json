@@ -12,8 +12,12 @@
           ".tsv"
         ],
         "software_only": {
-          "required_columns": ["E.Errors"],
-          "forbidden_columns": ["EG.LibraryQvalue"]
+          "required_columns": [
+            "E.Errors"
+          ],
+          "forbidden_columns": [
+            "EG.LibraryQvalue"
+          ]
         },
         "delimiter": {
           "mode": "detect",
@@ -358,6 +362,18 @@
                   "FG_Charge"
                 ],
                 "how": "proforma_ion"
+              },
+              {
+                "name": "apb_Decoy",
+                "inputs": [
+                  "EG_IsDecoy"
+                ],
+                "how": "decoy",
+                "equals": "true"
+              },
+              {
+                "name": "apb_Contaminant",
+                "how": "contaminant"
               }
             ]
           }
@@ -497,6 +513,24 @@
                   "FG_Charge"
                 ],
                 "how": "proforma_ion"
+              },
+              {
+                "name": "EG_IsDecoy",
+                "source": "EG.IsDecoy",
+                "type": "boolean",
+                "required": false
+              },
+              {
+                "name": "apb_Decoy",
+                "inputs": [
+                  "EG_IsDecoy"
+                ],
+                "how": "decoy",
+                "equals": "true"
+              },
+              {
+                "name": "apb_Contaminant",
+                "how": "contaminant"
               }
             ]
           }
@@ -619,6 +653,24 @@
                 "name": "PG_Qvalue",
                 "source": "PG.Qvalue",
                 "type": "number"
+              },
+              {
+                "name": "EG_IsDecoy",
+                "source": "EG.IsDecoy",
+                "type": "boolean",
+                "required": false
+              },
+              {
+                "name": "apb_Decoy",
+                "inputs": [
+                  "EG_IsDecoy"
+                ],
+                "how": "decoy",
+                "equals": "true"
+              },
+              {
+                "name": "apb_Contaminant",
+                "how": "contaminant"
               }
             ]
           }

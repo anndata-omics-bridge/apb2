@@ -145,7 +145,7 @@ def test_an_at_or_below_bound_leaves_only_positive_final_values() -> None:
         semantic_roles=("abundance",),
     )
 
-    parsed = NONPOSITIVE.parse(final)
+    parsed, _ = NONPOSITIVE.parse(final)
 
     assert parsed.values.get_column("obs_0").to_list() == [5.0, None, None]
 
@@ -347,7 +347,7 @@ def test_numeric_max_stays_above_a_negative_threshold() -> None:
         layer_name="L", values=resolved.values.drop("Feature"), semantic_roles=("abundance",)
     )
 
-    assert above_minus_one.parse(final).values.get_column("obs_0").to_list() == [-0.5]
+    assert above_minus_one.parse(final)[0].values.get_column("obs_0").to_list() == [-0.5]
 
 
 def test_numeric_max_keeps_an_integer_layer_integer() -> None:
@@ -535,6 +535,19 @@ def test_keep_best_takes_every_layer_from_the_best_ranked_row(highest: bool, kep
         {"Feature": "F2", "obs_0": 10.0, "obs_1": 20.0},
     ]
     assert scores[0]["obs_0"] == ("7.0" if highest else "1.5"), "the score of the kept PSM"
+
+
+def test_keep_best_sums_its_summed_layers_and_takes_the_rest_from_the_best_row() -> None:
+    intensity, score = _ranked_pair()
+    policy = KeepBestDuplicate(by="Score", highest=False, summed=frozenset({"Intensity"})).ranked(
+        score, NULL_ONLY
+    )
+
+    assert policy.resolve(intensity, NULL_ONLY).values.to_dicts() == [
+        {"Feature": "F1", "obs_0": 300.0, "obs_1": 50.0},
+        {"Feature": "F2", "obs_0": 10.0, "obs_1": 20.0},
+    ], "F1's two PSMs in obs_0 add up"
+    assert policy.resolve(score, NULL_ONLY).values.to_dicts()[0]["obs_0"] == "1.5"
 
 
 def test_keep_best_prefers_a_ranked_row_and_keeps_file_order_on_ties() -> None:

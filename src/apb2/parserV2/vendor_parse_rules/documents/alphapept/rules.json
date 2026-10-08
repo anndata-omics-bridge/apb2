@@ -45,7 +45,8 @@
           "vendor_sequence": {
             "parser": "token_regex",
             "token_pattern": "[a-z]+",
-            "token_position": "before_residue"
+            "token_position": "before_residue",
+            "marker_pattern": "_decoy$"
           }
         },
         "modification_maps": {
@@ -210,6 +211,18 @@
                   "Charge"
                 ],
                 "how": "proforma_ion"
+              },
+              {
+                "name": "apb_Decoy",
+                "inputs": [
+                  "Decoy"
+                ],
+                "how": "decoy",
+                "equals": "true"
+              },
+              {
+                "name": "apb_Contaminant",
+                "how": "contaminant"
               }
             ]
           }

@@ -21,7 +21,8 @@ class Duplicates(ModelBase):
 
     ``keep_best`` keeps, in each cell, the repeated row whose ``by`` layer is ``best``, and
     takes every layer's value from that one row, so one feature's intensity, score and
-    q-value describe the same identification, such as one PSM.
+    q-value describe the same identification, such as one PSM. Layers listed in ``sum`` are
+    added up over the repeated rows instead, such as quantities split across several of them.
     """
 
     mode: DuplicateMode = "error"
@@ -31,13 +32,20 @@ class Duplicates(ModelBase):
     best: Literal["highest", "lowest"] = Field(
         default="highest", description="keep_best: which value of the 'by' layer wins"
     )
+    sum: list[str] = Field(
+        default_factory=list,
+        description="keep_best: layers added up over the repeated rows, not taken from the "
+        "winning row",
+    )
 
     @model_validator(mode="after")
     def _ranking_only_for_keep_best(self) -> Duplicates:
         if (self.mode == "keep_best") != (self.by is not None):
             raise ValueError("'by' names the ranking layer exactly when mode is keep_best")
-        if self.mode != "keep_best" and self.best != "highest":
-            raise ValueError("'best' applies only to keep_best")
+        if self.mode != "keep_best" and (self.best != "highest" or self.sum):
+            raise ValueError("'best' and 'sum' apply only to keep_best")
+        if self.by in self.sum:
+            raise ValueError(f"keep_best ranks by {self.by!r}, so it cannot also sum it")
         return self
 
 

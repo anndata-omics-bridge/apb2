@@ -16,10 +16,14 @@ type DuplicateMode = Literal["error", "keep_first", "sum", "max", "keep_best"]
 
 @dataclass(frozen=True, slots=True)
 class DuplicateRanking:
-    """keep_best's ranking: the layer whose best value picks one repeated row per cell."""
+    """keep_best's ranking: the layer whose best value picks one repeated row per cell.
+
+    ``summed`` names the layers added up over the repeated rows instead of taken from it.
+    """
 
     layer: str
     highest: bool
+    summed: frozenset[str] = frozenset()
 
 
 type NumericType = Literal["number", "integer"]

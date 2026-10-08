@@ -10,7 +10,7 @@ from time import perf_counter
 import polars as pl
 from loguru import logger
 
-from apb2.parserV2.joins import alphadia, maxquant, metamorpheus
+from apb2.parserV2.joins import alphadia, maxquant, metamorpheus, wombat
 from apb2.parserV2.parse_quant.data.errors import ConversionError
 from apb2.parserV2.parse_quant.data.step_log import logged_step
 from apb2.parserV2.parse_quant.errors import IncompatibleSourceError
@@ -37,6 +37,7 @@ _PREPARATIONS: dict[str, tuple[Identify, Join, tuple[str, ...] | None]] = {
         maxquant.EVIDENCE_KEY_COLUMNS,
     ),
     "metamorpheus": (metamorpheus.identify, metamorpheus.join, None),
+    "wombat": (wombat.identify, wombat.join, None),
 }
 
 
@@ -56,12 +57,17 @@ def _files(source: InputSource) -> dict[str, Path]:
     return {source.path.name: source.path}
 
 
+def _separator(path: Path) -> str:
+    """Vendor tables are tab-separated, except a ``.csv`` such as WOMBAT-P's peptide table."""
+    return "," if path.suffix.lower() == ".csv" else "\t"
+
+
 def _bindings(source: InputSource, identify: Identify) -> dict[str, Path]:
     paths = _files(source)
     headers: dict[str, tuple[str, ...]] = {}
     for name, path in paths.items():
         with path.open(encoding="utf-8-sig", newline="") as handle:
-            headers[name] = tuple(next(csv.reader(handle, delimiter="\t"), ()))
+            headers[name] = tuple(next(csv.reader(handle, delimiter=_separator(path)), ()))
     selected = identify(headers)
     return {role: paths[name] for role, name in selected.items()}
 
@@ -73,7 +79,7 @@ def _projection(
     if keys is None or wanted is None:
         return None
     with path.open(encoding="utf-8-sig", newline="") as handle:
-        header = next(csv.reader(handle, delimiter="\t"), [])
+        header = next(csv.reader(handle, delimiter=_separator(path)), [])
     return [column for column in header if column in keys or wanted(f"{role}.{column}")]
 
 
@@ -118,7 +124,11 @@ def prepare_source(
             columns = _projection(path, role, keys, wanted)
             with logged_step("prepare.read", how=how, table=path.name):
                 frames[role] = pl.read_csv(
-                    path, separator="\t", infer_schema=False, null_values=[""], columns=columns
+                    path,
+                    separator=_separator(path),
+                    infer_schema=False,
+                    null_values=[""],
+                    columns=columns,
                 )
             logger.info(
                 "prepare.read table={} rows={} columns={}",

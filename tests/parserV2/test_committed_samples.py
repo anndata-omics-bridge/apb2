@@ -12,9 +12,11 @@ import json
 from pathlib import Path
 from typing import cast
 
+import polars as pl
 import pytest
 
 from apb2.cli.conversion import convert_all_from_rule_config
+from apb2.parserV2.parse_quant.io.formats import read_parsed_levels
 from parserV2.fixtures import DATA_DIR, committed_dir, committed_sample, level_pairs
 
 _KEYS = tuple(sorted({pair.sample_key for pair, _level in level_pairs()}))
@@ -53,6 +55,10 @@ def test_committed_sample_converts_to_the_recorded_expectations(key: str, tmp_pa
         for level in summary.levels
     }
     assert produced == cast("dict[str, object]", record["levels"])
+    for name, level in read_parsed_levels(tmp_path / "converted.h5mu").levels.items():
+        for flag in ("apb_Decoy", "apb_Contaminant"):
+            column = level.var.frame.get_column(flag)
+            assert (column.dtype, column.null_count()) == (pl.Boolean, 0), (name, flag)
 
 
 def test_committed_folders_all_belong_to_packaged_documents() -> None:

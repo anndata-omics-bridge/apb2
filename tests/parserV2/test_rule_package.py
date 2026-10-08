@@ -39,6 +39,7 @@ from apb2.parserV2.vendor_parse_rules.schema.rule import (
     rule_json_schema,
 )
 from apb2.parserV2.vendor_parse_rules.schema_artifact import artifact_path
+from parserV2 import synthetic
 from parserV2.fixtures import PackagedDocument, document_pairs, level_pairs
 from parserV2.rule_inventory import EXPECTED_DOCUMENT_COUNT, EXPECTED_LEVEL_COUNT
 
@@ -147,6 +148,64 @@ def test_role_is_rejected_on_an_unconfigured_layer(tmp_path: Path) -> None:
 
     with pytest.raises(ValidationError, match=r"not allowed on layer"):
         _declared(payload, tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("count", "message"),
+    [(0, "declares 'apb_Decoy' 0 times"), (2, "column entry names must be unique")],
+)
+def test_every_rule_declares_each_vendor_marking_once(
+    count: int, message: str, tmp_path: Path
+) -> None:
+    payload = _document_payload()
+    payload["tables"][0]["base"]["columns"]["var"] = [
+        flag for flag in synthetic.FLAGS if flag["name"] != "apb_Decoy"
+    ] + [{"name": "apb_Decoy", "how": "decoy"}] * count
+
+    with pytest.raises(ValidationError, match=message):
+        _declared(payload, tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("marking", "message"),
+    [
+        ({"inputs": ["feature"]}, "exactly one of equals or prefix"),
+        ({"inputs": ["feature"], "equals": "+", "prefix": "REV__"}, "exactly one of"),
+        ({"equals": "+"}, "without inputs declares neither"),
+        ({"inputs": ["feature"], "equals": "+", "separator": ";"}, "separator only with"),
+        ({"inputs": ["feature"], "equals": "+", "roles": ["protein_assignment"]}, "at most 0"),
+    ],
+)
+def test_a_vendor_marking_names_its_inputs_and_one_way_to_read_them(
+    marking: dict[str, object], message: str, tmp_path: Path
+) -> None:
+    payload = _document_payload()
+    payload["tables"][0]["base"]["columns"]["var"] = [
+        {"name": "apb_Decoy", "how": "decoy", **marking},
+        {"name": "apb_Contaminant", "how": "contaminant"},
+    ]
+
+    with pytest.raises(ValidationError, match=message):
+        _declared(payload, tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("duplicates", "message"),
+    [
+        ({"mode": "sum", "sum": ["quantity"]}, "apply only to keep_best"),
+        ({"mode": "keep_best", "by": "quantity", "sum": ["quantity"]}, "cannot also sum it"),
+        ({"mode": "keep_best", "by": "quantity", "sum": ["absent"]}, "sums undeclared layers"),
+    ],
+)
+def test_keep_best_sums_only_declared_layers_other_than_its_ranking(
+    duplicates: dict[str, object], message: str, tmp_path: Path
+) -> None:
+    payload = _document_payload()
+    payload["tables"][0]["base"]["measurements"]["duplicates"] = duplicates
+    document = make_rule_document(tmp_path / "rules.json", payload)
+
+    with pytest.raises((ValidationError, ValueError), match=message):
+        ParseRuleFacade(document, "ion", NO_EVIDENCE)
 
 
 def test_one_role_cannot_name_two_columns(tmp_path: Path) -> None:
@@ -516,7 +575,10 @@ def _document_payload() -> dict[str, Any]:
                 },
                 "base": {
                     "axis": {"obs_keys": ["sample"], "var_keys": ["feature"]},
-                    "columns": {"obs": [{"name": "sample", "source": "Sample"}]},
+                    "columns": {
+                        "obs": [{"name": "sample", "source": "Sample"}],
+                        "var": [dict(flag) for flag in synthetic.FLAGS],
+                    },
                     "measurements": {
                         "primary_layer": "quantity",
                         "layers": [{"name": "quantity", "source": "Quantity"}],
@@ -859,8 +921,8 @@ def test_both_rule_shapes_are_represented_by_the_packaged_generation() -> None:
     modes = [rule.measurements.duplicates.mode for rule in shapes]
     assert modes.count("error") == 19
     assert modes.count("keep_first") == 16
-    assert modes.count("keep_best") == 1
-    assert modes.count("sum") == 1
+    assert modes.count("keep_best") == 2
+    assert modes.count("sum") == 0
     assert modes.count("max") == 1
     assert sum(isinstance(rule.fragments, ColumnLabeledFragments) for rule in shapes) == 1
 

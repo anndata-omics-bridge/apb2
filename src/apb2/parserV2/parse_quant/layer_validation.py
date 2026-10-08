@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import polars as pl
 from loguru import logger
 
-from apb2.parserV2.parse_quant.data.parsed import FinalLayerTable
+from apb2.parserV2.parse_quant.data.parsed import FinalLayerTable, JsonValue
 from apb2.parserV2.parse_quant.errors import LayerContractError
 
 
@@ -22,7 +22,7 @@ class LayerContractValidator:
     populated_ratio: float
     strict: bool
 
-    def validate(self, layers: Mapping[str, FinalLayerTable], /) -> None:
+    def validate(self, layers: Mapping[str, FinalLayerTable]) -> dict[str, JsonValue]:
         missing = [
             name for name in (self.primary_layer_name, *self.required_names) if name not in layers
         ]
@@ -39,7 +39,8 @@ class LayerContractValidator:
         populated = [name for name, ratio in ratios.items() if ratio >= self.populated_ratio]
         empty = [name for name, ratio in ratios.items() if ratio < self.empty_ratio]
         if not populated:
-            return
+            return {}
+        diagnostics: dict[str, JsonValue] = {}
         reference = ", ".join(populated[:3])
         for name in empty:
             message = (
@@ -50,6 +51,13 @@ class LayerContractValidator:
             if self.strict or name == self.primary_layer_name:
                 raise LayerContractError(message)
             logger.warning(message)
+            diagnostics[name] = {
+                "occupancy": ratios[name],
+                "empty_ratio": self.empty_ratio,
+                "populated_ratio": self.populated_ratio,
+                "reference_layers": list(populated),
+            }
+        return diagnostics
 
 
 def _occupancy(values: pl.DataFrame, /) -> float:

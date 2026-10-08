@@ -9,6 +9,7 @@ declarations, so each is asserted on whichever document happens to declare it.
 from __future__ import annotations
 
 import dataclasses
+import re
 from pathlib import Path
 
 import polars as pl
@@ -18,6 +19,7 @@ from pydantic import BaseModel
 from apb2.parserV2.parse_quant.axis_columns import (
     CoalesceColumn,
     JoinNonemptyColumn,
+    MarkerColumn,
     ProformaIonColumn,
 )
 from apb2.parserV2.parse_quant.decomposition import (
@@ -34,6 +36,7 @@ from apb2.parserV2.parse_quant.modifications import (
     SiteListNormalizer,
     TokenRegexNormalizer,
     UnplaceableModificationError,
+    UnrecognizedSequenceCharacterError,
 )
 from apb2.parserV2.parse_quant.parameters.axis import (
     AxisKeyPlan,
@@ -331,7 +334,13 @@ def test_a_modification_derived_key_pulls_every_source_that_can_change_it() -> N
 
 def _peptidoform_normalizer(rule: str) -> TokenRegexNormalizer:
     path = Path("src/apb2/parserV2/vendor_parse_rules/documents") / rule
-    facade = ParseRuleFacade(load_rule_document(path), "ion", _EVIDENCES[0])
+    document = load_rule_document(path)
+    facade = next(
+        ParseRuleFacade(document, "ion", evidence)
+        for evidence in _EVIDENCES
+        if evidence.observed(document.declared("ion").declaration.requires_search_parameters)
+        == document.declared("ion").declaration.requires_search_parameters
+    )
     column = next(
         column
         for column in facade.working_parameters.var.computed
@@ -362,6 +371,47 @@ def test_a_token_with_no_residue_to_modify_is_an_error() -> None:
 
     with pytest.raises(UnplaceableModificationError, match=r"'\(ox\)' in '\(ac\)\(ox\)PEPTIDE'"):
         normalizer.transform(("_(ac)(ox)PEPTIDE_",))
+
+
+@pytest.mark.parametrize(
+    ("rule", "sequence", "expected"),
+    [
+        ("fragpipe/rules.json", "n[42.0106]PEPTIDEK", "[UNIMOD:1]-PEPTIDEK"),
+        ("fragpipe/rules.json", "n[-17.0265]QPEPTIDE", "[UNIMOD:28]-QPEPTIDE"),
+        ("fragpipe/rules.json", "n[42.0106]M[15.9949]PEPTIDE", "[UNIMOD:1]-M[UNIMOD:35]PEPTIDE"),
+        ("sage/rules.json", "[+42.010567]-M[+15.994915]PEPTIDE", "[UNIMOD:1]-M[UNIMOD:35]PEPTIDE"),
+        (
+            "wombat/rules.json",
+            "[Acetyl]-PEPTIDEC[Carbamidomethyl]K",
+            "[UNIMOD:1]-PEPTIDEC[UNIMOD:4]K",
+        ),
+        ("alphapept/rules.json", "aMoxMPEPTIDE_decoy", "[UNIMOD:1]-MM[UNIMOD:35]PEPTIDE"),
+    ],
+)
+def test_a_rule_declares_every_non_residue_its_vendor_writes(
+    rule: str, sequence: str, expected: str
+) -> None:
+    result = _peptidoform_normalizer(rule).transform((sequence,))
+
+    assert result.value == expected
+    assert result.unknown_tokens == ()
+
+
+@pytest.mark.parametrize(
+    ("rule", "sequence", "character"),
+    [
+        ("fragpipe/rules.json", "PEPn[42.0106]TIDE", "n"),
+        ("wombat/rules.json", "PEPTIDE|PEPTIDEK", "|"),
+        ("diann/v1_8/rules.json", "PEP.TIDE", "."),
+    ],
+)
+def test_a_character_neither_residue_nor_token_fails_the_row(
+    rule: str, sequence: str, character: str
+) -> None:
+    normalizer = _peptidoform_normalizer(rule)
+
+    with pytest.raises(UnrecognizedSequenceCharacterError, match=re.escape(f"{character!r} in")):
+        normalizer.transform((sequence,))
 
 
 def test_a_token_regex_rule_resolves_its_accessions_at_projection() -> None:
@@ -488,15 +538,35 @@ def test_an_absent_optional_input_narrows_a_coalesce_instead_of_blocking_it() ->
     only_primary = only_primary_strategy.var
 
     assert set(snapshot(both_strategy)["var"]["skipped"]) == frozenset()
-    assert both.output_phase.computers == (
+    assert synthetic.without_flags(both.output_phase.computers) == (
         CoalesceColumn(name="Merged", inputs=("Primary", "Fallback")),
     )
     assert set(snapshot(only_primary_strategy)["var"]["skipped"]) == frozenset({"Fallback"})
-    assert only_primary.output_phase.computers == (
+    assert synthetic.without_flags(only_primary.output_phase.computers) == (
         CoalesceColumn(name="Merged", inputs=("Primary",)),
     )
     assert "Fallback" not in only_primary.outputs
     assert "Merged" in only_primary.outputs
+
+
+def test_a_marker_whose_inputs_are_absent_marks_no_row_instead_of_disappearing() -> None:
+    document = synthetic.long_document(
+        obs_select={"sample": "Sample"},
+        var_select={"Feature": "Feature"},
+        var_optional={"Reverse": "Reverse"},
+        computed=[{"name": "apb_Decoy", "inputs": ["Reverse"], "how": "decoy", "equals": "+"}],
+        var_keys=["Feature"],
+    )
+
+    var = (
+        synthetic.facade(document).resolve_source(delimited(("Sample", "Feature", "Quantity"))).var
+    )
+
+    marker = next(
+        computer for computer in var.output_phase.computers if computer.name == "apb_Decoy"
+    )
+    assert marker == MarkerColumn("apb_Decoy", (), "+", None, None)
+    assert {"apb_Decoy", "apb_Contaminant"} <= set(var.outputs)
 
 
 def test_pruning_removes_exactly_the_chain_a_missing_optional_blocks() -> None:
@@ -528,7 +598,7 @@ def test_pruning_removes_exactly_the_chain_a_missing_optional_blocks() -> None:
 
     # ``join_nonempty`` keeps the inputs it has, so only the absent name is skipped.
     assert set(snapshot(var_strategy)["var"]["skipped"]) == frozenset({"Extra"})
-    assert var.output_phase.computers == (
+    assert synthetic.without_flags(var.output_phase.computers) == (
         JoinNonemptyColumn(name="Joined", inputs=("Feature", "Charge"), separator="-"),
         JoinNonemptyColumn(name="Downstream", inputs=("Joined",), separator="+"),
     )
@@ -557,7 +627,7 @@ def test_a_blocked_sequence_operation_removes_itself_and_its_consumers() -> None
     var = var_strategy.var
 
     assert set(snapshot(var_strategy)["var"]["skipped"]) == frozenset({"Charge"})
-    assert var.output_phase.computers[0].inputs == ("Feature",)
+    assert synthetic.without_flags(var.output_phase.computers)[0].inputs == ("Feature",)
 
 
 def test_a_missing_dependency_of_a_final_key_makes_the_level_incompatible() -> None:
@@ -594,7 +664,7 @@ def test_combining_operations_with_no_surviving_inputs_are_skipped(how: str) -> 
     var = var_strategy.var
 
     assert set(snapshot(var_strategy)["var"]["skipped"]) == {"First", "Second", "Merged"}
-    assert var.output_phase.computers == ()
+    assert synthetic.without_flags(var.output_phase.computers) == ()
     assert "Merged" not in var.outputs
 
 
@@ -616,8 +686,8 @@ def test_a_non_injective_coalesce_is_planned_and_left_for_the_parser_to_catch() 
         key_input_columns=("First", "Second"),
         final_key_columns=("Key",),
     )
-    assert var.key_phase.computers[0].name == "Key"
-    assert var.output_phase.computers == ()
+    assert synthetic.without_flags(var.key_phase.computers)[0].name == "Key"
+    assert synthetic.without_flags(var.output_phase.computers) == ()
 
 
 def test_the_key_phase_holds_identity_and_the_output_phase_holds_the_rest() -> None:
@@ -649,9 +719,13 @@ def test_the_key_phase_holds_identity_and_the_output_phase_holds_the_rest() -> N
     var = var_strategy.var
 
     assert [selection.name for selection in var.key_phase.selections] == ["Feature", "Charge"]
-    assert [computer.name for computer in var.key_phase.computers] == ["Key"]
+    assert [computer.name for computer in synthetic.without_flags(var.key_phase.computers)] == [
+        "Key"
+    ]
     assert [selection.name for selection in var.output_phase.selections] == ["Gene"]
-    assert [computer.name for computer in var.output_phase.computers] == ["Note"]
+    assert [computer.name for computer in synthetic.without_flags(var.output_phase.computers)] == [
+        "Note"
+    ]
 
 
 def test_a_computed_column_may_widen_the_selection_of_its_own_name() -> None:
@@ -669,7 +743,7 @@ def test_a_computed_column_may_widen_the_selection_of_its_own_name() -> None:
     )
     var = var_strategy.var
 
-    assert var.output_phase.computers[0].inputs == ("Proteins", "Leading")
+    assert synthetic.without_flags(var.output_phase.computers)[0].inputs == ("Proteins", "Leading")
     assert "Proteins" in snapshot(var_strategy)["var"]["source"]["payload_sources"]
     assert "Leading" in snapshot(var_strategy)["var"]["source"]["payload_sources"]
 
@@ -1066,7 +1140,9 @@ def test_a_proforma_ion_computer_reads_the_peptidoform_and_the_typed_charge() ->
 
     var_strategy = facade.resolve_source(delimited(pair.header()))
     var = var_strategy.var
-    computers = {computer.name: computer for computer in var.key_phase.computers}
+    computers = {
+        computer.name: computer for computer in synthetic.without_flags(var.key_phase.computers)
+    }
 
     assert computers["ProForma_ion"] == ProformaIonColumn(
         name="ProForma_ion",

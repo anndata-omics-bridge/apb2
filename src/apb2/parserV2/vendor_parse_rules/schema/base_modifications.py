@@ -18,24 +18,35 @@ class ModificationMapEntry(ModelBase):
 
 
 class PlainSequenceSyntax(ModelBase):
-    """An unmodified sequence whose alphabetic characters are residues."""
+    """An unmodified sequence: residue letters only, apart from terminal ``_``, ``-`` or ``.``."""
 
     parser: Literal["plain_sequence"]
 
 
 class TokenRegexSyntax(ModelBase):
-    """Inline modification tokens extracted by the declared pattern."""
+    """Inline modification tokens extracted by the declared pattern; the rest must be residues."""
 
     parser: Literal["token_regex"]
     token_pattern: str
     token_position: TokenPosition = "after_residue"
+    marker_pattern: str | None = Field(
+        default=None,
+        description="vendor text that is neither residue nor modification, removed before "
+        "tokenizing, such as AlphaPept's '_decoy' suffix",
+    )
 
     @model_validator(mode="after")
     def _valid_pattern(self) -> TokenRegexSyntax:
-        try:
-            re.compile(self.token_pattern)
-        except re.error as error:
-            raise ValueError(f"token_pattern is not a valid regex: {error}") from error
+        for field, pattern in (
+            ("token_pattern", self.token_pattern),
+            ("marker_pattern", self.marker_pattern),
+        ):
+            if pattern is None:
+                continue
+            try:
+                re.compile(pattern)
+            except re.error as error:
+                raise ValueError(f"{field} is not a valid regex: {error}") from error
         return self
 
 

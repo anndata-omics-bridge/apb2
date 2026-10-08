@@ -183,6 +183,18 @@
                   "Charge"
                 ],
                 "how": "proforma_ion"
+              },
+              {
+                "name": "apb_Decoy",
+                "inputs": [
+                  "Decoy"
+                ],
+                "how": "decoy",
+                "equals": "true"
+              },
+              {
+                "name": "apb_Contaminant",
+                "how": "contaminant"
               }
             ]
           }
@@ -230,6 +242,14 @@
                 "source": "pg.qval",
                 "type": "number",
                 "required": false
+              },
+              {
+                "name": "apb_Decoy",
+                "how": "decoy"
+              },
+              {
+                "name": "apb_Contaminant",
+                "how": "contaminant"
               }
             ]
           }

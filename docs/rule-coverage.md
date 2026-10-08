@@ -22,8 +22,10 @@ A rule document and the standard reader handle everything listed here. A prepara
 - Rename a vendor column; mark it `required` or optional
 - Types: `string`, `integer`, `number`, `boolean`
 - Computed: `coalesce`, `join_nonempty`
+- Vendor markings: `apb_Decoy` and `apb_Contaminant`, declared once on every level, never missing
 - Sequences: `stripped_sequence`, `proforma_sequence`, `proforma_ion`, `proforma_fragment`
 - Sequence grammars: `token_regex`, `site_list`, `embedded_site_list`, `plain_sequence`
+- Sequence characters: residue letters or declared tokens and markers; anything else fails
 - Modification maps to UniMod, with unknown tokens kept, dropped or rejected
 - Rows with a missing final key component are dropped
 - Two raw keys mapping to one final key raise an error
@@ -33,7 +35,7 @@ A rule document and the standard reader handle everything listed here. A prepara
 - Numeric layers (`number`, `integer`) and factor layers with a category map
 - `missing_values`: exact numbers and one `<=` threshold
 - `value_pattern`: one number extracted from structured cells by regex
-- Repeated cells: `error`, `keep_first`, `sum`, or `max`; another reduction is a new mode here, never hook work
+- Repeated cells: `error`, `keep_first`, `sum`, `max`, or `keep_best` (one row per cell by a ranking layer, with optional summed layers); another reduction is a new mode here, never hook work
 - `sum` and `max` leave a cell null when nothing is present, and reduce each layer separately, so with several layers one feature's cells can come from different repeated rows
 - Primary layer, swapped by `search_parameter_overrides`
 - Semantic roles: `abundance`, `protein_assignment`, `fasta_accessions`

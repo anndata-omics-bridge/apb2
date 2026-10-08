@@ -15,11 +15,16 @@
     {
       "input": {
         "shape": "wide",
-        "extensions": [".txt", ".tsv"]
+        "extensions": [
+          ".txt",
+          ".tsv"
+        ]
       },
       "base": {
         "axis": {
-          "obs_keys": ["sample"]
+          "obs_keys": [
+            "sample"
+          ]
         },
         "measurements": {
           "duplicates": {
@@ -28,18 +33,48 @@
         },
         "columns": {
           "var": [
-            {"name": "Sequence", "source": "Sequence"},
-            {"name": "Proteins", "source": "Proteins", "roles": ["protein_assignment", "fasta_accessions"]},
-            {"name": "Charge", "source": "Charge", "type": "integer"},
-            {"name": "ProForma_peptidoform", "source": "Modified sequence"},
-            {"name": "ProForma_peptide", "source": "Sequence"}
+            {
+              "name": "Sequence",
+              "source": "Sequence"
+            },
+            {
+              "name": "Proteins",
+              "source": "Proteins",
+              "roles": [
+                "protein_assignment",
+                "fasta_accessions"
+              ]
+            },
+            {
+              "name": "Charge",
+              "source": "Charge",
+              "type": "integer"
+            },
+            {
+              "name": "ProForma_peptidoform",
+              "source": "Modified sequence"
+            },
+            {
+              "name": "ProForma_peptide",
+              "source": "Sequence"
+            },
+            {
+              "name": "apb_Decoy",
+              "how": "decoy"
+            },
+            {
+              "name": "apb_Contaminant",
+              "how": "contaminant"
+            }
           ]
         }
       },
       "levels": {
         "ion": {
           "axis": {
-            "var_keys": ["ProForma_ion"]
+            "var_keys": [
+              "ProForma_ion"
+            ]
           },
           "measurements": {
             "primary_layer": "Intensity",
@@ -47,7 +82,9 @@
               {
                 "name": "Intensity",
                 "source": "^(?P<sample>.+)$",
-                "roles": ["abundance"],
+                "roles": [
+                  "abundance"
+                ],
                 "missing_values": [
                   "<=0"
                 ]
@@ -58,7 +95,10 @@
             "var": [
               {
                 "name": "ProForma_ion",
-                "inputs": ["ProForma_peptidoform", "Charge"],
+                "inputs": [
+                  "ProForma_peptidoform",
+                  "Charge"
+                ],
                 "how": "proforma_ion"
               }
             ]

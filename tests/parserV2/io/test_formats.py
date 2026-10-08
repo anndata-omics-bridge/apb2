@@ -264,6 +264,38 @@ def _assert_frame_mapping(
         assert_frame_equal(actual[name], wanted)
 
 
+@pytest.mark.parametrize("suffix", [".h5ad", ".h5mu", ".duckdb", ".parquet"])
+def test_layer_diagnostics_survive_storage_and_sidecar_projection(
+    suffix: str,
+    tmp_path: Path,
+) -> None:
+    parsed = ParsedLevels(levels={"ion": _level("ion", "Ion")}, uns={})
+    diagnostics: dict[str, JsonValue] = {
+        "schema_version": "1",
+        "unreadable_numeric": {
+            "Count": {
+                "cell_count": 9,
+                "distinct_token_count": 2,
+                "examples": ["-", "NA"],
+            }
+        },
+        "effectively_empty": {
+            "Count": {
+                "occupancy": 0.0,
+                "empty_ratio": 0.001,
+                "populated_ratio": 0.5,
+                "reference_layers": ["Intensity"],
+            }
+        },
+    }
+    parsed.levels["ion"].uns["layer_diagnostics"] = diagnostics
+    target = tmp_path / f"result{suffix}"
+    write_parsed_levels(parsed, target)
+    assert read_parsed_levels(target).levels["ion"].uns["layer_diagnostics"] == diagnostics
+    sidecar = json.loads(target.with_name(f"{target.name}.apb.json").read_text())
+    assert sidecar["levels"][0]["apb"]["parse"]["layer_diagnostics"] == diagnostics
+
+
 @pytest.mark.parametrize("result_format", [ResultFormat.PARQUET, ResultFormat.DUCKDB])
 def test_columnar_formats_round_trip_exactly(result_format: ResultFormat, tmp_path: Path) -> None:
     suffix = ".parquet" if result_format is ResultFormat.PARQUET else ".duckdb"

@@ -9,7 +9,11 @@ from typing import Literal
 
 import polars as pl
 
-from apb2.parserV2.parse_quant.axis_columns import CoalesceColumn, JoinNonemptyColumn
+from apb2.parserV2.parse_quant.axis_columns import (
+    CoalesceColumn,
+    JoinNonemptyColumn,
+    MarkerColumn,
+)
 from apb2.parserV2.parse_quant.contracts import (
     AxisPhaseRuntimePlan,
     AxisRuntimePlan,
@@ -439,6 +443,7 @@ class SourcePlanResolver:
         )
         needed = lexical | layers.source_columns
         projected = tuple(name for name in evidence.columns if name in needed)
+        reduced = self._reduced_sources(layers)
         if isinstance(evidence, FrameSourceEvidence):
             # Parquet and prepared frames keep their own types. Only text layers that a
             # number-reducing rule must add up are read as numbers, as delimited input does.
@@ -446,18 +451,13 @@ class SourcePlanResolver:
             return LevelReadPlan(
                 projected_columns=projected,
                 text_sources=frozenset(),
-                native_numeric_sources=(
-                    (layers.source_columns - lexical) & text
-                    if self._configuration.measurements.duplicate_mode in NUMERIC_DUPLICATE_MODES
-                    else frozenset()
-                ),
+                native_numeric_sources=(reduced - lexical) & text,
             )
         native = (
             frozenset()
             if evidence.number_format.thousands_marks
-            or self._configuration.measurements.duplicate_mode not in NUMERIC_DUPLICATE_MODES
             # The facade already rejects number-reducing rules with non-plain numeric layers.
-            else layers.source_columns - lexical
+            else reduced - lexical
         )
         return LevelReadPlan(
             projected_columns=projected,
@@ -538,18 +538,39 @@ class SourcePlanResolver:
         source together, and the alternative is discovering it after reading a large table.
         """
         mode = self._configuration.measurements.duplicate_mode
-        if mode not in NUMERIC_DUPLICATE_MODES:
+        reduced = self._reduced_sources(layers)
+        if not reduced:
             return
         if isinstance(evidence, FrameSourceEvidence):
             numeric = frozenset(name for name, dtype in evidence.dtypes if dtype.is_numeric())
-            offenders = sorted(layers.source_columns - numeric - read.native_numeric_sources)
+            offenders = sorted(reduced - numeric - read.native_numeric_sources)
         else:
-            offenders = sorted(layers.source_columns - read.native_numeric_sources)
+            offenders = sorted(reduced - read.native_numeric_sources)
         if offenders:
             raise IncompatibleSourceError(
                 f"{self._label()} takes the {mode} of duplicate cells, which requires native numeric "
                 f"layer values; these resolve to text: {offenders}"
             )
+
+    def _reduced_sources(self, layers: _ResolvedLayers) -> frozenset[str]:
+        """The layer sources whose repeated cells are added up, so they must be numbers.
+
+        Every layer's under ``sum`` and ``max``; under ``keep_best``, only the layers it sums.
+        """
+        measurements = self._configuration.measurements
+        if measurements.duplicate_mode in NUMERIC_DUPLICATE_MODES:
+            return layers.source_columns
+        ranking = measurements.duplicate_ranking
+        summed = ranking.summed if ranking is not None else frozenset()
+        return frozenset(
+            {source.source_column for source in layers.long_sources if source.name in summed}
+            | {
+                source.source_column
+                for plan in layers.wide_plans
+                if plan.name in summed
+                for source in plan.sources
+            }
+        )
 
     def _label(self) -> str:
         """How this level names itself in an error message."""
@@ -589,9 +610,13 @@ class SourcePlanResolver:
         """Drop the inputs this source cannot provide, or report the computation as blocked.
 
         Only the two combining operations survive a missing input: coalescing or joining the
-        columns that are present is the operation the rule asked for. Everything else needs
-        every input it declared.
+        columns that are present is the operation the rule asked for. A marker keeps what is
+        present and, with nothing present, marks no row, so it is never missing. Everything
+        else needs every input it declared.
         """
+        if isinstance(computer, MarkerColumn):
+            kept = tuple(name for name in computer.inputs if name in available)
+            return computer if kept == computer.inputs else replace(computer, inputs=kept)
         if isinstance(computer, CoalesceColumn | JoinNonemptyColumn):
             kept = tuple(name for name in computer.inputs if name in available)
             if not kept:

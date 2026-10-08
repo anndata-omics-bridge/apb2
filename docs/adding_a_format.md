@@ -49,7 +49,9 @@ src/apb2/parserV2/vendor_parse_rules/documents/
         "columns": {
           "obs": [{"name": "Run", "source": "Run Name"}],
           "var": [
-            {"name": "Protein", "source": "Protein Accession", "roles": ["protein_assignment", "fasta_accessions"]}
+            {"name": "Protein", "source": "Protein Accession", "roles": ["protein_assignment", "fasta_accessions"]},
+            {"name": "apb_Decoy", "how": "decoy"},
+            {"name": "apb_Contaminant", "how": "contaminant"}
           ]
         },
         "measurements": {

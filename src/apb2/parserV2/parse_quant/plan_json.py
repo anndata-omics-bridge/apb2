@@ -9,6 +9,7 @@ from dataclasses import fields, is_dataclass
 from apb2.parserV2.parse_quant.axis_columns import (
     CoalesceColumn,
     JoinNonemptyColumn,
+    MarkerColumn,
     ProformaFragmentColumn,
     ProformaIonColumn,
 )
@@ -27,6 +28,7 @@ _COMPUTATIONS: dict[type, str] = {
     JoinNonemptyColumn: "join_nonempty",
     ProformaIonColumn: "proforma_ion",
     ProformaFragmentColumn: "proforma_fragment",
+    MarkerColumn: "marker",
     TokenRegexNormalizer: "token_regex",
     SiteListNormalizer: "site_list",
     EmbeddedSiteListNormalizer: "embedded_site_list",
@@ -91,6 +93,7 @@ def _sequence_snapshot(value: SequenceColumn | TokenRegexStripper) -> dict[str, 
             "kind": "token_regex",
             "token_pattern": operation.token_pattern,
             "token_position": operation.token_position,
+            "marker_pattern": operation.marker_pattern,
         }
         kind, payload = "stripped_sequence", {"syntax": syntax}
     else:

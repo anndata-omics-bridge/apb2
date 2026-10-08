@@ -10,6 +10,7 @@ from pydantic import Field, TypeAdapter, model_validator
 
 from apb2.parserV2.vendor_parse_rules.schema.annotation import SampleAnnotation
 from apb2.parserV2.vendor_parse_rules.schema.axis import (
+    FLAG_COLUMNS,
     Axis,
     Coalesce,
     ColumnGroup,
@@ -239,6 +240,13 @@ def _check_computed_columns(rule: LongRule | WideRule, var: ColumnGroup) -> None
             )
         _check_computed_column(rule, column, var)
         available.add(column.name)
+    names = [column.name for column in var]
+    for flag in FLAG_COLUMNS:
+        if names.count(flag) != 1:
+            raise ValueError(
+                f"var declares {flag!r} {names.count(flag)} times; every rule declares it once, "
+                "with no inputs when the vendor writes no such rows"
+            )
 
 
 def _check_sequence_column(

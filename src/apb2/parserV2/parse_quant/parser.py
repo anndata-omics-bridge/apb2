@@ -174,9 +174,9 @@ class ParseStrategy:
         with logged_step("parse.var", level=self.level):
             var, var_map, unknown_mod_tokens = self._prepare_var(raw.var)
         with logged_step("parse.layers", level=self.level):
-            layers = self._prepare_layers(raw.layers, obs_map, var_map)
+            layers, unreadable_numeric = self._prepare_layers(raw.layers, obs_map, var_map)
         with logged_step("parse.validate", level=self.level):
-            self.layer_validator.validate(layers)
+            effectively_empty = self.layer_validator.validate(layers)
         uns = dict(self.provenance)
         raw_columns = uns.pop("column_roles", {})
         raw_layers = uns.pop("layer_roles", {})
@@ -195,6 +195,11 @@ class ParseStrategy:
         uns.pop("hierarchy", None)
         if unknown_mod_tokens:
             uns[_UNKNOWN_MOD_TOKENS] = list(unknown_mod_tokens)
+        uns["layer_diagnostics"] = {
+            "schema_version": "1",
+            "unreadable_numeric": unreadable_numeric,
+            "effectively_empty": effectively_empty,
+        }
 
         return ParsedLevel(
             obs=obs,
@@ -317,8 +322,9 @@ class ParseStrategy:
         raw: LayersRaw,
         obs_map: RawToFinalKeyMap,
         var_map: RawToFinalKeyMap,
-    ) -> dict[str, FinalLayerTable]:
+    ) -> tuple[dict[str, FinalLayerTable], dict[str, JsonValue]]:
         layers: dict[str, FinalLayerTable] = {}
+        diagnostics: dict[str, JsonValue] = {}
         duplicates = self._ranked_duplicates(raw, obs_map, var_map)
         for layer in raw.values:
             parser = self.layer_parsers[layer.layer_name]
@@ -329,8 +335,11 @@ class ParseStrategy:
                 obs_map,
                 var_map,
             )
-            layers[layer.layer_name] = parser.parse(aligned)
-        return layers
+            parsed, evidence = parser.parse(aligned)
+            layers[layer.layer_name] = parsed
+            if evidence:
+                diagnostics[layer.layer_name] = evidence
+        return layers, diagnostics
 
     def _ranked_duplicates(
         self, raw: LayersRaw, obs_map: RawToFinalKeyMap, var_map: RawToFinalKeyMap

@@ -17,8 +17,10 @@ from apb2.parserV2.parse_quant.modifications import (
     PlainSequenceStripper,
     SequenceColumn,
     SequenceValue,
+    SiteListNormalizer,
     TokenRegexStripper,
     UnknownModificationError,
+    UnrecognizedSequenceCharacterError,
 )
 from apb2.parserV2.parse_quant.parameters.axis import ModificationTokenPosition
 from apb2.parserV2.parse_quant.parameters.source import SingleFile
@@ -59,6 +61,7 @@ def base(operations: list[dict[str, Any]]) -> dict[str, Any]:
                 {"name": "ID", "source": "id"},
                 {"name": "Modified_Sequence", "source": "vendor sequence"},
                 {"name": "Alternative", "source": "other sequence"},
+                *deepcopy(synthetic.FLAGS),
                 *deepcopy(operations),
             ],
         },
@@ -109,7 +112,8 @@ def test_missing_optional_sequence_input_blocks_its_operation(
 
     assert set(snapshot(var_strategy)["var"]["skipped"]) == {"Modified_Sequence", operation["name"]}
     assert operation["name"] not in var.outputs
-    assert var.key_phase.computers == var.output_phase.computers == ()
+    assert synthetic.without_flags(var.key_phase.computers) == ()
+    assert synthetic.without_flags(var.output_phase.computers) == ()
 
 
 @pytest.mark.parametrize("operation", [STRIP, NORMALIZE], ids=["strip", "normalize"])
@@ -161,7 +165,10 @@ def test_independent_operations_preserve_values_and_authored_output_order(
         *plan["var"]["key_phase"]["computers"],
         *plan["var"]["output_phase"]["computers"],
     ]
-    assert all(op["inputs"] == ["Modified_Sequence"] for op in computations)
+    flags = {flag["name"] for flag in synthetic.FLAGS}
+    assert all(
+        op["inputs"] == ["Modified_Sequence"] for op in computations if op["name"] not in flags
+    )
 
 
 def test_aliases_are_selected_from_the_unmodified_physical_frame(tmp_path: Path) -> None:
@@ -362,7 +369,7 @@ def test_independent_stripping_handles_vendor_syntax_terminals_and_nulls(
     [
         (r"\(([^()]*(?:\([^()]*\)[^()]*)*)\)", "after_residue", "_M(Oxidation (M))PEP_", "MPEP"),
         (r"(?<=M)\(ox\)", "after_residue", "M(ox)PEP", "MPEP"),
-        (r"[a-z]", "before_residue", "PEPabM", "PEPbM"),
+        (r"[a-z]+", "before_residue", "PEPoxMIDE", "PEPMIDE"),
     ],
 )
 def test_stripping_preserves_nested_and_python_only_token_grammars(
@@ -387,14 +394,33 @@ def test_native_stripping_does_not_tokenize_or_map_python_rows(
     assert result["Peptide"].to_list() == ["MPEP", "MPEP"]
 
 
-def test_plain_stripping_preserves_site_list_residue_semantics() -> None:
+def test_plain_stripping_and_site_lists_refuse_the_same_non_residues() -> None:
     computer = PlainSequenceStripper("Peptide", ("Sequence",))
-    assert computer.compute(pl.DataFrame({"Sequence": ["_PEP.MIDE_", None]}))[0][
+    assert computer.compute(pl.DataFrame({"Sequence": ["_PEPMIDE_", None]}))[0][
         "Peptide"
     ].to_list() == [
         "PEPMIDE",
         "",
     ]
+    with pytest.raises(UnrecognizedSequenceCharacterError, match=r"PEP\.MIDE"):
+        computer.compute(pl.DataFrame({"Sequence": ["_PEP.MIDE_"]}))
+    with pytest.raises(UnrecognizedSequenceCharacterError, match=r"'\.'"):
+        SiteListNormalizer(";", 1, False, "preserve", ()).transform(("_PEP.MIDE_", "", ""))
+
+
+def test_native_stripping_refuses_a_character_that_is_no_residue() -> None:
+    computer = TokenRegexStripper("Peptide", ("Sequence",), r"\[([^\]]+)\]", "after_residue")
+    with pytest.raises(UnrecognizedSequenceCharacterError, match=r"examples=\['SEQA\|SEQB'\]"):
+        computer.compute(pl.DataFrame({"Sequence": ["PEPTIDE", "SEQA|SEQB"]}))
+
+
+def test_declared_markers_are_removed_before_tokenizing() -> None:
+    computer = TokenRegexStripper(
+        "Peptide", ("Sequence",), r"\[([^\]]+)\]", "after_residue", "_decoy$"
+    )
+    result, _ = computer.compute(pl.DataFrame({"Sequence": ["PEP[x]TIDE_decoy", "PEPTIDE"]}))
+    assert result["Peptide"].to_list() == ["PEPTIDE", "PEPTIDE"]
+    assert computer.transform(("PEP[x]TIDE_decoy",)).value == "PEPTIDE"
 
 
 @pytest.mark.parametrize("field", ["modification_map", "case_sensitive", "unknown_policy"])

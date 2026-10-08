@@ -19,6 +19,7 @@ from apb2.parserV2.parse_quant.axis_columns import (
     ColumnComputationError,
     IntegerAxisCoercer,
     JoinNonemptyColumn,
+    MarkerColumn,
     NumberAxisCoercer,
     ProformaFragmentColumn,
     ProformaIonColumn,
@@ -39,6 +40,7 @@ from apb2.parserV2.parse_quant.modifications import (
     TokenRegexNormalizer,
     TokenRegexStripper,
     UnknownModificationError,
+    UnrecognizedSequenceCharacterError,
     render_proforma,
 )
 from apb2.parserV2.parse_quant.parameters.axis import (
@@ -364,13 +366,47 @@ def test_a_computer_preserves_its_input_length_and_row_order(
 ) -> None:
     height = 6
     columns = tuple(
-        pl.Series(name, [name + "A" * index for index in range(height)]) for name in computer.inputs
+        pl.Series(name, [name.upper() + "A" * index for index in range(height)])
+        for name in computer.inputs
     )
 
     result, _ = computer.compute(pl.DataFrame(columns))
 
     assert result.height == height
     assert result[computer.name][0] != result[computer.name][1]
+
+
+@pytest.mark.parametrize(
+    ("marker", "expected"),
+    [
+        (MarkerColumn("apb_Decoy", ("Reverse",), "+", None, None), [True, False, False]),
+        (MarkerColumn("apb_Decoy", ("Flag",), "true", None, None), [False, True, False]),
+        (MarkerColumn("apb_Contaminant", ("Proteins",), None, "CON__", ";"), [False, True, False]),
+        (
+            MarkerColumn("apb_Contaminant", ("Proteins",), None, "CON__", None),
+            [False, False, False],
+        ),
+        (MarkerColumn("apb_Decoy", ("Reverse", "Flag"), "+", None, None), [True, False, False]),
+        (MarkerColumn("apb_Decoy", (), None, None, None), [False, False, False]),
+    ],
+    ids=["equals", "boolean", "prefix-in-list", "prefix-of-value", "any-input", "no-inputs"],
+)
+def test_a_marker_marks_the_rows_the_vendor_marks_and_is_never_missing(
+    marker: MarkerColumn, expected: list[bool]
+) -> None:
+    frame = pl.DataFrame(
+        {
+            "Reverse": ["+", "", None],
+            "Flag": [False, True, None],
+            "Proteins": ["P1", "P2; CON__P3", None],
+        }
+    )
+
+    result, tokens = marker.compute(frame)
+
+    assert result[marker.name].to_list() == expected
+    assert result.schema[marker.name] == pl.Boolean
+    assert tokens == ()
 
 
 # ------------------------------------------------------------------------ modifications
@@ -419,13 +455,19 @@ def test_site_mapping_distinguishes_all_inputs_and_preserves_order() -> None:
     assert tokens == ()
 
 
-def test_plain_stripping_keeps_unicode_letters_and_handles_empty_frames() -> None:
+def test_plain_stripping_keeps_residues_and_handles_empty_frames() -> None:
     computer = PlainSequenceStripper("Sequence", ("Sequence",))
-    frame = pl.DataFrame({"Sequence": ["_Aaβ中1²\u2160ⓐ\u0301-", None, ""]})
+    frame = pl.DataFrame({"Sequence": ["_PEPTIDEK-", None, ""]})
     result, tokens = computer.compute(frame)
-    assert result["Sequence"].to_list() == ["Aaβ中", "", ""]
+    assert result["Sequence"].to_list() == ["PEPTIDEK", "", ""]
     assert tokens == ()
     assert computer.compute(frame.clear())[0].equals(frame.clear())
+
+
+def test_plain_stripping_refuses_a_letter_that_is_no_residue() -> None:
+    computer = PlainSequenceStripper("Sequence", ("Sequence",))
+    with pytest.raises(UnrecognizedSequenceCharacterError, match="Aaβ"):
+        computer.compute(pl.DataFrame({"Sequence": ["Aaβ中"]}))
 
 
 def test_an_inline_token_becomes_a_localized_proforma_modification() -> None:

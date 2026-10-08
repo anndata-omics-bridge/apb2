@@ -34,6 +34,7 @@ from typing import Literal
 from apb2.parserV2.parse_quant.axis_columns import (
     CoalesceColumn,
     JoinNonemptyColumn,
+    MarkerColumn,
     ProformaFragmentColumn,
     ProformaIonColumn,
 )
@@ -95,6 +96,8 @@ from apb2.parserV2.vendor_parse_rules.schema.axis import (
     Coalesce,
     ColumnGroup,
     ComputedColumn,
+    ContaminantFlag,
+    DecoyFlag,
     JoinNonempty,
     ProformaIon,
     ProformaSequence,
@@ -253,18 +256,26 @@ class ParseRuleFacade:
     @staticmethod
     def _require_rule_compatibility(rule: LongRule | WideRule) -> None:
         """Reject declarations for which no configured runtime strategy can be built."""
-        mode = rule.measurements.duplicates.mode
-        if mode in NUMERIC_DUPLICATE_MODES:
+        duplicates = rule.measurements.duplicates
+        mode = duplicates.mode
+        names = {layer.name for layer in rule.measurements.layers}
+        unknown = sorted(set(duplicates.sum) - names)
+        if unknown:
+            raise ValueError(f"keep_best sums undeclared layers: {unknown}")
+        if mode in NUMERIC_DUPLICATE_MODES or duplicates.sum:
             offenders = sorted(
                 layer.name
                 for layer in rule.measurements.layers
-                if not isinstance(layer, NumericLayer)
-                or layer.missing_sentinels
-                or not isinstance(layer.value_pattern, NoValuePattern)
+                if (mode in NUMERIC_DUPLICATE_MODES or layer.name in duplicates.sum)
+                and (
+                    not isinstance(layer, NumericLayer)
+                    or layer.missing_sentinels
+                    or not isinstance(layer.value_pattern, NoValuePattern)
+                )
             )
             if offenders:
                 raise ValueError(
-                    f"{mode} duplicates require plain numeric layers without late decoding; "
+                    f"{mode} duplicates sum only plain numeric layers without late decoding; "
                     f"offending layers: {offenders}"
                 )
         if mode == "keep_best":
@@ -373,6 +384,10 @@ class ParseRuleFacade:
             )
         if isinstance(column, ProformaIon):
             return ProformaIonColumn(column.name, tuple(column.inputs))
+        if isinstance(column, DecoyFlag | ContaminantFlag):
+            return MarkerColumn(
+                column.name, tuple(column.inputs), column.equals, column.prefix, column.separator
+            )
         return ProformaFragmentColumn(column.name, tuple(column.inputs))
 
     @staticmethod
@@ -410,7 +425,11 @@ class ParseRuleFacade:
             duplicate_ranking=(
                 None
                 if duplicates.by is None
-                else DuplicateRanking(layer=duplicates.by, highest=duplicates.best == "highest")
+                else DuplicateRanking(
+                    layer=duplicates.by,
+                    highest=duplicates.best == "highest",
+                    summed=frozenset(duplicates.sum),
+                )
             ),
         )
 
@@ -451,6 +470,7 @@ class ParseRuleFacade:
                 tuple(column.inputs),
                 syntax.token_pattern,
                 syntax.token_position,
+                syntax.marker_pattern,
             )
         assert isinstance(syntax, PlainSequenceSyntax)
         return PlainSequenceStripper(column.name, tuple(column.inputs))
@@ -499,6 +519,7 @@ class ParseRuleFacade:
             case_sensitive=column.case_sensitive,
             unknown_policy=column.unknown_policy,
             entries=entries,
+            marker_pattern=syntax.marker_pattern,
         )
 
     @staticmethod

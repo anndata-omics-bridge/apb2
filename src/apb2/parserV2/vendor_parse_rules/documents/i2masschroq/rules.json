@@ -36,6 +36,16 @@
               "name": "Raw_File",
               "source": "rawfile"
             }
+          ],
+          "var": [
+            {
+              "name": "apb_Decoy",
+              "how": "decoy"
+            },
+            {
+              "name": "apb_Contaminant",
+              "how": "contaminant"
+            }
           ]
         }
       },
@@ -105,7 +115,7 @@
           "sequence_syntax": {
             "vendor_sequence": {
               "parser": "token_regex",
-              "token_pattern": "\\[([^\\]]+)\\]",
+              "token_pattern": "^\\[([^\\]]+)\\]-|-\\[([^\\]]+)\\]$|\\[([^\\]]+)\\]",
               "token_position": "after_residue"
             }
           }

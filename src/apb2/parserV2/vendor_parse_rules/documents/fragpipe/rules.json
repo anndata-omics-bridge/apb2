@@ -26,7 +26,7 @@
         "sequence_syntax": {
           "vendor_sequence": {
             "parser": "token_regex",
-            "token_pattern": "\\[([^\\]]+)\\]",
+            "token_pattern": "^n\\[([^\\]]+)\\]|c\\[([^\\]]+)\\]$|\\[([^\\]]+)\\]",
             "token_position": "after_residue"
           }
         },
@@ -172,6 +172,24 @@
                   "Charge"
                 ],
                 "how": "proforma_ion"
+              },
+              {
+                "name": "apb_Decoy",
+                "inputs": [
+                  "Protein"
+                ],
+                "how": "decoy",
+                "prefix": "rev_",
+                "separator": ","
+              },
+              {
+                "name": "apb_Contaminant",
+                "inputs": [
+                  "Protein"
+                ],
+                "how": "contaminant",
+                "prefix": "contam_",
+                "separator": ","
               }
             ]
           }

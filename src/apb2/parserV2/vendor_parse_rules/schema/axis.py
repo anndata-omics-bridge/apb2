@@ -88,8 +88,69 @@ class ProformaFragment(ComputedColumnBase):
     inputs: list[str] = Field(min_length=2, max_length=2)
 
 
+class _Flag(ModelBase):
+    """Mark the rows the vendor itself marks; never missing.
+
+    ``equals`` marks a row whose input value equals it, ``prefix`` one whose input, or a
+    member of its ``separator``-joined list, starts with it. Without inputs the vendor writes
+    no such rows and every row is unmarked. With several inputs, any match marks the row, and
+    inputs a source lacks are left out.
+    """
+
+    source: None = None
+    type: Literal["boolean"] = "boolean"
+    required: Literal[True] = True
+    roles: list[SemanticRole] = Field(default_factory=list, max_length=0)
+    inputs: list[str] = Field(default_factory=list)
+    equals: str | None = Field(default=None, min_length=1)
+    prefix: str | None = Field(default=None, min_length=1)
+    separator: str | None = Field(default=None, min_length=1)
+
+    @model_validator(mode="after")
+    def _one_marking(self) -> _Flag:
+        markings = [field for field in ("equals", "prefix") if getattr(self, field) is not None]
+        if self.inputs and len(markings) != 1:
+            raise ValueError(
+                "a decoy or contaminant column with inputs declares exactly one of equals or prefix"
+            )
+        if not self.inputs and markings:
+            raise ValueError(
+                "a decoy or contaminant column without inputs declares neither equals nor prefix"
+            )
+        if self.separator is not None and self.prefix is None:
+            raise ValueError(
+                "a decoy or contaminant column declares a separator only with a prefix"
+            )
+        return self
+
+
+class DecoyFlag(_Flag):
+    """``apb_Decoy``: the rows the vendor marks as decoys."""
+
+    how: Literal["decoy"]
+    name: Literal["apb_Decoy"] = "apb_Decoy"
+
+
+class ContaminantFlag(_Flag):
+    """``apb_Contaminant``: the rows the vendor marks as contaminants it flags or adds itself."""
+
+    how: Literal["contaminant"]
+    name: Literal["apb_Contaminant"] = "apb_Contaminant"
+
+
+FLAG_COLUMNS = ("apb_Decoy", "apb_Contaminant")
+"""The vendor markings every rule declares on its var axis, exactly once each."""
+
+
 type ComputedColumn = Annotated[
-    Coalesce | JoinNonempty | StrippedSequence | ProformaSequence | ProformaIon | ProformaFragment,
+    Coalesce
+    | JoinNonempty
+    | StrippedSequence
+    | ProformaSequence
+    | ProformaIon
+    | ProformaFragment
+    | DecoyFlag
+    | ContaminantFlag,
     Field(discriminator="how"),
 ]
 

@@ -12,7 +12,10 @@
           ".tsv"
         ],
         "software_only": {
-          "forbidden_columns": ["E.Errors", "EG.LibraryQvalue"]
+          "forbidden_columns": [
+            "E.Errors",
+            "EG.LibraryQvalue"
+          ]
         },
         "delimiter": {
           "mode": "detect",
@@ -314,6 +317,18 @@
                   "FG_Charge"
                 ],
                 "how": "proforma_ion"
+              },
+              {
+                "name": "apb_Decoy",
+                "inputs": [
+                  "EG_IsDecoy"
+                ],
+                "how": "decoy",
+                "equals": "true"
+              },
+              {
+                "name": "apb_Contaminant",
+                "how": "contaminant"
               }
             ]
           }
@@ -458,6 +473,24 @@
                   "FG_Charge"
                 ],
                 "how": "proforma_ion"
+              },
+              {
+                "name": "EG_IsDecoy",
+                "source": "EG.IsDecoy",
+                "type": "boolean",
+                "required": false
+              },
+              {
+                "name": "apb_Decoy",
+                "inputs": [
+                  "EG_IsDecoy"
+                ],
+                "how": "decoy",
+                "equals": "true"
+              },
+              {
+                "name": "apb_Contaminant",
+                "how": "contaminant"
               }
             ]
           }
@@ -525,6 +558,24 @@
                 "name": "PG_Organisms",
                 "source": "PG.Organisms",
                 "required": false
+              },
+              {
+                "name": "EG_IsDecoy",
+                "source": "EG.IsDecoy",
+                "type": "boolean",
+                "required": false
+              },
+              {
+                "name": "apb_Decoy",
+                "inputs": [
+                  "EG_IsDecoy"
+                ],
+                "how": "decoy",
+                "equals": "true"
+              },
+              {
+                "name": "apb_Contaminant",
+                "how": "contaminant"
               }
             ]
           }

@@ -30,6 +30,7 @@ from apb2.parserV2.vendor_parse_rules.document import document_json_schema, make
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import LEVELS, QuantificationLevel
 from apb2.parserV2.vendor_parse_rules.schema_artifact import artifact_path
+from parserV2 import synthetic
 
 
 def _table(level: str, filename: str) -> dict[str, Any]:
@@ -39,7 +40,7 @@ def _table(level: str, filename: str) -> dict[str, Any]:
             "axis": {"obs_keys": ["sample"], "var_keys": ["feature"]},
             "columns": {
                 "obs": [{"name": "sample", "source": "Run"}],
-                "var": [{"name": "feature", "source": "Feature"}],
+                "var": synthetic.with_flags([{"name": "feature", "source": "Feature"}]),
             },
             "measurements": {
                 "primary_layer": "Quantity",

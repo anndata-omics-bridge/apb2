@@ -30,7 +30,7 @@ from apb2.parserV2.parse_quant.contracts import (
     RawValuePresence,
     SelectedAxisColumn,
 )
-from apb2.parserV2.parse_quant.data.parsed import FinalLayerTable, ParsedLevel
+from apb2.parserV2.parse_quant.data.parsed import FinalLayerTable, JsonValue, ParsedLevel
 from apb2.parserV2.parse_quant.data.raw import (
     DecomposedDataRaw,
     LayersRaw,
@@ -221,7 +221,7 @@ def test_parse_runs_its_collaborators_in_the_documented_order() -> None:
             calls.append("present")
             return values.is_not_null()
 
-        def parse(self, layer: FinalLayerTable, /) -> FinalLayerTable:
+        def parse(self, layer: FinalLayerTable) -> tuple[FinalLayerTable, dict[str, JsonValue]]:
             calls.append("parse_values")
             return numeric_layer_parser("Intensity").parse(layer)
 
@@ -678,6 +678,11 @@ def test_a_parsed_level_is_a_direct_composition_and_keeps_no_key_map() -> None:
     assert parsed.uns == {
         "software_name": "Synthetic",
         "quantification_level": "ion",
+        "layer_diagnostics": {
+            "schema_version": "1",
+            "unreadable_numeric": {},
+            "effectively_empty": {},
+        },
     }
     assert isinstance(parsed.obs.frame, pl.DataFrame)
     assert isinstance(parsed.layers["Intensity"].values, pl.DataFrame)

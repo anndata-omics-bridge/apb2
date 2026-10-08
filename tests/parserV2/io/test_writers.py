@@ -308,7 +308,7 @@ def canonical_values(
     layer = FinalLayerTable(
         layer_name="L", values=(values).drop((), strict=False), semantic_roles=("abundance",)
     )
-    return parser.parse(layer).values
+    return parser.parse(layer)[0].values
 
 
 def test_plain_numeric_encoding_reads_numbers_and_blanks_out_the_sentinel() -> None:
@@ -346,6 +346,51 @@ def test_a_token_a_plain_numeric_layer_cannot_hold_becomes_missing_and_is_report
     encoded = canonical_values(encoder, block(["12.5", "not a number", "-", "NA"]))
 
     assert encoded.get_column("obs_0").to_list() == [12.5, None, None, None]
+
+
+def test_numeric_diagnostics_count_all_cells_and_tokens_before_bounding_examples() -> None:
+    parser = make_layer_parser(
+        "Intensity", PlainNumericLayerDeclaration(missing_values=(0.0,)), DOT
+    )
+    invalid = [f"bad{index}" for index in range(7)]
+    values = pl.DataFrame(
+        {
+            "obs_0": [*invalid, "bad0", "", None, "0", "1.5"],
+            "obs_1": [*invalid, "bad7", "   ", None, "0", "2.5"],
+        }
+    )
+    parsed, evidence = parser.parse(FinalLayerTable(layer_name="Intensity", values=values))
+    assert evidence == {
+        "cell_count": 16,
+        "distinct_token_count": 8,
+        "examples": ["bad0", "bad1", "bad2", "bad3", "bad4"],
+    }
+    assert parsed.values.get_column("obs_0").to_list() == [*([None] * 11), 1.5]
+
+
+def test_regex_numeric_diagnostics_count_nonblank_failed_captures() -> None:
+    parser = make_layer_parser(
+        "AScore",
+        RegexNumericLayerDeclaration(
+            missing_values=(0.0,),
+            pattern=r":(-?\d+(?:\.\d+)?)(?:;|$)",
+        ),
+        DOT,
+    )
+    parsed, evidence = parser.parse(
+        FinalLayerTable(
+            layer_name="AScore",
+            values=block(
+                ["x:12.5", "x:0", "unstructured", "unstructured", "wrong", "", "  ", None]
+            ),
+        )
+    )
+    assert evidence == {
+        "cell_count": 3,
+        "distinct_token_count": 2,
+        "examples": ["unstructured", "wrong"],
+    }
+    assert parsed.values.get_column("obs_0").to_list() == [12.5, *([None] * 7)]
 
 
 def test_an_already_numeric_column_is_not_sent_through_its_own_text_form() -> None:
@@ -502,6 +547,21 @@ def test_an_empty_nonprimary_measurement_only_warns_unless_the_check_is_strict()
     validate_layers(encoded)
     with pytest.raises(LayerContractError, match="QValue"):
         validate_layers(encoded, checks="strict")
+
+
+def test_nonfatal_empty_layer_diagnostics_record_occupancy_and_reference() -> None:
+    layers = {
+        "Intensity": FinalLayerTable(layer_name="Intensity", values=block([1.0, 2.0])),
+        "QValue": FinalLayerTable(layer_name="QValue", values=block([None, None])),
+    }
+    assert contract().validate(layers) == {
+        "QValue": {
+            "occupancy": 0.0,
+            "empty_ratio": 0.001,
+            "populated_ratio": 0.5,
+            "reference_layers": ["Intensity"],
+        }
+    }
 
 
 @pytest.mark.parametrize("checks", ["standard", "strict"])

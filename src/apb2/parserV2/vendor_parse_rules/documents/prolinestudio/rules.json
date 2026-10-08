@@ -129,6 +129,14 @@
                 "Charge"
               ],
               "how": "proforma_ion"
+            },
+            {
+              "name": "apb_Decoy",
+              "how": "decoy"
+            },
+            {
+              "name": "apb_Contaminant",
+              "how": "contaminant"
             }
           ]
         },

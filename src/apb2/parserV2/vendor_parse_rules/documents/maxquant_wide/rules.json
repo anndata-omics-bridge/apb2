@@ -41,7 +41,13 @@
         },
         "measurements": {
           "duplicates": {
-            "mode": "sum"
+            "mode": "keep_best",
+            "by": "PEP",
+            "best": "lowest",
+            "sum": [
+              "Intensity",
+              "MS_MS_Count"
+            ]
           },
           "primary_layer": "Intensity"
         }
@@ -80,7 +86,8 @@
               },
               {
                 "name": "PEP",
-                "source": "evidence.PEP"
+                "source": "evidence.PEP",
+                "required": true
               }
             ]
           },
@@ -183,6 +190,38 @@
                   "Charge"
                 ],
                 "how": "proforma_ion"
+              },
+              {
+                "name": "Reverse",
+                "source": "evidence.Reverse",
+                "required": false
+              },
+              {
+                "name": "Decoy",
+                "source": "evidence.Decoy",
+                "required": false
+              },
+              {
+                "name": "Potential_Contaminant",
+                "source": "evidence.Potential contaminant",
+                "required": false
+              },
+              {
+                "name": "apb_Decoy",
+                "inputs": [
+                  "Reverse",
+                  "Decoy"
+                ],
+                "how": "decoy",
+                "equals": "+"
+              },
+              {
+                "name": "apb_Contaminant",
+                "inputs": [
+                  "Potential_Contaminant"
+                ],
+                "how": "contaminant",
+                "equals": "+"
               }
             ]
           },
@@ -348,6 +387,23 @@
                 "name": "Potential_Contaminant",
                 "source": "peptidoform.Potential contaminant",
                 "required": false
+              },
+              {
+                "name": "apb_Decoy",
+                "inputs": [
+                  "Reverse",
+                  "Decoy"
+                ],
+                "how": "decoy",
+                "equals": "+"
+              },
+              {
+                "name": "apb_Contaminant",
+                "inputs": [
+                  "Potential_Contaminant"
+                ],
+                "how": "contaminant",
+                "equals": "+"
               }
             ]
           }
@@ -463,6 +519,38 @@
                 "name": "Unique_Proteins",
                 "source": "peptide.Unique (Proteins)",
                 "required": false
+              },
+              {
+                "name": "Reverse",
+                "source": "peptide.Reverse",
+                "required": false
+              },
+              {
+                "name": "Decoy",
+                "source": "peptide.Decoy",
+                "required": false
+              },
+              {
+                "name": "Potential_Contaminant",
+                "source": "peptide.Potential contaminant",
+                "required": false
+              },
+              {
+                "name": "apb_Decoy",
+                "inputs": [
+                  "Reverse",
+                  "Decoy"
+                ],
+                "how": "decoy",
+                "equals": "+"
+              },
+              {
+                "name": "apb_Contaminant",
+                "inputs": [
+                  "Potential_Contaminant"
+                ],
+                "how": "contaminant",
+                "equals": "+"
               }
             ]
           }
@@ -600,6 +688,23 @@
                 "name": "Potential_Contaminant",
                 "source": "protein.Potential contaminant",
                 "required": false
+              },
+              {
+                "name": "apb_Decoy",
+                "inputs": [
+                  "Reverse",
+                  "Decoy"
+                ],
+                "how": "decoy",
+                "equals": "+"
+              },
+              {
+                "name": "apb_Contaminant",
+                "inputs": [
+                  "Potential_Contaminant"
+                ],
+                "how": "contaminant",
+                "equals": "+"
               }
             ]
           }

@@ -82,13 +82,26 @@
               ],
               "how": "stripped_sequence",
               "syntax": "vendor_sequence"
+            },
+            {
+              "name": "apb_Decoy",
+              "inputs": [
+                "Proteins"
+              ],
+              "how": "decoy",
+              "prefix": "rev_",
+              "separator": ";"
+            },
+            {
+              "name": "apb_Contaminant",
+              "how": "contaminant"
             }
           ]
         },
         "sequence_syntax": {
           "vendor_sequence": {
             "parser": "token_regex",
-            "token_pattern": "\\[([^\\]]+)\\]",
+            "token_pattern": "^\\[([^\\]]+)\\]-|-\\[([^\\]]+)\\]$|\\[([^\\]]+)\\]",
             "token_position": "after_residue"
           }
         },

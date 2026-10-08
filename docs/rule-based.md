@@ -21,7 +21,9 @@ MaxQuant's [document](../src/apb2/parserV2/vendor_parse_rules/documents/maxquant
 
 The function in [joins/alphadia.py](../src/apb2/parserV2/joins/alphadia.py) enriches AlphaDIA 1.12 matrix intensities with precursor metadata and returns long rows. Parent composition prepares once per requested group. Each level projects from that group's shared frame, excluding wholly absent identities before ordinary decomposition. Tool modules import neither schemas nor parser orchestration. After parsing, explicit bijective observation mappings permit alignment; incompatible resolutions are [written separately](conversion.md#output-naming).
 
-The function in [joins/metamorpheus.py](../src/apb2/parserV2/joins/metamorpheus.py) keeps FlashLFQ target peaks mapped to exactly one peptidoform, dropping decoy peptides and random-RT match-between-runs peaks, and casts `Peak intensity` to a number, so the rule can take the max of repeated peaks of one ion and run.
+The function in [joins/metamorpheus.py](../src/apb2/parserV2/joins/metamorpheus.py) keeps FlashLFQ peaks mapped to exactly one peptidoform, dropping random-RT match-between-runs peaks, which carry their target's own identity, and casts `Peak intensity` to a number, so the rule can take the max of repeated peaks of one ion and run. Decoy peptides stay; the rule marks them `apb_Decoy`.
+
+The function in [joins/wombat.py](../src/apb2/parserV2/joins/wombat.py) drops WOMBAT-P rows whose `modified_peptide` names several peptides (`SEQA|SEQB`, FlashLFQ's ambiguous peak) and logs how many; such a row is no single ion. Prepared tables are read with a comma for a `.csv` file and a tab otherwise.
 
 ## Software-only column evidence
 
@@ -80,7 +82,9 @@ P2	b	21
                 "protein_assignment",
                 "fasta_accessions"
               ]
-            }
+            },
+            {"name": "apb_Decoy", "how": "decoy"},
+            {"name": "apb_Contaminant", "how": "contaminant"}
           ]
         },
         "measurements": {
@@ -155,7 +159,9 @@ P2	20	21
                 "protein_assignment",
                 "fasta_accessions"
               ]
-            }
+            },
+            {"name": "apb_Decoy", "how": "decoy"},
+            {"name": "apb_Contaminant", "how": "contaminant"}
           ]
         },
         "measurements": {
@@ -203,7 +209,22 @@ Computed entries replace `source` with `how` and `inputs`. They appear after the
 ]
 ```
 
-Supported computations are `coalesce`, `join_nonempty`, `stripped_sequence`, `proforma_sequence`, `proforma_ion`, and `proforma_fragment`. Entry names must be unique within each axis group, final axis keys must name required materialized entries, and computed dependencies must be available in declaration order.
+Supported computations are `coalesce`, `join_nonempty`, `stripped_sequence`, `proforma_sequence`, `proforma_ion`, `proforma_fragment`, `decoy`, and `contaminant`. Entry names must be unique within each axis group, final axis keys must name required materialized entries, and computed dependencies must be available in declaration order.
+
+## Decoys and contaminants
+
+Every rule declares, on every level's var axis, exactly once each, how the vendor marks decoys and the contaminants the software itself flags or adds. The results carry them as `apb_Decoy` and `apb_Contaminant`: booleans that are never missing. Rows are kept, only marked. Contaminants that the search FASTA defines, such as ProteoBench's `Cont_` entries, are protein_fasta's to mark, not the rule's.
+
+```json
+{"name": "apb_Decoy", "inputs": ["Reverse", "Decoy"], "how": "decoy", "equals": "+"}
+{"name": "apb_Contaminant", "inputs": ["Proteins"], "how": "contaminant", "prefix": "CON__", "separator": ";"}
+{"name": "apb_Decoy", "how": "decoy"}
+```
+
+- `equals`: a row is marked when an input's value equals it; a boolean input reads as `true` or `false`
+- `prefix`: a row is marked when an input starts with it, or, with `separator`, when any member of the list does
+- No inputs: the vendor writes no such rows; nothing is marked
+- Several inputs: any match marks the row; inputs a source lacks are left out, so the column never disappears
 
 ## Independent sequence computations
 
@@ -250,9 +271,11 @@ Map vendor columns to logical names first. A sequence computation consumes exact
 
 | Syntax parser | Normalization inputs | Settings |
 | --- | --- | --- |
-| `token_regex` | sequence | `token_pattern`, `token_position` |
+| `token_regex` | sequence | `token_pattern`, `token_position`, `marker_pattern` |
 | `site_list` | sequence, modifications, sites | `delimiter`, `site_base` |
 | `embedded_site_list` | sequence, modifications | `delimiter`, `entry_pattern`, `site_base` |
+
+Every character that is not part of a declared token must be a residue letter (ProForma's: the twenty amino acids, `U`, `O`, `B`, `J`, `Z`, `X`); anything else fails the conversion with `UnrecognizedSequenceCharacterError` instead of being dropped. `_`, `-` and `.` are stripped only at the ends. A rule therefore declares every non-residue its vendor writes: FragPipe's terminal `n[…]` and `c[…]` and ProForma's `[…]-` and `-[…]` join the token pattern, anchored to the ends, and `marker_pattern` removes vendor text that is neither residue nor modification, such as AlphaPept's `_decoy` suffix, before tokenizing.
 
 Stripping takes one logical sequence input and either token-regex syntax or `{"parser": "plain_sequence"}` for a bare sequence. It needs no modification map, Unimod lookup, or normalization operation. Normalization alone takes `modification_map`, `case_sensitive` (default `false`), and `unknown_policy` (`preserve`, `drop`, or `error`; default `preserve`). Unknown tokens are diagnostic metadata, not intermediate columns. Each operation memoizes its own distinct inputs.
 

@@ -25,7 +25,7 @@ from apb2.parserV2.detect_document import (
     detect_rule_documents,
     select_document_levels,
 )
-from apb2.parserV2.joins import alphadia, maxquant, metamorpheus
+from apb2.parserV2.joins import alphadia, maxquant, metamorpheus, wombat
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels
 from apb2.parserV2.parse_quant.parameters.source import (
     Folder,
@@ -136,7 +136,7 @@ def test_alphadia_precursors_without_matrix_are_rejected(tmp_path: Path) -> None
     assert not (tmp_path / "converted.h5mu").exists()
 
 
-def test_metamorpheus_drops_ambiguous_and_decoy_peaks_and_types_intensity() -> None:
+def test_metamorpheus_drops_ambiguous_and_random_rt_peaks_and_types_intensity() -> None:
     columns = ("Full Sequence", "Full Sequences Mapped", "Peak intensity")
     assert metamorpheus.identify({"renamed.tsv": columns, "other.tsv": ("x",)}) == {
         "peaks": "renamed.tsv"
@@ -152,10 +152,33 @@ def test_metamorpheus_drops_ambiguous_and_decoy_peaks_and_types_intensity() -> N
         }
     )
     result = metamorpheus.join({"peaks": peaks})
-    assert result["Full Sequence"].to_list() == ["PEPTIDEK"]
-    assert result["Peak intensity"].to_list() == [10.5]
+    assert result["Full Sequence"].to_list() == ["PEPTIDEK", "KEDITPEP"]
+    assert result["Decoy Peptide"].to_list() == ["False", "True"]
+    assert result["Peak intensity"].to_list() == [10.5, 3.0]
     with pytest.raises(pl.exceptions.InvalidOperationError):
         metamorpheus.join({"peaks": peaks.with_columns(pl.lit("n/a").alias("Peak intensity"))})
+
+
+def test_wombat_drops_rows_naming_several_peptides_and_logs_them() -> None:
+    columns = ("modified_peptide", "protein_group", "charge")
+    assert wombat.identify({"peptides.csv": columns, "other.csv": ("x",)}) == {
+        "peptides": "peptides.csv"
+    }
+    assert wombat.identify({"other.csv": ("x",)}) == {}
+    table = pl.DataFrame(
+        {
+            "modified_peptide": ["PEPTIDEK", "[Acetyl]-SEQA|SEQB", None],
+            "protein_group": ["P1", "P1;P2", "P3"],
+        }
+    )
+    captured = StringIO()
+    sink = logger.add(captured, format="{message}")
+    try:
+        result = wombat.join({"peptides": table})
+    finally:
+        logger.remove(sink)
+    assert result["modified_peptide"].to_list() == ["PEPTIDEK", None]
+    assert "wombat dropped 1 of 3 rows naming several peptides" in captured.getvalue()
 
 
 def test_maxquant_higher_join_fanout_preserves_original_cells(tmp_path: Path) -> None:
@@ -422,7 +445,9 @@ def test_maxquant_one_to_one_experiments_align_to_raw_files(tmp_path: Path, suff
     values = protein.layers["Intensity"].values.cast(pl.Float64).fill_nan(None)
     assert values.rows() == [(101.0, 100.0), (None, 200.0), (301.0, 300.0)]
     ion = result.levels["ion"]
+    # raw1 holds two evidence rows of the ion: intensities add up, PEP is the better row's.
     assert ion.layers["Intensity"].values.row(0) == (20.0, 5.0)
+    assert ion.layers["PEP"].values.cast(pl.Float64).row(0) == (0.002, 0.05)
     if suffix == ".h5mu":
         stored = mudata.read_h5mu(target)
         assert stored.n_obs == 2

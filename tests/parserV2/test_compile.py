@@ -187,11 +187,17 @@ def test_every_computed_column_declaration_names_one_computer(
             "axis": {"obs_keys": ["sample"], "var_keys": [config.name]},
             "columns": {
                 "obs": [{"name": "sample", "source": "Run"}],
-                "var": [
-                    {"name": name, "source": name, "type": "integer" if name == "Z" else "string"}
-                    for name in config.inputs
-                ]
-                + [config.model_dump(mode="json")],
+                "var": synthetic.with_flags(
+                    [
+                        {
+                            "name": name,
+                            "source": name,
+                            "type": "integer" if name == "Z" else "string",
+                        }
+                        for name in config.inputs
+                    ]
+                    + [config.model_dump(mode="json")]
+                ),
             },
             "measurements": {
                 "primary_layer": "Quantity",
@@ -322,7 +328,7 @@ def test_source_resolution_constructs_the_separator_and_long_decomposer(
             "axis": {"obs_keys": ["sample"], "var_keys": ["Feature"]},
             "columns": {
                 "obs": [{"name": "sample", "source": "Sample"}],
-                "var": [{"name": "Feature", "source": "Feature"}],
+                "var": synthetic.with_flags([{"name": "Feature", "source": "Feature"}]),
             },
             "measurements": {
                 "primary_layer": "Quantity",
@@ -373,7 +379,7 @@ def test_an_optional_label_column_labels_by_position_when_the_source_lacks_it(
             "axis": {"obs_keys": ["sample"], "var_keys": ["Feature"]},
             "columns": {
                 "obs": [{"name": "sample", "source": "Sample"}],
-                "var": [{"name": "Feature", "source": "Feature"}],
+                "var": synthetic.with_flags([{"name": "Feature", "source": "Feature"}]),
             },
             "measurements": {
                 "primary_layer": "Quantity",
@@ -491,10 +497,12 @@ def test_compilation_injects_the_detected_number_notation_into_axis_coercers(
                         "axis": {"obs_keys": ["sample"], "var_keys": ["Feature"]},
                         "columns": {
                             "obs": [{"name": "sample", "source": "Sample"}],
-                            "var": [
-                                {"name": "Feature", "source": "Feature"},
-                                {"name": "Score", "source": "Score", "type": "number"},
-                            ],
+                            "var": synthetic.with_flags(
+                                [
+                                    {"name": "Feature", "source": "Feature"},
+                                    {"name": "Score", "source": "Score", "type": "number"},
+                                ]
+                            ),
                         },
                         "measurements": {
                             "primary_layer": "Quantity",

@@ -6,6 +6,9 @@
   "software_version_pattern": "^0\\.9\\.11$",
   "tables": [
     {
+      "prepare": {
+        "how": "wombat"
+      },
       "input": {
         "shape": "wide",
         "extensions": [
@@ -55,13 +58,26 @@
               ],
               "how": "stripped_sequence",
               "syntax": "vendor_sequence"
+            },
+            {
+              "name": "apb_Decoy",
+              "how": "decoy"
+            },
+            {
+              "name": "apb_Contaminant",
+              "inputs": [
+                "protein_group"
+              ],
+              "how": "contaminant",
+              "prefix": "CON__",
+              "separator": ";"
             }
           ]
         },
         "sequence_syntax": {
           "vendor_sequence": {
             "parser": "token_regex",
-            "token_pattern": "\\[([^\\[\\]]+)\\]",
+            "token_pattern": "^\\[([^\\[\\]]+)\\]-|-\\[([^\\[\\]]+)\\]$|\\[([^\\[\\]]+)\\]",
             "token_position": "after_residue"
           }
         },

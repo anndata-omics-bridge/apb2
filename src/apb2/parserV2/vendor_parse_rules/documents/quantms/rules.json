@@ -143,6 +143,19 @@
                   "Charge"
                 ],
                 "how": "proforma_ion"
+              },
+              {
+                "name": "apb_Decoy",
+                "inputs": [
+                  "Protein"
+                ],
+                "how": "decoy",
+                "prefix": "DECOY_",
+                "separator": ";"
+              },
+              {
+                "name": "apb_Contaminant",
+                "how": "contaminant"
               }
             ]
           }

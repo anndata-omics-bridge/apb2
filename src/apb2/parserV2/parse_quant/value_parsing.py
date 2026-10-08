@@ -11,6 +11,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
     AuxiliaryLayerRole,
     CategoricalLayerSemantics,
     FinalLayerTable,
+    JsonValue,
     MeasurementLayerRole,
     NumericLayerType,
     QuantitativeLayerSemantics,
@@ -41,8 +42,9 @@ class PlainNumericLayerParser:
         sentinel = _declared_missing(numbers, self.missing_values, self.missing_at_or_below)
         return ~(blank(values, dtype) | sentinel.fill_null(False))
 
-    def parse(self, layer: FinalLayerTable, /) -> FinalLayerTable:
+    def parse(self, layer: FinalLayerTable) -> tuple[FinalLayerTable, dict[str, JsonValue]]:
         values = layer.values
+        evidence: dict[str, JsonValue] = {}
         if not values.width:
             canonical = values
         else:
@@ -54,45 +56,20 @@ class PlainNumericLayerParser:
                 ).alias(column)
                 for column, dtype in values.schema.items()
             )
-            unreadable = (
-                prepared.select(
-                    pl.concat_list(
-                        pl.all()
-                        .struct.field("raw")
-                        .cast(pl.String)
-                        .filter(
-                            ~pl.all().struct.field("blank")
-                            & pl.all().struct.field("number").is_null()
-                        )
-                        .unique(maintain_order=True)
-                        .head(_EXAMPLE_LIMIT)
-                        .implode()
-                    )
-                    .list.explode(empty_as_null=False)
-                    .unique()
-                    .sort()
-                )
-                .to_series()
-                .to_list()
-            )
-            if unreadable:
-                logger.warning(
-                    "layer {!r} declares numeric values; {} distinct unreadable token(s) "
-                    "became missing, examples={}",
-                    self.layer_name,
-                    len(unreadable),
-                    unreadable[:_EXAMPLE_LIMIT],
-                )
+            evidence = NumericTokenDiagnostics(self.layer_name).collect(prepared)
             canonical = prepared.select(
                 _masked(
                     pl.all().struct.field("number"), self.missing_values, self.missing_at_or_below
                 ).name.keep()
             )
-        return _parsed_layer(
-            layer,
-            _validate_numeric_type(self.layer_name, canonical, self.numeric_type),
-            semantics=QuantitativeLayerSemantics(logical_type=self.numeric_type),
-            role=MeasurementLayerRole(),
+        return (
+            _parsed_layer(
+                layer,
+                _validate_numeric_type(self.layer_name, canonical, self.numeric_type),
+                semantics=QuantitativeLayerSemantics(logical_type=self.numeric_type),
+                role=MeasurementLayerRole(),
+            ),
+            evidence,
         )
 
 
@@ -114,24 +91,34 @@ class RegexNumericLayerParser:
         sentinel = _declared_missing(numbers, self.missing_values, self.missing_at_or_below)
         return ~(blank(values, dtype) | sentinel.fill_null(False))
 
-    def parse(self, layer: FinalLayerTable, /) -> FinalLayerTable:
+    def parse(self, layer: FinalLayerTable) -> tuple[FinalLayerTable, dict[str, JsonValue]]:
         values = layer.values
-        canonical = values.select(
-            _masked(
+        prepared = values.select(
+            pl.struct(
+                pl.col(column).alias("raw"),
                 as_numbers(
-                    pl.all().cast(pl.String, strict=False).str.extract(self.pattern, 1),
+                    pl.col(column).cast(pl.String, strict=False).str.extract(self.pattern, 1),
                     pl.String(),
                     self.number_format,
-                ),
-                self.missing_values,
-                self.missing_at_or_below,
+                ).alias("number"),
+                blank(pl.col(column), dtype).alias("blank"),
+            ).alias(column)
+            for column, dtype in values.schema.items()
+        )
+        evidence = NumericTokenDiagnostics(self.layer_name).collect(prepared)
+        canonical = prepared.select(
+            _masked(
+                pl.all().struct.field("number"), self.missing_values, self.missing_at_or_below
             ).name.keep()
         )
-        return _parsed_layer(
-            layer,
-            _validate_numeric_type(self.layer_name, canonical, self.numeric_type),
-            semantics=QuantitativeLayerSemantics(logical_type=self.numeric_type),
-            role=MeasurementLayerRole(),
+        return (
+            _parsed_layer(
+                layer,
+                _validate_numeric_type(self.layer_name, canonical, self.numeric_type),
+                semantics=QuantitativeLayerSemantics(logical_type=self.numeric_type),
+                role=MeasurementLayerRole(),
+            ),
+            evidence,
         )
 
 
@@ -145,7 +132,7 @@ class FactorLayerParser:
         """Every non-missing label claims a cell, including blank or unknown labels."""
         return ~absent(values, dtype)
 
-    def parse(self, layer: FinalLayerTable, /) -> FinalLayerTable:
+    def parse(self, layer: FinalLayerTable) -> tuple[FinalLayerTable, dict[str, JsonValue]]:
         semantics = CategoricalLayerSemantics(
             categories=self.categories,
             missing_code=UNKNOWN_CATEGORY_CODE,
@@ -161,12 +148,48 @@ class FactorLayerParser:
                 return_dtype=pl.Int64,
             )
         )
-        return _parsed_layer(
-            layer,
-            canonical,
-            semantics=semantics,
-            role=AuxiliaryLayerRole(),
+        return (
+            _parsed_layer(layer, canonical, semantics=semantics, role=AuxiliaryLayerRole()),
+            {},
         )
+
+
+@dataclass(frozen=True, slots=True)
+class NumericTokenDiagnostics:
+    """Count failed numeric cells exactly and export a bounded token sample."""
+
+    layer_name: str
+
+    def collect(self, prepared: pl.DataFrame) -> dict[str, JsonValue]:
+        if not prepared.width:
+            return {}
+        invalid = ~pl.all().struct.field("blank") & pl.all().struct.field("number").is_null()
+        cell_count = prepared.select(pl.sum_horizontal(invalid.cast(pl.UInt64).sum())).item()
+        if not cell_count:
+            return {}
+        tokens = prepared.select(
+            pl.concat_list(
+                pl.all().struct.field("raw").cast(pl.String).filter(invalid).unique().implode()
+            )
+            .list.explode(empty_as_null=False)
+            .unique()
+            .sort()
+            .alias("token")
+        )
+        examples = tokens.head(_EXAMPLE_LIMIT).to_series().to_list()
+        logger.warning(
+            "layer {!r} declares numeric values; {} distinct unreadable token(s) "
+            "in {} cell(s) became missing, examples={}",
+            self.layer_name,
+            tokens.height,
+            cell_count,
+            examples,
+        )
+        return {
+            "cell_count": cell_count,
+            "distinct_token_count": tokens.height,
+            "examples": examples,
+        }
 
 
 def _parsed_layer(

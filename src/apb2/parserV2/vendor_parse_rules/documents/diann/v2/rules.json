@@ -18,8 +18,13 @@
           ".parquet"
         ],
         "software_only": {
-          "required_columns": ["PG.TopN"],
-          "acquisition_method_if_any": ["Ms1.Q.Value", "Global.Ms1.Q.Value"],
+          "required_columns": [
+            "PG.TopN"
+          ],
+          "acquisition_method_if_any": [
+            "Ms1.Q.Value",
+            "Global.Ms1.Q.Value"
+          ],
           "acquisition_method_otherwise": "DIA"
         }
       },
@@ -39,6 +44,26 @@
             {
               "name": "Run",
               "source": "Run"
+            }
+          ],
+          "var": [
+            {
+              "name": "Decoy",
+              "source": "Decoy",
+              "type": "boolean",
+              "required": false
+            },
+            {
+              "name": "apb_Decoy",
+              "inputs": [
+                "Decoy"
+              ],
+              "how": "decoy",
+              "equals": "true"
+            },
+            {
+              "name": "apb_Contaminant",
+              "how": "contaminant"
             }
           ]
         },

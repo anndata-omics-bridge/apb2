@@ -381,7 +381,7 @@ def test_invalid_measurements_are_rejected_at_the_authored_boundary(
             "axis": {"obs_keys": ["sample"], "var_keys": ["Feature"]},
             "columns": {
                 "obs": [{"name": "sample", "source": "Run"}],
-                "var": [{"name": "Feature", "source": "Feature"}],
+                "var": synthetic.with_flags([{"name": "Feature", "source": "Feature"}]),
             },
             "measurements": {"primary_layer": primary, "layers": layers},
         },

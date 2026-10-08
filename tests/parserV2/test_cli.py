@@ -18,6 +18,7 @@ from apb2.parserV2.parse_quant.io.metadata import (
     NAMESPACE,
     PARSE_NAMESPACE,
 )
+from parserV2 import synthetic
 from parserV2.fixtures import committed_sample
 
 _DOCUMENT = {
@@ -33,7 +34,7 @@ _DOCUMENT = {
                 "axis": {"obs_keys": ["sample"], "var_keys": ["feature"]},
                 "columns": {
                     "obs": [{"name": "sample", "source": "Run"}],
-                    "var": [{"name": "feature", "source": "Precursor"}],
+                    "var": synthetic.with_flags([{"name": "feature", "source": "Precursor"}]),
                 },
                 "measurements": {
                     "primary_layer": "Abundance",
@@ -84,10 +85,12 @@ _MULTILEVEL_DOCUMENT = {
                 "axis": {"obs_keys": ["sample"], "var_keys": ["feature"]},
                 "columns": {
                     "obs": [{"name": "sample", "source": "Run"}],
-                    "var": [
-                        {"name": "feature", "source": "Precursor"},
-                        {"name": "protein", "source": "Protein"},
-                    ],
+                    "var": synthetic.with_flags(
+                        [
+                            {"name": "feature", "source": "Precursor"},
+                            {"name": "protein", "source": "Protein"},
+                        ]
+                    ),
                 },
                 "measurements": {
                     "primary_layer": "Abundance",

@@ -66,6 +66,18 @@
               "accession": "UNIMOD:1"
             }
           ]
+        },
+        "columns": {
+          "var": [
+            {
+              "name": "apb_Decoy",
+              "how": "decoy"
+            },
+            {
+              "name": "apb_Contaminant",
+              "how": "contaminant"
+            }
+          ]
         }
       },
       "levels": {

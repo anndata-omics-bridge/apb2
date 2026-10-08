@@ -139,6 +139,7 @@ class KeepBestDuplicate:
 
     by: str
     highest: bool
+    summed: frozenset[str] = frozenset()
 
     def ranked(self, ranking: RawLayerTable, presence: RawValuePresence) -> RankedDuplicates:
         """Read the ranking layer's numbers; text that is not a plain number is an error."""
@@ -151,7 +152,11 @@ class KeepBestDuplicate:
                 f"keep_best ranks by layer {self.by!r}, whose values are not plain numbers: {error}"
             ) from error
         return RankedDuplicates(
-            by=self.by, highest=self.highest, keys=masked.select(keys), ranks=ranks
+            by=self.by,
+            highest=self.highest,
+            keys=masked.select(keys),
+            ranks=ranks,
+            summed=self.summed,
         )
 
 
@@ -160,16 +165,20 @@ class RankedDuplicates:
     """keep_best after ranking: in each cell, the repeated row whose ranking value is best.
 
     Every layer copies the winning row's scalar, so all layers of one cell describe one
-    source row. A row without a ranking value loses to any row with one; ties, and cells
-    where no row has one, keep file order.
+    source row; a ``summed`` layer adds up all its repeated rows instead. A row without a
+    ranking value loses to any row with one; ties, and cells where no row has one, keep file
+    order.
     """
 
     by: str
     highest: bool
     keys: pl.DataFrame
     ranks: pl.DataFrame
+    summed: frozenset[str] = frozenset()
 
     def resolve(self, layer: RawLayerTable, presence: RawValuePresence, /) -> RawLayerTable:
+        if layer.layer_name in self.summed:
+            return AggregateNumericDuplicates(pl.Expr.sum).resolve(layer, presence)
         keys = layer.raw_var_key_columns
         masked = _masked(layer, presence)
         columns = [name for name in masked.columns if name not in keys]

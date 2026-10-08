@@ -129,6 +129,22 @@
                   "Charge"
                 ],
                 "how": "proforma_ion"
+              },
+              {
+                "name": "Decoy_Peptide",
+                "source": "Decoy Peptide"
+              },
+              {
+                "name": "apb_Decoy",
+                "inputs": [
+                  "Decoy_Peptide"
+                ],
+                "how": "decoy",
+                "equals": "True"
+              },
+              {
+                "name": "apb_Contaminant",
+                "how": "contaminant"
               }
             ]
           }

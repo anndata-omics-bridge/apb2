@@ -159,6 +159,8 @@
       "discriminator": {
         "mapping": {
           "coalesce": "#/$defs/Coalesce",
+          "contaminant": "#/$defs/ContaminantFlag",
+          "decoy": "#/$defs/DecoyFlag",
           "join_nonempty": "#/$defs/JoinNonempty",
           "proforma_fragment": "#/$defs/ProformaFragment",
           "proforma_ion": "#/$defs/ProformaIon",
@@ -185,6 +187,12 @@
         },
         {
           "$ref": "#/$defs/ProformaFragment"
+        },
+        {
+          "$ref": "#/$defs/DecoyFlag"
+        },
+        {
+          "$ref": "#/$defs/ContaminantFlag"
         }
       ]
     },
@@ -207,6 +215,192 @@
         }
       ]
     },
+    "ContaminantFlag": {
+      "additionalProperties": false,
+      "description": "``apb_Contaminant``: the rows the vendor marks as contaminants it flags or adds itself.",
+      "properties": {
+        "source": {
+          "default": null,
+          "title": "Source",
+          "type": "null"
+        },
+        "type": {
+          "const": "boolean",
+          "default": "boolean",
+          "title": "Type",
+          "type": "string"
+        },
+        "required": {
+          "const": true,
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "roles": {
+          "items": {
+            "$ref": "#/$defs/SemanticRole"
+          },
+          "maxItems": 0,
+          "title": "Roles",
+          "type": "array"
+        },
+        "inputs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Inputs",
+          "type": "array"
+        },
+        "equals": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Equals"
+        },
+        "prefix": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prefix"
+        },
+        "separator": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Separator"
+        },
+        "how": {
+          "const": "contaminant",
+          "title": "How",
+          "type": "string"
+        },
+        "name": {
+          "const": "apb_Contaminant",
+          "default": "apb_Contaminant",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "how"
+      ],
+      "title": "ContaminantFlag",
+      "type": "object"
+    },
+    "DecoyFlag": {
+      "additionalProperties": false,
+      "description": "``apb_Decoy``: the rows the vendor marks as decoys.",
+      "properties": {
+        "source": {
+          "default": null,
+          "title": "Source",
+          "type": "null"
+        },
+        "type": {
+          "const": "boolean",
+          "default": "boolean",
+          "title": "Type",
+          "type": "string"
+        },
+        "required": {
+          "const": true,
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "roles": {
+          "items": {
+            "$ref": "#/$defs/SemanticRole"
+          },
+          "maxItems": 0,
+          "title": "Roles",
+          "type": "array"
+        },
+        "inputs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Inputs",
+          "type": "array"
+        },
+        "equals": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Equals"
+        },
+        "prefix": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prefix"
+        },
+        "separator": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Separator"
+        },
+        "how": {
+          "const": "decoy",
+          "title": "How",
+          "type": "string"
+        },
+        "name": {
+          "const": "apb_Decoy",
+          "default": "apb_Decoy",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "how"
+      ],
+      "title": "DecoyFlag",
+      "type": "object"
+    },
     "Delimiter": {
       "maxLength": 1,
       "minLength": 1,
@@ -224,7 +418,7 @@
     },
     "Duplicates": {
       "additionalProperties": false,
-      "description": "How repeated raw measurement cells are resolved.\n\n``keep_best`` keeps, in each cell, the repeated row whose ``by`` layer is ``best``, and\ntakes every layer's value from that one row, so one feature's intensity, score and\nq-value describe the same identification, such as one PSM.",
+      "description": "How repeated raw measurement cells are resolved.\n\n``keep_best`` keeps, in each cell, the repeated row whose ``by`` layer is ``best``, and\ntakes every layer's value from that one row, so one feature's intensity, score and\nq-value describe the same identification, such as one PSM. Layers listed in ``sum`` are\nadded up over the repeated rows instead, such as quantities split across several of them.",
       "properties": {
         "mode": {
           "$ref": "#/$defs/DuplicateMode",
@@ -252,6 +446,14 @@
           ],
           "title": "Best",
           "type": "string"
+        },
+        "sum": {
+          "description": "keep_best: layers added up over the repeated rows, not taken from the winning row",
+          "items": {
+            "type": "string"
+          },
+          "title": "Sum",
+          "type": "array"
         }
       },
       "title": "Duplicates",
@@ -774,7 +976,7 @@
     },
     "PlainSequenceSyntax": {
       "additionalProperties": false,
-      "description": "An unmodified sequence whose alphabetic characters are residues.",
+      "description": "An unmodified sequence: residue letters only, apart from terminal ``_``, ``-`` or ``.``.",
       "properties": {
         "parser": {
           "const": "plain_sequence",
@@ -1295,7 +1497,7 @@
     },
     "TokenRegexSyntax": {
       "additionalProperties": false,
-      "description": "Inline modification tokens extracted by the declared pattern.",
+      "description": "Inline modification tokens extracted by the declared pattern; the rest must be residues.",
       "properties": {
         "parser": {
           "const": "token_regex",
@@ -1309,6 +1511,19 @@
         "token_position": {
           "$ref": "#/$defs/TokenPosition",
           "default": "after_residue"
+        },
+        "marker_pattern": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "vendor text that is neither residue nor modification, removed before tokenizing, such as AlphaPept's '_decoy' suffix",
+          "title": "Marker Pattern"
         }
       },
       "required": [

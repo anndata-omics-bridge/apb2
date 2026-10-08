@@ -25,7 +25,7 @@ from typing import Protocol
 
 import polars as pl
 
-from apb2.parserV2.parse_quant.data.parsed import FinalLayerTable
+from apb2.parserV2.parse_quant.data.parsed import FinalLayerTable, JsonValue
 from apb2.parserV2.parse_quant.data.raw import DecomposedDataRaw, RawLayerTable
 from apb2.parserV2.parse_quant.data.source import LevelSourceTable
 from apb2.parserV2.parse_quant.parameters.axis import AxisKeyPlan
@@ -87,13 +87,13 @@ class LayerValueParser(Protocol):
 
     def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr: ...
 
-    def parse(self, layer: FinalLayerTable, /) -> FinalLayerTable: ...
+    def parse(self, layer: FinalLayerTable) -> tuple[FinalLayerTable, dict[str, JsonValue]]: ...
 
 
 class LayerSetValidator(Protocol):
     """Validate relationships across the complete set of canonical layers."""
 
-    def validate(self, layers: Mapping[str, FinalLayerTable], /) -> None: ...
+    def validate(self, layers: Mapping[str, FinalLayerTable]) -> dict[str, JsonValue]: ...
 
 
 # ------------------------------------------------------------------------- runtime axis plans

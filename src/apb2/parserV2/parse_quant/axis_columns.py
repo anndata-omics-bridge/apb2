@@ -134,6 +134,33 @@ class JoinNonemptyColumn:
 
 
 @dataclass(frozen=True, slots=True)
+class MarkerColumn:
+    """Mark the rows the vendor marks, by value or by list-member prefix; never missing."""
+
+    name: str
+    inputs: tuple[str, ...]
+    equals: str | None
+    prefix: str | None
+    separator: str | None
+
+    def compute(self, frame: pl.DataFrame, /) -> tuple[pl.DataFrame, tuple[str, ...]]:
+        marked = [self._marked(name) for name in self.inputs] or [pl.lit(value=False)]
+        return frame.with_columns(pl.any_horizontal(marked).alias(self.name)), ()
+
+    def _marked(self, name: str) -> pl.Expr:
+        value = pl.col(name).cast(pl.String).str.strip_chars()
+        if self.equals is not None:
+            return (value == self.equals).fill_null(value=False)
+        assert self.prefix is not None
+        if self.separator is None:
+            return value.str.starts_with(self.prefix).fill_null(value=False)
+        members = value.str.split(self.separator).list.eval(
+            pl.element().str.strip_chars().str.starts_with(self.prefix)
+        )
+        return members.list.any().fill_null(value=False)
+
+
+@dataclass(frozen=True, slots=True)
 class ProformaIonColumn:
     """Combine a peptidoform with a positive integer charge."""
 
