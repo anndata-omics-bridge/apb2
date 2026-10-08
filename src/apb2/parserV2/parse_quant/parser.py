@@ -283,11 +283,15 @@ class ParseStrategy:
 
     @staticmethod
     def _valid_final_key_rows(final_keys: pl.DataFrame) -> pl.Series:
-        """Which rows have every component of their authored final key."""
+        """Which rows have every component of their authored final key.
+
+        Empty text is as absent as null: a delimited reader already reads an empty cell as
+        null, and an empty Parquet string must not become an identity of its own.
+        """
         if not final_keys.columns:
             return final_keys.select(pl.repeat(True, pl.len()).alias("_valid")).to_series()
         return final_keys.select(
-            pl.all_horizontal(pl.all().is_not_null()).alias("_valid")
+            pl.all_horizontal(pl.all().is_not_null(), pl.col(pl.String) != "").alias("_valid")
         ).to_series()
 
     @staticmethod

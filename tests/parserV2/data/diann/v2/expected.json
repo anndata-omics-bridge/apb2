@@ -21,7 +21,7 @@
     },
     "protein": {
       "observations": 6,
-      "variables": 125,
+      "variables": 124,
       "layers": [
         "PG_MaxLFQ",
         "Genes_MaxLFQ",
