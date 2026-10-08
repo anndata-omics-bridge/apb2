@@ -2,6 +2,8 @@
 
 ## 2026-10-08
 
+- DIA-NN rules map `UniMod:21` (phospho) and `UniMod:121` (GlyGly). A ProteoBench DIA Astral submission searched with both reported them as unknown tokens: 4,386 and 36 of 698,009 precursor rows.
+
 - Numeric layers accept `missing_tokens`, the text a vendor writes for a missing value. Such a cell is missing, not an unreadable cell, and claims no duplicate cell. PEAKS declares `-` on `Sample_Mz` and `Sample_RT_Mean`, and WOMBAT declares `NA` on `Abundance`; these were the only unreadable cells in the ProteoBench corpus (22 datasets).
 
 - A row whose final key has an empty-text component is dropped, like one with a null component. A delimited reader already reads an empty cell as null, but Parquet keeps `""`, so DIA-NN 2 precursors without a protein group (1,771 of 7,357 in a ProteoBench Astral submission) formed a protein feature `""` with no abundances. That feature is gone; the ion level keeps those precursors, with an empty `Protein_Group`. The other 14 routine datasets convert unchanged.

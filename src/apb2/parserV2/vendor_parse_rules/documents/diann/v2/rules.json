@@ -87,6 +87,14 @@
             {
               "token": "UniMod:35",
               "accession": "UNIMOD:35"
+            },
+            {
+              "token": "UniMod:21",
+              "accession": "UNIMOD:21"
+            },
+            {
+              "token": "UniMod:121",
+              "accession": "UNIMOD:121"
             }
           ]
         }

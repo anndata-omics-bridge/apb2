@@ -393,6 +393,8 @@ def test_a_token_with_no_residue_to_modify_is_an_error() -> None:
         ("peaks/rules.json", "M(+42.01)(+15.99)PEPK", "[UNIMOD:1]-M[UNIMOD:35]PEPK"),
         ("peaks/rules.json", "C(+57.02)(+42.01)PEPK", "[UNIMOD:1]-C[UNIMOD:4]PEPK"),
         ("diann/v2/rules.json", "(UniMod:1)PEPTIDEC(UniMod:4)", "[UNIMOD:1]-PEPTIDEC[UNIMOD:4]"),
+        ("diann/v2/rules.json", "QPS(UniMod:21)PSHDGSLSPLQDR", "QPS[UNIMOD:21]PSHDGSLSPLQDR"),
+        ("diann/v1_8/rules.json", "TLTGK(UniMod:121)TITLEK", "TLTGK[UNIMOD:121]TITLEK"),
         ("sage/rules.json", "[+42]-MPEPTIDE", "[UNIMOD:1]-MPEPTIDE"),
         (
             "spectronaut/v21/rules.json",
