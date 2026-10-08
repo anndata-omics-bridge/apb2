@@ -2,6 +2,11 @@
 
 ## 2026-10-08
 
+- **Breaking:** every format keeps a root APB part and one part per level, never merged. An h5ad stores its level part at `uns[<level>]["apb"]` with its own storage descriptor and its sidecar exposes `root.apb`; the h5ad merge and `metadata_ownership` are gone. HDF5 descriptor 6, Parquet manifest 7, DuckDB manifest 6, representation 5.
+- **Breaking:** `ParsedLevel.uns` is the conversion record as stored: `provenance` (`rule_json`, `plan_json`, input preparation, sample matching), `result` (unknown tokens, layer diagnostics) and `summary` (unknown modification tokens, unreadable cells, effectively empty layers); observation grouping writes into `result`. Annotation records carry `schema_version` 3 and `provenance.annotation` at the root and `result.annotation` and a `summary` on each level.
+- Writers and readers check every record's `summary` entries and `details` references without importing producers.
+- `apb2.api` exposes `UnsJsonCodec`, so apb-export stores APB parts in its containers exactly as APB2 results do. A standalone AnnData's sidecar names its level by the `uns` key holding its level part.
+
 - MaxQuant ions no longer add up PEP, score and retention time over repeated evidence rows of one ion and run: the ion rule keeps the lowest-PEP row for those layers (`keep_best`) and still sums `Intensity` and `MS_MS_Count`, through the new `duplicates.sum` list of layers `keep_best` adds up. Summing had produced PEP above 1 (1.41 and 1.11 in two single-cell submissions), which apb-aggregate rejects. PEP is now a required MaxQuant ion layer.
 
 - Every rule now marks decoys and the contaminants the software itself flags or adds: new computed columns `apb_Decoy` (`how: "decoy"`) and `apb_Contaminant` (`how: "contaminant"`), declared exactly once on every level and never missing. They read the vendor's flag (`equals`, such as MaxQuant `Reverse` `+`, AlphaPept `decoy`, Spectronaut `EG.IsDecoy`), a protein-name prefix (`prefix`, with an optional list `separator`, such as WOMBAT's `CON__`), or declare that the vendor writes none. Rows are kept, only marked. MaxQuant evidence, DIA-NN and Spectronaut fragment and protein levels read their flag columns where present. The MetaMorpheus preparation keeps decoy peptides instead of dropping them.

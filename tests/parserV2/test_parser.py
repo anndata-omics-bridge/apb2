@@ -260,7 +260,9 @@ def test_parse_runs_its_collaborators_in_the_documented_order() -> None:
         "parse_values",
     ]
     assert parsed.primary_layer_name == "Intensity"
-    assert parsed.uns["unknown_mod_tokens"] == ["Mystery@M", "Other@C"]
+    result = parsed.uns["result"]
+    assert isinstance(result, dict)
+    assert result["unknown_mod_tokens"] == ["Mystery@M", "Other@C"]
 
 
 # ------------------------------------------------------------------------------- identity
@@ -676,13 +678,34 @@ def test_a_parsed_level_is_a_direct_composition_and_keeps_no_key_map() -> None:
         "metadata",
     }
     assert parsed.uns == {
-        "software_name": "Synthetic",
-        "quantification_level": "ion",
-        "layer_diagnostics": {
-            "schema_version": "1",
-            "unreadable_numeric": {},
-            "effectively_empty": {},
+        "provenance": {},
+        "result": {
+            "unknown_mod_tokens": [],
+            "layer_diagnostics": {"unreadable_numeric": {}, "effectively_empty": {}},
         },
+        "summary": [
+            {
+                "name": "unknown_modification_tokens",
+                "label": "Unknown modification tokens",
+                "value": 0,
+                "unit": "tokens",
+                "status": "ok",
+            },
+            {
+                "name": "unreadable_cells",
+                "label": "Unreadable numeric cells",
+                "value": 0,
+                "unit": "cells",
+                "status": "ok",
+            },
+            {
+                "name": "effectively_empty_layers",
+                "label": "Effectively empty layers",
+                "value": 0,
+                "unit": "layers",
+                "status": "ok",
+            },
+        ],
     }
     assert isinstance(parsed.obs.frame, pl.DataFrame)
     assert isinstance(parsed.layers["Intensity"].values, pl.DataFrame)

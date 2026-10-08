@@ -22,7 +22,7 @@ class LayerContractValidator:
     populated_ratio: float
     strict: bool
 
-    def validate(self, layers: Mapping[str, FinalLayerTable]) -> dict[str, JsonValue]:
+    def validate(self, layers: Mapping[str, FinalLayerTable]) -> dict[str, JsonValue] | None:
         missing = [
             name for name in (self.primary_layer_name, *self.required_names) if name not in layers
         ]
@@ -39,7 +39,7 @@ class LayerContractValidator:
         populated = [name for name, ratio in ratios.items() if ratio >= self.populated_ratio]
         empty = [name for name, ratio in ratios.items() if ratio < self.empty_ratio]
         if not populated:
-            return {}
+            return None
         diagnostics: dict[str, JsonValue] = {}
         reference = ", ".join(populated[:3])
         for name in empty:

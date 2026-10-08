@@ -15,6 +15,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
     ParsedLevels,
     VarFinal,
 )
+from parserV2.fixtures import parse_section
 
 
 def _level(frame: pl.DataFrame, key: str) -> ParsedLevel:
@@ -64,8 +65,8 @@ def test_bijective_alignment_preserves_cells_on_one_shared_axis() -> None:
     assert protein.layers["Intensity"].values.rows() == [(101, 100)]
     assert original.obs.key_columns == ("Experiment",)
     assert original.obs.frame.columns == ["Experiment"]
-    assert protein.uns["observation_keys_original"] == ["Experiment"]
-    relationships = result.uns["observation_relationships"]
+    assert parse_section(protein.uns, "result")["observation_keys_original"] == ["Experiment"]
+    relationships = parse_section(result.uns, "result")["observation_relationships"]
     assert isinstance(relationships, str)
     assert json.loads(relationships)[0]["aligned"] is True
 

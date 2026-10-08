@@ -14,6 +14,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
     QuantitativeLayerSemantics,
 )
 from apb2.parserV2.parse_quant.io.errors import InvalidResultError
+from apb2.parserV2.parse_quant.io.records import RecordContract
 
 _PAIRWISE_COLUMNS = ("row", "column", "value")
 
@@ -37,6 +38,7 @@ def validate_parsed_levels(parsed: ParsedLevels, /) -> None:
         _validate_annotation_table(name, table)
     for name, relation in parsed.feature_relations.items():
         _validate_feature_relation(name, relation, parsed)
+    RecordContract().validate_part({"parse": parsed.uns, **parsed.metadata}, "root")
 
 
 def validate_parsed_level(name: str, parsed: ParsedLevel, /) -> None:
@@ -83,6 +85,7 @@ def validate_parsed_level(name: str, parsed: ParsedLevel, /) -> None:
     _validate_aligned(name, "varm", parsed.varm, parsed.var.frame.height)
     _validate_pairwise(name, "obsp", parsed.obsp, parsed.obs.frame.height)
     _validate_pairwise(name, "varp", parsed.varp, parsed.var.frame.height)
+    RecordContract().validate_part({"parse": parsed.uns, **parsed.metadata}, f"level {name!r}")
 
 
 def _validate_layer_values(

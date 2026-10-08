@@ -11,7 +11,7 @@ import polars as pl
 import pytest
 from pydantic import ValidationError
 
-from apb2.parserV2.parse_quant.data.parsed import ParsedLevel
+from apb2.parserV2.parse_quant.data.parsed import JsonValue, ParsedLevel
 from apb2.parserV2.parse_quant.errors import IncompatibleSourceError
 from apb2.parserV2.parse_quant.modifications import (
     PlainSequenceStripper,
@@ -99,6 +99,12 @@ def parse(tmp_path: Path, built: RuleDocument, values: pl.DataFrame | None = Non
     return compile_level(synthetic.facade(built), SingleFile(path), "standard").parse()
 
 
+def parse_result(parsed: ParsedLevel) -> dict[str, JsonValue]:
+    result = parsed.uns["result"]
+    assert isinstance(result, dict)
+    return result
+
+
 @pytest.mark.parametrize("operation", [STRIP, NORMALIZE], ids=["strip", "normalize"])
 def test_missing_optional_sequence_input_blocks_its_operation(
     operation: dict[str, Any],
@@ -143,7 +149,7 @@ def test_stripping_needs_neither_normalization_nor_a_map_or_unimod(
     parsed = parse(tmp_path, document(declaration))
     assert parsed.var.frame["ProForma_peptide"].to_list() == ["ACMK"]
     assert "ProForma_peptidoform" not in parsed.var.frame
-    assert "unknown_mod_tokens" not in parsed.uns
+    assert parse_result(parsed)["unknown_mod_tokens"] == []
 
 
 @pytest.mark.parametrize("operations", [[STRIP, NORMALIZE], [NORMALIZE, STRIP], [NORMALIZE]])
@@ -159,7 +165,9 @@ def test_independent_operations_preserve_values_and_authored_output_order(
     assert not {"stripped_sequence", "proforma_sequence", "unknown_mod_tokens"} & set(
         parsed.var.frame.columns
     )
-    plan = json.loads(str(parsed.uns["plan_json"]))
+    provenance = parsed.uns["provenance"]
+    assert isinstance(provenance, dict)
+    plan = json.loads(str(provenance["plan_json"]))
     assert "modifications" not in plan
     computations = [
         *plan["var"]["key_phase"]["computers"],
@@ -259,10 +267,8 @@ def test_diagnostics_and_errors_include_rows_discarded_after_identity_validation
         return
     parsed = parse(tmp_path, document(declaration), values)
     assert parsed.var.frame.height == 1
-    if policy == "preserve":
-        assert parsed.uns["unknown_mod_tokens"] == ["mystery"]
-    else:
-        assert "unknown_mod_tokens" not in parsed.uns
+    tokens = parse_result(parsed)["unknown_mod_tokens"]
+    assert tokens == (["mystery"] if policy == "preserve" else [])
 
 
 @pytest.mark.parametrize(

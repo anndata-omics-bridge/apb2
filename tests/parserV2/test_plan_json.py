@@ -191,8 +191,10 @@ def test_a_compiled_parser_stores_the_plan_beside_the_rule_it_came_from(tmp_path
 
     parsed = parser.parse()
 
-    assert json.loads(str(parsed.uns[PLAN_JSON_KEY]))["level"] == "ion"
-    assert "rule_json" in parsed.uns
+    provenance = parsed.uns["provenance"]
+    assert isinstance(provenance, dict)
+    assert json.loads(str(provenance[PLAN_JSON_KEY]))["level"] == "ion"
+    assert "rule_json" in provenance
 
 
 def test_a_max_rule_reads_numbers_keeps_the_largest_and_records_its_mode(tmp_path: Path) -> None:
@@ -208,7 +210,9 @@ def test_a_max_rule_reads_numbers_keeps_the_largest_and_records_its_mode(tmp_pat
 
     parsed = parser.parse()
 
-    plan = json.loads(str(parsed.uns[PLAN_JSON_KEY]))
+    provenance = parsed.uns["provenance"]
+    assert isinstance(provenance, dict)
+    plan = json.loads(str(provenance[PLAN_JSON_KEY]))
     assert plan["duplicate_mode"] == "max"
     assert plan["read"]["native_numeric_sources"] == ["Quantity"]
     assert parsed.layers["Quantity"].values.rows() == [(4.0, 2.0), (3.0, None)]
@@ -226,7 +230,7 @@ def test_the_plan_reaches_the_parse_namespace_of_a_written_h5ad(tmp_path: Path) 
     write_level(parser.parse(), target)
 
     stored = anndata.read_h5ad(target)
-    plan = json.loads(stored.uns[NAMESPACE][PARSE_NAMESPACE][PLAN_JSON_KEY])
+    plan = json.loads(stored.uns["ion"][NAMESPACE][PARSE_NAMESPACE]["provenance"][PLAN_JSON_KEY])
     assert plan["level"] == "ion"
     assert plan["read"]["projected_columns"] == ["Sample", "Feature", "Quantity"]
 
@@ -243,7 +247,8 @@ def test_the_plan_reaches_the_manifest_of_a_written_parquet_dataset(tmp_path: Pa
     write_level(parser.parse(), target)
 
     manifest = json.loads((target / MANIFEST_NAME).read_text(encoding="utf-8"))
-    assert json.loads(manifest["levels"]["ion"]["apb"]["parse"][PLAN_JSON_KEY])["level"] == "ion"
+    parse = manifest["levels"]["ion"]["apb"]["parse"]
+    assert json.loads(parse["provenance"][PLAN_JSON_KEY])["level"] == "ion"
 
 
 def test_reading_results_does_not_reinterpret_old_rule_or_plan_provenance(tmp_path: Path) -> None:
@@ -254,9 +259,13 @@ def test_reading_results_does_not_reinterpret_old_rule_or_plan_provenance(tmp_pa
         synthetic.facade(document), SingleFile(path=written(tmp_path)), "standard"
     )
     parsed = parser.parse()
-    old_rule = '{"schema_version":"0.7","modifications":{"output_column":"proforma_sequence"}}'
-    parsed.uns["schema_version"] = "0.7"
-    parsed.uns["rule_json"] = old_rule
+    old_rule = (
+        '{"schema_version":"0.7","quantification_level":"ion",'
+        '"modifications":{"output_column":"proforma_sequence"}}'
+    )
+    provenance = parsed.uns["provenance"]
+    assert isinstance(provenance, dict)
+    provenance["rule_json"] = old_rule
     old_plan = json.dumps(
         {
             "level": "ion",
@@ -272,13 +281,15 @@ def test_reading_results_does_not_reinterpret_old_rule_or_plan_provenance(tmp_pa
             ],
         }
     )
-    parsed.uns[PLAN_JSON_KEY] = old_plan
+    provenance[PLAN_JSON_KEY] = old_plan
     target = tmp_path / "old-provenance.h5ad"
     write_level(parsed, target)
     restored = H5adReader().read(target).levels["ion"]
-    assert restored.uns["rule_json"] == old_rule
-    assert restored.uns[PLAN_JSON_KEY] == old_plan
-    assert json.loads(str(restored.uns["rule_json"]))["schema_version"] == "0.7"
+    stored = restored.uns["provenance"]
+    assert isinstance(stored, dict)
+    assert stored["rule_json"] == old_rule
+    assert stored[PLAN_JSON_KEY] == old_plan
+    assert json.loads(str(stored["rule_json"]))["schema_version"] == "0.7"
     assert restored.var.frame.equals(parsed.var.frame)
 
 

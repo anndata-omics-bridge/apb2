@@ -21,6 +21,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
     CategoricalLayerSemantics,
     FeatureRelation,
     FinalLayerTable,
+    JsonValue,
     ObsFinal,
     ParsedLevel,
     ParsedLevels,
@@ -38,6 +39,7 @@ from apb2.parserV2.parse_quant.io.json_representation import (
     write_result_representation,
 )
 from apb2.parserV2.parse_quant.io.layer_representation import quantitative_representation
+from apb2.parserV2.parse_quant.io.uns_json import UnsJsonCodec
 
 
 def _parsed() -> ParsedLevels:
@@ -441,18 +443,23 @@ def test_an_anndata_or_mudata_apb2_did_not_write_is_described_as_levels(tmp_path
         obs=obs,
         var=pd.DataFrame({"protein": ["P1", "P2", "P3"]}, index=["f1", "f2", "f3"]),
         layers={"q": np.array([[0.01, 0.02, np.nan], [0.03, 0.04, 0.05]])},
-        uns={"apb": {"package": "export"}},
     )
+    summary: list[JsonValue] = [
+        {"name": "exported", "label": "Exported", "value": 1, "unit": "matrices", "status": "ok"}
+    ]
+    adata.uns["apb"] = {"export": {"schema_version": "1"}}
+    adata.uns["protein"] = {"apb": UnsJsonCodec().encode({"export": {"summary": summary}}, {})}
     single = tmp_path / "export.h5ad"
     adata.write_h5ad(single)
     document = json.loads(write_container_representation(adata, single).read_text("utf-8"))
     (level,) = document["levels"]
 
     assert (document["format"], document["format_version"]) == (FORMAT, FORMAT_VERSION)
-    assert (level["name"], level["dimensions"]) == ("export", {"observations": 2, "variables": 3})
+    assert (level["name"], level["dimensions"]) == ("protein", {"observations": 2, "variables": 3})
     assert [layer["name"] for layer in level["layers"]] == ["X", "q"]
     assert [column["name"] for column in level["var"]["columns"]] == ["var_names", "protein"]
-    assert level["apb"] == {"package": "export"}
+    assert document["root"] == {"apb": {"export": {"schema_version": "1"}}}
+    assert level["apb"] == {"export": {"summary": summary}}
 
     # Long exports store each cell in its run's row only, as a block-diagonal sparse X.
     cells = sparse.csr_matrix(([7.0, 8.0], ([0, 1], [0, 2])), shape=(2, 3))
@@ -466,6 +473,7 @@ def test_an_anndata_or_mudata_apb2_did_not_write_is_described_as_levels(tmp_path
 
     assert [level["name"] for level in levels] == ["psm", "protein"]
     assert levels[0]["layers"][0]["statistics"]["minimum"] == 7.0, "unstored cells are missing"
+    assert levels[1]["apb"] == {"export": {"schema_version": "1"}}, "a modality's own part"
 
 
 def test_sidecar_failure_is_visible_after_the_scientific_artifact_is_written(

@@ -91,9 +91,13 @@ class LayerValueParser(Protocol):
 
 
 class LayerSetValidator(Protocol):
-    """Validate relationships across the complete set of canonical layers."""
+    """Validate relationships across the complete set of canonical layers.
 
-    def validate(self, layers: Mapping[str, FinalLayerTable]) -> dict[str, JsonValue]: ...
+    Returns the effectively empty layers, or ``None`` when no layer is populated enough to
+    judge emptiness against.
+    """
+
+    def validate(self, layers: Mapping[str, FinalLayerTable]) -> dict[str, JsonValue] | None: ...
 
 
 # ------------------------------------------------------------------------- runtime axis plans

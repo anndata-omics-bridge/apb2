@@ -22,7 +22,7 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-from apb2.parserV2.parse_quant.data.parsed import ParsedLevel, ParsedLevels
+from apb2.parserV2.parse_quant.data.parsed import JsonValue, ParsedLevel, ParsedLevels
 from apb2.parserV2.parse_quant.excel_input import sheet_header
 from apb2.parserV2.parse_quant.io.formats import write_parsed_levels
 from apb2.parserV2.parse_quant.parameters.source import Folder, PreparedTable, SingleFile
@@ -275,8 +275,17 @@ def level_pairs() -> tuple[tuple[PackagedDocument, QuantificationLevel], ...]:
     )
 
 
+def parse_section(uns: dict[str, JsonValue], section: str) -> dict[str, JsonValue]:
+    """One section of a stored parse record, such as ``provenance`` or ``result``."""
+    value = uns[section]
+    assert isinstance(value, dict)
+    return value
+
+
 def write_level(parsed: ParsedLevel, target: Path) -> None:
     """Write one parsed level as a one-level result in the format the target path names."""
-    level = parsed.uns["quantification_level"]
+    provenance = parsed.uns["provenance"]
+    assert isinstance(provenance, dict)
+    level = json.loads(str(provenance["rule_json"]))["quantification_level"]
     assert isinstance(level, str)
     write_parsed_levels(ParsedLevels(levels={level: parsed}, uns={}), target)

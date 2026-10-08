@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 from pathlib import Path
 from typing import Literal
@@ -89,14 +90,10 @@ def _parsed(
         ).drop(("feature",), strict=False),
         semantic_roles=("abundance",),
     )
-    uns: dict[str, JsonValue] = {
-        "hierarchy": "lfq",
-        "quantification_level": "ion",
-        "software_name": "Synthetic",
-        "plan_json": _plan(),
-    }
+    provenance: dict[str, JsonValue] = {"plan_json": _plan()}
     if matching is not None:
-        uns["sample_annotation_matching"] = matching
+        provenance["sample_annotation_matching"] = matching
+    uns: dict[str, JsonValue] = {"provenance": provenance}
     level = ParsedLevel(
         obs=ObsFinal(frame=pl.DataFrame({"run": runs}), key_columns=("run",)),
         var=VarFinal(frame=pl.DataFrame({"feature": ["p1", "p2"]}), key_columns=("feature",)),
@@ -140,6 +137,21 @@ def test_parser_constructs_a_dataset_bound_annotation_with_inspectable_matches()
         "condition": ["A", "B", None],
     }
     assert parsed.levels["ion"].obs.frame.columns == ["run"]
+    root = result.parsed.metadata["prolfquapp"]
+    assert isinstance(root, dict) and root["schema_version"] == "3"
+    local = result.parsed.levels["ion"].metadata["prolfquapp"]
+    assert isinstance(local, dict)
+    summary = local["summary"]
+    assert isinstance(summary, list)
+    assert [
+        (entry["name"], entry["value"], entry["status"])
+        for entry in summary
+        if isinstance(entry, dict)
+    ] == [
+        ("annotation_only_rows", 1, "attention"),
+        ("quantification_only_samples", 1, "attention"),
+        ("fuzzy_corrections", 0, "ok"),
+    ]
 
 
 def test_generic_compiler_rejects_source_specific_toml(tmp_path: Path) -> None:
@@ -551,8 +563,25 @@ def test_cli_annotation_round_trips_through_every_result_format(
     root = restored.metadata["prolfquapp"]
     local = restored.levels["ion"].metadata["prolfquapp"]
     assert isinstance(root, dict) and "provenance" in root
-    assert isinstance(local, dict) and "annotation" in local
+    assert isinstance(local, dict) and set(local) == {"result", "summary"}
     assert "annotation" not in restored.metadata
+
+
+def test_annotating_again_leaves_the_first_result_unchanged() -> None:
+    once = (
+        AnnotationCompiler()
+        .compile(pl.DataFrame({"raw_file": ["run_A", "run_B"], "condition": ["A", "B"]}))
+        .parse(_parsed(("run_A", "run_B")))
+        .annotate()
+        .parsed
+    )
+    before = copy.deepcopy((once.metadata, once.levels["ion"].metadata))
+
+    AnnotationCompiler().compile(
+        pl.DataFrame({"raw_file": ["run_A", "unused"], "batch": ["1", "2"]})
+    ).parse(once).annotate()
+
+    assert (once.metadata, once.levels["ion"].metadata) == before
 
 
 def test_annotation_does_not_recompute_matching_during_application() -> None:
@@ -718,7 +747,7 @@ def test_cli_annotates_with_sdrf(tmp_path: Path) -> None:
     obs = restored.levels["ion"].obs.frame
     assert obs.get_column("factor_value_spiked_compound").to_list() == ["A", "B"]
     local = restored.levels["ion"].metadata["sdrf"]
-    assert isinstance(local, dict) and "annotation" in local
+    assert isinstance(local, dict) and set(local) == {"result", "summary"}
 
 
 def test_include_requires_dropping_unmatched_observations() -> None:

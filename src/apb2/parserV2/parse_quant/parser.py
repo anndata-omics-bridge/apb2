@@ -32,6 +32,7 @@ from apb2.parserV2.parse_quant.contracts import (
     LayerValueParser,
     SourceDecomposer,
 )
+from apb2.parserV2.parse_quant.conversion_record import ConversionEvidence
 from apb2.parserV2.parse_quant.data.errors import ConversionError
 from apb2.parserV2.parse_quant.data.layer_columns import observation_labels
 from apb2.parserV2.parse_quant.data.parsed import (
@@ -57,7 +58,7 @@ from apb2.parserV2.parse_quant.parameters.level import QuantificationLevel
 from apb2.parserV2.parse_quant.parameters.source import LevelReadPlan
 
 _EXAMPLE_LIMIT = 5
-_UNKNOWN_MOD_TOKENS = "unknown_mod_tokens"
+_WORKING_ONLY = ("hierarchy", "schema_version", "software_name", "shape", "quantification_level")
 
 
 class CanonicalKeyCollisionError(ConversionError):
@@ -177,9 +178,9 @@ class ParseStrategy:
             layers, unreadable_numeric = self._prepare_layers(raw.layers, obs_map, var_map)
         with logged_step("parse.validate", level=self.level):
             effectively_empty = self.layer_validator.validate(layers)
-        uns = dict(self.provenance)
-        raw_columns = uns.pop("column_roles", {})
-        raw_layers = uns.pop("layer_roles", {})
+        provenance = dict(self.provenance)
+        raw_columns = provenance.pop("column_roles", {})
+        raw_layers = provenance.pop("layer_roles", {})
         assert isinstance(raw_columns, dict) and isinstance(raw_layers, dict)
         var.roles = {
             role: column
@@ -192,20 +193,16 @@ class ParseStrategy:
                 for role, names in raw_layers.items()
                 if isinstance(names, list) and name in names
             )
-        uns.pop("hierarchy", None)
-        if unknown_mod_tokens:
-            uns[_UNKNOWN_MOD_TOKENS] = list(unknown_mod_tokens)
-        uns["layer_diagnostics"] = {
-            "schema_version": "1",
-            "unreadable_numeric": unreadable_numeric,
-            "effectively_empty": effectively_empty,
-        }
+        # The hierarchy is typed collection state; rule_json already carries the rest.
+        for working in _WORKING_ONLY:
+            provenance.pop(working, None)
+        evidence = ConversionEvidence(unknown_mod_tokens, unreadable_numeric, effectively_empty)
 
         return ParsedLevel(
             obs=obs,
             var=var,
             primary_layer_name=raw.layers.primary_layer_name,
-            uns=uns,
+            uns=evidence.record(provenance),
             layers=layers,
             obsm={},
             varm={},

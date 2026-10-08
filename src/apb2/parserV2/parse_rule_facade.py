@@ -526,8 +526,8 @@ class ParseRuleFacade:
     def _project_provenance(rule: LongRule | WideRule) -> Mapping[str, JsonValue]:
         """What the parse section records: who wrote it, the rule, and the facts steps read.
 
-        ``produced_by`` and the role maps are not decoration. Later APB steps must not have
-        to validate a schema-0.8 document to learn which columns and layers carry a meaning.
+        The role maps are not decoration. Later APB steps must not have to validate a
+        schema-0.8 document to learn which columns and layers carry a meaning.
         """
         provenance: dict[str, JsonValue] = {
             "rule_json": json.dumps(rule.model_dump(mode="json")),

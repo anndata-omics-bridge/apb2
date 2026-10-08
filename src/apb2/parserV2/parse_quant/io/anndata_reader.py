@@ -38,13 +38,13 @@ from apb2.parserV2.parse_quant.io.metadata import (
     RESULT_FORMAT,
     RESULT_FORMAT_VERSION,
     ROLES_NAMESPACE,
+    STORAGE_NAMESPACE,
     layer_role_from_metadata,
     layer_semantics_from_metadata,
     object_mapping,
     read_hierarchy,
     restore_level_roles,
     restore_table_schema,
-    split_metadata,
     string_list,
     string_value,
 )
@@ -62,12 +62,24 @@ class H5adReader:
             stored = anndata.read_h5ad(source)
         except (OSError, ValueError) as error:
             raise InvalidResultError(f"cannot read h5ad result {source}: {error}") from error
-        metadata = _result_metadata(stored)
-        root_scope, level_scope = split_metadata(
-            _scientific_namespace(stored, metadata), metadata.get("metadata_ownership")
+        metadata = _result_metadata(stored.uns)
+        entries = _ordered_entries(metadata.get("levels"), "h5ad levels")
+        if (
+            len(entries) != 1
+            or metadata.get("annotation_tables")
+            or metadata.get("feature_relations")
+        ):
+            raise InvalidResultError("an h5ad result declares exactly one level and no tables")
+        name = string_value(entries[0].get("name"), "h5ad level name")
+        physical_name = string_value(entries[0].get("physical_name"), "h5ad level physical name")
+        level_part = object_mapping(stored.uns.get(physical_name), f"uns[{physical_name!r}]")
+        level_metadata = _result_metadata(level_part)
+        level_name, level = _read_level(
+            stored, level_metadata, _scientific_namespace(level_part, level_metadata)
         )
-        level_name, level = _read_level(stored, metadata, level_scope)
-        shared_uns, shared_metadata = _shared_scope(root_scope)
+        if level_name != name:
+            raise InvalidResultError(f"h5ad level {name!r} contains metadata for {level_name!r}")
+        shared_uns, shared_metadata = _shared_scope(_scientific_namespace(stored.uns, metadata))
         parsed = ParsedLevels(
             hierarchy=read_hierarchy(shared_metadata),
             levels={level_name: level},
@@ -88,7 +100,7 @@ class H5muReader:
             stored = mudata.read_h5mu(source)
         except (OSError, ValueError) as error:
             raise InvalidResultError(f"cannot read h5mu result {source}: {error}") from error
-        metadata = _result_metadata(stored)
+        metadata = _result_metadata(stored.uns)
         level_entries = _ordered_entries(metadata.get("levels"), "h5mu levels")
         levels: dict[ParsedLevelName, ParsedLevel] = {}
         level_names: dict[str, str] = {}
@@ -98,9 +110,9 @@ class H5muReader:
             if physical_name not in stored.mod:
                 raise InvalidResultError(f"h5mu declares unavailable level {name!r}")
             modality = cast(AnnData, stored[physical_name])
-            modality_metadata = _result_metadata(modality)
+            modality_metadata = _result_metadata(modality.uns)
             level_name, level = _read_level(
-                modality, modality_metadata, _scientific_namespace(modality, modality_metadata)
+                modality, modality_metadata, _scientific_namespace(modality.uns, modality_metadata)
             )
             if level_name != name:
                 raise InvalidResultError(
@@ -108,7 +120,7 @@ class H5muReader:
                 )
             levels[level_name] = level
             level_names[name] = physical_name
-        shared_uns, shared_metadata = _shared_scope(_scientific_namespace(stored, metadata))
+        shared_uns, shared_metadata = _shared_scope(_scientific_namespace(stored.uns, metadata))
         annotation_tables, annotation_names = _annotation_tables(stored, metadata, shared_metadata)
         expected_modalities = set(level_names.values()).union(annotation_names.values())
         if expected_modalities != set(stored.mod):
@@ -241,15 +253,21 @@ def write_container_representation(container: AnnData | mudata.MuData, artifact:
     """Atomically write the sidecar of an AnnData or MuData APB2 did not write, such as an export.
 
     Each AnnData, or MuData modality, is one level keyed by its obs and var names, X and every
-    layer described as numbers, and ``uns["apb"]`` as its metadata.
+    layer described as numbers. The container's ``uns["apb"]`` is the root part; a modality's
+    ``uns["apb"]``, or an AnnData's ``uns[<level>]["apb"]``, is that level's part. A standalone
+    AnnData's level is named by that ``uns`` key, or by the artifact when it has no level part.
     """
-    modalities = (
-        cast(Mapping[str, AnnData], container.mod)
-        if isinstance(container, mudata.MuData)
-        else {artifact.stem: container}
-    )
-    levels = {name: (_container_level(data), _apb(data)) for name, data in modalities.items()}
-    return write_levels_representation(levels, artifact)
+    if isinstance(container, mudata.MuData):
+        parts = {
+            name: (data, _apb(data.uns))
+            for name, data in cast(Mapping[str, AnnData], container.mod).items()
+        }
+    else:
+        name, part = _level_part(container.uns)
+        parts = {name or artifact.stem: (container, part)}
+    levels = {name: (_container_level(data), part) for name, (data, part) in parts.items()}
+    root = _apb(container.uns) if NAMESPACE in container.uns else None
+    return write_levels_representation(levels, root, artifact)
 
 
 def _container_level(data: AnnData) -> ParsedLevel:
@@ -278,9 +296,28 @@ def _container_level(data: AnnData) -> ParsedLevel:
     )
 
 
-def _apb(data: AnnData) -> dict[str, JsonValue]:
-    stored: object = data.uns.get("apb")
-    return cast(dict[str, JsonValue], stored) if isinstance(stored, dict) else {}
+def _apb(uns: Mapping[str, object]) -> dict[str, JsonValue]:
+    """One APB part, decoded when it was written through the codec."""
+    stored = uns.get(NAMESPACE)
+    if not isinstance(stored, dict):
+        return {}
+    namespace = cast(Mapping[str, object], stored)
+    if STORAGE_NAMESPACE not in namespace:
+        return cast(dict[str, JsonValue], dict(namespace))
+    codec = UnsJsonCodec()
+    return codec.decode(namespace, codec.storage(namespace))
+
+
+def _level_part(uns: Mapping[str, object]) -> tuple[str | None, dict[str, JsonValue]]:
+    """A standalone AnnData's level and its part: the one ``uns[<level>]`` holding an APB part."""
+    owners = [
+        (name, cast(Mapping[str, object], value))
+        for name, value in uns.items()
+        if isinstance(value, dict) and NAMESPACE in value
+    ]
+    if len(owners) > 1:
+        raise InvalidResultError("an AnnData holds more than one APB level part")
+    return (owners[0][0], _apb(owners[0][1])) if owners else (None, {})
 
 
 def _numbers(matrix: object) -> np.ndarray:
@@ -470,8 +507,8 @@ def _dense(value: object) -> np.ndarray:
     return np.asarray(value)
 
 
-def _result_metadata(stored: AnnData | mudata.MuData) -> Mapping[str, object]:
-    metadata = UnsJsonCodec().storage(_namespace(stored))
+def _result_metadata(uns: Mapping[str, object]) -> Mapping[str, object]:
+    metadata = UnsJsonCodec().storage(_namespace(uns))
     if metadata.get("format") != RESULT_FORMAT:
         raise InvalidResultError(f"h5 object is not an {RESULT_FORMAT} result")
     if metadata.get("format_version") != RESULT_FORMAT_VERSION:
@@ -482,13 +519,13 @@ def _result_metadata(stored: AnnData | mudata.MuData) -> Mapping[str, object]:
 
 
 def _scientific_namespace(
-    stored: AnnData | mudata.MuData, metadata: Mapping[str, object]
+    uns: Mapping[str, object], metadata: Mapping[str, object]
 ) -> dict[str, JsonValue]:
-    return UnsJsonCodec().decode(_namespace(stored), metadata)
+    return UnsJsonCodec().decode(_namespace(uns), metadata)
 
 
-def _namespace(stored: AnnData | mudata.MuData) -> Mapping[str, object]:
-    return object_mapping(stored.uns.get(NAMESPACE), f"uns[{NAMESPACE!r}]")
+def _namespace(uns: Mapping[str, object]) -> Mapping[str, object]:
+    return object_mapping(uns.get(NAMESPACE), f"uns[{NAMESPACE!r}]")
 
 
 def _shared_scope(

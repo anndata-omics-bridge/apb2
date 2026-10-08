@@ -596,16 +596,14 @@ class ParseStrategy:
         raw = self.decomposer.decompose(source)
         obs, obs_map = self._prepare_obs(raw.obs)
         var, var_map, unknown_mod_tokens = self._prepare_var(raw.var)
-        layers = self._prepare_layers(raw.layers, obs_map, var_map)
-        self.layer_validator.validate(layers)
-        uns = dict(self.provenance)
-        if unknown_mod_tokens:
-            uns["unknown_mod_tokens"] = list(unknown_mod_tokens)
+        layers, unreadable_numeric = self._prepare_layers(raw.layers, obs_map, var_map)
+        effectively_empty = self.layer_validator.validate(layers)
+        evidence = ConversionEvidence(unknown_mod_tokens, unreadable_numeric, effectively_empty)
         return ParsedLevel(
             obs=obs,
             var=var,
             primary_layer_name=raw.layers.primary_layer_name,
-            uns=uns,
+            uns=evidence.record(provenance),  # provenance, result and summary, as stored
             layers=layers,
             obsm={},
             varm={},
@@ -750,7 +748,7 @@ target.parquet/
             ...
 ```
 
-`manifest.json` version 5 records level and table order, axis keys, each layer's var keys and role,
+`manifest.json` version 7 records level and table order, axis keys, each layer's var keys and role,
 primary layers, both provenance scopes, every table's ordered logical Polars schema, and explicit
 logical-to-physical names. A user-authored name is never interpolated into a path without that
 mapping. `ParquetReader` accepts this APB2 dataset only; a vendor `.parquet` file is not a result.
@@ -778,7 +776,7 @@ adata = AnnData(
 )
 ```
 
-The primary layer is stored only in `X`; other matrices use safe names in `layers`. `_write_level_namespaces()` and `_write_namespaces()` persist parse provenance alongside other tool namespaces below `uns["apb"]`, with reconstruction information in `storage`. `_write_atomically()` publishes the completed result.
+The primary layer is stored only in `X`; other matrices use safe names in `layers`. `AnnDataWriter.to_anndata_for_level()` and `_write_namespaces()` persist each level part and the root part below `uns["apb"]`, each with its own `storage` descriptor; an h5ad keeps its level part below `uns[<level>]["apb"]`. `_write_atomically()` publishes the completed result.
 
 The shared `_make_axis_frame()` I/O helper converts Polars through Arrow to pandas, preserves supported nullable/categorical representations, and retains every authored key as an ordinary column. One string key can serve directly as the storage index; other keys use a collision-free canonical JSON array of typed scalar pairs. Storage labels never enter parsing joins or identity.
 
@@ -803,7 +801,7 @@ axis=0)`, writes shared provenance to
 `mdata.uns["apb"]["parse"]`, and
 atomically writes `.h5mu`. The authored unprefixed key remains an ordinary modality `.var` column.
 
-One modality is valid; zero modalities is an error. Level-specific rule JSON and resolved-plan provenance remain inside each modality. Parsing does not synthesize root producer, rule-selection, level-list, or search-parameter JSON; typed search parameters remain on `ParseRuleCompiler.parameters`. Extension tools may add their own root provenance according to the [metadata specification](metadata_specification.md#ownership); modality names and ordering belong to the collection structure, not repeated parse metadata.
+One modality is valid; zero modalities is an error. Level-specific rule JSON and resolved-plan provenance remain inside each modality. Parsing does not synthesize root producer, rule-selection, level-list, or search-parameter JSON; typed search parameters remain on `ParseRuleCompiler.parameters`. Extension tools may add their own root provenance according to the [metadata specification](metadata_specification.md#records); modality names and ordering belong to the collection structure, not repeated parse metadata.
 
 ### 6.4 Shared result-I/O capability
 
@@ -844,7 +842,7 @@ target; the reader opens it read-only and closes it before returning the Polars 
 Polars for Arrow record batches when registering a frame, so PyArrow is an explicit runtime
 dependency even though APB2 does not import it directly.
 
-h5ad/h5mu store tool namespaces directly below `uns["apb"]`. MuData owns common provenance and each embedded AnnData owns its rules, roles and results. H5AD composes disjoint root and level mappings recursively; a conflicting leaf fails before publication. Generic ownership paths in `storage` reconstruct both contributions, including empty mappings, without copying values or recognizing tool names. The descriptor also records logical names, schemas, axis keys, safe physical keys and matrix locations. The primary matrix is only in `X`; additional matrices are in `layers`. Parquet and DuckDB manifests use root `apb` and per-level `apb`. The [metadata specification](metadata_specification.md) owns current versions and compatibility rules. The representation reuses the persistence projection and shows combined metadata once for H5AD, separate root/modality metadata otherwise. An h5 reader is deliberately not a general third-party AnnData importer.
+h5ad/h5mu store tool namespaces directly below `uns["apb"]`. MuData owns common provenance and each embedded AnnData owns its rules, roles and results; h5ad keeps the same two parts, with the level's under `uns[<level>]["apb"]`. Parts are never merged. The descriptor records logical names, schemas, axis keys, safe physical keys and matrix locations. The primary matrix is only in `X`; additional matrices are in `layers`. Parquet and DuckDB manifests use root `apb` and per-level `apb`. The [metadata specification](metadata_specification.md) owns current versions and compatibility rules. The representation reuses the persistence projection and shows root and level metadata separately for every format. An h5 reader is deliberately not a general third-party AnnData importer.
 
 The h5 collection writers consume canonical values and explicit layer semantics directly. They do not read `plan_json` to reconstruct encoders or occupancy checks, reload rules, or resolve a source. Readback uses stored semantics to restore integer and categorical codes; category labels are not encoded a second time.
 
@@ -1493,7 +1491,7 @@ class ParsedLevel:
     # "Intensity"
 
     uns: dict[str, JsonValue]
-    # {"software_name": "AlphaDIA", "quantification_level": "ion"}
+    # The parse record: {"provenance": {"rule_json": "..."}, "result": {...}, "summary": [...]}
 
     layers: dict[str, FinalLayerTable]
     # {"Intensity": intensity_final, "QValue": q_value_final}
@@ -1647,7 +1645,7 @@ class LayerSetValidator(Protocol):
 
 `SequenceColumn` implements the ordinary `ColumnComputer` contract. Polars selects distinct declared input tuples, invokes the pure `SequenceOperation` through a typed struct UDF, and restores row order through an ordered join. Plain residue stripping is a native Polars Unicode-letter expression. Token-regex stripping uses native expressions when pattern and placement permit, otherwise the existing scalar path; token-regex/site-list/embedded-site normalization retains scalar scientific parsing. No Python row cache or output list is maintained and no result is shared implicitly between operations.
 
-Computations return `(frame, unknown_mod_tokens)`; the Series-based `ColumnComputation` envelope is removed. Under `unknown_policy="preserve"`, unresolved tokens remain in ProForma and are collected once in first-observed order into `ParsedLevel.uns["unknown_mod_tokens"]`; no diagnostic column is injected into the final axis. Normalization and its dependencies run before invalid-key filtering even when the normalized column is metadata, preserving diagnostics and errors from discarded rows. Writers retain their existing parser-namespace persistence.
+Computations return `(frame, unknown_mod_tokens)`; the Series-based `ColumnComputation` envelope is removed. Under `unknown_policy="preserve"`, unresolved tokens remain in ProForma and are collected once in first-observed order into `ParsedLevel.uns["result"]["unknown_mod_tokens"]` and counted in the record's summary; no diagnostic column is injected into the final axis. Normalization and its dependencies run before invalid-key filtering even when the normalized column is metadata, preserving diagnostics and errors from discarded rows. Writers retain their existing parser-namespace persistence.
 
 `RawValuePresence.present()` returns a non-null Boolean expression identifying raw cell occupancy, never converted measurements. Axis coercers validate and return named expressions evaluated together against the immutable physical frame. Computations apply native frame operations in authored dependency order; Polars enforces expression shape. The parser no longer extracts Series, assigns them back individually, or implements a separate axis-length checker.
 

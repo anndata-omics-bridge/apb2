@@ -82,11 +82,7 @@ def level(
             )
         }
     )
-    metadata: dict[str, JsonValue] = {
-        "hierarchy": "lfq",
-        "software_name": "Synthetic",
-        "quantification_level": "ion",
-    }
+    metadata: dict[str, JsonValue] = {"provenance": {"software_name": "Synthetic"}}
     metadata.update(uns or {})
     return ParsedLevel(
         obs=ObsFinal(frame=obs_frame, key_columns=obs_keys),
@@ -163,7 +159,7 @@ def test_the_manifest_states_what_every_file_is(tmp_path: Path) -> None:
         obs=pl.DataFrame({"Run": ["A"]}),
         var_keys=("Feature", "Charge"),
         var=pl.DataFrame({"Feature": ["F1"], "Charge": [2]}),
-        uns={"software_name": "Synthetic", "unknown_mod_tokens": ["Mystery@M"]},
+        uns={"result": {"unknown_mod_tokens": ["Mystery@M"]}},
         layers={
             "Intensity": pl.DataFrame({"Feature": ["F1"], "Charge": [2], "obs_0": [1.0]}),
             "Q Value": pl.DataFrame({"Feature": ["F1"], "Charge": [2], "obs_0": [0.01]}),
@@ -174,7 +170,7 @@ def test_the_manifest_states_what_every_file_is(tmp_path: Path) -> None:
     ParquetLevelsWriter().write(one(parsed), target)
     manifest = manifest_of(target)
 
-    assert manifest["format_version"] == "6"
+    assert manifest["format_version"] == "7"
     assert manifest["level_order"] == ["ion"]
     levels = manifest["levels"]
     assert isinstance(levels, dict)
@@ -185,10 +181,8 @@ def test_the_manifest_states_what_every_file_is(tmp_path: Path) -> None:
     apb = ion["apb"]
     assert isinstance(apb, dict)
     assert apb["parse"] == {
-        "hierarchy": "lfq",
-        "software_name": "Synthetic",
-        "quantification_level": "ion",
-        "unknown_mod_tokens": ["Mystery@M"],
+        "provenance": {"software_name": "Synthetic"},
+        "result": {"unknown_mod_tokens": ["Mystery@M"]},
     }
     layers = ion["layers"]
     assert isinstance(layers, dict)
@@ -732,20 +726,14 @@ def test_the_primary_layer_is_stored_only_in_x(
 def test_h5ad_namespaces_have_one_scientific_owner_and_one_storage_descriptor(
     tmp_path: Path,
 ) -> None:
-    parsed = level(
-        uns={
-            "hierarchy": "lfq",
-            "quantification_level": "ion",
-            "column_roles": {"protein_assignment": "Feature"},
-            "layer_roles": {"abundance": ["Intensity"]},
-        }
-    )
+    parsed = level()
     target = tmp_path / "ion.h5ad"
 
     write_h5ad(parsed, target)
     stored = anndata.read_h5ad(target)
 
-    apb = stored.uns[NAMESPACE]
+    assert set(stored.uns[NAMESPACE]) == {PARSE_NAMESPACE, STORAGE_NAMESPACE}
+    apb = stored.uns["ion"][NAMESPACE]
     assert set(apb) == {PARSE_NAMESPACE, "roles", STORAGE_NAMESPACE}
     storage = json.loads(apb[STORAGE_NAMESPACE])
     assert storage["layers"] == [
@@ -846,7 +834,7 @@ def test_bulk_axis_conversion_preserves_scalar_spelling_and_json_escaping() -> N
         layers={"Intensity": keys.with_columns(obs_0=pl.lit(1.0), obs_1=pl.lit(2.0))},
     )
     with pytest.warns(pl.exceptions.PolarsInefficientMapWarning):
-        converted = AnnDataWriter().to_anndata_for_level(parsed, "ion", {}, {}).var
+        converted = AnnDataWriter().to_anndata_for_level(parsed, "ion").var
     expected = [
         json.dumps(
             [
@@ -875,7 +863,7 @@ def test_bulk_axis_conversion_preserves_empty_typed_columns() -> None:
             "Intensity": frame.select("key").with_columns(obs_0=pl.lit(1.0), obs_1=pl.lit(2.0))
         },
     )
-    converted = AnnDataWriter().to_anndata_for_level(parsed, "ion", {}, {}).var
+    converted = AnnDataWriter().to_anndata_for_level(parsed, "ion").var
     assert isinstance(converted, pd.DataFrame)
     assert converted.empty
     assert converted.dtypes.astype(str).tolist() == ["string", "boolean", "Int64", "float64"]
@@ -965,23 +953,15 @@ def test_only_repeated_axis_strings_are_dictionary_encoded(tmp_path: Path) -> No
 
 
 def test_the_provenance_is_written_under_the_parse_tool_namespace(tmp_path: Path) -> None:
-    parsed = level(
-        uns={
-            "hierarchy": "lfq",
-            "software_name": "Synthetic",
-            "quantification_level": "ion",
-            "unknown_mod_tokens": ["Mystery@M"],
-        }
-    )
+    parsed = level(uns={"result": {"unknown_mod_tokens": ["Mystery@M"]}})
     target = tmp_path / "ion.h5ad"
 
     write_h5ad(parsed, target)
     stored = anndata.read_h5ad(target)
 
-    parse_namespace = stored.uns[NAMESPACE][PARSE_NAMESPACE]
-    assert parse_namespace["software_name"] == "Synthetic"
-    assert parse_namespace["quantification_level"] == "ion"
-    assert list(parse_namespace["unknown_mod_tokens"]) == ["Mystery@M"]
+    parse_namespace = stored.uns["ion"][NAMESPACE][PARSE_NAMESPACE]
+    assert parse_namespace["provenance"]["software_name"] == "Synthetic"
+    assert list(parse_namespace["result"]["unknown_mod_tokens"]) == ["Mystery@M"]
 
 
 def test_a_failed_write_leaves_the_previous_file_and_no_scratch_behind(

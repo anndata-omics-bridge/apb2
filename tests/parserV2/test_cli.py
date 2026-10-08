@@ -125,7 +125,7 @@ def test_convert_with_rule_config_writes_h5ad(tmp_path: Path) -> None:
     assert exit_code == 0
     written = anndata.read_h5ad(tmp_path / "out.h5ad")
     assert written.shape == (2, 2)
-    level = written.uns[NAMESPACE][PARSE_NAMESPACE]
+    level = written.uns["ion"][NAMESPACE][PARSE_NAMESPACE]["provenance"]
     assert "rule_selection_method" not in level
     assert json.loads(str(level["rule_json"]))["software_name"] == "CliTest"
     representation = json.loads(sidecar_path(tmp_path / "out.h5ad").read_text())
@@ -257,7 +257,8 @@ def test_convert_with_rule_config_does_not_embed_the_parameter_record(tmp_path: 
     )
 
     assert exit_code == 0
-    namespace = anndata.read_h5ad(tmp_path / "out.h5ad").uns[NAMESPACE][PARSE_NAMESPACE]
+    stored = anndata.read_h5ad(tmp_path / "out.h5ad")
+    namespace = stored.uns["ion"][NAMESPACE][PARSE_NAMESPACE]["provenance"]
     assert "search_parameters" not in namespace
     assert "search_parameters_path" not in namespace
 

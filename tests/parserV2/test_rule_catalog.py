@@ -17,7 +17,7 @@ from apb2.api import (
     packaged_rule_declarations,
 )
 from apb2.parserV2.vendor_parse_rules.catalog import RuleCatalog
-from parserV2.fixtures import committed_sample
+from parserV2.fixtures import committed_sample, parse_section
 
 _CATALOG = Path(str(resources.files("apb2.parserV2.vendor_parse_rules"))) / "catalog.json"
 
@@ -143,7 +143,7 @@ def test_packaged_rule_declarations_hold_what_conversion_stores() -> None:
     compiler = ParseRuleCompiler.from_software(
         source, software="fragpipe", requested_levels=("ion",)
     )
-    stored = compiler.compile().parse().levels["ion"].uns["rule_json"]
+    stored = parse_section(compiler.compile().parse().levels["ion"].uns, "provenance")["rule_json"]
 
     declarations = packaged_rule_declarations()
 

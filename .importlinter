@@ -81,7 +81,7 @@ containers =
 layers =
     source_resolution
     operations | plan_json | (parser)
-    value_parsing | layer_validation | decomposition | duplicates
+    value_parsing | layer_validation | decomposition | duplicates | conversion_record
     contracts
     axis_columns | modifications | fragments | delimited_input | excel_input | parquet_input | prepared_input
     numeric_text | errors

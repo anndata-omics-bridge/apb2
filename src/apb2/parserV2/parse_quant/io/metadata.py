@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable, Mapping
-from copy import deepcopy
 from typing import Literal, cast
 
 import polars as pl
@@ -28,10 +27,10 @@ PARSE_NAMESPACE = "parse"
 ROLES_NAMESPACE = "roles"
 STORAGE_NAMESPACE = "storage"
 RESULT_FORMAT = "apb2-parsed-levels"
-RESULT_FORMAT_VERSION = "5"
+RESULT_FORMAT_VERSION = "6"
 
 PARQUET_FORMAT = "apb2-parsed-levels-parquet"
-PARQUET_FORMAT_VERSION = "6"
+PARQUET_FORMAT_VERSION = "7"
 PARQUET_MANIFEST_NAME = "manifest.json"
 PARQUET_LEVELS_DIRECTORY = "levels"
 
@@ -82,9 +81,6 @@ def shared_scope(
 def level_scope(parsed: ParsedLevel, /) -> dict[str, JsonValue]:
     """Compose one level scope, nesting semantic roles beside parse evidence."""
     parse = dict(parsed.uns)
-    if isinstance(parse.get("rule_json"), str):
-        for repeated in ("schema_version", "software_name", "shape", "quantification_level"):
-            parse.pop(repeated, None)
     roles: dict[str, JsonValue] = {}
     if parsed.var.roles:
         roles["columns"] = dict(parsed.var.roles)
@@ -96,7 +92,9 @@ def level_scope(parsed: ParsedLevel, /) -> dict[str, JsonValue]:
             members.append(name)
     if layers:
         roles["layers"] = layers
-    collisions = {PARSE_NAMESPACE, ROLES_NAMESPACE, STORAGE_NAMESPACE}.intersection(parsed.metadata)
+    collisions = {PARSE_NAMESPACE, ROLES_NAMESPACE, STORAGE_NAMESPACE, "hierarchy"}.intersection(
+        parsed.metadata
+    )
     if collisions:
         raise InvalidResultError(f"level extension metadata uses reserved section(s) {collisions}")
     result: dict[str, JsonValue] = {PARSE_NAMESPACE: parse}
@@ -136,110 +134,6 @@ def collection_shared_scope(parsed: ParsedLevels, /) -> dict[str, JsonValue]:
             },
         )
     return result
-
-
-def compose_metadata(
-    root: Mapping[str, JsonValue], level: Mapping[str, JsonValue], /
-) -> tuple[dict[str, JsonValue], dict[str, JsonValue]]:
-    """Combine disjoint metadata and retain only ownership paths for reconstruction."""
-    return _merge_metadata(root, level, ()), {
-        "root": _metadata_paths(root),
-        "level": _metadata_paths(level),
-    }
-
-
-def _merge_metadata(
-    root: Mapping[str, JsonValue], level: Mapping[str, JsonValue], path: tuple[str, ...]
-) -> dict[str, JsonValue]:
-    result = deepcopy(dict(root))
-    for key, value in level.items():
-        if key not in result:
-            result[key] = deepcopy(value)
-            continue
-        previous = result[key]
-        if isinstance(previous, dict) and isinstance(value, dict):
-            result[key] = _merge_metadata(previous, value, (*path, key))
-            continue
-        raise InvalidResultError(f"conflicting APB metadata at {(*path, key)!r}")
-    return result
-
-
-def _metadata_paths(value: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
-    values: list[JsonValue] = []
-    empty_objects: list[JsonValue] = []
-
-    def visit(mapping: Mapping[str, JsonValue], path: tuple[str, ...]) -> None:
-        if not mapping:
-            empty_objects.append(list(path))
-        for key, item in mapping.items():
-            if isinstance(item, dict):
-                visit(item, (*path, key))
-            else:
-                values.append([*path, key])
-
-    visit(value, ())
-    values.sort(key=lambda path: tuple(cast(list[str], path)))
-    empty_objects.sort(key=lambda path: tuple(cast(list[str], path)))
-    return {"values": values, "empty_objects": empty_objects}
-
-
-def split_metadata(
-    namespace: Mapping[str, JsonValue], ownership: object, /
-) -> tuple[dict[str, JsonValue], dict[str, JsonValue]]:
-    """Restore root and level contributions, rejecting incomplete ownership records."""
-    owners = object_mapping(ownership, "APB metadata ownership")
-    if set(owners) != {"root", "level"}:
-        raise InvalidResultError("APB metadata ownership must declare root and level")
-    root = _owned_metadata(namespace, owners["root"])
-    level = _owned_metadata(namespace, owners["level"])
-    merged, paths = compose_metadata(root, level)
-    if merged != namespace or paths != owners:
-        raise InvalidResultError("APB metadata ownership does not describe the namespace exactly")
-    return root, level
-
-
-def _owned_metadata(namespace: Mapping[str, JsonValue], descriptor: object) -> dict[str, JsonValue]:
-    record = object_mapping(descriptor, "metadata paths")
-    if set(record) != {"values", "empty_objects"}:
-        raise InvalidResultError("metadata paths must declare values and empty_objects")
-    result: dict[str, JsonValue] = {}
-    for kind in ("values", "empty_objects"):
-        entries = record[kind]
-        if not isinstance(entries, list):
-            raise InvalidResultError("metadata ownership paths must be lists")
-        for entry in cast(list[object], entries):
-            path = string_list(entry, "metadata ownership path")
-            value = _value_at_path(namespace, path)
-            if kind == "empty_objects":
-                if not isinstance(value, dict):
-                    raise InvalidResultError(f"metadata object path is not an object: {path!r}")
-                value = {}
-            elif isinstance(value, dict) or not path:
-                raise InvalidResultError(f"metadata value path is not a leaf: {path!r}")
-            _insert_owned_value(result, path, value)
-    return result
-
-
-def _value_at_path(namespace: Mapping[str, JsonValue], path: list[str]) -> JsonValue:
-    value: JsonValue = dict(namespace)
-    for key in path:
-        if not isinstance(value, dict) or key not in value:
-            raise InvalidResultError(f"metadata ownership names absent path {path!r}")
-        value = value[key]
-    return value
-
-
-def _insert_owned_value(target: dict[str, JsonValue], path: list[str], value: JsonValue) -> None:
-    if not path:
-        return
-    for key in path[:-1]:
-        child = target.setdefault(key, {})
-        if not isinstance(child, dict):
-            raise InvalidResultError(f"overlapping metadata ownership paths: {path!r}")
-        target = child
-    if path[-1] in target:
-        raise InvalidResultError(f"duplicate metadata ownership path: {path!r}")
-    target[path[-1]] = deepcopy(value)
 
 
 def unpack_shared_scope(

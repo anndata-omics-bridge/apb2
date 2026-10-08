@@ -27,6 +27,8 @@ from apb2.parserV2.parse_quant.data.parsed import (
     ParsedLevels,
 )
 
+ANNOTATION_SCHEMA_VERSION = "3"
+
 
 class ObservationSelection(Protocol):
     """Compute one validated Boolean selection per observation."""
@@ -169,27 +171,33 @@ def record_annotation_provenance(
     *,
     metadata: Mapping[str, JsonValue] | None = None,
 ) -> AnnotationResult:
-    """Record tool-owned source provenance and each level's annotation report."""
+    """Record tool-owned source provenance and each level's annotation report and summary."""
     if convention in {"parse", "roles", "storage"}:
         raise AnnotationError(f"annotation convention uses reserved APB section {convention!r}")
     record: dict[str, JsonValue] = dict(metadata or {})
-    record["schema_version"] = "2"
     if "source" not in record:
         record["source"] = (
             {"path": str(origin.path)} if isinstance(origin, AnnotationFileOrigin) else None
         )
-    root_tool = _metadata_section(result.parsed.metadata, convention)
-    provenance = _metadata_section(root_tool, "provenance")
-    provenance["annotation"] = record
+    # New record objects: the result's metadata copies share them with the input.
+    root = _record(result.parsed.metadata, convention)
+    result.parsed.metadata[convention] = {
+        **root,
+        "schema_version": ANNOTATION_SCHEMA_VERSION,
+        "provenance": {**_record(root, "provenance"), "annotation": record},
+    }
     for name, level in result.parsed.levels.items():
-        report = _report_json(result.reports[name])
-        tool = _metadata_section(level.metadata, convention)
-        tool["annotation"] = report
+        report = result.reports[name]
+        level.metadata[convention] = {
+            **_record(level.metadata, convention),
+            "result": {"annotation": _report_json(report)},
+            "summary": _report_summary(report),
+        }
     return result
 
 
-def _metadata_section(metadata: dict[str, JsonValue], name: str) -> dict[str, JsonValue]:
-    value = metadata.setdefault(name, {})
+def _record(metadata: dict[str, JsonValue], name: str) -> dict[str, JsonValue]:
+    value = metadata.get(name, {})
     if not isinstance(value, dict):
         raise AnnotationError(f"APB metadata section {name!r} must be an object")
     return value
@@ -277,6 +285,41 @@ def _subset_pairwise(frame: pl.DataFrame, kept: list[int]) -> pl.DataFrame:
         pl.col("row").replace_strict(mapping),
         pl.col("column").replace_strict(mapping),
     )
+
+
+def _report_summary(report: LevelAnnotationReport) -> list[JsonValue]:
+    """Each mismatch count, ``attention`` above zero."""
+    coverage = report.coverage
+    counts = (
+        (
+            "annotation_only_rows",
+            "Annotation rows absent from quantification",
+            coverage.annotation_only_count,
+            "rows",
+        ),
+        (
+            "quantification_only_samples",
+            "Samples without annotation",
+            coverage.quant_only_count,
+            "samples",
+        ),
+        (
+            "fuzzy_corrections",
+            "Fuzzy annotation corrections",
+            len(report.corrections),
+            "corrections",
+        ),
+    )
+    return [
+        {
+            "name": name,
+            "label": label,
+            "value": value,
+            "unit": unit,
+            "status": "attention" if value else "ok",
+        }
+        for name, label, value, unit in counts
+    ]
 
 
 def _report_json(report: LevelAnnotationReport) -> dict[str, JsonValue]:

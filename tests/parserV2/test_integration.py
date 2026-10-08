@@ -243,7 +243,10 @@ def test_the_provenance_of_a_parsed_level_names_the_rule_it_came_from() -> None:
 
     parsed: ParsedLevel = compile_level(facade, SingleFile(path=data), "standard").parse()
 
-    assert parsed.uns["software_name"] == "AlphaPept"
-    assert parsed.uns["quantification_level"] == "ion"
-    assert parsed.uns["schema_version"] == "0.8"
-    assert isinstance(parsed.uns["rule_json"], str)
+    provenance = parsed.uns["provenance"]
+    assert isinstance(provenance, dict)
+    assert set(provenance).isdisjoint({"software_name", "quantification_level", "schema_version"})
+    rule = json.loads(str(provenance["rule_json"]))
+    assert rule["software_name"] == "AlphaPept"
+    assert rule["quantification_level"] == "ion"
+    assert rule["schema_version"] == "0.8"

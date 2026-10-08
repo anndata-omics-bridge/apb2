@@ -114,14 +114,15 @@ def test_packaged_conversion_writes_only_parser_provenance(tmp_path: Path) -> No
     assert result.software == "diann"
     assert target.is_file()
     stored = anndata.read_h5ad(target)
-    namespace = stored.uns[NAMESPACE][PARSE_NAMESPACE]
-    assert "search_parameters" not in namespace
-    assert "search_parameters_path" not in namespace
-    assert "rule_selection_method" not in namespace
+    assert stored.uns[NAMESPACE][PARSE_NAMESPACE] == {}
+    provenance = stored.uns["protein"][NAMESPACE][PARSE_NAMESPACE]["provenance"]
+    assert "search_parameters" not in provenance
+    assert "search_parameters_path" not in provenance
+    assert "rule_selection_method" not in provenance
     representation = json.loads(sidecar_path(target).read_text(encoding="utf-8"))
     assert representation["levels"][0]["name"] == "protein"
-    assert representation["root"] is None
-    assert "search_parameters_path" not in representation["levels"][0]["apb"]["parse"]
+    assert representation["root"]["apb"]["parse"] == {}
+    assert "search_parameters_path" not in representation["levels"][0]["apb"]["parse"]["provenance"]
 
 
 def test_packaged_conversion_logs_separate_phase_timings(tmp_path: Path) -> None:

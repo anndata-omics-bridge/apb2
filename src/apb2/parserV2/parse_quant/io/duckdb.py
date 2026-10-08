@@ -43,7 +43,7 @@ from apb2.parserV2.parse_quant.io.metadata import (
 from apb2.parserV2.parse_quant.io.validation import validate_parsed_levels
 
 FORMAT = "apb2-parsed-levels-duckdb"
-FORMAT_VERSION = "5"
+FORMAT_VERSION = "6"
 METADATA_TABLE = "apb2_result_metadata"
 _REGISTERED_FRAME = "apb2_incoming_frame"
 _PHYSICAL_TABLE = re.compile(r"data_[0-9]{6}")

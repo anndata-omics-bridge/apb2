@@ -21,7 +21,6 @@ from apb2.parserV2.parse_quant.data.parsed import (
     AnnotationTable,
     FeatureRelation,
     JsonValue,
-    LevelHierarchy,
     ParsedLevel,
     ParsedLevelName,
     ParsedLevels,
@@ -33,7 +32,6 @@ from apb2.parserV2.parse_quant.io.metadata import (
     RESULT_FORMAT,
     RESULT_FORMAT_VERSION,
     collection_shared_scope,
-    compose_metadata,
     layer_semantics_metadata,
     level_scope,
     logical_table_metadata,
@@ -63,16 +61,8 @@ class AnnDataWriter:
 
     __slots__ = ()
 
-    def to_anndata_for_level(
-        self,
-        parsed: ParsedLevel,
-        level_name: ParsedLevelName,
-        shared_uns: Mapping[str, JsonValue],
-        shared_metadata: Mapping[str, JsonValue],
-        *,
-        include_shared: bool = False,
-        hierarchy: LevelHierarchy | None = None,
-    ) -> AnnData:
+    def to_anndata_for_level(self, parsed: ParsedLevel, level_name: ParsedLevelName) -> AnnData:
+        """Build one level's AnnData with that level's APB part in ``uns["apb"]``."""
         validate_parsed_level(level_name, parsed)
         arrays = {name: layer.values.to_numpy().T for name, layer in parsed.layers.items()}
         layer_names = safe_names(parsed.layers, prefix="layer", suffix="")
@@ -94,18 +84,9 @@ class AnnDataWriter:
         )
         self._write_aligned(parsed, adata, slot_names)
         self._write_pairwise(parsed, adata, slot_names)
-        _write_level_namespaces(
-            adata,
-            level=level_scope(parsed),
-            storage=_level_storage_metadata(
-                parsed,
-                level_name,
-                layer_names,
-                slot_names,
-            ),
-            shared=(
-                shared_scope(shared_uns, shared_metadata, hierarchy) if include_shared else None
-            ),
+        adata.uns[NAMESPACE] = UnsJsonCodec().encode(
+            level_scope(parsed),
+            _level_storage_metadata(parsed, level_name, layer_names, slot_names),
         )
         return adata
 
@@ -255,9 +236,7 @@ class MuDataWriter:
         modalities: dict[str, AnnData] = {}
         writer = AnnDataWriter()
         for level in parsed.levels:
-            adata = writer.to_anndata_for_level(
-                parsed.levels[level], level, parsed.uns, parsed.metadata
-            )
+            adata = writer.to_anndata_for_level(parsed.levels[level], level)
             prefix = LEVEL_VAR_PREFIXES.get(level, f"{level}:")
             adata.var_names = [f"{prefix}{name}" for name in adata.var_names]
             modalities[level] = adata
@@ -313,18 +292,16 @@ class H5adWriter:
                 f"h5ad requires exactly one parsed level, got {list(parsed.levels)}"
             )
         level_name, level = next(iter(parsed.levels.items()))
-        writer = AnnDataWriter()
-        _write_atomically(
-            target,
-            writer.to_anndata_for_level(
-                level,
-                level_name,
-                parsed.uns,
-                parsed.metadata,
-                include_shared=True,
-                hierarchy=parsed.hierarchy,
-            ).write_h5ad,
+        if level_name == NAMESPACE:
+            raise MuDataLevelError(f"an h5ad level cannot be named {NAMESPACE!r}")
+        adata = AnnDataWriter().to_anndata_for_level(level, level_name)
+        # The same two parts as a MuData: the level's under uns[level], the root's at uns["apb"].
+        adata.uns[level_name] = {NAMESPACE: adata.uns.pop(NAMESPACE)}
+        adata.uns[NAMESPACE] = UnsJsonCodec().encode(
+            shared_scope(parsed.uns, parsed.metadata, parsed.hierarchy),
+            _collection_storage_metadata(parsed, {}, {}),
         )
+        _write_atomically(target, adata.write_h5ad)
 
 
 class H5muWriter:
@@ -514,19 +491,6 @@ def _collection_storage_metadata(
             ],
         ),
     }
-
-
-def _write_level_namespaces(
-    target: AnnData,
-    *,
-    level: Mapping[str, JsonValue],
-    storage: Mapping[str, JsonValue],
-    shared: Mapping[str, JsonValue] | None,
-) -> None:
-    namespace, ownership = compose_metadata(shared or {}, level)
-    target.uns[NAMESPACE] = UnsJsonCodec().encode(
-        namespace, {**storage, "metadata_ownership": ownership}
-    )
 
 
 def _write_namespaces(

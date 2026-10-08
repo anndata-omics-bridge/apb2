@@ -31,14 +31,13 @@ from apb2.parserV2.parse_quant.io.layer_representation import OBSERVATION_SUMMAR
 from apb2.parserV2.parse_quant.io.metadata import (
     collection_shared_scope,
     column_descriptions,
-    compose_metadata,
     level_scope,
     shared_scope,
 )
 from apb2.parserV2.parse_quant.io.validation import validate_parsed_levels
 
 FORMAT = "apb2-result-representation"
-FORMAT_VERSION = "4"
+FORMAT_VERSION = "5"
 SIDECAR_SUFFIX = ".apb.json"
 _EMBEDDED_JSON_FIELDS = frozenset(
     {
@@ -58,7 +57,7 @@ def project_result(
     artifact: Path | None = None,
     /,
 ) -> dict[str, JsonValue]:
-    """Project a storage-neutral APB2 result into the version-4 JSON document.
+    """Project a storage-neutral APB2 result into the version-5 JSON document.
 
     ``artifact`` is optional so in-memory clients can inspect and validate the scientific
     representation before selecting a physical format or output path. Sidecar publication
@@ -71,19 +70,16 @@ def project_result(
         if physical_format == ".h5mu"
         else shared_scope(parsed.uns, parsed.metadata, parsed.hierarchy)
     )
+    if physical_format == ".h5ad" and (
+        len(parsed.levels) != 1 or parsed.annotation_tables or parsed.feature_relations
+    ):
+        raise InvalidResultError("H5AD representation requires one standalone level")
     scopes = {name: level_scope(level) for name, level in parsed.levels.items()}
-    root_document: JsonValue = {"apb": _portable(root)}
-    if physical_format == ".h5ad":
-        if len(scopes) != 1 or parsed.annotation_tables or parsed.feature_relations:
-            raise InvalidResultError("H5AD representation requires one standalone level")
-        name = next(iter(scopes))
-        scopes[name], _ = compose_metadata(root, scopes[name])
-        root_document = None
     return {
         "format": FORMAT,
         "format_version": FORMAT_VERSION,
         "artifact": _artifact_descriptor(artifact),
-        "root": root_document,
+        "root": {"apb": _portable(root)},
         "levels": [_level(name, parsed.levels[name], scopes[name]) for name in parsed.levels],
         "annotation_tables": [
             _annotation_table(name, table) for name, table in parsed.annotation_tables.items()
@@ -105,10 +101,16 @@ def write_result_representation(parsed: ParsedLevels, artifact: Path, /) -> Path
 
 
 def write_levels_representation(
-    levels: Mapping[str, tuple[ParsedLevel, Mapping[str, JsonValue]]], artifact: Path, /
+    levels: Mapping[str, tuple[ParsedLevel, Mapping[str, JsonValue]]],
+    root: Mapping[str, JsonValue] | None,
+    artifact: Path,
+    /,
 ) -> Path:
-    """Atomically write the sidecar of standalone levels, each with its APB metadata."""
-    return _write_representation(artifact, lambda: _project_levels(levels, artifact))
+    """Atomically write the sidecar of standalone levels, each with its APB part.
+
+    ``root`` is the container's own APB part, or ``None`` when it has none.
+    """
+    return _write_representation(artifact, lambda: _project_levels(levels, root, artifact))
 
 
 def _write_representation(artifact: Path, project: Callable[[], dict[str, JsonValue]]) -> Path:
@@ -158,7 +160,9 @@ def write_result_with_representation(
 
 
 def _project_levels(
-    levels: Mapping[str, tuple[ParsedLevel, Mapping[str, JsonValue]]], artifact: Path
+    levels: Mapping[str, tuple[ParsedLevel, Mapping[str, JsonValue]]],
+    root: Mapping[str, JsonValue] | None,
+    artifact: Path,
 ) -> dict[str, JsonValue]:
     projected: list[JsonValue] = [
         _level(name, level, metadata) for name, (level, metadata) in levels.items()
@@ -167,7 +171,7 @@ def _project_levels(
         "format": FORMAT,
         "format_version": FORMAT_VERSION,
         "artifact": _artifact_descriptor(artifact),
-        "root": None,
+        "root": None if root is None else {"apb": _portable(dict(root))},
         "levels": projected,
         "annotation_tables": [],
         "feature_relations": [],

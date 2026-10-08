@@ -48,6 +48,7 @@ def test_the_public_api_is_exactly_the_approved_names() -> None:
         "RuleVariant",
         "SdrfSource",
         "SoftwareRules",
+        "UnsJsonCodec",
         "canonical_modification_names",
         "get_rules",
         "packaged_rule_declarations",

@@ -244,7 +244,8 @@ class ParsedLevel:
     # "Intensity"
 
     uns: dict[str, JsonValue]
-    # {"software_name": "AlphaDIA", "quantification_level": "ion"}
+    # The parse record, as stored: {"provenance": {"rule_json": "..."}, "result": {...},
+    #                               "summary": [{"name": "unreadable_cells", ...}]}
 
     layers: dict[str, FinalLayerTable]
     # {"Intensity": intensity_final, "QValue": q_value_final}
@@ -262,7 +263,7 @@ class ParsedLevel:
     # {"similarity": pl.DataFrame({"row": [0], "column": [1], "value": [0.6]})}
 
     metadata: dict[str, JsonValue] = field(default_factory=dict)
-    # {"annotation": {"prolfquapp": {"schema_version": "1"}}}
+    # Other producers' records: {"prolfquapp": {"result": {"annotation": {...}}, "summary": []}}
 
     @classmethod
     def build(
@@ -546,11 +547,13 @@ class ParsedLevels:
             replace(
                 self,
                 levels=_shared_axis({name: levels[name] for name in self.levels if name in levels}),
-                uns={
-                    **self.uns,
-                    "observation_keys": list(keys),
-                    "observation_relationships": json.dumps(relationships),
-                },
+                uns=_with_result(
+                    self.uns,
+                    {
+                        "observation_keys": list(keys),
+                        "observation_relationships": json.dumps(relationships),
+                    },
+                ),
                 feature_relations={
                     name: relation
                     for name, relation in self.feature_relations.items()
@@ -622,9 +625,19 @@ def _align(
         aligned[name] = replace(
             level,
             obs=ObsFinal(frame=joined, key_columns=keys),
-            uns={**level.uns, "observation_keys_original": list(other_keys)},
+            uns=_with_result(level.uns, {"observation_keys_original": list(other_keys)}),
         )
     return aligned
+
+
+def _with_result(
+    record: dict[str, JsonValue], values: dict[str, JsonValue]
+) -> dict[str, JsonValue]:
+    """A copy of one ``parse`` record with values added to its ``result``."""
+    result = record.get("result", {})
+    if not isinstance(result, dict):
+        raise TypeError("the parse record's result is not an object")
+    return {**record, "result": {**result, **values}}
 
 
 def _shared_axis(levels: dict[str, ParsedLevel]) -> dict[str, ParsedLevel]:

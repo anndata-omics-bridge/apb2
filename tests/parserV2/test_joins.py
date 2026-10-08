@@ -36,7 +36,7 @@ from apb2.parserV2.prepare_source import InputPreparationError, prepare_source
 from apb2.parserV2.vendor_params.parsers.shared.model import Parameters
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
-from parserV2.fixtures import committed_dir, committed_sample
+from parserV2.fixtures import committed_dir, committed_sample, parse_section
 from parserV2.join_fixtures import maxquant_tables
 
 RULES = Path("src/apb2/parserV2/vendor_parse_rules/documents")
@@ -245,11 +245,14 @@ def test_folder_conversion_joins_all_levels_and_round_trips(tmp_path: Path, suff
     )
     assert not (tmp_path / f"output{suffix}").exists()
     ion = read_parsed_levels(result.outputs[0]).levels["ion"]
-    ion_preparation = ion.uns["input_preparation"]
+    ion_preparation = parse_section(ion.uns, "provenance")["input_preparation"]
     assert isinstance(ion_preparation, dict)
     assert ion_preparation["how"] == "maxquant_evidence"
     loaded = read_parsed_levels(result.outputs[1])
-    sources = [level.uns["input_preparation"] for level in loaded.levels.values()]
+    sources = [
+        parse_section(level.uns, "provenance")["input_preparation"]
+        for level in loaded.levels.values()
+    ]
     assert all(item == sources[0] for item in sources)
     provenance = sources[0]
     assert isinstance(provenance, dict)
@@ -343,7 +346,7 @@ def test_maxquant_every_nonempty_subset_round_trips_available_levels(
             name, ["A", "B"] if "protein" in parsed else ["A"]
         )
         assert level.obs.frame[obs_key].to_list() == expected_samples
-        preparation = level.uns["input_preparation"]
+        preparation = parse_section(level.uns, "provenance")["input_preparation"]
         assert isinstance(preparation, dict)
         paths = preparation["sources"]
         assert isinstance(paths, list)

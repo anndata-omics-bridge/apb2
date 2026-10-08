@@ -229,7 +229,10 @@ def match_annotation(
 
 def annotation_matching_for(level: ParsedLevel, /) -> AnnotationMatching:
     """Construct the matcher declared by persisted parse provenance, or exact matching."""
-    declaration = level.uns.get("sample_annotation_matching")
+    provenance = level.uns.get("provenance", {})
+    if not isinstance(provenance, dict):
+        raise AnnotationError("persisted parse provenance must be an object")
+    declaration = provenance.get("sample_annotation_matching")
     if declaration is None:
         return ExactAnnotationMatching()
     if not isinstance(declaration, dict):

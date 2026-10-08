@@ -803,9 +803,7 @@ def test_reformat_cli_command_delegates_to_the_result_boundary(tmp_path: Path) -
 
 
 @pytest.mark.parametrize("suffix", [".h5ad", ".h5mu", ".parquet", ".duckdb"])
-def test_tool_namespaces_preserve_overlapping_ownership_and_empty_objects(
-    tmp_path: Path, suffix: str
-) -> None:
+def test_root_and_level_parts_stay_apart_in_every_format(tmp_path: Path, suffix: str) -> None:
     # Start from the canonical numeric projection, so all four formats share values/dtypes.
     initial = tmp_path / "initial.h5ad"
     write_parsed_levels(ParsedLevels(levels={"ion": _level("ion", "Ion")}, uns={}), initial)
@@ -819,28 +817,23 @@ def test_tool_namespaces_preserve_overlapping_ownership_and_empty_objects(
         "tool": {"provenance": {"annotation": {"source": "input.tsv"}}},
         "extension": {"empty": {"root": 1}, "z": {}, "a": 2, "nested": {}},
     }
-    parsed = ParsedLevels(levels={"ion": level}, uns={"produced_by": "test"}, metadata=root)
+    parsed = ParsedLevels(levels={"ion": level}, uns={"result": {"n": 1}}, metadata=root)
     target = tmp_path / f"result{suffix}"
     write_parsed_levels(parsed, target)
     restored = read_parsed_levels(target)
     _assert_result_equal(restored, parsed)
     representation = json.loads(Path(f"{target}.apb.json").read_text())
-    assert representation["format_version"] == "4"
-    assert "shared" not in representation
+    assert representation["format_version"] == "5"
     assert "storage" not in representation["levels"][0]["apb"]
+    assert representation["root"]["apb"]["tool"] == root["tool"]
+    assert representation["root"]["apb"]["parse"] == {"result": {"n": 1}}
+    assert "provenance" not in representation["levels"][0]["apb"]["tool"]
     if suffix == ".h5ad":
         stored = anndata.read_h5ad(target)
-        apb = stored.uns["apb"]
-        assert not {"shared", "level"}.intersection(apb)
-        assert set(apb["tool"]) == {"provenance", "annotation", "scoring"}
+        assert set(stored.uns["apb"]["tool"]) == {"provenance"}
+        assert set(stored.uns["ion"]["apb"]["tool"]) == {"annotation", "scoring"}
+        assert "metadata_ownership" not in json.loads(stored.uns["apb"]["storage"])
         assert stored.X is not None and "Intensity" not in stored.layers
-        assert representation["root"] is None
-        assert set(representation["levels"][0]["apb"]["tool"]) == set(apb["tool"])
-        ownership = json.loads(apb["storage"])["metadata_ownership"]
-        assert "input.tsv" not in json.dumps(ownership), "ownership stores paths, not values"
-    else:
-        assert representation["root"]["apb"]["tool"] == root["tool"]
-        assert "provenance" not in representation["levels"][0]["apb"]["tool"]
 
 
 @pytest.mark.parametrize("suffix", [".h5ad", ".h5mu", ".parquet", ".duckdb"])
@@ -943,15 +936,23 @@ def test_single_level_export_from_h5mu_retains_root_provenance(tmp_path: Path) -
     _assert_result_equal(read_parsed_levels(target), selected)
 
 
-def test_conflicting_h5ad_metadata_is_rejected_before_publication(tmp_path: Path) -> None:
+@pytest.mark.parametrize("suffix", [".h5ad", ".h5mu", ".parquet", ".duckdb"])
+def test_one_field_may_sit_in_both_the_root_and_a_level_part(tmp_path: Path, suffix: str) -> None:
+    entry: dict[str, JsonValue] = {
+        "name": "checked",
+        "label": "Checked",
+        "value": 1,
+        "unit": "items",
+        "status": "ok",
+    }
     parsed = ParsedLevels(levels={"ion": _level("ion", "Ion")}, uns={})
-    parsed.metadata["tool"] = {"value": 1}
-    parsed.levels["ion"].metadata["tool"] = {"value": 1}
-    target = tmp_path / "conflict.h5ad"
-    with pytest.raises(InvalidResultError, match="conflicting APB metadata"):
-        write_parsed_levels(parsed, target)
-    assert not target.exists()
-    assert not Path(f"{target}.apb.json").exists()
+    parsed.metadata["tool"] = {"schema_version": "1", "summary": [entry]}
+    parsed.levels["ion"].metadata["tool"] = {"schema_version": "1", "summary": [entry]}
+    target = tmp_path / f"both{suffix}"
+    write_parsed_levels(parsed, target)
+    restored = read_parsed_levels(target)
+    assert restored.metadata["tool"] == parsed.metadata["tool"]
+    assert restored.levels["ion"].metadata["tool"] == parsed.levels["ion"].metadata["tool"]
 
 
 def test_previous_hdf_metadata_layout_is_rejected(tmp_path: Path) -> None:
