@@ -1,5 +1,9 @@
 # Changes
 
+## 2026-10-09
+
+- i2MassChroQ X!Tandem parameters take the fragment tolerance unit from `spectrum, fragment monoisotopic mass error units`; it used to reuse the precursor unit, so 6 of 13 ProteoBench i2MassChroQ submissions read `0.02 ppm` where the file states `0.02 Daltons`. The tolerance-unit lookup accepts X!Tandem's spelling `Daltons`.
+
 ## 2026-10-08
 
 - DIA-NN rules map `UniMod:21` (phospho) and `UniMod:121` (GlyGly). A ProteoBench DIA Astral submission searched with both reported them as unknown tokens: 4,386 and 36 of 698,009 precursor rows.

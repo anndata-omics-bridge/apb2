@@ -58,10 +58,11 @@ def _float_or_none(values: dict[str, str], key: str) -> float | None:
 
 
 def _xtandem(values: dict[str, str]) -> Parameters:
-    unit = values["spectrum, parent monoisotopic mass error units"]
+    precursor_unit = values["spectrum, parent monoisotopic mass error units"]
     lower = -float(values["spectrum, parent monoisotopic mass error minus"])
     upper = float(values["spectrum, parent monoisotopic mass error plus"])
     fragment = float(values["spectrum, fragment monoisotopic mass error"])
+    fragment_unit = values["spectrum, fragment monoisotopic mass error units"]
     fixed = _tokens(values, "residue, modification mass")
     variable = _tokens(values, "residue, potential modification mass")
     if values.get("protein, quick acetyl") == "yes":
@@ -83,9 +84,9 @@ def _xtandem(values: dict[str, str]) -> Parameters:
         ident_fdr_peptide=_probability(values, "peptide_fdr"),
         ident_fdr_protein=_probability(values, "protein_fdr"),
         enable_match_between_runs=values.get("mcq_mbr") == "T",
-        precursor_mass_tolerance=symmetric_tolerance(lower, upper, unit),
+        precursor_mass_tolerance=symmetric_tolerance(lower, upper, precursor_unit),
         fragment_mass_tolerance=MassTolerance(
-            mode="absolute", value=fragment, unit=tolerance_unit(unit)
+            mode="absolute", value=fragment, unit=tolerance_unit(fragment_unit)
         ),
         enzyme=values.get("protein, cleavage site"),
         semi_enzymatic=values.get("protein, cleavage semi") == "yes",

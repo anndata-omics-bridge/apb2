@@ -124,7 +124,7 @@ def symmetric_tolerance(lower: float, upper: float, unit: str) -> MassTolerance:
 
 def tolerance_unit(unit: str) -> ToleranceUnit:
     """Narrow a vendor's unit spelling to the two units the schema declares."""
-    lookup: dict[str, ToleranceUnit] = {"ppm": "ppm", "da": "Da", "th": "Da"}
+    lookup: dict[str, ToleranceUnit] = {"ppm": "ppm", "da": "Da", "daltons": "Da", "th": "Da"}
     normalized = lookup.get(unit.strip().lower())
     if normalized is None:
         raise ValueError(f"mass tolerance unit must be ppm or Da, got {unit!r}")

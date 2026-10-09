@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from io import StringIO
 from pathlib import Path
 
+from apb2.parserV2.vendor_params.parsers.i2masschroq import extract_params
+from apb2.parserV2.vendor_params.parsers.shared.model import MassTolerance
 from apb2.parserV2.vendor_params.registry import parse_params
 
 DATA = Path(__file__).resolve().parents[1] / "data"
@@ -17,6 +20,25 @@ def test_i2masschroq_parameters_are_typed() -> None:
     assert result.allowed_miscleavages == 2
     assert result.precursor_mass_tolerance is not None
     assert result.precursor_mass_tolerance.value == 10
+
+
+def test_i2masschroq_xtandem_fragment_tolerance_reads_its_own_unit() -> None:
+    excerpt = (
+        "i2MassChroQ_VERSION\t9.9.9\n"
+        "AnalysisSoftware_name\tX!Tandem\n"
+        "spectrum, parent monoisotopic mass error minus\t15\n"
+        "spectrum, parent monoisotopic mass error plus\t15\n"
+        "spectrum, parent monoisotopic mass error units\tppm\n"
+        "spectrum, fragment monoisotopic mass error\t0.5\n"
+        "spectrum, fragment monoisotopic mass error units\tDaltons\n"
+        "scoring, maximum missed cleavage sites\t1\n"
+        "spectrum, maximum parent charge\t4\n"
+    )
+
+    result = extract_params(StringIO(excerpt))
+
+    assert result.precursor_mass_tolerance == MassTolerance(mode="absolute", value=15, unit="ppm")
+    assert result.fragment_mass_tolerance == MassTolerance(mode="absolute", value=0.5, unit="Da")
 
 
 def test_quantms_versions_identify_the_workflow_and_engine() -> None:
