@@ -171,7 +171,8 @@
                 "roles": [
                   "protein_assignment",
                   "fasta_accessions"
-                ]
+                ],
+                "separator": ":"
               },
               {
                 "name": "ProForma_peptidoform",

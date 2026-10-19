@@ -658,7 +658,9 @@ class SourcePlanResolver:
         computers = tuple(c for c in computers if (c.name in closure) is inside)
         return AxisPhaseRuntimePlan(
             selections=tuple(
-                SelectedAxisColumn(s.name, s.source, make_axis_coercer(s.logical_type, numbers))
+                SelectedAxisColumn(
+                    s.name, s.source, make_axis_coercer(s.logical_type, numbers, s.separator)
+                )
                 for s in selections
             ),
             computers=computers,

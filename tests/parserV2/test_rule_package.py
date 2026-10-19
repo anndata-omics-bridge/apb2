@@ -18,7 +18,7 @@ from apb2.parserV2.vendor_parse_rules.document import (
     make_rule_document,
 )
 from apb2.parserV2.vendor_parse_rules.loader import PACKAGED, load_rule_document
-from apb2.parserV2.vendor_parse_rules.schema.axis import computed_columns
+from apb2.parserV2.vendor_parse_rules.schema.axis import SourcedColumn, computed_columns
 from apb2.parserV2.vendor_parse_rules.schema.base import (
     SCHEMA_VERSION,
     QuantificationLevel,
@@ -102,6 +102,11 @@ def _without_primary_layer(rule: V2Rule) -> dict[str, Any]:
 # --------------------------------------------------------------------------- migration parity
 
 
+def test_only_a_protein_list_column_declares_a_separator() -> None:
+    with pytest.raises(ValidationError, match="only a protein-list column declares a separator"):
+        SourcedColumn(name="Gene", source="Gene", separator=":")
+
+
 def test_entry_shaped_columns_project_roles_and_runtime_selections(tmp_path: Path) -> None:
     payload = _document_payload()
     payload["tables"][0]["base"]["measurements"]["layers"][0]["roles"] = ["abundance"]
@@ -117,7 +122,7 @@ def test_entry_shaped_columns_project_roles_and_runtime_selections(tmp_path: Pat
     document = make_rule_document(tmp_path / "rules.json", payload)
     working = ParseRuleFacade(document, "ion", NO_EVIDENCE).working_parameters
 
-    assert working.var.required_selections[0].logical_type == "string"
+    assert working.var.required_selections[0].logical_type == "protein_list"
     assert working.provenance["column_roles"] == {
         "protein_assignment": "feature",
         "fasta_accessions": "feature",

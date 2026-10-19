@@ -11,8 +11,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-type AxisLogicalType = Literal["string", "integer", "number", "boolean"]
+type AxisLogicalType = Literal["string", "integer", "number", "boolean", "protein_list"]
 """The logical type a declared axis column is coerced to on its small axis frame."""
+
+PROTEIN_LIST_ROLES = frozenset({"fasta_accessions", "protein_assignment"})
+"""Roles whose column is a protein list, which every APB result writes ``;``-separated."""
 
 type ModificationTokenPosition = Literal[
     "before_residue", "after_residue", "n_term", "c_term", "embedded", "unknown"
@@ -27,6 +30,7 @@ class AxisColumnSelection:
     name: str
     source: str
     logical_type: AxisLogicalType
+    separator: str | None = None
 
 
 # ---------------------------------------------------------------------------- axis identity

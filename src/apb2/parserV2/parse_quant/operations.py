@@ -25,6 +25,7 @@ from apb2.parserV2.parse_quant.axis_columns import (
     NumberAxisCoercer,
     ProformaFragmentColumn,
     ProformaIonColumn,
+    ProteinListAxisCoercer,
     StringAxisCoercer,
 )
 from apb2.parserV2.parse_quant.contracts import (
@@ -132,6 +133,7 @@ NUMERIC_DUPLICATE_MODES: frozenset[DuplicateMode] = frozenset({"sum", "max"})
 def make_axis_coercer(
     logical_type: AxisLogicalType,
     number_format: NumericTextFormat,
+    separator: str | None = None,
 ) -> AxisValueCoercer:
     """Construct the coercion one logical type names under this source's number notation."""
     if logical_type == "integer":
@@ -140,6 +142,8 @@ def make_axis_coercer(
         return NumberAxisCoercer(notation=number_format)
     if logical_type == "boolean":
         return BooleanAxisCoercer()
+    if logical_type == "protein_list":
+        return ProteinListAxisCoercer(separator)
     return StringAxisCoercer()
 
 

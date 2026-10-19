@@ -285,7 +285,7 @@ When migrating from `0.7`, replace the global `modifications` block with named s
 
 ## Semantic roles
 
-Roles state what a column or layer means; they do not choose storage or parser behavior. The packaged [role policy](../src/apb2/parserV2/vendor_parse_rules/schema/role_policy.json) is the single source of truth for the role vocabulary and its permitted owners:
+Roles state what a column or layer means; apart from the protein-list format below, they do not choose storage or parser behavior. The packaged [role policy](../src/apb2/parserV2/vendor_parse_rules/schema/role_policy.json) is the single source of truth for the role vocabulary and its permitted owners:
 
 | Owner | Allowed roles |
 | --- | --- |
@@ -293,7 +293,7 @@ Roles state what a column or layer means; they do not choose storage or parser b
 | `var` | `fasta_accessions`, `protein_assignment` |
 | `layer` | `abundance` |
 
-A var role identifies one logical column. A layer role may occur on several layers because raw, normalized, MS1, MS2, LFQ, iBAQ, peak-area, and other abundance measurements can coexist.
+A var role identifies one logical column. Both var roles name a protein list, so conversion writes their column `;`-separated whatever the vendor used: `A, B` and `A,B` become `A;B`, and a column declaring `"separator": ":"`, as PEAKS does, splits on `:` too. A layer role may occur on several layers because raw, normalized, MS1, MS2, LFQ, iBAQ, peak-area, and other abundance measurements can coexist.
 
 `measurements.primary_layer` is separate: it names the one layer projected to AnnData `X` and makes that source required. It does not imply that sibling abundance layers are auxiliary or semantically unclassified.
 

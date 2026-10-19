@@ -1392,7 +1392,7 @@
     },
     "SourcedColumn": {
       "additionalProperties": false,
-      "description": "One logical axis column read from one physical vendor column.",
+      "description": "One logical axis column read from one physical vendor column.\n\nA protein-list column may declare the vendor's own further list ``separator``, such as\nPEAKS's ``:``; ``;`` and ``,`` separate every protein list already.",
       "properties": {
         "name": {
           "title": "Name",
@@ -1417,6 +1417,19 @@
           },
           "title": "Roles",
           "type": "array"
+        },
+        "separator": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Separator"
         }
       },
       "required": [

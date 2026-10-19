@@ -23,6 +23,7 @@ from apb2.parserV2.parse_quant.axis_columns import (
     NumberAxisCoercer,
     ProformaFragmentColumn,
     ProformaIonColumn,
+    ProteinListAxisCoercer,
     StringAxisCoercer,
 )
 from apb2.parserV2.parse_quant.contracts import (
@@ -158,6 +159,25 @@ def test_string_coercion_keeps_the_exact_vendor_token() -> None:
     assert coerced.len() == values.len()
 
 
+@pytest.mark.parametrize(
+    ("separator", "value", "expected"),
+    [
+        (None, "sp|P1|A_HUMAN, sp|P2|B_HUMAN", "sp|P1|A_HUMAN;sp|P2|B_HUMAN"),
+        (None, "P1,P2 ; P3", "P1;P2;P3"),
+        (None, None, None),
+        (":", "P1|A_HUMAN:P2|B_YEAST", "P1|A_HUMAN;P2|B_YEAST"),
+    ],
+)
+def test_protein_lists_are_written_semicolon_separated(
+    separator: str | None, value: str | None, expected: str | None
+) -> None:
+    values = pl.Series("Proteins", [value], dtype=pl.String)
+
+    coerced = coerce(ProteinListAxisCoercer(separator), values, name="P", source="Proteins")
+
+    assert coerced.to_list() == [expected]
+
+
 def test_integer_coercion_reads_integers_and_keeps_nulls_missing() -> None:
     values = pl.Series("Charge", ["2", "03", None])
 
@@ -244,6 +264,7 @@ def test_a_coercion_error_lists_at_most_five_distinct_examples() -> None:
 def test_every_coercer_satisfies_the_parser_owned_contract() -> None:
     coercers: tuple[AxisValueCoercer, ...] = (
         StringAxisCoercer(),
+        ProteinListAxisCoercer(),
         IntegerAxisCoercer(DOT_NUMBERS),
         NumberAxisCoercer(DOT_NUMBERS),
         BooleanAxisCoercer(),
@@ -278,6 +299,14 @@ def test_join_nonempty_skips_nulls_and_empty_strings_alike() -> None:
     )
 
     assert computed["J"].to_list() == ["p,q", "q", "q", None]
+
+
+def test_a_joined_protein_list_is_semicolon_separated_throughout() -> None:
+    frame = pl.DataFrame({"a": ["P1"], "b": ["P2, P3"]})
+
+    computed, _ = JoinNonemptyColumn("J", ("a", "b"), ";", protein_list=True).compute(frame)
+
+    assert computed["J"].to_list() == ["P1;P2;P3"]
 
 
 @pytest.mark.parametrize(

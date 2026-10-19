@@ -128,7 +128,7 @@
                   "Mapped_Proteins"
                 ],
                 "how": "join_nonempty",
-                "separator": ","
+                "separator": ";"
               },
               {
                 "name": "Mapped_Proteins",

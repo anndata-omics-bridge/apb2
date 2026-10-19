@@ -156,13 +156,26 @@ type ComputedColumn = Annotated[
 
 
 class SourcedColumn(ModelBase):
-    """One logical axis column read from one physical vendor column."""
+    """One logical axis column read from one physical vendor column.
+
+    A protein-list column may declare the vendor's own further list ``separator``, such as
+    PEAKS's ``:``; ``;`` and ``,`` separate every protein list already.
+    """
 
     name: str
     source: str
     type: AxisColumnType = "string"
     required: bool = True
     roles: list[SemanticRole] = Field(default_factory=list)
+    separator: str | None = Field(default=None, min_length=1)
+
+    @model_validator(mode="after")
+    def _separator_lists_proteins(self) -> SourcedColumn:
+        if self.separator is not None and not {"fasta_accessions", "protein_assignment"} & {
+            *self.roles
+        }:
+            raise ValueError(f"{self.name}: only a protein-list column declares a separator")
+        return self
 
 
 type ColumnEntry = SourcedColumn | ComputedColumn

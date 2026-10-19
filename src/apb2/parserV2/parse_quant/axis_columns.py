@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 import polars as pl
@@ -55,6 +56,23 @@ class StringAxisCoercer:
 
     def coerce(self, frame: pl.DataFrame, *, name: str, source: str) -> pl.Expr:
         return pl.col(source).cast(pl.String).alias(name)
+
+
+@dataclass(frozen=True, slots=True)
+class ProteinListAxisCoercer:
+    """Write a vendor's protein list ``;``-separated: ``A, B`` and ``A,B`` become ``A;B``.
+
+    ``separator`` is the vendor's own further list separator, such as PEAKS's ``:``.
+    """
+
+    separator: str | None = None
+
+    def coerce(self, frame: pl.DataFrame, *, name: str, source: str) -> pl.Expr:
+        return self.separated(pl.col(source).cast(pl.String)).alias(name)
+
+    def separated(self, values: pl.Expr) -> pl.Expr:
+        separators = ";," + re.escape(self.separator or "")
+        return values.str.strip_chars().str.replace_all(rf"\s*[{separators}]\s*", ";")
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,16 +138,22 @@ class CoalesceColumn:
 
 @dataclass(frozen=True, slots=True)
 class JoinNonemptyColumn:
-    """Join the non-empty input values with a separator; nothing present stays null."""
+    """Join the non-empty input values with a separator; nothing present stays null.
+
+    A ``protein_list`` result is written ``;``-separated, however its inputs separate theirs.
+    """
 
     name: str
     inputs: tuple[str, ...]
     separator: str
+    protein_list: bool = False
 
     def compute(self, frame: pl.DataFrame, /) -> tuple[pl.DataFrame, tuple[str, ...]]:
         present = pl.col(self.inputs).cast(pl.String).replace("", None)
         joined = pl.concat_str(present, separator=self.separator, ignore_nulls=True)
         expression = pl.when(pl.all_horizontal(present.is_null())).then(None).otherwise(joined)
+        if self.protein_list:
+            expression = ProteinListAxisCoercer().separated(expression)
         return frame.with_columns(expression.alias(self.name)), ()
 
 

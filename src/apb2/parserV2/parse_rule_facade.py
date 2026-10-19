@@ -54,6 +54,7 @@ from apb2.parserV2.parse_quant.operations import (
     WorkingParseConfiguration,
 )
 from apb2.parserV2.parse_quant.parameters.axis import (
+    PROTEIN_LIST_ROLES,
     AxisColumnSelection,
     ModificationMapEntry,
 )
@@ -101,6 +102,7 @@ from apb2.parserV2.vendor_parse_rules.schema.axis import (
     JoinNonempty,
     ProformaIon,
     ProformaSequence,
+    SourcedColumn,
     StrippedSequence,
     computed_columns,
 )
@@ -361,7 +363,10 @@ class ParseRuleFacade:
             AxisColumnSelection(
                 name=column.name,
                 source=column.source,
-                logical_type=column.type,
+                logical_type="protein_list"
+                if PROTEIN_LIST_ROLES & {*column.roles}
+                else column.type,
+                separator=column.separator if isinstance(column, SourcedColumn) else None,
             )
             for column in group
             if column.source is not None and column.required is required
@@ -373,7 +378,12 @@ class ParseRuleFacade:
         if isinstance(column, Coalesce):
             return CoalesceColumn(column.name, tuple(column.inputs))
         if isinstance(column, JoinNonempty):
-            return JoinNonemptyColumn(column.name, tuple(column.inputs), column.separator)
+            return JoinNonemptyColumn(
+                column.name,
+                tuple(column.inputs),
+                column.separator,
+                protein_list=bool(PROTEIN_LIST_ROLES & {*column.roles}),
+            )
         if isinstance(column, StrippedSequence):
             return ParseRuleFacade._project_stripping(column, rule)
         if isinstance(column, ProformaSequence):

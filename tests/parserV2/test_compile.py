@@ -23,6 +23,7 @@ from apb2.parserV2.parse_quant.axis_columns import (
     NumberAxisCoercer,
     ProformaFragmentColumn,
     ProformaIonColumn,
+    ProteinListAxisCoercer,
     StringAxisCoercer,
 )
 from apb2.parserV2.parse_quant.decomposition import (
@@ -115,6 +116,7 @@ def test_every_declared_logical_type_names_one_coercer(logical_type: AxisLogical
 
     assert type(coercer) in {
         StringAxisCoercer,
+        ProteinListAxisCoercer,
         IntegerAxisCoercer,
         NumberAxisCoercer,
         BooleanAxisCoercer,
@@ -124,12 +126,12 @@ def test_every_declared_logical_type_names_one_coercer(logical_type: AxisLogical
         assert coercer.notation == DOT_NUMBERS
 
 
-def test_the_four_coercers_are_four_different_implementations() -> None:
+def test_the_five_coercers_are_five_different_implementations() -> None:
     selected = {
         type(make_axis_coercer(logical, DOT)) for logical in get_args(AxisLogicalType.__value__)
     }
 
-    assert len(selected) == 4
+    assert len(selected) == 5
 
 
 @pytest.mark.parametrize(
