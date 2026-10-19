@@ -20,6 +20,12 @@ from typing import Literal
 
 import polars as pl
 
+from apb2.parserV2.parse_quant.parameters.vendor_file import (
+    GZIP_SUFFIX,
+    VendorFile,
+    make_vendor_file,
+)
+
 type TextEncoding = Literal["utf8", "utf8-lossy", "windows-1252"]
 """The delimited encodings the reader supports; a rule may permit several, in preference order."""
 
@@ -41,12 +47,24 @@ class SingleFile:
 
     path: Path
 
+    @property
+    def file(self) -> VendorFile:
+        """The file as apb2 reads it, plain or gzipped."""
+        return make_vendor_file(self.path)
+
 
 @dataclass(frozen=True, slots=True)
 class Folder:
     """A folder in which exactly one declared candidate file name must resolve."""
 
     path: Path
+
+    def member(self, name: str) -> VendorFile | None:
+        """The table a rule declares by ``name``, stored plain or gzipped; ``None`` if absent."""
+        for candidate in (self.path / name, self.path / f"{name}{GZIP_SUFFIX}"):
+            if candidate.is_file():
+                return make_vendor_file(candidate)
+        return None
 
 
 @dataclass(frozen=True, slots=True)

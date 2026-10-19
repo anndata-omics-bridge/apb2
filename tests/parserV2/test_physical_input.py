@@ -31,6 +31,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
     PreparedTable,
     SingleFile,
 )
+from apb2.parserV2.parse_quant.parameters.vendor_file import make_vendor_file
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.prepare_source import prepare_source
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
@@ -94,7 +95,9 @@ def test_a_declared_delimiter_candidate_is_resolved_from_the_header(
         + "\n",
     )
 
-    evidence = delimited_input.detected_evidence(path, TEXT, accepts_sample_and_feature)
+    evidence = delimited_input.detected_evidence(
+        make_vendor_file(path), TEXT, accepts_sample_and_feature
+    )
 
     assert evidence.delimiter == delimiter
     assert evidence.columns == ("Sample", "Feature", "Quantity")
@@ -106,11 +109,11 @@ def test_a_fixed_delimiter_needs_no_detection_but_still_needs_a_usable_header(
     good = write(tmp_path / "good.tsv", "Sample\tFeature\nA\tF\n")
     bad = write(tmp_path / "bad.tsv", "Sample\tOther\nA\tF\n")
 
-    assert delimited_input.detected_evidence(good, TSV, accepts_sample_and_feature).delimiter == (
-        "\t"
-    )
+    assert delimited_input.detected_evidence(
+        make_vendor_file(good), TSV, accepts_sample_and_feature
+    ).delimiter == ("\t")
     with pytest.raises(IncompatibleSourceError, match="no usable header"):
-        delimited_input.detected_evidence(bad, TSV, accepts_sample_and_feature)
+        delimited_input.detected_evidence(make_vendor_file(bad), TSV, accepts_sample_and_feature)
 
 
 def test_a_header_usable_under_two_candidates_is_ambiguous_not_guessed(tmp_path: Path) -> None:
@@ -119,7 +122,9 @@ def test_a_header_usable_under_two_candidates_is_ambiguous_not_guessed(tmp_path:
 
     with pytest.raises(AmbiguousDialectError, match="several declared delimiters"):
         delimited_input.detected_evidence(
-            path, TEXT, lambda header: {"Sample", "Feature"} & set(header) != set()
+            make_vendor_file(path),
+            TEXT,
+            lambda header: {"Sample", "Feature"} & set(header) != set(),
         )
 
 
@@ -129,8 +134,12 @@ def test_a_quoted_delimiter_stays_inside_its_field(tmp_path: Path) -> None:
         'Sample\tFeature\nA\t"holds\ta tab"\n',
     )
 
-    evidence = delimited_input.detected_evidence(path, TSV, accepts_sample_and_feature)
-    frame = delimited_input.make_delimited_reader(path, evidence, plan("Sample", "Feature")).read()
+    evidence = delimited_input.detected_evidence(
+        make_vendor_file(path), TSV, accepts_sample_and_feature
+    )
+    frame = delimited_input.make_delimited_reader(
+        make_vendor_file(path), evidence, plan("Sample", "Feature")
+    ).read()
 
     assert evidence.columns == ("Sample", "Feature")
     assert frame.frame.get_column("Feature").to_list() == ["holds\ta tab"]
@@ -139,7 +148,9 @@ def test_a_quoted_delimiter_stays_inside_its_field(tmp_path: Path) -> None:
 def test_a_utf8_bom_does_not_become_part_of_the_first_column_name(tmp_path: Path) -> None:
     path = write(tmp_path / "bom.tsv", "Sample\tFeature\nA\tF\n", bom=True)
 
-    evidence = delimited_input.detected_evidence(path, TSV, accepts_sample_and_feature)
+    evidence = delimited_input.detected_evidence(
+        make_vendor_file(path), TSV, accepts_sample_and_feature
+    )
 
     assert evidence.columns == ("Sample", "Feature")
 
@@ -156,9 +167,11 @@ def test_declared_encoding_candidates_resolve_a_windows_1252_export(tmp_path: Pa
         number_format_candidates=(DOT,),
     )
 
-    evidence = delimited_input.detected_evidence(path, contract, accepts_sample_and_feature)
+    evidence = delimited_input.detected_evidence(
+        make_vendor_file(path), contract, accepts_sample_and_feature
+    )
     frame = delimited_input.make_delimited_reader(
-        path, evidence, plan("Sample", "Feature", "Label")
+        make_vendor_file(path), evidence, plan("Sample", "Feature", "Label")
     ).read()
 
     assert evidence.encoding == "windows-1252"
@@ -175,7 +188,9 @@ def test_a_utf8_file_resolves_the_first_candidate_and_streams(tmp_path: Path) ->
         number_format_candidates=(DOT,),
     )
 
-    evidence = delimited_input.detected_evidence(path, contract, accepts_sample_and_feature)
+    evidence = delimited_input.detected_evidence(
+        make_vendor_file(path), contract, accepts_sample_and_feature
+    )
 
     assert evidence.encoding == "utf8"
 
@@ -185,9 +200,13 @@ def test_a_single_utf8_candidate_still_rejects_invalid_bytes(tmp_path: Path) -> 
     path = tmp_path / "legacy.tsv"
     path.write_bytes(b"Sample\tFeature\nA\tF \x97 G\n")
 
-    evidence = delimited_input.detected_evidence(path, TSV, accepts_sample_and_feature)
+    evidence = delimited_input.detected_evidence(
+        make_vendor_file(path), TSV, accepts_sample_and_feature
+    )
     with pytest.raises(pl.exceptions.ComputeError, match="invalid utf-8"):
-        delimited_input.make_delimited_reader(path, evidence, plan("Sample", "Feature")).read()
+        delimited_input.make_delimited_reader(
+            make_vendor_file(path), evidence, plan("Sample", "Feature")
+        ).read()
 
 
 # -------------------------------------------------------------------------- number notation
@@ -199,11 +218,15 @@ def test_a_comma_decimal_file_is_detected_from_its_own_values(tmp_path: Path) ->
         "Sample\tFeature\tQuantity\nA\tF\t1,5\nB\tG\t2,25\n",
     )
 
-    evidence = delimited_input.detected_evidence(path, TEXT, accepts_sample_and_feature)
+    evidence = delimited_input.detected_evidence(
+        make_vendor_file(path), TEXT, accepts_sample_and_feature
+    )
 
     assert evidence.number_format == COMMA
     frame = delimited_input.make_delimited_reader(
-        path, evidence, plan("Sample", "Feature", "Quantity", numeric=("Quantity",))
+        make_vendor_file(path),
+        evidence,
+        plan("Sample", "Feature", "Quantity", numeric=("Quantity",)),
     ).read()
     assert frame.frame.get_column("Quantity").to_list() == [1.5, 2.25]
 
@@ -214,7 +237,9 @@ def test_a_three_digit_group_is_never_read_as_decimal_evidence(tmp_path: Path) -
         "Sample\tFeature\tQuantity\nA\tF\t1,234\nB\tG\t2,000\n",
     )
 
-    evidence = delimited_input.detected_evidence(path, TEXT, accepts_sample_and_feature)
+    evidence = delimited_input.detected_evidence(
+        make_vendor_file(path), TEXT, accepts_sample_and_feature
+    )
 
     assert evidence.number_format == DOT
 
@@ -227,14 +252,16 @@ def test_decimal_probe_obeys_the_declared_quoting(tmp_path: Path, quote: str | N
         f"Sample\tFeature\tQuantity\nA\tF\t{written_quote}1,5{written_quote}\n",
     )
     evidence = delimited_input.detected_evidence(
-        path, replace(TEXT, quote_char=quote), accepts_sample_and_feature
+        make_vendor_file(path), replace(TEXT, quote_char=quote), accepts_sample_and_feature
     )
     assert evidence.number_format == (COMMA if quote else DOT)
 
 
 def test_decimal_probe_ignores_numeric_fragments_inside_quoted_metadata(tmp_path: Path) -> None:
     path = write(tmp_path / "quoted.tsv", 'Sample\tFeature\tQuantity\n"A\t2,5\nB"\tF\t1.5\n')
-    evidence = delimited_input.detected_evidence(path, TEXT, accepts_sample_and_feature)
+    evidence = delimited_input.detected_evidence(
+        make_vendor_file(path), TEXT, accepts_sample_and_feature
+    )
     assert evidence.number_format == DOT
 
 
@@ -243,14 +270,18 @@ def test_decimal_probe_is_bounded_to_500_records(tmp_path: Path) -> None:
         tmp_path / "bounded.tsv",
         "Sample\tFeature\tQuantity\n" + "A\tF\t1.5\n" * 500 + "B\tG\t2,5\n",
     )
-    evidence = delimited_input.detected_evidence(path, TEXT, accepts_sample_and_feature)
+    evidence = delimited_input.detected_evidence(
+        make_vendor_file(path), TEXT, accepts_sample_and_feature
+    )
     assert evidence.number_format == DOT
 
 
 def test_a_comma_delimited_file_cannot_also_carry_comma_decimals(tmp_path: Path) -> None:
     path = write(tmp_path / "commas.txt", "Sample,Feature,Quantity\nA,F,1.5\n")
 
-    evidence = delimited_input.detected_evidence(path, TEXT, accepts_sample_and_feature)
+    evidence = delimited_input.detected_evidence(
+        make_vendor_file(path), TEXT, accepts_sample_and_feature
+    )
 
     assert evidence.delimiter == ","
     assert evidence.number_format == DOT
@@ -263,17 +294,19 @@ def test_values_readable_under_two_decimal_marks_are_ambiguous(tmp_path: Path) -
     )
 
     with pytest.raises(AmbiguousDialectError, match="several declared marks"):
-        delimited_input.detected_evidence(path, TEXT, accepts_sample_and_feature)
+        delimited_input.detected_evidence(make_vendor_file(path), TEXT, accepts_sample_and_feature)
 
 
 def test_a_grouped_notation_leaves_its_values_as_text_for_a_later_encoder(
     tmp_path: Path,
 ) -> None:
     path = write(tmp_path / "grouped.tsv", "Sample\tFeature\tQuantity\nA\tF\t100.000.000\n")
-    evidence = delimited_input.detected_evidence(path, TSV, accepts_sample_and_feature)
+    evidence = delimited_input.detected_evidence(
+        make_vendor_file(path), TSV, accepts_sample_and_feature
+    )
 
     frame = delimited_input.make_delimited_reader(
-        path, evidence, plan("Sample", "Feature", "Quantity")
+        make_vendor_file(path), evidence, plan("Sample", "Feature", "Quantity")
     ).read()
 
     assert frame.frame.get_column("Quantity").to_list() == ["100.000.000"]
@@ -285,10 +318,12 @@ def test_no_projected_column_is_left_to_inference(tmp_path: Path) -> None:
         tmp_path / "lexical.tsv",
         "Sample\tFeature\tCharge\tQuantity\nA\tF\t01\t1.5\nB\tG\t1\t2.5\n",
     )
-    evidence = delimited_input.detected_evidence(path, TSV, accepts_sample_and_feature)
+    evidence = delimited_input.detected_evidence(
+        make_vendor_file(path), TSV, accepts_sample_and_feature
+    )
 
     frame = delimited_input.make_delimited_reader(
-        path,
+        make_vendor_file(path),
         evidence,
         plan("Sample", "Feature", "Charge", "Quantity", numeric=("Quantity",)),
     ).read()
@@ -300,9 +335,13 @@ def test_no_projected_column_is_left_to_inference(tmp_path: Path) -> None:
 
 def test_a_read_returns_the_projection_in_plan_order(tmp_path: Path) -> None:
     path = write(tmp_path / "order.tsv", "Sample\tFeature\tQuantity\nA\tF\t1.5\n")
-    evidence = delimited_input.detected_evidence(path, TSV, accepts_sample_and_feature)
+    evidence = delimited_input.detected_evidence(
+        make_vendor_file(path), TSV, accepts_sample_and_feature
+    )
 
-    frame = delimited_input.make_delimited_reader(path, evidence, plan("Feature", "Sample")).read()
+    frame = delimited_input.make_delimited_reader(
+        make_vendor_file(path), evidence, plan("Feature", "Sample")
+    ).read()
 
     assert frame.frame.columns == ["Feature", "Sample"]
 
@@ -558,7 +597,9 @@ def test_two_levels_of_one_document_read_their_own_projections(tmp_path: Path) -
         tmp_path / "report.tsv",
         "\t".join(header) + "\n" + "\t".join("1" * 1 for _ in header) + "\n",
     )
-    evidence = delimited_input.detected_evidence(path, TSV, lambda columns: "Run" in columns)
+    evidence = delimited_input.detected_evidence(
+        make_vendor_file(path), TSV, lambda columns: "Run" in columns
+    )
 
     ion = ParseRuleFacade(document, "ion", synthetic.NO_EVIDENCE).resolve_source(evidence)
     protein = ParseRuleFacade(document, "protein", synthetic.NO_EVIDENCE).resolve_source(evidence)
@@ -568,7 +609,9 @@ def test_two_levels_of_one_document_read_their_own_projections(tmp_path: Path) -
     assert "PG.MaxLFQ" in protein.read.projected_columns
     assert "PG.MaxLFQ" not in ion.read.projected_columns
     for resolved in (ion, protein):
-        frame = delimited_input.make_delimited_reader(path, evidence, resolved.read).read()
+        frame = delimited_input.make_delimited_reader(
+            make_vendor_file(path), evidence, resolved.read
+        ).read()
         assert frame.frame.columns == list(resolved.read.projected_columns)
 
 
@@ -579,10 +622,12 @@ def test_both_readers_satisfy_the_parser_owned_reader_contract(tmp_path: Path) -
     text = write(tmp_path / "report.tsv", "Sample\tFeature\nA\tF\n")
     table = tmp_path / "report.parquet"
     pl.DataFrame({"Sample": ["A"], "Feature": ["F"]}).write_parquet(table)
-    evidence = delimited_input.detected_evidence(text, TSV, accepts_sample_and_feature)
+    evidence = delimited_input.detected_evidence(
+        make_vendor_file(text), TSV, accepts_sample_and_feature
+    )
 
     readers: tuple[BoundInputReader, ...] = (
-        delimited_input.make_delimited_reader(text, evidence, plan("Sample")),
+        delimited_input.make_delimited_reader(make_vendor_file(text), evidence, plan("Sample")),
         parquet_input.make_parquet_reader(table, plan("Sample")),
     )
 

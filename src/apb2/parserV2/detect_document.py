@@ -17,6 +17,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
     PreparedTable,
     SingleFile,
 )
+from apb2.parserV2.parse_quant.parameters.vendor_file import make_vendor_file
 from apb2.parserV2.parse_quant.parser import Parser
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.parser_factory import compile_level
@@ -383,13 +384,13 @@ def _direct_table_sources(source: InputSource, filename: str | None) -> tuple[In
     if isinstance(source, InputFiles):
         return tuple(SingleFile(path) for path in source.files.values())
     if isinstance(source, Folder):
-        if filename is not None and (source.path / filename).is_file():
+        if filename is not None and source.member(filename) is not None:
             return (source,)
         return tuple(
             SingleFile(path)
             for path in sorted(source.path.iterdir())
             if path.is_file()
-            and path.suffix.lower() in {".txt", ".tsv", ".csv", ".parquet", ".xlsx"}
+            and make_vendor_file(path).suffix in {".txt", ".tsv", ".csv", ".parquet", ".xlsx"}
         )
     return (source,)
 
@@ -417,18 +418,17 @@ def _detect_table_levels(
         except RuleNotApplicable:
             continue
         declared_name = facade.working_parameters.input.file_name
+        declared_path: Path | None = None
         if declared_name is not None:
             if isinstance(source, Folder):
-                named_tables.add(source.path / declared_name)
-            elif source.path.name == declared_name:
+                member = source.member(declared_name)
+                declared_path = source.path / declared_name if member is None else member.path
+                named_tables.add(declared_path)
+            elif make_vendor_file(source.path).name == declared_name:
                 named_tables.add(source.path)
         try:
             parser = compile_level(facade, source, checks)
-            source_path = (
-                source.path / declared_name
-                if isinstance(source, Folder) and declared_name is not None
-                else source.path
-            )
+            source_path = source.path if declared_path is None else declared_path
         except IncompatibleSourceError as error:
             incompatibilities.append(f"{level}: {error}")
             continue

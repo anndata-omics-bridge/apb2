@@ -20,6 +20,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
     InputSource,
     PreparedTable,
 )
+from apb2.parserV2.parse_quant.parameters.vendor_file import VendorFile, make_vendor_file
 
 type Identify = Callable[[Mapping[str, tuple[str, ...]]], dict[str, str]]
 type Join = Callable[[Mapping[str, pl.DataFrame]], pl.DataFrame]
@@ -45,49 +46,47 @@ class InputPreparationError(ConversionError):
     """Recognized vendor inputs could not produce a valid joined table."""
 
 
-def _files(source: InputSource) -> dict[str, Path]:
+def _files(source: InputSource) -> dict[str, VendorFile]:
+    """Each candidate table keyed by the name its tool wrote, plain or gzipped."""
     if isinstance(source, InputFiles):
-        return dict(source.files)
+        return {name: make_vendor_file(path) for name, path in source.files.items()}
     if isinstance(source, Folder):
-        return {
-            path.name: path
-            for path in sorted(source.path.iterdir())
-            if path.is_file() and path.suffix.lower() in {".tsv", ".txt"}
-        }
-    return {source.path.name: source.path}
+        files = (make_vendor_file(path) for path in sorted(source.path.iterdir()) if path.is_file())
+        return {file.name: file for file in files if file.suffix in {".tsv", ".txt"}}
+    file = make_vendor_file(source.path)
+    return {file.name: file}
 
 
-def _separator(path: Path) -> str:
+def _separator(file: VendorFile) -> str:
     """Vendor tables are tab-separated, except a ``.csv`` such as WOMBAT-P's peptide table."""
-    return "," if path.suffix.lower() == ".csv" else "\t"
+    return "," if file.suffix == ".csv" else "\t"
 
 
-def _bindings(source: InputSource, identify: Identify) -> dict[str, Path]:
-    paths = _files(source)
-    headers: dict[str, tuple[str, ...]] = {}
-    for name, path in paths.items():
-        with path.open(encoding="utf-8-sig", newline="") as handle:
-            headers[name] = tuple(next(csv.reader(handle, delimiter=_separator(path)), ()))
-    selected = identify(headers)
-    return {role: paths[name] for role, name in selected.items()}
+def _header(file: VendorFile) -> tuple[str, ...]:
+    with file.open_text("utf-8-sig") as handle:
+        return tuple(next(csv.reader(handle, delimiter=_separator(file)), ()))
+
+
+def _bindings(source: InputSource, identify: Identify) -> dict[str, VendorFile]:
+    files = _files(source)
+    selected = identify({name: _header(file) for name, file in files.items()})
+    return {role: files[name] for role, name in selected.items()}
 
 
 def _projection(
-    path: Path, role: str, keys: tuple[str, ...] | None, wanted: Wanted | None
+    file: VendorFile, role: str, keys: tuple[str, ...] | None, wanted: Wanted | None
 ) -> list[str] | None:
     """Name the columns of one table to read, or ``None`` to read all of them."""
     if keys is None or wanted is None:
         return None
-    with path.open(encoding="utf-8-sig", newline="") as handle:
-        header = next(csv.reader(handle, delimiter=_separator(path)), [])
-    return [column for column in header if column in keys or wanted(f"{role}.{column}")]
+    return [column for column in _header(file) if column in keys or wanted(f"{role}.{column}")]
 
 
 def preparation_paths(source: InputSource, how: str) -> tuple[Path, ...]:
     """Identify this table group's physical inputs without reading its quantitative rows."""
     identify, _join, _keys = _PREPARATIONS[how]
     try:
-        return tuple(_bindings(source, identify).values())
+        return tuple(file.path for file in _bindings(source, identify).values())
     except (UnicodeError, csv.Error):
         return ()
     except ValueError as error:
@@ -116,23 +115,23 @@ def prepare_source(
     started = perf_counter()
     identify, join, keys = _PREPARATIONS[how]
     try:
-        paths = _bindings(source, identify)
-        if not paths:
+        files = _bindings(source, identify)
+        if not files:
             raise IncompatibleSourceError(f"{source.path} has no recognizable {how} inputs")
         frames: dict[str, pl.DataFrame] = {}
-        for role, path in paths.items():
-            columns = _projection(path, role, keys, wanted)
-            with logged_step("prepare.read", how=how, table=path.name):
+        for role, file in files.items():
+            columns = _projection(file, role, keys, wanted)
+            with logged_step("prepare.read", how=how, table=file.name):
                 frames[role] = pl.read_csv(
-                    path,
-                    separator=_separator(path),
+                    file.path,
+                    separator=_separator(file),
                     infer_schema=False,
                     null_values=[""],
                     columns=columns,
                 )
             logger.info(
                 "prepare.read table={} rows={} columns={}",
-                path.name,
+                file.name,
                 frames[role].height,
                 frames[role].width,
             )
@@ -147,6 +146,6 @@ def prepare_source(
         path=source.path,
         frame=frame,
         how=how,
-        source_paths=tuple(paths.values()),
+        source_paths=tuple(file.path for file in files.values()),
         duration_seconds=perf_counter() - started,
     )

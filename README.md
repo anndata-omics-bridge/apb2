@@ -59,6 +59,8 @@ both prolfquapp and ProteoBench, and hopefully other tools analysing quantificat
 
 Use a packaged rule selected from the vendor parameter file and source header. `DATA` may be one vendor table or a vendor-result directory:
 
+Text vendor tables may be gzipped, as `report.tsv.gz` or `evidence.txt.gz` inside a result directory; apb2 reads them like the plain file. Parquet, Excel and parameter files are read plain.
+
 `--software` selects the parameter-file grammar and restricts result recognition to that vendor and its declared quantification software. For FragPipe parameters with DIA-NN output, pass `--software fragpipe`. Omit the hint for recognition across parameter-bearing rules; mismatches and ambiguity are errors, not a fallback to unrelated rules.
 
 ProteoBench Custom uploads have no parameter file: `apb2 convert custom.txt ion --software pb_custom --output results/custom`.

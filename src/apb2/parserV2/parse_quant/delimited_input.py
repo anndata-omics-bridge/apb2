@@ -30,6 +30,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
     NumericTextFormat,
     TextEncoding,
 )
+from apb2.parserV2.parse_quant.parameters.vendor_file import VendorFile
 
 type HeaderPredicate = Callable[[tuple[str, ...]], bool]
 """Whether one inspected header satisfies the level being constructed for."""
@@ -39,7 +40,7 @@ _GROUP_WIDTH = 3
 
 
 def detected_evidence(
-    path: Path,
+    file: VendorFile,
     contract: DelimitedFormatContract,
     accepts: HeaderPredicate,
 ) -> DelimitedSourceEvidence:
@@ -48,25 +49,25 @@ def detected_evidence(
     Raises ``IncompatibleSourceError`` when no candidate exposes a usable header and
     ``AmbiguousDialectError`` when more than one does.
     """
-    encoding = _resolved_encoding(path, contract)
-    delimiter, header = _detected_header(path, contract, accepts, encoding)
+    encoding = _resolved_encoding(file, contract)
+    delimiter, header = _detected_header(file.path, contract, accepts, encoding)
     return DelimitedSourceEvidence(
         columns=header,
         delimiter=delimiter,
         quote_char=contract.quote_char,
         encoding=encoding,
-        number_format=_resolved_number_format(path, delimiter, contract),
+        number_format=_resolved_number_format(file.path, delimiter, contract),
     )
 
 
 def detected_header_evidence(
-    path: Path,
+    file: VendorFile,
     contract: DelimitedFormatContract,
     accepts: HeaderPredicate,
 ) -> DelimitedSourceEvidence:
     """Resolve only header metadata for rule recognition, without inspecting data rows."""
-    encoding = _resolved_encoding(path, contract)
-    delimiter, header = _detected_header(path, contract, accepts, encoding)
+    encoding = _resolved_encoding(file, contract)
+    delimiter, header = _detected_header(file.path, contract, accepts, encoding)
     candidates = contract.number_format_candidates
     number_format = next(
         (candidate for candidate in candidates if candidate.decimal_mark != delimiter),
@@ -198,7 +199,7 @@ def _resolved_number_format(
 _ENCODING_PROBE_BYTES = 8 * 1024 * 1024
 
 
-def _resolved_encoding(path: Path, contract: DelimitedFormatContract) -> TextEncoding:
+def _resolved_encoding(file: VendorFile, contract: DelimitedFormatContract) -> TextEncoding:
     """Decide which declared encoding this file is written in.
 
     Encoding candidates are a preference order, not an ambiguity to arbitrate: nearly every
@@ -210,13 +211,13 @@ def _resolved_encoding(path: Path, contract: DelimitedFormatContract) -> TextEnc
     candidates = contract.encoding_candidates
     if len(candidates) == 1:
         return candidates[0]
-    with path.open("rb") as handle:
+    with file.open() as handle:
         probe = handle.read(_ENCODING_PROBE_BYTES)
     for candidate in candidates:
         if _probe_decodes(probe, candidate):
             return candidate
     raise IncompatibleSourceError(
-        f"{path}: no declared encoding candidate {list(candidates)} decodes the first "
+        f"{file.path}: no declared encoding candidate {list(candidates)} decodes the first "
         f"{len(probe)} bytes"
     )
 
@@ -237,7 +238,7 @@ def _probe_decodes(probe: bytes, encoding: TextEncoding) -> bool:
 class DelimitedInputReader:
     """One delimited file, its resolved dialect, and one level's exact projection."""
 
-    path: Path
+    file: VendorFile
     evidence: DelimitedSourceEvidence
     plan: LevelReadPlan
 
@@ -253,19 +254,20 @@ class DelimitedInputReader:
         overrides.update({name: pl.Float64() for name in self.plan.native_numeric_sources})
         encoding = self.evidence.encoding
         if encoding not in ("utf8", "utf8-lossy"):
-            frame = pl.read_csv(
-                self.path,
-                separator=self.evidence.delimiter,
-                quote_char=self.evidence.quote_char,
-                encoding=encoding,
-                columns=list(self.plan.projected_columns),
-                schema_overrides=overrides,
-                decimal_comma=self.evidence.number_format.decimal_mark == ",",
-            ).select(list(self.plan.projected_columns))
+            with self.file.open() as stream:
+                frame = pl.read_csv(
+                    stream.read(),
+                    separator=self.evidence.delimiter,
+                    quote_char=self.evidence.quote_char,
+                    encoding=encoding,
+                    columns=list(self.plan.projected_columns),
+                    schema_overrides=overrides,
+                    decimal_comma=self.evidence.number_format.decimal_mark == ",",
+                ).select(list(self.plan.projected_columns))
             return LevelSourceTable(frame=_without_empty_rows(frame))
         frame = (
             pl.scan_csv(
-                self.path,
+                self.file.path,
                 separator=self.evidence.delimiter,
                 quote_char=self.evidence.quote_char,
                 encoding=encoding,
@@ -286,7 +288,7 @@ def _without_empty_rows(frame: pl.DataFrame) -> pl.DataFrame:
 
 
 def make_delimited_reader(
-    path: Path, evidence: DelimitedSourceEvidence, plan: LevelReadPlan
+    file: VendorFile, evidence: DelimitedSourceEvidence, plan: LevelReadPlan
 ) -> DelimitedInputReader:
     """Construct the reader one resolved delimited source and level plan describe."""
-    return DelimitedInputReader(path=path, evidence=evidence, plan=plan)
+    return DelimitedInputReader(file=file, evidence=evidence, plan=plan)

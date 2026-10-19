@@ -24,26 +24,28 @@ from apb2.parserV2.parse_quant.parameters.source import (
 class BoundTable:
     """One caller source bound to one declared physical table interpretation."""
 
-    __slots__ = ("_format", "_path", "_source")
+    __slots__ = ("_file", "_format", "_source")
 
     def __init__(self, source: InputSource, contract: InputContract) -> None:
-        """Resolve the source path and its one unambiguous declared format."""
+        """Resolve the source file and its one unambiguous declared format."""
         if isinstance(source, SingleFile):
-            path = source.path
+            file = source.file
         elif isinstance(source, Folder):
             if contract.file_name is None:
                 raise IncompatibleSourceError(
                     f"{source.path} is a folder, but this rule declares no file_name"
                 )
-            path = source.path / contract.file_name
-            if not path.is_file():
+            member = source.member(contract.file_name)
+            if member is None:
                 raise IncompatibleSourceError(
                     f"{source.path} does not contain the declared file {contract.file_name!r}"
                 )
+            file = member
         else:
             raise IncompatibleSourceError("multiple/prepared inputs require a preparation rule")
 
-        suffix = path.suffix.lower()
+        path = file.path
+        suffix = file.suffix
         extensions = {
             extension for declared in contract.formats for extension in declared.extensions
         }
@@ -70,13 +72,13 @@ class BoundTable:
             selected = next(iter(claiming))
 
         self._source = source
-        self._path = path
+        self._file = file
         self._format = selected
 
     @property
     def path(self) -> Path:
         """Concrete physical table path."""
-        return self._path
+        return self._file.path
 
     @property
     def format(self) -> PhysicalFormatContract:
@@ -86,18 +88,18 @@ class BoundTable:
     def evidence(self, accepts: delimited_input.HeaderPredicate) -> SourceEvidence:
         """Observe physical evidence, including data-row number formatting when needed."""
         if isinstance(self._format, ParquetFormatContract):
-            return parquet_input.schema_evidence(self._path)
+            return parquet_input.schema_evidence(self._file.path)
         if isinstance(self._format, ExcelFormatContract):
-            return excel_input.schema_evidence(self._path, self._format, accepts)
-        return delimited_input.detected_evidence(self._path, self._format, accepts)
+            return excel_input.schema_evidence(self._file.path, self._format, accepts)
+        return delimited_input.detected_evidence(self._file, self._format, accepts)
 
     def recognition_evidence(self, accepts: delimited_input.HeaderPredicate) -> SourceEvidence:
         """Observe only schema/header evidence for packaged-rule recognition."""
         if isinstance(self._format, ParquetFormatContract):
-            return parquet_input.schema_evidence(self._path)
+            return parquet_input.schema_evidence(self._file.path)
         if isinstance(self._format, ExcelFormatContract):
-            return excel_input.schema_evidence(self._path, self._format, accepts)
-        return delimited_input.detected_header_evidence(self._path, self._format, accepts)
+            return excel_input.schema_evidence(self._file.path, self._format, accepts)
+        return delimited_input.detected_header_evidence(self._file, self._format, accepts)
 
     def reader(
         self,
@@ -110,7 +112,7 @@ class BoundTable:
     ):
         """Construct the reader for observed evidence and one resolved level plan."""
         if isinstance(evidence, FrameSourceEvidence):
-            return parquet_input.make_parquet_reader(self._path, plan)
+            return parquet_input.make_parquet_reader(self._file.path, plan)
         if isinstance(evidence, ExcelSourceEvidence):
-            return excel_input.make_excel_reader(self._path, evidence, plan)
-        return delimited_input.make_delimited_reader(self._path, evidence, plan)
+            return excel_input.make_excel_reader(self._file.path, evidence, plan)
+        return delimited_input.make_delimited_reader(self._file, evidence, plan)
