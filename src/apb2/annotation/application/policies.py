@@ -224,7 +224,8 @@ def _apply(
             columns_added=tuple(match.aligned.columns),
         )
     return AnnotationResult(
-        parsed=ParsedLevels(
+        parsed=replace(
+            parsed,
             levels=levels,
             uns=dict(parsed.uns),
             metadata=dict(parsed.metadata),

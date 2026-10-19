@@ -35,6 +35,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
     FinalLayerSemantics,
     FinalLayerTable,
     JsonValue,
+    LevelHierarchy,
     ObsFinal,
     ParsedLevel,
     ParsedLevels,
@@ -565,6 +566,44 @@ def test_cli_annotation_round_trips_through_every_result_format(
     assert isinstance(root, dict) and "provenance" in root
     assert isinstance(local, dict) and set(local) == {"result", "summary"}
     assert "annotation" not in restored.metadata
+
+
+@pytest.mark.parametrize(
+    ("suffix", "levels"),
+    [
+        (".h5mu", ("ion", "protein")),
+        (".parquet", ("ion", "protein")),
+        (".duckdb", ("ion", "protein")),
+        # h5ad stores exactly one level; it still carries the whole declared hierarchy.
+        (".h5ad", ("ion",)),
+    ],
+)
+def test_annotation_preserves_the_hierarchy_in_every_result_format(
+    suffix: str,
+    levels: tuple[str, ...],
+    tmp_path: Path,
+) -> None:
+    runs = ("run_A", "run_B")
+    parsed = ParsedLevels(
+        levels={name: _parsed(runs).levels["ion"] for name in levels},
+        uns={"produced_by": "apb2"},
+        hierarchy=LevelHierarchy("lfq", (("ion", "feature"), ("protein", "feature"))),
+    )
+    source = tmp_path / f"input{suffix}"
+    target = tmp_path / f"annotated{suffix}"
+    annotation = tmp_path / "samples.tsv"
+    write_parsed_levels(parsed, source)
+    annotation.write_text("raw_file\tcondition\nrun_A\tA\nrun_B\tB\n", encoding="utf-8")
+    frame = pl.DataFrame({"raw_file": list(runs), "condition": ["A", "B"]})
+
+    annotated = AnnotationCompiler().compile(frame).parse(parsed).annotate().parsed
+    exit_code = annotate_command(source, annotation, target)
+
+    assert annotated.hierarchy == parsed.hierarchy
+    assert exit_code == 0
+    restored = read_parsed_levels(target)
+    assert list(restored.levels) == list(levels)
+    assert restored.hierarchy == parsed.hierarchy
 
 
 def test_annotating_again_leaves_the_first_result_unchanged() -> None:
