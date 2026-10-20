@@ -1,5 +1,9 @@
 # Changes
 
+## 2026-10-20
+
+- **Breaking:** protein-list columns, those with the `fasta_accessions` or `protein_assignment` role, are written `;`-separated: a `,` or `;` with surrounding spaces becomes `;`, so FragPipe's `A, B` is `A;B`. This happens when the column is selected, so a protein-list var key such as DIA-NN's `Protein_Group` is checked for uniqueness in that spelling. A protein-list column may declare the vendor's own further `separator`, and any other column declaring one is refused; PEAKS `Accession` declares `:`. `:` cannot be general: MaxQuant and WOMBAT contaminant ids contain it (`CON__ENSEMBL:…`). apb-fasta and apb-proteobench drop their protein-group separator options.
+
 ## 2026-10-09
 
 - i2MassChroQ X!Tandem parameters take the fragment tolerance unit from `spectrum, fragment monoisotopic mass error units`; it used to reuse the precursor unit, so 6 of 13 ProteoBench i2MassChroQ submissions read `0.02 ppm` where the file states `0.02 Daltons`. The tolerance-unit lookup accepts X!Tandem's spelling `Daltons`.
