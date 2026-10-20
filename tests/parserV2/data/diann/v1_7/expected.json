@@ -4,6 +4,15 @@
   "params": "param_0..txt",
   "sample_rows": 500,
   "levels": {
+    "fragment": {
+      "observations": 2,
+      "variables": 1529,
+      "layers": [
+        "Fragment_Quant_Raw",
+        "Fragment_Correlations",
+        "Fragment_Quant_Corrected"
+      ]
+    },
     "ion": {
       "observations": 2,
       "variables": 256,
@@ -14,7 +23,27 @@
         "Q_Value",
         "Lib_Q_Value",
         "Global_Q_Value",
-        "RT"
+        "RT",
+        "CScore",
+        "Decoy_CScore",
+        "Decoy_Evidence",
+        "Evidence",
+        "GG_Q_Value",
+        "IM",
+        "MS2_Scan",
+        "Mass_Evidence",
+        "Ms1_Profile_Corr",
+        "Precursor_Translated",
+        "Predicted_IM",
+        "Predicted_RT",
+        "Predicted_iIM",
+        "Predicted_iRT",
+        "Protein_Q_Value",
+        "Quantity_Quality",
+        "RT_Start",
+        "RT_Stop",
+        "Spectrum_Similarity",
+        "Translated_Q_Value"
       ]
     },
     "protein": {
@@ -25,15 +54,11 @@
         "PG_Quantity",
         "Genes_MaxLFQ",
         "PG_Q_Value",
-        "Global_PG_Q_Value"
-      ]
-    },
-    "fragment": {
-      "observations": 2,
-      "variables": 1529,
-      "layers": [
-        "Fragment_Quant_Raw",
-        "Fragment_Correlations"
+        "Global_PG_Q_Value",
+        "Genes_MaxLFQ_Unique",
+        "Genes_Normalised",
+        "Genes_Quantity",
+        "PG_MaxLFQ"
       ]
     }
   }

@@ -61,7 +61,7 @@ _NON_PRIMARY_ABUNDANCE: dict[tuple[str, QuantificationLevel], tuple[str, ...]] =
     ("diann/v1_8", "ion"): ("Ms1_Normalised", "Precursor_Quantity", "Ms1_Area"),
     ("diann/v1_8", "protein"): ("PG_Normalised", "PG_Quantity", "Genes_MaxLFQ"),
     ("diann/v1_7", "ion"): ("Precursor_Quantity", "Ms1_Area"),
-    ("diann/v1_7", "protein"): ("PG_Quantity", "Genes_MaxLFQ"),
+    ("diann/v1_7", "protein"): ("PG_Quantity", "PG_MaxLFQ", "Genes_MaxLFQ"),
     ("diann/v2", "ion"): ("Ms1_Normalised", "Precursor_Quantity", "Ms1_Area"),
     ("diann/v2", "protein"): ("Genes_MaxLFQ",),
     ("maxquant_wide", "peptide"): ("LFQ_Intensity",),

@@ -265,6 +265,12 @@
                 "source": "PEP.StrippedSequence"
               },
               {
+                "name": "PEP_IsProteotypic",
+                "source": "PEP.IsProteotypic",
+                "type": "boolean",
+                "required": false
+              },
+              {
                 "name": "EG_ModifiedSequence",
                 "source": "EG.ModifiedSequence"
               },

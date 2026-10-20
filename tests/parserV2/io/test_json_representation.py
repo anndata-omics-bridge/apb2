@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
@@ -12,6 +13,7 @@ import pandas as pd
 import polars as pl
 import pytest
 from anndata import AnnData
+from jsonschema import Draft202012Validator
 from mudata import MuData
 from scipy import sparse
 
@@ -30,6 +32,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
 )
 from apb2.parserV2.parse_quant.io import formats, json_representation
 from apb2.parserV2.parse_quant.io.anndata_reader import write_container_representation
+from apb2.parserV2.parse_quant.io.errors import InvalidResultError
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels, write_parsed_levels
 from apb2.parserV2.parse_quant.io.json_representation import (
     FORMAT,
@@ -39,6 +42,10 @@ from apb2.parserV2.parse_quant.io.json_representation import (
     write_result_representation,
 )
 from apb2.parserV2.parse_quant.io.layer_representation import quantitative_representation
+from apb2.parserV2.parse_quant.io.representation_schema import (
+    representation_json_schema,
+    representation_schema_path,
+)
 from apb2.parserV2.parse_quant.io.uns_json import UnsJsonCodec
 
 
@@ -817,3 +824,98 @@ def _factor_plan() -> str:
             }
         }
     )
+
+
+def _published_schema() -> Draft202012Validator:
+    schema = json.loads(representation_schema_path().read_text(encoding="utf-8"))
+    return Draft202012Validator(schema)
+
+
+def test_the_published_representation_schema_is_the_schema_the_models_declare() -> None:
+    committed = json.loads(representation_schema_path().read_text(encoding="utf-8"))
+
+    assert committed == representation_json_schema()
+
+
+@pytest.mark.parametrize(
+    ("name", "result"),
+    [
+        ("result.h5mu", _parsed),
+        ("result.parquet", _parsed),
+        ("result.duckdb", _parsed),
+        ("factor.h5ad", _factor_result),
+    ],
+)
+def test_written_sidecars_match_the_published_schema(
+    name: str, result: Callable[[], ParsedLevels], tmp_path: Path
+) -> None:
+    target = tmp_path / name
+
+    write_parsed_levels(result(), target)
+
+    document = json.loads(sidecar_path(target).read_text(encoding="utf-8"))
+    assert [error.message for error in _published_schema().iter_errors(document)] == []
+
+
+def test_a_container_sidecar_matches_the_published_schema(tmp_path: Path) -> None:
+    summary: list[JsonValue] = [
+        {"name": "exported", "label": "Exported", "value": 1, "unit": "matrices", "status": "ok"}
+    ]
+    adata = AnnData(
+        X=np.array([[1.0, 2.0], [3.0, np.nan]]),
+        obs=pd.DataFrame(index=["r1", "r2"]),
+        var=pd.DataFrame(index=["f1", "f2"]),
+    )
+    adata.uns["apb"] = UnsJsonCodec().encode(
+        {"export": {"schema_version": "1", "summary": summary}}, {}
+    )
+    target = tmp_path / "export.h5mu"
+    mdata = MuData({"protein": adata})
+    mdata.write_h5mu(target)
+
+    document = json.loads(write_container_representation(mdata, target).read_text("utf-8"))
+
+    assert [error.message for error in _published_schema().iter_errors(document)] == []
+
+
+def _unknown_layer_key(document: dict[str, Any]) -> None:
+    document["levels"][0]["layers"][0]["colour"] = "red"
+
+
+def _unknown_status(document: dict[str, Any]) -> None:
+    document["levels"][0]["apb"]["fasta"] = {
+        "summary": [{"name": "m", "label": "M", "value": 1, "unit": "", "status": "fine"}]
+    }
+
+
+def _unchecked_with_value(document: dict[str, Any]) -> None:
+    document["root"]["apb"]["fasta"] = {
+        "matched": {
+            "summary": [
+                {"name": "m", "label": "M", "value": 1, "unit": "", "status": "not_checked"}
+            ]
+        }
+    }
+
+
+@pytest.mark.parametrize("mutate", [_unknown_layer_key, _unknown_status, _unchecked_with_value])
+def test_a_document_outside_the_schema_is_refused_before_it_is_written(
+    mutate: Callable[[dict[str, Any]], None],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "result.parquet"
+    write_parsed_levels(_parsed(), target)
+    document: dict[str, Any] = json.loads(sidecar_path(target).read_text(encoding="utf-8"))
+    mutate(document)
+
+    def mutated_projection(_parsed: ParsedLevels, _target: Path | None = None, /) -> dict[str, Any]:
+        return document
+
+    monkeypatch.setattr(json_representation, "project_result", mutated_projection)
+
+    with pytest.raises(InvalidResultError, match="does not match its schema"):
+        write_result_representation(_parsed(), target)
+
+    assert not sidecar_path(target).exists()
+    assert list(_published_schema().iter_errors(document)), "the published schema agrees"

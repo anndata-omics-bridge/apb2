@@ -1,0 +1,1133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Aligned": {
+      "additionalProperties": false,
+      "description": "The schemas of the aligned tables.",
+      "properties": {
+        "obsm": {
+          "items": {
+            "$ref": "#/$defs/NamedTable"
+          },
+          "title": "Obsm",
+          "type": "array"
+        },
+        "varm": {
+          "items": {
+            "$ref": "#/$defs/NamedTable"
+          },
+          "title": "Varm",
+          "type": "array"
+        },
+        "obsp": {
+          "items": {
+            "$ref": "#/$defs/NamedTable"
+          },
+          "title": "Obsp",
+          "type": "array"
+        },
+        "varp": {
+          "items": {
+            "$ref": "#/$defs/NamedTable"
+          },
+          "title": "Varp",
+          "type": "array"
+        }
+      },
+      "required": [
+        "obsm",
+        "varm",
+        "obsp",
+        "varp"
+      ],
+      "title": "Aligned",
+      "type": "object"
+    },
+    "AnnotationTable": {
+      "additionalProperties": false,
+      "description": "An annotation table's schema and metadata.",
+      "properties": {
+        "row_count": {
+          "$ref": "#/$defs/Count"
+        },
+        "key_columns": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Key Columns",
+          "type": "array"
+        },
+        "columns": {
+          "items": {
+            "$ref": "#/$defs/Column"
+          },
+          "title": "Columns",
+          "type": "array"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "metadata": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Metadata",
+          "type": "object"
+        }
+      },
+      "required": [
+        "row_count",
+        "key_columns",
+        "columns",
+        "name",
+        "metadata"
+      ],
+      "title": "AnnotationTable",
+      "type": "object"
+    },
+    "ApbPart": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/ProducerRecord"
+          },
+          {
+            "$ref": "#/$defs/NonObject"
+          }
+        ]
+      },
+      "description": "A root or level ``apb`` part: APB2's own entries and one record per producer.",
+      "properties": {
+        "hierarchy": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Hierarchy",
+          "type": "object"
+        },
+        "roles": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Roles",
+          "type": "object"
+        },
+        "layer_descriptors": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Layer Descriptors",
+          "type": "object"
+        },
+        "annotation_tables": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Annotation Tables",
+          "type": "object"
+        },
+        "feature_relations": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Feature Relations",
+          "type": "object"
+        }
+      },
+      "title": "ApbPart",
+      "type": "object"
+    },
+    "ApbRoot": {
+      "additionalProperties": false,
+      "description": "The container's own ``apb`` part.",
+      "properties": {
+        "apb": {
+          "$ref": "#/$defs/ApbPart"
+        }
+      },
+      "required": [
+        "apb"
+      ],
+      "title": "ApbRoot",
+      "type": "object"
+    },
+    "Artifact": {
+      "additionalProperties": false,
+      "description": "The scientific artifact this document describes.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "physical_format": {
+          "enum": [
+            "h5ad",
+            "h5mu",
+            "parquet",
+            "duckdb"
+          ],
+          "title": "Physical Format",
+          "type": "string"
+        },
+        "size_bytes": {
+          "$ref": "#/$defs/Count"
+        }
+      },
+      "required": [
+        "name",
+        "physical_format",
+        "size_bytes"
+      ],
+      "title": "Artifact",
+      "type": "object"
+    },
+    "CategoricalLayer": {
+      "additionalProperties": false,
+      "description": "A factor layer: category count and known versus missing cells, never statistics.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "measurement",
+            "auxiliary"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "primary": {
+          "title": "Primary",
+          "type": "boolean"
+        },
+        "storage_slot": {
+          "enum": [
+            "X",
+            "layers"
+          ],
+          "title": "Storage Slot",
+          "type": "string"
+        },
+        "shape": {
+          "$ref": "#/$defs/Shape"
+        },
+        "unit": {
+          "$ref": "#/$defs/JsonScalar"
+        },
+        "scale": {
+          "$ref": "#/$defs/JsonScalar"
+        },
+        "value_kind": {
+          "const": "categorical",
+          "title": "Value Kind",
+          "type": "string"
+        },
+        "dtype": {
+          "const": "categorical",
+          "title": "Dtype",
+          "type": "string"
+        },
+        "category_count": {
+          "$ref": "#/$defs/Count"
+        },
+        "counts": {
+          "$ref": "#/$defs/CategoryCounts"
+        }
+      },
+      "required": [
+        "name",
+        "role",
+        "primary",
+        "storage_slot",
+        "shape",
+        "unit",
+        "scale",
+        "value_kind",
+        "dtype",
+        "category_count",
+        "counts"
+      ],
+      "title": "CategoricalLayer",
+      "type": "object"
+    },
+    "CategoryCounts": {
+      "additionalProperties": false,
+      "description": "Cells holding a declared category, and the rest.",
+      "properties": {
+        "total_count": {
+          "$ref": "#/$defs/Count"
+        },
+        "known_count": {
+          "$ref": "#/$defs/Count"
+        },
+        "missing_or_unknown_count": {
+          "$ref": "#/$defs/Count"
+        }
+      },
+      "required": [
+        "total_count",
+        "known_count",
+        "missing_or_unknown_count"
+      ],
+      "title": "CategoryCounts",
+      "type": "object"
+    },
+    "CheckedEntry": {
+      "additionalProperties": false,
+      "description": "A summary entry that was checked: fine or needing attention.",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/Name"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/$defs/JsonScalar"
+        },
+        "unit": {
+          "title": "Unit",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "ok",
+            "attention"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "layer": {
+          "title": "Layer",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "label",
+        "value",
+        "unit",
+        "status"
+      ],
+      "title": "CheckedEntry",
+      "type": "object"
+    },
+    "Column": {
+      "additionalProperties": false,
+      "description": "One table column: its name, null count and Polars dtype.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "null_count": {
+          "$ref": "#/$defs/Count"
+        },
+        "dtype": {
+          "title": "Dtype",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "null_count",
+        "dtype"
+      ],
+      "title": "Column",
+      "type": "object"
+    },
+    "Count": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "DetailReference": {
+      "additionalProperties": false,
+      "description": "Where a record's detailed result is stored in the scientific artifact.",
+      "properties": {
+        "slot": {
+          "enum": [
+            "varm",
+            "layers",
+            "annotation_tables",
+            "feature_relations"
+          ],
+          "title": "Slot",
+          "type": "string"
+        },
+        "name": {
+          "$ref": "#/$defs/Name"
+        }
+      },
+      "required": [
+        "slot",
+        "name"
+      ],
+      "title": "DetailReference",
+      "type": "object"
+    },
+    "FeatureRelation": {
+      "additionalProperties": false,
+      "description": "A relation from an annotation table to a level's features.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "annotation_table": {
+          "title": "Annotation Table",
+          "type": "string"
+        },
+        "target_level": {
+          "title": "Target Level",
+          "type": "string"
+        },
+        "coordinates": {
+          "$ref": "#/$defs/Table"
+        },
+        "metadata": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Metadata",
+          "type": "object"
+        }
+      },
+      "required": [
+        "name",
+        "annotation_table",
+        "target_level",
+        "coordinates",
+        "metadata"
+      ],
+      "title": "FeatureRelation",
+      "type": "object"
+    },
+    "JsonScalar": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "JsonValue": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/JsonScalar"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "type": "array"
+        },
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "type": "object"
+        }
+      ]
+    },
+    "Layer": {
+      "discriminator": {
+        "mapping": {
+          "categorical": "#/$defs/CategoricalLayer",
+          "quantitative": "#/$defs/QuantitativeLayer"
+        },
+        "propertyName": "value_kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/QuantitativeLayer"
+        },
+        {
+          "$ref": "#/$defs/CategoricalLayer"
+        }
+      ]
+    },
+    "Level": {
+      "additionalProperties": false,
+      "description": "One quantification level: axes, layers, aligned tables and its ``apb`` part.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "dimensions": {
+          "$ref": "#/$defs/Shape"
+        },
+        "primary_layer": {
+          "title": "Primary Layer",
+          "type": "string"
+        },
+        "observations": {
+          "$ref": "#/$defs/Observations"
+        },
+        "obs": {
+          "$ref": "#/$defs/Table"
+        },
+        "var": {
+          "$ref": "#/$defs/Table"
+        },
+        "layers": {
+          "items": {
+            "$ref": "#/$defs/Layer"
+          },
+          "title": "Layers",
+          "type": "array"
+        },
+        "aligned": {
+          "$ref": "#/$defs/Aligned"
+        },
+        "apb": {
+          "$ref": "#/$defs/ApbPart"
+        }
+      },
+      "required": [
+        "name",
+        "dimensions",
+        "primary_layer",
+        "observations",
+        "obs",
+        "var",
+        "layers",
+        "aligned",
+        "apb"
+      ],
+      "title": "Level",
+      "type": "object"
+    },
+    "Name": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "NamedRecord": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "description": "A record one level below its producer, such as ``catalog.identification_confidence``.",
+      "properties": {
+        "summary": {
+          "items": {
+            "$ref": "#/$defs/SummaryEntry"
+          },
+          "title": "Summary",
+          "type": "array"
+        },
+        "details": {
+          "items": {
+            "$ref": "#/$defs/DetailReference"
+          },
+          "title": "Details",
+          "type": "array"
+        }
+      },
+      "title": "NamedRecord",
+      "type": "object"
+    },
+    "NamedTable": {
+      "additionalProperties": false,
+      "description": "An aligned ``obsm``, ``varm``, ``obsp`` or ``varp`` table.",
+      "properties": {
+        "row_count": {
+          "$ref": "#/$defs/Count"
+        },
+        "key_columns": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Key Columns",
+          "type": "array"
+        },
+        "columns": {
+          "items": {
+            "$ref": "#/$defs/Column"
+          },
+          "title": "Columns",
+          "type": "array"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "row_count",
+        "key_columns",
+        "columns",
+        "name"
+      ],
+      "title": "NamedTable",
+      "type": "object"
+    },
+    "NonObject": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/JsonScalar"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "type": "array"
+        }
+      ]
+    },
+    "Observation": {
+      "additionalProperties": false,
+      "description": "One observation identity, referred to by index from layer summaries.",
+      "properties": {
+        "index": {
+          "$ref": "#/$defs/Count"
+        },
+        "key": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonScalar"
+          },
+          "title": "Key",
+          "type": "object"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "index",
+        "key",
+        "label"
+      ],
+      "title": "Observation",
+      "type": "object"
+    },
+    "ObservationStatistics": {
+      "additionalProperties": false,
+      "description": "The statistics of one observation's values.",
+      "properties": {
+        "observation_index": {
+          "$ref": "#/$defs/Count"
+        },
+        "statistics": {
+          "$ref": "#/$defs/Statistics"
+        }
+      },
+      "required": [
+        "observation_index",
+        "statistics"
+      ],
+      "title": "ObservationStatistics",
+      "type": "object"
+    },
+    "ObservationSummaries": {
+      "additionalProperties": false,
+      "description": "Per-observation statistics for at most 100 observations.",
+      "properties": {
+        "total_count": {
+          "$ref": "#/$defs/Count"
+        },
+        "emitted_count": {
+          "$ref": "#/$defs/Count"
+        },
+        "truncated": {
+          "title": "Truncated",
+          "type": "boolean"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/ObservationStatistics"
+          },
+          "title": "Items",
+          "type": "array"
+        }
+      },
+      "required": [
+        "total_count",
+        "emitted_count",
+        "truncated",
+        "items"
+      ],
+      "title": "ObservationSummaries",
+      "type": "object"
+    },
+    "Observations": {
+      "additionalProperties": false,
+      "description": "At most 100 observation identities.",
+      "properties": {
+        "total_count": {
+          "$ref": "#/$defs/Count"
+        },
+        "emitted_count": {
+          "$ref": "#/$defs/Count"
+        },
+        "truncated": {
+          "title": "Truncated",
+          "type": "boolean"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/Observation"
+          },
+          "title": "Items",
+          "type": "array"
+        }
+      },
+      "required": [
+        "total_count",
+        "emitted_count",
+        "truncated",
+        "items"
+      ],
+      "title": "Observations",
+      "type": "object"
+    },
+    "ProducerRecord": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/NamedRecord"
+          },
+          {
+            "$ref": "#/$defs/NonObject"
+          }
+        ]
+      },
+      "description": "One producer's record: provenance, results, summary entries and detail references.",
+      "properties": {
+        "schema_version": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "provenance": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "result": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "summary": {
+          "items": {
+            "$ref": "#/$defs/SummaryEntry"
+          },
+          "title": "Summary",
+          "type": "array"
+        },
+        "details": {
+          "items": {
+            "$ref": "#/$defs/DetailReference"
+          },
+          "title": "Details",
+          "type": "array"
+        }
+      },
+      "title": "ProducerRecord",
+      "type": "object"
+    },
+    "QuantitativeLayer": {
+      "additionalProperties": false,
+      "description": "A numeric layer: logical type, physical dtype and bounded statistics.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "measurement",
+            "auxiliary"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "primary": {
+          "title": "Primary",
+          "type": "boolean"
+        },
+        "storage_slot": {
+          "enum": [
+            "X",
+            "layers"
+          ],
+          "title": "Storage Slot",
+          "type": "string"
+        },
+        "shape": {
+          "$ref": "#/$defs/Shape"
+        },
+        "unit": {
+          "$ref": "#/$defs/JsonScalar"
+        },
+        "scale": {
+          "$ref": "#/$defs/JsonScalar"
+        },
+        "value_kind": {
+          "const": "quantitative",
+          "title": "Value Kind",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "number",
+            "integer"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "dtype": {
+          "title": "Dtype",
+          "type": "string"
+        },
+        "statistics": {
+          "$ref": "#/$defs/Statistics"
+        },
+        "observation_summaries": {
+          "$ref": "#/$defs/ObservationSummaries"
+        }
+      },
+      "required": [
+        "name",
+        "role",
+        "primary",
+        "storage_slot",
+        "shape",
+        "unit",
+        "scale",
+        "value_kind",
+        "type",
+        "dtype",
+        "statistics",
+        "observation_summaries"
+      ],
+      "title": "QuantitativeLayer",
+      "type": "object"
+    },
+    "Shape": {
+      "additionalProperties": false,
+      "description": "Observation and variable counts.",
+      "properties": {
+        "observations": {
+          "$ref": "#/$defs/Count"
+        },
+        "variables": {
+          "$ref": "#/$defs/Count"
+        }
+      },
+      "required": [
+        "observations",
+        "variables"
+      ],
+      "title": "Shape",
+      "type": "object"
+    },
+    "Statistics": {
+      "additionalProperties": false,
+      "description": "Counts, moments, extrema and quartiles of the finite values; null when none exist.",
+      "properties": {
+        "total_count": {
+          "$ref": "#/$defs/Count"
+        },
+        "finite_count": {
+          "$ref": "#/$defs/Count"
+        },
+        "null_count": {
+          "$ref": "#/$defs/Count"
+        },
+        "nan_count": {
+          "$ref": "#/$defs/Count"
+        },
+        "positive_infinity_count": {
+          "$ref": "#/$defs/Count"
+        },
+        "negative_infinity_count": {
+          "$ref": "#/$defs/Count"
+        },
+        "zero_count": {
+          "$ref": "#/$defs/Count"
+        },
+        "mean": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Mean"
+        },
+        "standard_deviation": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Standard Deviation"
+        },
+        "minimum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Minimum"
+        },
+        "maximum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Maximum"
+        },
+        "first_quartile": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "First Quartile"
+        },
+        "median": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Median"
+        },
+        "third_quartile": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Third Quartile"
+        },
+        "quartile_interpolation": {
+          "const": "linear",
+          "title": "Quartile Interpolation",
+          "type": "string"
+        },
+        "quartile_method": {
+          "enum": [
+            "linear_exact",
+            "linear_deterministic_grid_sample"
+          ],
+          "title": "Quartile Method",
+          "type": "string"
+        },
+        "quartile_sample_count": {
+          "$ref": "#/$defs/Count"
+        },
+        "quartile_sample_limit": {
+          "$ref": "#/$defs/Count"
+        }
+      },
+      "required": [
+        "total_count",
+        "finite_count",
+        "null_count",
+        "nan_count",
+        "positive_infinity_count",
+        "negative_infinity_count",
+        "zero_count",
+        "mean",
+        "standard_deviation",
+        "minimum",
+        "maximum",
+        "first_quartile",
+        "median",
+        "third_quartile",
+        "quartile_interpolation",
+        "quartile_method",
+        "quartile_sample_count",
+        "quartile_sample_limit"
+      ],
+      "title": "Statistics",
+      "type": "object"
+    },
+    "SummaryEntry": {
+      "discriminator": {
+        "mapping": {
+          "attention": "#/$defs/CheckedEntry",
+          "not_checked": "#/$defs/UncheckedEntry",
+          "ok": "#/$defs/CheckedEntry"
+        },
+        "propertyName": "status"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CheckedEntry"
+        },
+        {
+          "$ref": "#/$defs/UncheckedEntry"
+        }
+      ]
+    },
+    "Table": {
+      "additionalProperties": false,
+      "description": "A table's schema without its rows.",
+      "properties": {
+        "row_count": {
+          "$ref": "#/$defs/Count"
+        },
+        "key_columns": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Key Columns",
+          "type": "array"
+        },
+        "columns": {
+          "items": {
+            "$ref": "#/$defs/Column"
+          },
+          "title": "Columns",
+          "type": "array"
+        }
+      },
+      "required": [
+        "row_count",
+        "key_columns",
+        "columns"
+      ],
+      "title": "Table",
+      "type": "object"
+    },
+    "UncheckedEntry": {
+      "additionalProperties": false,
+      "description": "A summary entry that was not checked; it has no value.",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/Name"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "null"
+        },
+        "unit": {
+          "title": "Unit",
+          "type": "string"
+        },
+        "status": {
+          "const": "not_checked",
+          "title": "Status",
+          "type": "string"
+        },
+        "layer": {
+          "title": "Layer",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "label",
+        "value",
+        "unit",
+        "status"
+      ],
+      "title": "UncheckedEntry",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The JSON document written beside an APB result as ``<artifact>.apb.json``.",
+  "properties": {
+    "format": {
+      "const": "apb2-result-representation",
+      "title": "Format",
+      "type": "string"
+    },
+    "format_version": {
+      "const": "5",
+      "title": "Format Version",
+      "type": "string"
+    },
+    "artifact": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Artifact"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "root": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ApbRoot"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "levels": {
+      "items": {
+        "$ref": "#/$defs/Level"
+      },
+      "title": "Levels",
+      "type": "array"
+    },
+    "annotation_tables": {
+      "items": {
+        "$ref": "#/$defs/AnnotationTable"
+      },
+      "title": "Annotation Tables",
+      "type": "array"
+    },
+    "feature_relations": {
+      "items": {
+        "$ref": "#/$defs/FeatureRelation"
+      },
+      "title": "Feature Relations",
+      "type": "array"
+    }
+  },
+  "required": [
+    "format",
+    "format_version",
+    "artifact",
+    "root",
+    "levels",
+    "annotation_tables",
+    "feature_relations"
+  ],
+  "title": "APB result representation, format version 5",
+  "type": "object"
+}

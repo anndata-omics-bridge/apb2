@@ -181,6 +181,12 @@
                 ]
               },
               {
+                "name": "n_possible_proteins",
+                "source": "n_possible_proteins",
+                "type": "integer",
+                "required": false
+              },
+              {
                 "name": "Decoy",
                 "source": "decoy",
                 "type": "boolean"

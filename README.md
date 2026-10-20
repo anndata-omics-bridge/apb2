@@ -152,3 +152,9 @@ package rather than through a user-facing CLI command:
 ```bash
 uv run python -c 'from apb2.parserV2.vendor_parse_rules.schema_artifact import write_artifact; write_artifact()'
 ```
+
+The result-representation schema, for the `.apb.json` sidecar, is regenerated the same way:
+
+```bash
+uv run python -c 'from apb2.parserV2.parse_quant.io.representation_schema import write_representation_schema; write_representation_schema()'
+```

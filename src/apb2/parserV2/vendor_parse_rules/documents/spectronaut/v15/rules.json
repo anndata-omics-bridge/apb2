@@ -245,6 +245,18 @@
                 "required": false
               },
               {
+                "name": "PEP_IsProteotypic",
+                "source": "PEP.IsProteotypic",
+                "type": "boolean",
+                "required": false
+              },
+              {
+                "name": "PEP_IsProteinGroupSpecific",
+                "source": "PEP.IsProteinGroupSpecific",
+                "type": "boolean",
+                "required": false
+              },
+              {
                 "name": "PEP_NrOfMissedCleavages",
                 "source": "PEP.NrOfMissedCleavages",
                 "required": false

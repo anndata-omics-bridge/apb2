@@ -34,6 +34,7 @@ from apb2.parserV2.parse_quant.io.metadata import (
     level_scope,
     shared_scope,
 )
+from apb2.parserV2.parse_quant.io.representation_schema import validate_representation
 from apb2.parserV2.parse_quant.io.validation import validate_parsed_levels
 
 FORMAT = "apb2-result-representation"
@@ -117,6 +118,7 @@ def _write_representation(artifact: Path, project: Callable[[], dict[str, JsonVa
     destination = sidecar_path(artifact)
     destination.unlink(missing_ok=True)
     document = project()
+    validate_representation(document)
     destination.parent.mkdir(parents=True, exist_ok=True)
     payload = (
         json.dumps(

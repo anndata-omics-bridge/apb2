@@ -2,6 +2,25 @@
 
 ## 2026-10-20
 
+- The result representation, the `<artifact>.apb.json` sidecar beside every result, has a published JSON Schema: [representation.schema.json](src/apb2/parserV2/parse_quant/io/_schema/representation.schema.json), generated from the models in `parse_quant/io/representation_schema.py`. The document itself is unchanged and stays format version 5.
+  - **Strict structure:** levels, tables, columns, observations, both layer kinds and their statistics allow no unknown keys
+  - **Open metadata:** `apb` parts and annotation `metadata`, except that producer records follow the summary contract, with `status` ok, attention or not_checked and no value when not checked
+  - **Checked at write:** every sidecar, from `write_parsed_levels` and from `write_container_representation` (apb-export), is validated before it is written; a document outside the schema fails the producing call and leaves no sidecar
+  - **Dependencies:** `pydantic>=2.12`, the first version that checks a TypedDict's `extra_items`; `typing-extensions` is now declared directly; `jsonschema` joins the dev group, which tests written sidecars against the published file
+
+- The DIA-NN rules (v1.7, v1.8–1.9, v2) convert every report column they find, not only the columns current consumers read: a rule is a passive dump of the software output, and meanings a consumer needs belong in apb-catalog. All added entries are optional, so older exports without a column still convert.
+  - **Ion `var`:** columns constant per precursor, such as `Precursor.Mz`, `iRT` and `Protein.Sites`. `Site.Occupancy.Probabilities` keeps its first value, so it is lossy for the few precursors whose value differs between runs (39 and 80 in two ProteoBench plasma reports).
+  - **Ion layers:** per-run values, such as `RT.Start`, `FWHM`, `Evidence`, the q-value family, `PTM.*` and `Protein.Q.Value`
+  - **Protein layers:** per-group values (`PG.TopN`, `PG.MaxLFQ.Quality`, the `Genes.*` quantities); v1.7 also gains `PG_MaxLFQ` as an abundance layer, as in v1.8
+  - **obs:** `Run.Index`, `File.Name` (v1.8), the vendor `Run` column as `Run_Name` (v1.7)
+  - **Fragment level:** v1.7 also reads `Fragment.Quant.Corrected`. v1.8 does not, because a packed fragment value column cannot be optional, and 1.9 reports lack it.
+  - **Roles:** new layers carry no role and no missing-value policy, so they are stored as reported, and consumers that select abundance layers by role see the same layers as before
+  - **Warnings:** columns that are entirely empty, such as `Genes.Quantity` in exports without gene annotations, are reported as effectively empty
+  - **Size:** HDF5 output grows, for example 9.0 → 21.0 MB for a DIA-NN 2.3 Astral submission
+  - **Guard:** a test checks that each rule converts every column of its committed header
+
+- Ion levels keep the vendor's peptide-uniqueness flags where the export carries them, all optional: DIA-NN `Proteotypic` and Spectronaut `PEP.IsProteotypic` as booleans, Spectronaut 15 also `PEP.IsProteinGroupSpecific`, and AlphaPept's integer `n_possible_proteins`. They keep the vendor's meaning and names. On the committed samples DIA-NN 1.8 marks 271 of 281 precursors proteotypic, and Spectronaut 15 marks 19 of 43 protein-group specific.
+
 - **Breaking:** protein-list columns, those with the `fasta_accessions` or `protein_assignment` role, are written `;`-separated: a `,` or `;` with surrounding spaces becomes `;`, so FragPipe's `A, B` is `A;B`. This happens when the column is selected, so a protein-list var key such as DIA-NN's `Protein_Group` is checked for uniqueness in that spelling. A protein-list column may declare the vendor's own further `separator`, and any other column declaring one is refused; PEAKS `Accession` declares `:`. `:` cannot be general: MaxQuant and WOMBAT contaminant ids contain it (`CON__ENSEMBL:…`). apb-fasta and apb-proteobench drop their protein-group separator options.
 
 ## 2026-10-09

@@ -1,7 +1,7 @@
 {
   "hierarchy": "lfq",
   "schema_version": "0.8",
-  "file_version": "2",
+  "file_version": "3",
   "software_name": "DIA-NN",
   "software_version_pattern": "^1\\.[89](\\.|$)",
   "sample_annotation": {
@@ -42,6 +42,17 @@
             {
               "name": "Run",
               "source": "Run"
+            },
+            {
+              "name": "File_Name",
+              "source": "File.Name",
+              "required": false
+            },
+            {
+              "name": "Run_Index",
+              "source": "Run.Index",
+              "type": "integer",
+              "required": false
             }
           ],
           "var": [
@@ -166,6 +177,166 @@
               {
                 "name": "RT",
                 "source": "RT"
+              },
+              {
+                "name": "Averagine",
+                "source": "Averagine"
+              },
+              {
+                "name": "CScore",
+                "source": "CScore"
+              },
+              {
+                "name": "Channel_Q_Value",
+                "source": "Channel.Q.Value"
+              },
+              {
+                "name": "Decoy_CScore",
+                "source": "Decoy.CScore"
+              },
+              {
+                "name": "Decoy_Evidence",
+                "source": "Decoy.Evidence"
+              },
+              {
+                "name": "Empirical_Quality",
+                "source": "Empirical.Quality"
+              },
+              {
+                "name": "Evidence",
+                "source": "Evidence"
+              },
+              {
+                "name": "FWHM",
+                "source": "FWHM"
+              },
+              {
+                "name": "GG_Q_Value",
+                "source": "GG.Q.Value"
+              },
+              {
+                "name": "IM",
+                "source": "IM"
+              },
+              {
+                "name": "Lib_PTM_Site_Confidence",
+                "source": "Lib.PTM.Site.Confidence"
+              },
+              {
+                "name": "Lib_Peptidoform_Q_Value",
+                "source": "Lib.Peptidoform.Q.Value"
+              },
+              {
+                "name": "MS2_Scan",
+                "source": "MS2.Scan"
+              },
+              {
+                "name": "Mass_Evidence",
+                "source": "Mass.Evidence"
+              },
+              {
+                "name": "Ms1_Apex_Area",
+                "source": "Ms1.Apex.Area"
+              },
+              {
+                "name": "Ms1_Apex_Mz_Delta",
+                "source": "Ms1.Apex.Mz.Delta"
+              },
+              {
+                "name": "Ms1_Profile_Corr",
+                "source": "Ms1.Profile.Corr"
+              },
+              {
+                "name": "Ms1_Total_Signal_After",
+                "source": "Ms1.Total.Signal.After"
+              },
+              {
+                "name": "Ms1_Total_Signal_Before",
+                "source": "Ms1.Total.Signal.Before"
+              },
+              {
+                "name": "Ms1_Translated",
+                "source": "Ms1.Translated"
+              },
+              {
+                "name": "Normalisation_Factor",
+                "source": "Normalisation.Factor"
+              },
+              {
+                "name": "Normalisation_Noise",
+                "source": "Normalisation.Noise"
+              },
+              {
+                "name": "PTM_Informative",
+                "source": "PTM.Informative"
+              },
+              {
+                "name": "PTM_Localising",
+                "source": "PTM.Localising"
+              },
+              {
+                "name": "PTM_Q_Value",
+                "source": "PTM.Q.Value"
+              },
+              {
+                "name": "PTM_Site_Confidence",
+                "source": "PTM.Site.Confidence"
+              },
+              {
+                "name": "PTM_Specific",
+                "source": "PTM.Specific"
+              },
+              {
+                "name": "Peptidoform_Q_Value",
+                "source": "Peptidoform.Q.Value"
+              },
+              {
+                "name": "Precursor_Translated",
+                "source": "Precursor.Translated"
+              },
+              {
+                "name": "Predicted_IM",
+                "source": "Predicted.IM"
+              },
+              {
+                "name": "Predicted_RT",
+                "source": "Predicted.RT"
+              },
+              {
+                "name": "Predicted_iIM",
+                "source": "Predicted.iIM"
+              },
+              {
+                "name": "Predicted_iRT",
+                "source": "Predicted.iRT"
+              },
+              {
+                "name": "Protein_Q_Value",
+                "source": "Protein.Q.Value"
+              },
+              {
+                "name": "Quantity_Quality",
+                "source": "Quantity.Quality"
+              },
+              {
+                "name": "RT_Start",
+                "source": "RT.Start"
+              },
+              {
+                "name": "RT_Stop",
+                "source": "RT.Stop"
+              },
+              {
+                "name": "Spectrum_Similarity",
+                "source": "Spectrum.Similarity"
+              },
+              {
+                "name": "Translated_Q_Value",
+                "source": "Translated.Q.Value"
+              },
+              {
+                "name": "Translated_Quality",
+                "source": "Translated.Quality"
               }
             ]
           },
@@ -209,6 +380,62 @@
               {
                 "name": "Genes",
                 "source": "Genes"
+              },
+              {
+                "name": "Proteotypic",
+                "source": "Proteotypic",
+                "type": "boolean",
+                "required": false
+              },
+              {
+                "name": "Channel",
+                "source": "Channel",
+                "required": false
+              },
+              {
+                "name": "Global_Peptidoform_Q_Value",
+                "source": "Global.Peptidoform.Q.Value",
+                "type": "number",
+                "required": false
+              },
+              {
+                "name": "Precursor_Channels_Group",
+                "source": "Precursor.Channels.Group",
+                "required": false
+              },
+              {
+                "name": "Precursor_Lib_Index",
+                "source": "Precursor.Lib.Index",
+                "type": "integer",
+                "required": false
+              },
+              {
+                "name": "Precursor_Mz",
+                "source": "Precursor.Mz",
+                "type": "number",
+                "required": false
+              },
+              {
+                "name": "Protein_Sites",
+                "source": "Protein.Sites",
+                "required": false
+              },
+              {
+                "name": "Site_Occupancy_Probabilities",
+                "source": "Site.Occupancy.Probabilities",
+                "required": false
+              },
+              {
+                "name": "iIM",
+                "source": "iIM",
+                "type": "number",
+                "required": false
+              },
+              {
+                "name": "iRT",
+                "source": "iRT",
+                "type": "number",
+                "required": false
               },
               {
                 "name": "ProForma_peptidoform",
@@ -396,6 +623,26 @@
               {
                 "name": "Global_PG_Q_Value",
                 "source": "Global.PG.Q.Value"
+              },
+              {
+                "name": "Genes_MaxLFQ_Unique",
+                "source": "Genes.MaxLFQ.Unique"
+              },
+              {
+                "name": "Genes_Normalised",
+                "source": "Genes.Normalised"
+              },
+              {
+                "name": "Genes_Quantity",
+                "source": "Genes.Quantity"
+              },
+              {
+                "name": "PG_MaxLFQ_Quality",
+                "source": "PG.MaxLFQ.Quality"
+              },
+              {
+                "name": "PG_PEP",
+                "source": "PG.PEP"
               }
             ]
           },
@@ -422,6 +669,11 @@
               {
                 "name": "Genes",
                 "source": "Genes"
+              },
+              {
+                "name": "First_Protein_Description",
+                "source": "First.Protein.Description",
+                "required": false
               }
             ]
           }

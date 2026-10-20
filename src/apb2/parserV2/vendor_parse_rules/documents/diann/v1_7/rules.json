@@ -1,7 +1,7 @@
 {
   "hierarchy": "lfq",
   "schema_version": "0.8",
-  "file_version": "1",
+  "file_version": "2",
   "software_name": "DIA-NN",
   "software_version_pattern": "^1\\.[0-7](\\.|$)",
   "sample_annotation": {
@@ -39,6 +39,11 @@
             {
               "name": "Run",
               "source": "File.Name"
+            },
+            {
+              "name": "Run_Name",
+              "source": "Run",
+              "required": false
             }
           ],
           "var": [
@@ -149,6 +154,86 @@
               {
                 "name": "RT",
                 "source": "RT"
+              },
+              {
+                "name": "CScore",
+                "source": "CScore"
+              },
+              {
+                "name": "Decoy_CScore",
+                "source": "Decoy.CScore"
+              },
+              {
+                "name": "Decoy_Evidence",
+                "source": "Decoy.Evidence"
+              },
+              {
+                "name": "Evidence",
+                "source": "Evidence"
+              },
+              {
+                "name": "GG_Q_Value",
+                "source": "GG.Q.Value"
+              },
+              {
+                "name": "IM",
+                "source": "IM"
+              },
+              {
+                "name": "MS2_Scan",
+                "source": "MS2.Scan"
+              },
+              {
+                "name": "Mass_Evidence",
+                "source": "Mass.Evidence"
+              },
+              {
+                "name": "Ms1_Profile_Corr",
+                "source": "Ms1.Profile.Corr"
+              },
+              {
+                "name": "Precursor_Translated",
+                "source": "Precursor.Translated"
+              },
+              {
+                "name": "Predicted_IM",
+                "source": "Predicted.IM"
+              },
+              {
+                "name": "Predicted_RT",
+                "source": "Predicted.RT"
+              },
+              {
+                "name": "Predicted_iIM",
+                "source": "Predicted.iIM"
+              },
+              {
+                "name": "Predicted_iRT",
+                "source": "Predicted.iRT"
+              },
+              {
+                "name": "Protein_Q_Value",
+                "source": "Protein.Q.Value"
+              },
+              {
+                "name": "Quantity_Quality",
+                "source": "Quantity.Quality"
+              },
+              {
+                "name": "RT_Start",
+                "source": "RT.Start"
+              },
+              {
+                "name": "RT_Stop",
+                "source": "RT.Stop"
+              },
+              {
+                "name": "Spectrum_Similarity",
+                "source": "Spectrum.Similarity"
+              },
+              {
+                "name": "Translated_Q_Value",
+                "source": "Translated.Q.Value"
               }
             ]
           },
@@ -192,6 +277,24 @@
               {
                 "name": "Genes",
                 "source": "Genes"
+              },
+              {
+                "name": "Proteotypic",
+                "source": "Proteotypic",
+                "type": "boolean",
+                "required": false
+              },
+              {
+                "name": "iIM",
+                "source": "iIM",
+                "type": "number",
+                "required": false
+              },
+              {
+                "name": "iRT",
+                "source": "iRT",
+                "type": "number",
+                "required": false
               },
               {
                 "name": "ProForma_peptidoform",
@@ -245,6 +348,10 @@
               {
                 "name": "Fragment_Correlations",
                 "source": "Fragment.Correlations"
+              },
+              {
+                "name": "Fragment_Quant_Corrected",
+                "source": "Fragment.Quant.Corrected"
               }
             ]
           },
@@ -308,7 +415,8 @@
             "label_strategy": "positional",
             "value_columns": [
               "Fragment.Quant.Raw",
-              "Fragment.Correlations"
+              "Fragment.Correlations",
+              "Fragment.Quant.Corrected"
             ],
             "delimiter": ";",
             "label_output": "fragment_label"
@@ -363,6 +471,28 @@
               {
                 "name": "Global_PG_Q_Value",
                 "source": "Global.PG.Q.Value"
+              },
+              {
+                "name": "Genes_MaxLFQ_Unique",
+                "source": "Genes.MaxLFQ.Unique"
+              },
+              {
+                "name": "Genes_Normalised",
+                "source": "Genes.Normalised"
+              },
+              {
+                "name": "Genes_Quantity",
+                "source": "Genes.Quantity"
+              },
+              {
+                "name": "PG_MaxLFQ",
+                "source": "PG.MaxLFQ",
+                "roles": [
+                  "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
+                ]
               }
             ]
           },
@@ -389,6 +519,11 @@
               {
                 "name": "Genes",
                 "source": "Genes"
+              },
+              {
+                "name": "First_Protein_Description",
+                "source": "First.Protein.Description",
+                "required": false
               }
             ]
           }
