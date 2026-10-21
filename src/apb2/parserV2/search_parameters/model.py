@@ -6,6 +6,9 @@ parser reads its own format and hands over values of exactly the declared types 
 ``MassTolerance``, a ``Probability``, a ``list[SearchedModification]`` — so there is one place
 per concept rather than a parser that stringifies and a validator that parses the string back.
 The ``mode="before"`` coercers that used to re-parse those strings are gone; do not reintroduce one.
+
+It sits below both vendor parameter parsing, which builds the record, and result I/O, which
+stores it and publishes its JSON Schema, so neither keeps a copy.
 """
 
 from __future__ import annotations
@@ -13,7 +16,7 @@ from __future__ import annotations
 import math
 import re
 from enum import StrEnum
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import (
     BaseModel,
@@ -25,16 +28,6 @@ from pydantic import (
     field_validator,
     model_validator,
 )
-
-
-class ParamsError(Exception):
-    """A parameter file could not be parsed for the requested software.
-
-    Raised when the file is clearly not the expected format (e.g. a FragPipe workflow handed to the
-    DIA-NN parser) or lacks the markers a parser needs. It is a clean input-error signal that
-    conversion propagates and interactive callers may translate into a focused diagnostic.
-    """
-
 
 AcquisitionMethod = Literal["DDA", "DIA", "unknown"]
 ToleranceUnit = Literal["ppm", "Da"]
@@ -84,10 +77,8 @@ class SearchedModification(_Strict):
         return value
 
 
-class Probability(_Strict):
-    """A probability value constrained to the closed interval [0, 1]."""
-
-    value: float = Field(ge=0, le=1)
+type Probability = Annotated[float, Field(ge=0, le=1)]
+"""A probability in the closed interval [0, 1], stored as a bare number."""
 
 
 class MassTolerance(_Strict):

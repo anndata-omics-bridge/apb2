@@ -8,6 +8,13 @@ from io import BytesIO
 from pathlib import Path
 from typing import IO, NamedTuple
 
+from apb2.parserV2.search_parameters.model import (
+    MassTolerance,
+    ModType,
+    Parameters,
+    Probability,
+    SearchedModification,
+)
 from apb2.parserV2.vendor_params.parsers.shared.common import (
     MassModificationMatch,
     lookup_mass_mod,
@@ -15,13 +22,6 @@ from apb2.parserV2.vendor_params.parsers.shared.common import (
     read_text,
     symmetric_tolerance,
     tolerance_unit,
-)
-from apb2.parserV2.vendor_params.parsers.shared.model import (
-    MassTolerance,
-    ModType,
-    Parameters,
-    Probability,
-    SearchedModification,
 )
 from apb2.parserV2.vendor_params.parsers.shared.unimod import UNIMOD_REGISTRY, UnimodMatch
 
@@ -312,13 +312,13 @@ def _legacy_fragpipe_version(header: str) -> str | None:
 def _workflow_identification(values: dict[str, str], uses_diann: bool) -> IdentificationFdrs:
     """Read the FDR thresholds of the workflow's active identification stage."""
     if uses_diann:
-        q_value = Probability(value=float(values["diann.q-value"]))
+        q_value = float(values["diann.q-value"])
         return IdentificationFdrs(psm=q_value, peptide=None, protein=q_value)
     psm, peptide, protein = _parse_phi_report_filters(values["phi-report.filter"])
     return IdentificationFdrs(
-        psm=Probability(value=psm),
-        peptide=Probability(value=peptide),
-        protein=Probability(value=protein),
+        psm=psm,
+        peptide=peptide,
+        protein=protein,
     )
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import math
 import re
 from collections.abc import Iterable, Mapping
@@ -9,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import IO
 
-from apb2.parserV2.vendor_params.parsers.shared.model import (
+from apb2.parserV2.search_parameters.model import (
     MassTolerance,
     ModType,
     SearchedModification,
@@ -52,8 +53,9 @@ def read_text(source: Source, *, errors: str = "strict") -> str:
     """Read a path, text file-like, or bytes file-like into text.
 
     Rewinds seekable streams first (a no-op on fresh sources) and decodes bytes
-    as UTF-8. Centralizes the source-acquisition logic that each vendor parser
-    used to re-implement; only the per-vendor parse step legitimately varies.
+    as UTF-8 with the newline translation ``Path.read_text`` applies, so a file and
+    its bytes give the same text. Centralizes the source-acquisition logic that each
+    vendor parser used to re-implement; only the per-vendor parse step legitimately varies.
     """
     if isinstance(source, Path):
         return source.read_text(encoding="utf-8", errors=errors)
@@ -62,7 +64,7 @@ def read_text(source: Source, *, errors: str = "strict") -> str:
         source.seek(0)
     raw = source.read()
     if isinstance(raw, bytes):
-        return raw.decode("utf-8", errors=errors)
+        return io.TextIOWrapper(io.BytesIO(raw), encoding="utf-8", errors=errors).read()
     return raw
 
 

@@ -10,6 +10,7 @@ from polars.testing import assert_frame_equal
 
 from apb2.parserV2.parse_quant.data.parsed import (
     FinalLayerTable,
+    JsonValue,
     ObsFinal,
     ParsedLevel,
     ParsedLevels,
@@ -102,6 +103,15 @@ def test_nonbijective_or_incomplete_mapping_stays_separate(
     for group in groups:
         for name, level in group.levels.items():
             assert level is parsed.levels[name]
+
+
+def test_every_separate_group_keeps_the_root_parse_provenance() -> None:
+    parsed = _parsed(["A", "A"], ["A"])
+    provenance: dict[str, JsonValue] = {"search_parameters": {"file_name": "search.params"}}
+    parsed.uns["provenance"] = provenance
+    groups = parsed.observation_groups()
+    assert len(groups) == 2
+    assert all(group.uns["provenance"] == provenance for group in groups)
 
 
 def test_missing_relationship_cannot_be_inferred_from_matching_labels() -> None:

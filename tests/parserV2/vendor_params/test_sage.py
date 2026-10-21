@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from apb2.parserV2.search_parameters.model import Parameters
 from apb2.parserV2.vendor_params.parsers.sage import extract_params
-from apb2.parserV2.vendor_params.parsers.shared.model import Parameters
 from parserV2.vendor_params import proteobench_params
 
 PROTEOBENCH_PARAMS = Path(__file__).resolve().parent / "params"

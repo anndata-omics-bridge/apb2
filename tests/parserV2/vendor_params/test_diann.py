@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from apb2.parserV2.vendor_params.parsers.diann import extract_params
-from apb2.parserV2.vendor_params.parsers.shared.model import ParamsError
+from apb2.parserV2.vendor_params.parsers.shared.errors import ParamsError
 from parserV2.vendor_params import proteobench_params
 
 PROTEOBENCH_PARAMS = Path(__file__).resolve().parent / "params"

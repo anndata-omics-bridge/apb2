@@ -21,6 +21,7 @@ from typing_extensions import TypedDict
 
 from apb2.parserV2.parse_quant.data.parsed import JsonScalar, JsonValue
 from apb2.parserV2.parse_quant.io.errors import InvalidResultError
+from apb2.parserV2.search_parameters.model import Parameters
 
 SCHEMA_PACKAGE = "apb2.parserV2.parse_quant.io"
 SCHEMA_TITLE = "APB result representation, format version 5"
@@ -89,8 +90,47 @@ class ProducerRecord(TypedDict, extra_items=NamedRecord | NonObject):
 
 @with_config(_OPEN)
 class ApbPart(TypedDict, extra_items=ProducerRecord | NonObject):
-    """A root or level ``apb`` part: APB2's own entries and one record per producer."""
+    """A level ``apb`` part: APB2's own entries and one record per producer."""
 
+    hierarchy: NotRequired[dict[str, JsonValue]]
+    roles: NotRequired[dict[str, JsonValue]]
+    layer_descriptors: NotRequired[dict[str, JsonValue]]
+    annotation_tables: NotRequired[dict[str, JsonValue]]
+    feature_relations: NotRequired[dict[str, JsonValue]]
+
+
+@with_config(_STRICT)
+class SearchParametersRecord(TypedDict):
+    """The parameter file a conversion read: base name, SHA-256 of its bytes, typed record."""
+
+    file_name: Name
+    sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+    parameters: Parameters
+
+
+@with_config(_OPEN)
+class RootParseProvenance(TypedDict, extra_items=JsonValue):
+    """Conversion-wide parse provenance; absent keys mean the input was not supplied."""
+
+    search_parameters: NotRequired[SearchParametersRecord]
+
+
+@with_config(_OPEN)
+class RootParseRecord(TypedDict, extra_items=NamedRecord | NonObject):
+    """The root ``parse`` record: conversion-wide provenance and observation grouping."""
+
+    schema_version: NotRequired[JsonValue]
+    provenance: NotRequired[RootParseProvenance]
+    result: NotRequired[JsonValue]
+    summary: NotRequired[list[SummaryEntry]]
+    details: NotRequired[list[DetailReference]]
+
+
+@with_config(_OPEN)
+class RootApbPart(TypedDict, extra_items=ProducerRecord | NonObject):
+    """The root ``apb`` part: a level part's entries plus the typed root ``parse`` record."""
+
+    parse: NotRequired[RootParseRecord]
     hierarchy: NotRequired[dict[str, JsonValue]]
     roles: NotRequired[dict[str, JsonValue]]
     layer_descriptors: NotRequired[dict[str, JsonValue]]
@@ -102,7 +142,7 @@ class ApbPart(TypedDict, extra_items=ProducerRecord | NonObject):
 class ApbRoot(TypedDict):
     """The container's own ``apb`` part."""
 
-    apb: ApbPart
+    apb: RootApbPart
 
 
 @with_config(_STRICT)

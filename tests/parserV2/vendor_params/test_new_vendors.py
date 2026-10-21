@@ -5,8 +5,8 @@ from __future__ import annotations
 from io import StringIO
 from pathlib import Path
 
+from apb2.parserV2.search_parameters.model import MassTolerance
 from apb2.parserV2.vendor_params.parsers.i2masschroq import extract_params
-from apb2.parserV2.vendor_params.parsers.shared.model import MassTolerance
 from apb2.parserV2.vendor_params.registry import parse_params
 
 DATA = Path(__file__).resolve().parents[1] / "data"

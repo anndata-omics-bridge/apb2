@@ -9,17 +9,16 @@ from typing import IO
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from apb2.parserV2.search_parameters.model import (
+    MassTolerance,
+    ModType,
+    Parameters,
+    SearchedModification,
+)
 from apb2.parserV2.vendor_params.parsers.shared.common import (
     modifications,
     read_text,
     tolerance_unit,
-)
-from apb2.parserV2.vendor_params.parsers.shared.model import (
-    MassTolerance,
-    ModType,
-    Parameters,
-    Probability,
-    SearchedModification,
 )
 
 _Source = Path | IO[bytes] | IO[str]
@@ -198,5 +197,5 @@ def extract_params(file_a: _Source, file_b: _Source) -> Parameters:
         quantification_method="FlashLFQ",
         protein_inference="Parsimony" if search.do_parsimony else None,
         abundance_normalization_ions=search.normalize,
-        ident_fdr_psm=Probability(value=common.q_value_threshold),
+        ident_fdr_psm=common.q_value_threshold,
     )

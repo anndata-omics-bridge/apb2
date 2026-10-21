@@ -10,11 +10,10 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from apb2.parserV2.vendor_params.parsers.shared.model import (
+from apb2.parserV2.search_parameters.model import (
     MassTolerance,
     ModType,
     Parameters,
-    Probability,
     SearchedModification,
 )
 
@@ -69,7 +68,11 @@ def test_acquisition_method_rejects_values_outside_vocabulary(value: object) -> 
 
 def test_probability_rejects_values_outside_the_unit_interval() -> None:
     with pytest.raises(ValidationError):
-        Probability(value=1.2)
+        Parameters(ident_fdr_psm=1.2)
+
+
+def test_probability_is_stored_as_a_bare_number() -> None:
+    assert Parameters(ident_fdr_psm=0.01).model_dump(mode="json")["ident_fdr_psm"] == 0.01
 
 
 def test_parameters_reject_negative_mz() -> None:

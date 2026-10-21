@@ -308,6 +308,9 @@ vendor_parse_rules/*   -X->   parserV2/*.py, parse_quant/*, or vendor_params/*
 parse_quant/*          -X->   parserV2/*.py, vendor_parse_rules/*, or vendor_params/*
 vendor_params/*        -X->   parserV2/*.py, vendor_parse_rules/*, or parse_quant/*
 
+parse_quant/*, vendor_params/*  ---> search_parameters/*   allowed (the shared Parameters record)
+search_parameters/*    -X->   any other apb2 package
+
 vendor_parse_rules/*.py  ---> vendor_parse_rules/schema/*  allowed
 vendor_parse_rules/schema/* -X-> vendor_parse_rules/*.py    forbidden
 vendor_params/registry.py ---> vendor_params/parsers/*       allowed

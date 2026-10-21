@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from apb2.parserV2.vendor_params.parsers.alphadia import extract_params
-from apb2.parserV2.vendor_params.parsers.shared.model import ParamsError
+from apb2.parserV2.vendor_params.parsers.shared.errors import ParamsError
 
 PARAMS_DIR = Path(__file__).resolve().parent / "params"
 FIXTURE = PARAMS_DIR / "alphadia_1.10.3.log.txt"
@@ -62,9 +62,9 @@ def test_fdr_populates_psm_and_protein() -> None:
     params = extract_params(FIXTURE)
 
     assert params.ident_fdr_psm is not None
-    assert params.ident_fdr_psm.value == pytest.approx(0.01)
+    assert params.ident_fdr_psm == pytest.approx(0.01)
     assert params.ident_fdr_protein is not None
-    assert params.ident_fdr_protein.value == pytest.approx(0.01)
+    assert params.ident_fdr_protein == pytest.approx(0.01)
 
 
 def test_modifications_render_in_proforma_like_notation() -> None:

@@ -6,6 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import IO
 
+from apb2.parserV2.search_parameters.model import Parameters
 from apb2.parserV2.vendor_params.parsers.alphadia import extract_params as _alphadia_extract
 from apb2.parserV2.vendor_params.parsers.alphapept import extract_params as _alphapept_extract
 from apb2.parserV2.vendor_params.parsers.diann import extract_params as _diann_extract
@@ -24,7 +25,7 @@ from apb2.parserV2.vendor_params.parsers.prolinestudio import (
 )
 from apb2.parserV2.vendor_params.parsers.quantms import extract_params as _quantms_extract
 from apb2.parserV2.vendor_params.parsers.sage import extract_params as _sage_extract
-from apb2.parserV2.vendor_params.parsers.shared.model import Parameters, ParamsError
+from apb2.parserV2.vendor_params.parsers.shared.errors import ParamsError
 from apb2.parserV2.vendor_params.parsers.spectronaut import (
     extract_params as _spectronaut_extract,
 )

@@ -7,17 +7,16 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import IO
 
+from apb2.parserV2.search_parameters.model import (
+    MassTolerance,
+    ModType,
+    Parameters,
+    SearchedModification,
+)
 from apb2.parserV2.vendor_params.parsers.shared.common import (
     homogenize_paren_mods,
     modifications,
     split_modifications,
-)
-from apb2.parserV2.vendor_params.parsers.shared.model import (
-    MassTolerance,
-    ModType,
-    Parameters,
-    Probability,
-    SearchedModification,
 )
 
 XmlValue = str | dict[str, "XmlValue"] | list["XmlValue"] | None
@@ -277,8 +276,8 @@ def extract_params(
         software_name="MaxQuant",
         software_version=version,
         search_engine="Andromeda",
-        ident_fdr_psm=Probability(value=float(_field(document, "peptideFdr"))),
-        ident_fdr_protein=Probability(value=float(_field(document, "proteinFdr"))),
+        ident_fdr_psm=float(_field(document, "peptideFdr")),
+        ident_fdr_protein=float(_field(document, "proteinFdr")),
         enable_match_between_runs=_field(document, "matchBetweenRuns").lower() == "true",
         precursor_mass_tolerance=precursor_tolerance,
         fragment_mass_tolerance=fragment_tolerance,

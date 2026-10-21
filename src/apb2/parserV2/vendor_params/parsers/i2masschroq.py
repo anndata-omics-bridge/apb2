@@ -6,19 +6,14 @@ import re
 from pathlib import Path
 from typing import IO
 
+from apb2.parserV2.search_parameters.model import MassTolerance, ModType, Parameters, Probability
 from apb2.parserV2.vendor_params.parsers.shared.common import (
     mapped_modifications,
     read_lines,
     symmetric_tolerance,
     tolerance_unit,
 )
-from apb2.parserV2.vendor_params.parsers.shared.model import (
-    MassTolerance,
-    ModType,
-    Parameters,
-    ParamsError,
-    Probability,
-)
+from apb2.parserV2.vendor_params.parsers.shared.errors import ParamsError
 
 _MODIFICATIONS = {
     "57.02146@C": "C[Carbamidomethyl]",
@@ -45,7 +40,7 @@ def _record(source: Path | IO[bytes] | IO[str]) -> dict[str, str]:
 
 def _probability(values: dict[str, str], key: str) -> Probability | None:
     raw = values.get(key)
-    return Probability(value=float(raw)) if raw else None
+    return float(raw) if raw else None
 
 
 def _tokens(values: dict[str, str], prefix: str) -> list[str]:

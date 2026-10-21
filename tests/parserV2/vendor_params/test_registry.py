@@ -9,7 +9,7 @@ from typing import assert_type
 import pytest
 
 from apb2.parserV2.vendor_params.parsers.maxquant import extract_params as extract_maxquant
-from apb2.parserV2.vendor_params.parsers.shared.model import ParamsError
+from apb2.parserV2.vendor_params.parsers.shared.errors import ParamsError
 from apb2.parserV2.vendor_params.registry import (
     ParseFn,
     get_parser,

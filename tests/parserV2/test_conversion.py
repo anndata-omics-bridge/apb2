@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
@@ -34,11 +35,17 @@ from apb2.parserV2.parse_quant.io import formats
 from apb2.parserV2.parse_quant.io.json_representation import sidecar_path
 from apb2.parserV2.parse_quant.io.metadata import NAMESPACE, PARSE_NAMESPACE
 from apb2.parserV2.parse_quant.parameters.source import Folder, SingleFile
-from apb2.parserV2.vendor_params.parsers.shared.model import Parameters
+from apb2.parserV2.search_parameters.model import Parameters
 from apb2.parserV2.vendor_params.registry import parse_params
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import LEVELS, QuantificationLevel
-from parserV2.fixtures import PackagedDocument, committed_dir, committed_sample, document_pairs
+from parserV2.fixtures import (
+    PackagedDocument,
+    committed_dir,
+    committed_sample,
+    document_pairs,
+    search_parameters_record,
+)
 from parserV2.join_fixtures import maxquant_tables
 
 
@@ -96,7 +103,7 @@ def _maxquant_folder(
     return destination
 
 
-def test_packaged_conversion_writes_only_parser_provenance(tmp_path: Path) -> None:
+def test_packaged_conversion_records_the_parameter_file_once_at_the_root(tmp_path: Path) -> None:
     pair = _diann_v2()
     data = pair.required_data_path()
     parameters_path = _parameter_file(pair)
@@ -114,15 +121,38 @@ def test_packaged_conversion_writes_only_parser_provenance(tmp_path: Path) -> No
     assert result.software == "diann"
     assert target.is_file()
     stored = anndata.read_h5ad(target)
-    assert stored.uns[NAMESPACE][PARSE_NAMESPACE] == {}
     provenance = stored.uns["protein"][NAMESPACE][PARSE_NAMESPACE]["provenance"]
     assert "search_parameters" not in provenance
-    assert "search_parameters_path" not in provenance
     assert "rule_selection_method" not in provenance
+    record = search_parameters_record(formats.read_parsed_levels(target).uns)
+    assert record["file_name"] == parameters_path.name
+    assert record["sha256"] == hashlib.sha256(parameters_path.read_bytes()).hexdigest()
+    assert Parameters.model_validate(record["parameters"]) == parse_params(
+        parameters_path, software="diann"
+    )
     representation = json.loads(sidecar_path(target).read_text(encoding="utf-8"))
     assert representation["levels"][0]["name"] == "protein"
-    assert representation["root"]["apb"]["parse"] == {}
-    assert "search_parameters_path" not in representation["levels"][0]["apb"]["parse"]["provenance"]
+    assert representation["root"]["apb"]["parse"]["provenance"]["search_parameters"] == record
+    assert str(parameters_path.parent) not in json.dumps(representation["root"])
+    assert "search_parameters" not in representation["levels"][0]["apb"]["parse"]["provenance"]
+
+
+@pytest.mark.parametrize("suffix", (".h5ad", ".h5mu", ".parquet", ".duckdb"))
+def test_the_search_parameter_record_survives_every_result_format(
+    tmp_path: Path, suffix: str
+) -> None:
+    pair = _diann_v2()
+    compiler = ParseRuleCompiler(
+        pair.required_data_path(), _parameter_file(pair), requested_levels=("protein",)
+    )
+    parsed = compiler.compile().parse()
+    target = tmp_path / f"protein{suffix}"
+
+    formats.write_parsed_levels(parsed, target)
+
+    assert search_parameters_record(
+        formats.read_parsed_levels(target).uns
+    ) == search_parameters_record(parsed.uns)
 
 
 def test_packaged_conversion_logs_separate_phase_timings(tmp_path: Path) -> None:
@@ -206,7 +236,9 @@ def test_in_memory_vendor_parse_returns_typed_inputs_without_writing(tmp_path: P
     assert compiler.parameters == parse_params(parameters_path, software="diann")
     assert compiler.detection.software == "diann"
     assert list(parsed.levels) == ["protein"]
-    assert parsed.uns == {}
+    record = search_parameters_record(parsed.uns)
+    assert Parameters.model_validate(record["parameters"]) == compiler.parameters
+    assert list(parsed.uns) == ["provenance"]
     assert list(tmp_path.iterdir()) == []
 
 
@@ -229,7 +261,7 @@ def test_packaged_conversion_without_a_level_writes_every_compatible_modality(
     stored = mudata.read_h5mu(target)
     assert list(stored.mod) == [summary.level for summary in result.levels]
     assert set(stored.mod) >= {"ion", "protein"}
-    assert stored.uns[NAMESPACE][PARSE_NAMESPACE] == {}
+    assert "search_parameters" in stored.uns[NAMESPACE][PARSE_NAMESPACE]["provenance"]
     assert all(
         "search_parameters" not in modality.uns[NAMESPACE][PARSE_NAMESPACE]
         and "search_parameters_path" not in modality.uns[NAMESPACE][PARSE_NAMESPACE]
@@ -416,13 +448,15 @@ def test_parameter_parser_selection_precedence(
 
     monkeypatch.setattr(compilation_module, "guess_software", infer)
     monkeypatch.setattr(compilation_module, "parse_params", stop_after_selection)
+    parameters = tmp_path / "parameters.txt"
+    parameters.write_text("", encoding="utf-8")
 
     with pytest.raises(_StopAfterParserSelection):
         convert_from_packaged_rules(
             data=_diann_v2().required_data_path(),
             level="ion",
             output=tmp_path / "out.h5ad",
-            parameters_path=tmp_path / "parameters.txt",
+            parameters_path=parameters,
             software=software,
             checks="standard",
         )

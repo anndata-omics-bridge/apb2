@@ -6,16 +6,11 @@ import re
 from pathlib import Path
 from typing import IO
 
+from apb2.parserV2.search_parameters.model import MassTolerance, ModType, Parameters, Probability
 from apb2.parserV2.vendor_params.parsers.shared.common import (
     mapped_modifications,
     read_lines,
     tolerance_from_text,
-)
-from apb2.parserV2.vendor_params.parsers.shared.model import (
-    MassTolerance,
-    ModType,
-    Parameters,
-    Probability,
 )
 
 
@@ -59,7 +54,7 @@ def _fdr(lines: list[str], *terms: str) -> Probability | None:
         if raw is not None:
             try:
                 value = float(raw.removesuffix("%"))
-                return Probability(value=value / 100 if "%" in term or "%" in raw else value)
+                return value / 100 if "%" in term or "%" in raw else value
             except ValueError as error:
                 raise ValueError(f"PEAKS setting {term!r} has invalid FDR {raw!r}") from error
     return None

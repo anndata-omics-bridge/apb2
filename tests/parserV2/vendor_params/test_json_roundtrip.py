@@ -1,7 +1,7 @@
 """Search parameters survive the JSON round trip the converter stores them through.
 
-``cli._execute`` persists ``json.dumps(parameters.model_dump(mode="json"))`` into the apb2
-namespace, so the schema has to reconstruct itself from exactly that payload.
+Conversion stores ``parameters.model_dump(mode="json")`` in the root parse provenance, so the
+schema has to reconstruct itself from exactly that payload.
 """
 
 from __future__ import annotations
@@ -11,10 +11,9 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from apb2.parserV2.vendor_params.parsers.shared.model import (
+from apb2.parserV2.search_parameters.model import (
     MassTolerance,
     Parameters,
-    Probability,
     SearchedModification,
 )
 
@@ -27,7 +26,7 @@ def test_typed_values_survive_the_round_trip() -> None:
     parameters = Parameters(
         software_name="DIA-NN",
         software_version="2.3.0 Academia ",
-        ident_fdr_psm=Probability(value=0.01),
+        ident_fdr_psm=0.01,
         precursor_mass_tolerance=MassTolerance(mode="absolute", value=15.0, unit="ppm"),
         fragment_mass_tolerance=MassTolerance(mode="automatic", label="Automatic calibration"),
         fixed_mods=[SearchedModification(name="C[Carbamidomethyl]", accession="UNIMOD:4")],
@@ -36,7 +35,7 @@ def test_typed_values_survive_the_round_trip() -> None:
     recovered = _round_trip(parameters)
 
     assert recovered == parameters
-    assert recovered.ident_fdr_psm == Probability(value=0.01)
+    assert recovered.ident_fdr_psm == 0.01
     assert recovered.precursor_mass_tolerance == MassTolerance(
         mode="absolute", value=15.0, unit="ppm"
     )

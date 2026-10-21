@@ -33,7 +33,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
     PreparedTable,
 )
 from apb2.parserV2.prepare_source import InputPreparationError, prepare_source
-from apb2.parserV2.vendor_params.parsers.shared.model import Parameters
+from apb2.parserV2.search_parameters.model import Parameters
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
 from parserV2.fixtures import committed_dir, committed_sample, parse_section

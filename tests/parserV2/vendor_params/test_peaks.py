@@ -42,11 +42,11 @@ def test_peaks_reads_astral_report_settings() -> None:
     assert params.fragment_mass_tolerance.value == 10
     assert params.fragment_mass_tolerance.unit == "ppm"
     assert params.ident_fdr_psm is not None
-    assert params.ident_fdr_psm.value == 0.01
+    assert params.ident_fdr_psm == 0.01
     assert params.ident_fdr_peptide is not None
-    assert params.ident_fdr_peptide.value == 0.01
+    assert params.ident_fdr_peptide == 0.01
     assert params.ident_fdr_protein is not None
-    assert params.ident_fdr_protein.value == 0.01
+    assert params.ident_fdr_protein == 0.01
     assert [mod.accession for mod in params.fixed_mods] == ["UNIMOD:4"]
     assert [mod.accession for mod in params.variable_mods] == ["UNIMOD:35"]
     assert params.quantification_method == "ID-directed LFQ"
@@ -111,8 +111,8 @@ def test_peaks_matches_proteobench(txt_name: str) -> None:
         ("Peptide Feature: 0<=charge<=5", "min_precursor_charge"),
         ("Precursor Charge between: unknown\nPeptide Feature: 1<=charge<=5", "integer range"),
         ("Protein FDR(%): many", "invalid FDR"),
-        ("Protein FDR(%): 101", "invalid FDR"),
-        ("Protein FDR(%): nan", "invalid FDR"),
+        ("Protein FDR(%): 101", "ident_fdr_protein"),
+        ("Protein FDR(%): nan", "ident_fdr_protein"),
         ("Protein FDR(%):", "invalid FDR"),
         ("Match Between Run: maybe", "requires Yes or No"),
     ],
@@ -129,7 +129,7 @@ def test_peaks_reads_diapasef_report_without_peptide_or_protein_fdr() -> None:
     assert params.fragment_mass_tolerance is not None
     assert params.fragment_mass_tolerance.value == 15
     assert params.ident_fdr_psm is not None
-    assert params.ident_fdr_psm.value == 0.01
+    assert params.ident_fdr_psm == 0.01
     assert params.ident_fdr_peptide is None
     assert params.ident_fdr_protein is None
     assert (params.min_precursor_charge, params.max_precursor_charge) == (1, 5)
@@ -144,20 +144,20 @@ def test_peaks_reads_diapasef_report_without_peptide_or_protein_fdr() -> None:
         ("Increased Sensitivity: Enabled", {"enable_match_between_runs": None}),
         ("Match Between Run: No", {"enable_match_between_runs": False}),
         ("Match Between Run: Yes", {"enable_match_between_runs": True}),
-        ("Protein FDR(%): 0", {"ident_fdr_protein": {"value": 0.0}}),
-        ("Protein FDR(%): 1.00%", {"ident_fdr_protein": {"value": 0.01}}),
-        ("Protein Group FDR: 0.01", {"ident_fdr_protein": {"value": 0.01}}),
+        ("Protein FDR(%): 0", {"ident_fdr_protein": 0.0}),
+        ("Protein FDR(%): 1.00%", {"ident_fdr_protein": 0.01}),
+        ("Protein Group FDR: 0.01", {"ident_fdr_protein": 0.01}),
         (
             "Proteins FDR(%): 0.9720\nFDR Threshold(%): 0.0",
             {"ident_fdr_protein": None, "ident_fdr_peptide": None, "ident_fdr_psm": None},
         ),
         (
             "Proteins FDR(%): 0.9720\nProtein FDR(%): 1.00\nFDR Threshold(%): 0.0",
-            {"ident_fdr_protein": {"value": 0.01}},
+            {"ident_fdr_protein": 0.01},
         ),
         (
             "Precursor FDR: 0.0%\nPSM FDR: 1.0%",
-            {"ident_fdr_psm": {"value": 0.0}},
+            {"ident_fdr_psm": 0.0},
         ),
         (
             "Peptide Feature: 1 <= charge <= 5\nPrecursor Charge between: 2,4",

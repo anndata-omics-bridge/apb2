@@ -6,16 +6,16 @@ import json
 from pathlib import Path
 from typing import IO
 
-from apb2.parserV2.vendor_params.parsers.shared.common import (
-    modifications,
-    read_text,
-    symmetric_tolerance,
-)
-from apb2.parserV2.vendor_params.parsers.shared.model import (
+from apb2.parserV2.search_parameters.model import (
     MassTolerance,
     ModType,
     Parameters,
     SearchedModification,
+)
+from apb2.parserV2.vendor_params.parsers.shared.common import (
+    modifications,
+    read_text,
+    symmetric_tolerance,
 )
 
 # Sage uses "[" for N-terminal and "]" for C-terminal modifications.

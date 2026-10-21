@@ -12,7 +12,12 @@ from polars.testing import assert_frame_equal
 from apb2.api import ParseRuleCompiler, QuantificationLevel
 from apb2.parserV2 import detect_document as detection
 from apb2.parserV2.detect_document import RuleUnavailableError
-from parserV2.fixtures import committed_dir, committed_sample, document_pairs
+from parserV2.fixtures import (
+    committed_dir,
+    committed_sample,
+    document_pairs,
+    search_parameters_record,
+)
 
 
 def _sample(key: str) -> Path:
@@ -33,8 +38,12 @@ def test_software_only_api_preserves_parsed_values_and_rule_provenance() -> None
         source, software="fragpipe", requested_levels=("ion",)
     )
 
-    expected = with_parameters.compile().parse().levels["ion"]
-    actual = without_parameters.compile().parse().levels["ion"]
+    expected_result = with_parameters.compile().parse()
+    actual_result = without_parameters.compile().parse()
+    assert search_parameters_record(expected_result.uns)["file_name"] == record["params"]
+    assert actual_result.uns == {}, "no parameter file, no root parse provenance"
+    expected = expected_result.levels["ion"]
+    actual = actual_result.levels["ion"]
     assert actual.obs.frame.height == record["levels"]["ion"]["observations"]
     assert actual.var.frame.height == record["levels"]["ion"]["variables"]
     assert_frame_equal(actual.obs.frame, expected.obs.frame)

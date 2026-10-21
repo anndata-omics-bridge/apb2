@@ -22,7 +22,7 @@ from apb2.parserV2.parse_quant.io.formats import read_parsed_levels, write_parse
 from apb2.parserV2.parse_quant.io.json_representation import sidecar_path
 from apb2.parserV2.parse_quant.io.uns_json import UnsJsonCodec
 from apb2.parserV2.parse_quant.parser import LevelParseTimings
-from apb2.parserV2.vendor_params.parsers.shared.model import Parameters
+from apb2.parserV2.search_parameters.model import Parameters
 from apb2.parserV2.vendor_params.parsers.shared.unimod import UNIMOD_REGISTRY
 from apb2.parserV2.vendor_params.registry import parse_params as parse_search_parameters
 from apb2.parserV2.vendor_parse_rules.catalog import (

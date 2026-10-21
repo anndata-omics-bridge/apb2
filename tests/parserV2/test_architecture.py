@@ -20,6 +20,7 @@ RULES = PARSER_V2 / "vendor_parse_rules"
 VENDOR_PARAMS = PARSER_V2 / "vendor_params"
 VENDOR_PARAM_PARSERS = VENDOR_PARAMS / "parsers"
 VENDOR_PARAM_SHARED = VENDOR_PARAM_PARSERS / "shared"
+SEARCH_PARAMETERS = PARSER_V2 / "search_parameters"
 RULE_SCHEMA = RULES / "schema"
 PARSE_QUANT_CHILDREN = frozenset(
     {
@@ -167,7 +168,23 @@ def test_the_parameter_package_imports_nothing_above_itself(path: Path) -> None:
     assert not any(name.startswith("apb2.parserV2.parse_quant") for name in imported)
     assert not any(name.startswith("apb2.parserV2.vendor_parse_rules") for name in imported)
     assert not any(
-        name.startswith("apb2.") and not name.startswith("apb2.parserV2.vendor_params")
+        name.startswith("apb2.")
+        and not name.startswith(("apb2.parserV2.vendor_params", "apb2.parserV2.search_parameters"))
+        for name in imported
+    )
+
+
+@pytest.mark.parametrize(
+    "path",
+    _modules(SEARCH_PARAMETERS),
+    ids=lambda path: str(path.relative_to(SEARCH_PARAMETERS)),
+)
+def test_the_search_parameter_record_is_a_leaf(path: Path) -> None:
+    """Parameter parsing builds the record and result I/O stores it; it knows neither."""
+    imported = _imported_modules(path)
+
+    assert not any(
+        name.startswith("apb2.") and not name.startswith("apb2.parserV2.search_parameters")
         for name in imported
     )
 

@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from apb2.parserV2.vendor_params.parsers.shared.model import ParamsError
+from apb2.parserV2.vendor_params.parsers.shared.errors import ParamsError
 from apb2.parserV2.vendor_params.registry import (
     ParameterInput,
     get_parser,

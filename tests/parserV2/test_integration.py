@@ -28,7 +28,7 @@ from apb2.parserV2.parse_quant.io.parquet_writer import MANIFEST_NAME
 from apb2.parserV2.parse_quant.parameters.source import SingleFile
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.parser_factory import compile_level
-from apb2.parserV2.vendor_params.parsers.shared.model import Parameters
+from apb2.parserV2.search_parameters.model import Parameters
 from apb2.parserV2.vendor_params.registry import parse_params
 from apb2.parserV2.vendor_parse_rules.document import (
     SearchParameterEvidence,

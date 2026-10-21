@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from apb2.parserV2.search_parameters.model import Parameters
 from apb2.parserV2.vendor_params.parsers.alphapept import extract_params as alphapept_extract
-from apb2.parserV2.vendor_params.parsers.shared.model import Parameters
 from apb2.parserV2.vendor_params.parsers.wombat import extract_params as wombat_extract
 from parserV2.vendor_params import proteobench_params
 

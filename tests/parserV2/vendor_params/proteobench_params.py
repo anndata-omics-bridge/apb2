@@ -21,7 +21,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Final
 
-from apb2.parserV2.vendor_params.parsers.shared.model import (
+from apb2.parserV2.search_parameters.model import (
     MassTolerance,
     Parameters,
     SearchedModification,
@@ -103,7 +103,7 @@ def actual(parameters: Parameters) -> Series:
         elif field in _TOLERANCE_FIELDS:
             out[field] = None if value is None else _format_tolerance(value)
         elif field in _PROBABILITY_FIELDS:
-            out[field] = None if value is None else _number(value.value)
+            out[field] = None if value is None else _number(value)
         else:
             out[field] = _format_scalar(field, value)
     return out

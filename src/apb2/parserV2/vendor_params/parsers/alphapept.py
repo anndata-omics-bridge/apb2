@@ -8,17 +8,16 @@ from typing import IO
 import yaml
 from pydantic import BaseModel, ConfigDict
 
+from apb2.parserV2.search_parameters.model import (
+    MassTolerance,
+    ModType,
+    Parameters,
+    SearchedModification,
+)
 from apb2.parserV2.vendor_params.parsers.shared.common import (
     modifications,
     read_text,
     tolerance_unit,
-)
-from apb2.parserV2.vendor_params.parsers.shared.model import (
-    MassTolerance,
-    ModType,
-    Parameters,
-    Probability,
-    SearchedModification,
 )
 
 MODIFICATION_MAPPING = {
@@ -119,8 +118,8 @@ def extract_params(source: Path | IO[bytes] | IO[str]) -> Parameters:
         max_peptide_length=fasta.pep_length_max,
         precursor_mass_tolerance=MassTolerance(mode="absolute", value=search.prec_tol, unit=unit),
         fragment_mass_tolerance=MassTolerance(mode="absolute", value=search.frag_tol, unit=unit),
-        ident_fdr_protein=Probability(value=search.protein_fdr),
-        ident_fdr_psm=Probability(value=search.peptide_fdr),
+        ident_fdr_protein=search.protein_fdr,
+        ident_fdr_psm=search.peptide_fdr,
         min_precursor_charge=features.iso_charge_min,
         max_precursor_charge=features.iso_charge_max,
         enable_match_between_runs=workflow.match,

@@ -18,19 +18,18 @@ import re
 from pathlib import Path
 from typing import IO
 
+from apb2.parserV2.search_parameters.model import (
+    MassTolerance,
+    ModType,
+    Parameters,
+    SearchedModification,
+)
 from apb2.parserV2.vendor_params.parsers.shared.common import (
     automatic_tolerance,
     modifications,
     read_lines,
 )
-from apb2.parserV2.vendor_params.parsers.shared.model import (
-    MassTolerance,
-    ModType,
-    Parameters,
-    ParamsError,
-    Probability,
-    SearchedModification,
-)
+from apb2.parserV2.vendor_params.parsers.shared.errors import ParamsError
 
 _ANSI_RE = re.compile(r"(\x9b|\x1b\[)[0-?]*[ -/]*[@-~]")
 _TIMESTAMP_RE = re.compile(r"(\d+ days?,\s*)?(\d+):\d{2}:\d{2}\.?\d*")
@@ -165,7 +164,7 @@ def extract_params(source: Path | IO[bytes] | IO[str]) -> Parameters:
         raise ParamsError("no AlphaDIA version banner found; not an AlphaDIA run log")
 
     raw_fdr = scalars.get("fdr")
-    fdr = None if raw_fdr is None else Probability(value=float(raw_fdr.strip()))
+    fdr = None if raw_fdr is None else float(raw_fdr.strip())
     length = ranges.get("precursor_len")
     charge = ranges.get("precursor_charge")
     mbr = scalars.get("mbr_step_enabled")

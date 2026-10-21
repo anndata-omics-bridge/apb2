@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from apb2.parserV2.search_parameters.model import Parameters
 from apb2.parserV2.vendor_params.parsers import (
     alphapept,
     fragpipe,
@@ -17,7 +18,6 @@ from apb2.parserV2.vendor_params.parsers import (
     spectronaut,
     wombat,
 )
-from apb2.parserV2.vendor_params.parsers.shared.model import Parameters
 
 PROTEOBENCH_PARAMS = Path(__file__).resolve().parent / "params"
 Parser = Callable[..., Parameters]

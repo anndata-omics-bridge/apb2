@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
+import io
 import json
 from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Self
 
@@ -23,10 +26,12 @@ from apb2.parserV2.detect_document import (
     software_slug,
 )
 from apb2.parserV2.parse_quant.data.errors import ConversionError
+from apb2.parserV2.parse_quant.data.parsed import JsonValue
 from apb2.parserV2.parse_quant.data.step_log import logged_step
 from apb2.parserV2.parse_quant.parameters.source import Folder, InputSource, SingleFile
 from apb2.parserV2.parse_quant.parser import ParserCollection
-from apb2.parserV2.vendor_params.parsers.shared.model import Parameters, ParamsError
+from apb2.parserV2.search_parameters.model import Parameters
+from apb2.parserV2.vendor_params.parsers.shared.errors import ParamsError
 from apb2.parserV2.vendor_params.registry import parse_params
 from apb2.parserV2.vendor_parse_rules.document import (
     RuleDocument,
@@ -39,10 +44,49 @@ from apb2.parserV2.vendor_parse_rules.schema.base import LEVELS, QuantificationL
 type ValidationChecks = Literal["standard", "strict"]
 
 
+@dataclass(frozen=True, slots=True)
+class ParameterFile:
+    """A vendor parameter file read once: its base name, the SHA-256 of its bytes, its record.
+
+    Only the base name is kept, so no absolute path enters the result.
+    """
+
+    file_name: str
+    sha256: str
+    parameters: Parameters
+
+    @classmethod
+    def read(cls, path: Path, software: str) -> Self:
+        """Read the file's bytes once, then hash and parse those same bytes.
+
+        Raises:
+            ConversionError: The bytes do not parse in ``software``'s parameter grammar.
+        """
+        data = path.read_bytes()
+        try:
+            parameters = parse_params(io.BytesIO(data), software=software)
+        except (ParamsError, json.JSONDecodeError, ValidationError) as error:
+            raise ConversionError(
+                f"cannot parse {path} as {software}: {error}; "
+                "use --software (software= in Python) to select the parameter-file grammar"
+            ) from error
+        return cls(path.name, hashlib.sha256(data).hexdigest(), parameters)
+
+    def provenance(self) -> dict[str, JsonValue]:
+        """The root parse provenance that records this file."""
+        return {
+            "search_parameters": {
+                "file_name": self.file_name,
+                "sha256": self.sha256,
+                "parameters": self.parameters.model_dump(mode="json"),
+            }
+        }
+
+
 class ParseRuleCompiler:
     """Resolve vendor inputs once and compile their complete parser collection."""
 
-    __slots__ = ("_detection", "_parameters")
+    __slots__ = ("_detection", "_parameter_file")
 
     def __init__(
         self,
@@ -75,13 +119,15 @@ class ParseRuleCompiler:
                 raise RuleUnavailableError(
                     "parameter-free packaged conversion requires --software (software= in Python)"
                 )
+            parameter_file = None
             parameters = None
             vendors = frozenset({software_slug(software)})
         else:
             parameter_software = (
                 guess_software(source) if software is None else software_slug(software)
             )
-            parameters = _read_parameters(parameters_path, parameter_software)
+            parameter_file = ParameterFile.read(parameters_path, parameter_software)
+            parameters = parameter_file.parameters
             vendors = frozenset(
                 software_slug(name)
                 for name in (parameter_software, parameters.quantification_software)
@@ -92,8 +138,8 @@ class ParseRuleCompiler:
                 parameters, source, levels, vendors=vendors, checks=checks
             )
         _log_detection(detection)
-        self._parameters = parameters
         self._detection = detection
+        self._parameter_file = parameter_file
 
     @classmethod
     def from_software(
@@ -111,14 +157,12 @@ class ParseRuleCompiler:
         software. The detected version is ``None`` and ``parameters`` is unavailable.
         """
         levels = _validated_levels(LEVELS if requested_levels is None else requested_levels)
-        compiler = cls.__new__(cls)
         with logged_step("detect", source=data, software=software, levels=",".join(levels)):
-            compiler._detection = detect_software_rules(
+            detection = detect_software_rules(
                 _input_source(data), levels, software=software, checks=checks
             )
-        _log_detection(compiler._detection)
-        compiler._parameters = None
-        return compiler
+        _log_detection(detection)
+        return cls._resolved(detection, None)
 
     @classmethod
     def from_rule(
@@ -144,10 +188,10 @@ class ParseRuleCompiler:
             document = load_rule_document(rule)
         except (json.JSONDecodeError, ValidationError) as error:
             raise ConversionError(f"cannot read rule file {rule}: {error}") from error
-        parameters = (
+        parameter_file = (
             None
             if parameters_path is None
-            else _read_parameters(
+            else ParameterFile.read(
                 parameters_path,
                 software_slug(document.software_name if software is None else software),
             )
@@ -158,27 +202,33 @@ class ParseRuleCompiler:
                 _input_source(data),
                 document.levels if requested_levels is None else requested_levels,
                 UNKNOWN_SEARCH_PARAMETERS
-                if parameters is None
-                else search_parameter_evidence(parameters),
+                if parameter_file is None
+                else search_parameter_evidence(parameter_file.parameters),
                 checks=checks,
             ).selections
         except RuleNotApplicable as error:
             raise ConversionError(str(error)) from error
-        compiler = cls.__new__(cls)
-        compiler._detection = DetectedRuleSet(
+        detection = DetectedRuleSet(
             software=software_slug(document.software_name),
-            version=None if parameters is None else parameters.software_version,
+            version=None if parameter_file is None else parameter_file.parameters.software_version,
             levels=selections,
         )
-        compiler._parameters = parameters
+        return cls._resolved(detection, parameter_file)
+
+    @classmethod
+    def _resolved(cls, detection: DetectedRuleSet, parameter_file: ParameterFile | None) -> Self:
+        """The one place an alternate constructor sets the state ``__init__`` resolves."""
+        compiler = cls.__new__(cls)
+        compiler._detection = detection
+        compiler._parameter_file = parameter_file
         return compiler
 
     @property
     def parameters(self) -> Parameters:
         """Typed vendor parameters used for rule detection, when supplied."""
-        if self._parameters is None:
+        if self._parameter_file is None:
             raise ValueError("this conversion has no vendor parameter file")
-        return self._parameters
+        return self._parameter_file.parameters
 
     @property
     def detection(self) -> DetectedRuleSet:
@@ -187,7 +237,10 @@ class ParseRuleCompiler:
 
     def compile(self) -> ParserCollection:
         """Compile every detected selection into one collection parser."""
-        return ParserCollection(tuple(selection.parser for selection in self._detection.levels))
+        provenance = {} if self._parameter_file is None else self._parameter_file.provenance()
+        return ParserCollection(
+            tuple(selection.parser for selection in self._detection.levels), provenance
+        )
 
 
 class ExplicitRuleCompiler:
@@ -227,7 +280,7 @@ class ExplicitRuleCompiler:
 
     def compile(self) -> ParserCollection:
         """Compile every explicit selection into one collection parser."""
-        return ParserCollection(tuple(selection.parser for selection in self._selections))
+        return ParserCollection(tuple(selection.parser for selection in self._selections), {})
 
 
 def _log_detection(detection: DetectedRuleSet) -> None:
@@ -247,16 +300,6 @@ def _validated_levels(
     if duplicates:
         raise ValueError(f"duplicate quantification levels: {duplicates}")
     return levels
-
-
-def _read_parameters(path: Path, software: str) -> Parameters:
-    try:
-        return parse_params(path, software=software)
-    except (ParamsError, json.JSONDecodeError, ValidationError) as error:
-        raise ConversionError(
-            f"cannot parse {path} as {software}: {error}; "
-            "use --software (software= in Python) to select the parameter-file grammar"
-        ) from error
 
 
 def _input_source(data: Path) -> InputSource:

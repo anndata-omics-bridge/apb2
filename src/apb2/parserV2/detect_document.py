@@ -27,8 +27,8 @@ from apb2.parserV2.prepare_source import (
     prepare_source,
     recognizes_preparation,
 )
+from apb2.parserV2.search_parameters.model import Parameters
 from apb2.parserV2.source_binding import BoundTable
-from apb2.parserV2.vendor_params.parsers.shared.model import Parameters
 from apb2.parserV2.vendor_parse_rules.document import (
     RuleDocument,
     RuleNotApplicable,

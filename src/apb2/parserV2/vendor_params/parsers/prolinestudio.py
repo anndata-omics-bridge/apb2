@@ -8,18 +8,13 @@ from typing import IO, Any, cast
 
 import pandas as pd
 
+from apb2.parserV2.search_parameters.model import ModType, Parameters, SearchedModification
 from apb2.parserV2.vendor_params.parsers.shared.common import (
     homogenize_paren_mods,
     modifications,
     tolerance_from_text,
 )
-from apb2.parserV2.vendor_params.parsers.shared.model import (
-    ModType,
-    Parameters,
-    ParamsError,
-    Probability,
-    SearchedModification,
-)
+from apb2.parserV2.vendor_params.parsers.shared.errors import ParamsError
 
 
 def _unique(frame: pd.DataFrame, name: str) -> object:
@@ -104,7 +99,7 @@ def extract_params(source: Path | IO[bytes] | IO[str]) -> Parameters:
         acquisition_method="DDA",
         search_engine=str(_unique(search, "software_name")),
         search_engine_version=str(_unique(search, "software_version")),
-        ident_fdr_psm=Probability(value=psm_fdr),
+        ident_fdr_psm=psm_fdr,
         enable_match_between_runs=any(
             "cross assignment" in str(value).lower() for value in quant.index
         ),

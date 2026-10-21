@@ -1,4 +1,4 @@
-"""PEAKS settings select rules but never filter measurements or enter parsed provenance."""
+"""PEAKS settings select rules and are recorded as search parameters, but never filter."""
 
 from __future__ import annotations
 
@@ -9,12 +9,18 @@ import pytest
 from polars.testing import assert_frame_equal, assert_series_equal
 
 from apb2.cli.conversion import convert_all_from_packaged_rules
+from apb2.parserV2.parse_quant.data.parsed import ParsedLevels
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels
-from parserV2.fixtures import committed_sample
+from apb2.parserV2.search_parameters.model import Parameters
+from parserV2.fixtures import committed_sample, search_parameters_record
+
+
+def _recorded_parameters(result: ParsedLevels) -> Parameters:
+    return Parameters.model_validate(search_parameters_record(result.uns)["parameters"])
 
 
 @pytest.mark.parametrize("suffix", [".h5ad", ".h5mu", ".parquet", ".duckdb"])
-def test_peaks_fdr_does_not_filter_or_enter_parsed_provenance(
+def test_peaks_fdr_does_not_filter_and_is_recorded_only_as_a_search_parameter(
     tmp_path: Path,
     suffix: str,
 ) -> None:
@@ -49,8 +55,9 @@ def test_peaks_fdr_does_not_filter_or_enter_parsed_provenance(
     assert first.layers.keys() == second.layers.keys()
     for name in first.layers:
         assert_frame_equal(first.layers[name].values, second.layers[name].values)
-    assert first_result.uns == {}
-    assert second_result.uns == {}
+    assert first.uns == second.uns
+    assert _recorded_parameters(first_result).ident_fdr_psm == 0.01
+    assert _recorded_parameters(second_result).ident_fdr_psm == 0.0
 
 
 def test_peaks_retains_the_minus_10lgp_identification_score(tmp_path: Path) -> None:

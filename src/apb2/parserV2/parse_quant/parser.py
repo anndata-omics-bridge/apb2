@@ -80,11 +80,16 @@ class LevelParseTimings:
 
 
 class ParserCollection:
-    """Compiled level parsers that produce one canonical ``ParsedLevels`` value."""
+    """Compiled level parsers that produce one canonical ``ParsedLevels`` value.
 
-    __slots__ = ("_hierarchy", "_parsers")
+    ``provenance`` is the root parse provenance, such as the search-parameter record; an empty
+    mapping leaves the root parse record empty.
+    """
 
-    def __init__(self, parsers: tuple[Parser, ...], /) -> None:
+    __slots__ = ("_hierarchy", "_parsers", "_uns")
+
+    def __init__(self, parsers: tuple[Parser, ...], provenance: Mapping[str, JsonValue], /) -> None:
+        self._uns: dict[str, JsonValue] = {"provenance": dict(provenance)} if provenance else {}
         if not parsers:
             raise ValueError("a parser collection requires at least one level parser")
         levels = tuple(parser.level for parser in parsers)
@@ -108,7 +113,7 @@ class ParserCollection:
         """Parse every compiled level once and assemble the canonical collection."""
         return ParsedLevels(
             levels={parser.level: parser.parse() for parser in self._parsers},
-            uns={},
+            uns=dict(self._uns),
             hierarchy=self._hierarchy,
         )
 
@@ -120,7 +125,8 @@ class ParserCollection:
             parsed_level, timing = parser.parse_with_timings()
             levels[parser.level] = parsed_level
             timings.append(timing)
-        return ParsedLevels(levels=levels, uns={}, hierarchy=self._hierarchy), tuple(timings)
+        parsed = ParsedLevels(levels=levels, uns=dict(self._uns), hierarchy=self._hierarchy)
+        return parsed, tuple(timings)
 
 
 @dataclass(frozen=True, slots=True)

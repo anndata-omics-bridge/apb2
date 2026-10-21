@@ -9,16 +9,16 @@ from typing import IO, TypedDict
 
 from packaging.version import VERSION_PATTERN, Version
 
-from apb2.parserV2.vendor_params.parsers.shared.common import mapped_modifications, read_lines
-from apb2.parserV2.vendor_params.parsers.shared.model import (
+from apb2.parserV2.search_parameters.model import (
     AcquisitionMethod,
     MassTolerance,
     ModType,
     Parameters,
-    ParamsError,
     Probability,
     SearchedModification,
 )
+from apb2.parserV2.vendor_params.parsers.shared.common import mapped_modifications, read_lines
+from apb2.parserV2.vendor_params.parsers.shared.errors import ParamsError
 
 _Source = Path | IO[bytes] | IO[str]
 
@@ -178,7 +178,7 @@ def _ppm(value: str) -> MassTolerance:
 
 def _probability(value: str | None) -> Probability | None:
     """An FDR the cfg block does not state is absent."""
-    return None if value is None else Probability(value=float(value))
+    return None if value is None else float(value)
 
 
 def _find_cmdline(lines: list[str]) -> str | None:
@@ -407,7 +407,7 @@ def _from_cmdline_arguments(cmd_dict: dict[str, _CommandValue]) -> DiannParamete
     out: DiannParameterData = {}
     q_value = _arguments(cmd_dict, "qvalue")
     if q_value is not None:
-        out["ident_fdr_psm"] = Probability(value=float(q_value[0]))
+        out["ident_fdr_psm"] = float(q_value[0])
     fixed = _arguments(cmd_dict, "mod")
     if fixed is not None:
         out["fixed_mods"] = mapped_modifications(fixed, MODIFICATION_MAPPING, ModType.fixed)

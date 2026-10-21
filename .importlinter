@@ -23,6 +23,7 @@ layers =
     source_binding | prepare_source
     parse_rule_facade
     parse_quant | vendor_params | vendor_parse_rules | joins
+    search_parameters
 
 [importlinter:contract:tool-joins-remain-independent]
 name = tool joins remain independent of one another
@@ -54,14 +55,14 @@ layers =
     shared
 
 [importlinter:contract:shared-vendor-parameter-code-is-inward-only]
-name = shared vendor parameter parsing descends into model and UniMod values
+name = shared vendor parameter parsing descends into its error and UniMod values
 type = layers
 exhaustive = True
 containers =
     apb2.parserV2.vendor_params.parsers.shared
 layers =
     common
-    model | unimod
+    errors | unimod
 
 [importlinter:contract:rule-schema-is-an-inward-child]
 name = the rule schema never imports its parent document or loader

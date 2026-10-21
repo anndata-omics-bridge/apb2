@@ -282,6 +282,11 @@ def parse_section(uns: dict[str, JsonValue], section: str) -> dict[str, JsonValu
     return value
 
 
+def search_parameters_record(uns: dict[str, JsonValue]) -> dict[str, JsonValue]:
+    """The parameter-file record a conversion stores in its root parse provenance."""
+    return parse_section(parse_section(uns, "provenance"), "search_parameters")
+
+
 def write_level(parsed: ParsedLevel, target: Path) -> None:
     """Write one parsed level as a one-level result in the format the target path names."""
     provenance = parsed.uns["provenance"]

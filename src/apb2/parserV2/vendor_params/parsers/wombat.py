@@ -8,13 +8,13 @@ from typing import IO
 import yaml
 from pydantic import BaseModel, ConfigDict
 
+from apb2.parserV2.search_parameters.model import ModType, Parameters
 from apb2.parserV2.vendor_params.parsers.shared.common import (
     modifications,
     read_text,
     split_modifications,
     tolerance_from_text,
 )
-from apb2.parserV2.vendor_params.parsers.shared.model import ModType, Parameters, Probability
 
 # Longest qualifier first: "protein n-term" also contains "n-term".
 _TERMINI = {
@@ -100,9 +100,9 @@ def extract_params(source: Path | IO[bytes] | IO[str]) -> Parameters:
         max_peptide_length=parameters.max_peptide_length,
         precursor_mass_tolerance=tolerance_from_text(parameters.precursor_mass_tolerance),
         fragment_mass_tolerance=tolerance_from_text(parameters.fragment_mass_tolerance),
-        ident_fdr_protein=Probability(value=parameters.ident_fdr_protein),
-        ident_fdr_peptide=Probability(value=parameters.ident_fdr_peptide),
-        ident_fdr_psm=Probability(value=parameters.ident_fdr_psm),
+        ident_fdr_protein=parameters.ident_fdr_protein,
+        ident_fdr_peptide=parameters.ident_fdr_peptide,
+        ident_fdr_psm=parameters.ident_fdr_psm,
         min_precursor_charge=parameters.min_precursor_charge,
         max_precursor_charge=parameters.max_precursor_charge,
         enable_match_between_runs=parameters.enable_match_between_runs,

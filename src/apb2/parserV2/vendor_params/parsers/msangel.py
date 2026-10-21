@@ -7,20 +7,20 @@ import re
 from pathlib import Path
 from typing import IO, cast
 
+from apb2.parserV2.search_parameters.model import (
+    MassTolerance,
+    ModType,
+    Parameters,
+    Probability,
+    SearchedModification,
+)
 from apb2.parserV2.vendor_params.parsers.shared.common import (
     homogenize_paren_mods,
     modifications,
     read_text,
     tolerance_unit,
 )
-from apb2.parserV2.vendor_params.parsers.shared.model import (
-    MassTolerance,
-    ModType,
-    Parameters,
-    ParamsError,
-    Probability,
-    SearchedModification,
-)
+from apb2.parserV2.vendor_params.parsers.shared.errors import ParamsError
 
 
 def _mods(value: str, mod_type: ModType) -> list[SearchedModification]:
@@ -48,7 +48,7 @@ def _operation_values(
         if isinstance(validation, dict):
             validation_values = cast("dict[str, object]", validation)
             if validation_values.get("psmExpectedFdr") is not None:
-                psm_fdr = Probability(value=float(str(validation_values["psmExpectedFdr"])) / 100)
+                psm_fdr = float(str(validation_values["psmExpectedFdr"])) / 100
             for raw_filter in cast("list[object]", validation_values.get("psmFilters", [])):
                 if isinstance(raw_filter, dict) and raw_filter.get("parameter") == "PEP_SEQ_LENGTH":
                     min_length = int(float(str(cast("dict[str, object]", raw_filter)["threshold"])))

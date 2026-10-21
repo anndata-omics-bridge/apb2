@@ -15,7 +15,7 @@ from apb2.parserV2.detect_document import AmbiguousRuleError, RuleUnavailableErr
 from apb2.parserV2.parse_quant.parameters.source import InputSource
 from apb2.parserV2.parse_quant.parser import Parser
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
-from apb2.parserV2.vendor_params.parsers.shared.model import Parameters
+from apb2.parserV2.search_parameters.model import Parameters
 from apb2.parserV2.vendor_params.registry import parse_params
 from apb2.parserV2.vendor_parse_rules.document import RuleDocument
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document

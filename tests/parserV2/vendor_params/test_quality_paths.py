@@ -8,8 +8,8 @@ from typing import Any, cast
 
 import pytest
 
+from apb2.parserV2.search_parameters.model import MassTolerance, ModType
 from apb2.parserV2.vendor_params.parsers.shared import common as _common
-from apb2.parserV2.vendor_params.parsers.shared.model import MassTolerance, ModType
 
 
 class _Unseekable:

@@ -1,5 +1,23 @@
 # Changes
 
+## 2026-10-21
+
+- A conversion that reads a parameter file keeps it in the result: the root parse record holds `provenance.search_parameters`, and the `.apb.json` sidecar shows it at `root.apb.parse.provenance.search_parameters`. Before, the typed record existed only during conversion, so MIAPE's `search_engine_version`, a per-run normalisation answer and a per-corpus settings view had nothing to read.
+  - **Record:** `file_name`, the parameter file's base name, never a path; `sha256` of its bytes; `parameters`, `Parameters.model_dump(mode="json")` with every field, `null` where the parser recovered nothing
+  - **Reading it:** `apb2.api.Parameters.model_validate(record["parameters"])`; `api.py` is unchanged
+  - **Once per result:** root only, never per level; every file of a split conversion carries it
+  - **Without a parameter file** (`ParseRuleCompiler.from_software`, `--software` alone, explicit rule compilation): no `provenance` key, and the root parse record stays as before
+  - **Reverses** the documented rule that typed vendor parameters are never embedded in parsed provenance
+  - **Schema:** the published representation schema embeds the `Parameters` model's own JSON Schema for the record
+  - **Read once:** the compiler reads the parameter file's bytes once, then parses and hashes those same bytes
+  - **Storage:** unchanged. h5ad and h5mu keep the record as a native group, with nulls and modification lists as recorded JSON text; no storage, manifest or representation version changes
+
+- **Breaking:** `Parameters.ident_fdr_psm`, `ident_fdr_peptide` and `ident_fdr_protein` are bare numbers in [0, 1], `0.01` rather than `{"value": 0.01}`, in the model, in `parse_search_parameters()` output and in the stored record. Code that reads `.value` or `["value"]` from them must read the number itself; apb-proteobench's `_probability_parameter` already passes numbers through.
+
+- The `Parameters` model moved from `parserV2/vendor_params/parsers/shared/model.py` to `parserV2/search_parameters/model.py`, a leaf package below both vendor parameter parsing and result I/O, so the representation schema uses the model itself instead of a copy. An architecture test keeps the package free of other apb2 imports. `ParamsError` moved to `vendor_params/parsers/shared/errors.py`. `apb2.api` exposes the same names.
+
+- Vendor parameter parsers read a byte stream with the same newline translation as a file path, so `parse_search_parameters()` gives the same record for a path and for its bytes. Across 329 committed and corpus parameter files under every single-file parser, the two already agreed (578 parses); the change makes that hold by construction.
+
 ## 2026-10-20
 
 - The result representation, the `<artifact>.apb.json` sidecar beside every result, has a published JSON Schema: [representation.schema.json](src/apb2/parserV2/parse_quant/io/_schema/representation.schema.json), generated from the models in `parse_quant/io/representation_schema.py`. The document itself is unchanged and stays format version 5.

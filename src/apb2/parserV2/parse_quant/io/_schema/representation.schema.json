@@ -97,7 +97,7 @@
           }
         ]
       },
-      "description": "A root or level ``apb`` part: APB2's own entries and one record per producer.",
+      "description": "A level ``apb`` part: APB2's own entries and one record per producer.",
       "properties": {
         "hierarchy": {
           "additionalProperties": {
@@ -143,7 +143,7 @@
       "description": "The container's own ``apb`` part.",
       "properties": {
         "apb": {
-          "$ref": "#/$defs/ApbPart"
+          "$ref": "#/$defs/RootApbPart"
         }
       },
       "required": [
@@ -512,6 +512,76 @@
       "title": "Level",
       "type": "object"
     },
+    "MassTolerance": {
+      "additionalProperties": false,
+      "description": "Mass tolerance centered at the theoretical mass.\n\nMass tolerances are physically symmetric: a vendor saying\n``[-20 ppm, 20 ppm]`` and a vendor saying ``20 ppm`` mean the same\nthing \u2014 a \u00b1 half-width around the theoretical peak. APB stores\nonly that half-width as ``value`` plus a ``unit``. Asymmetric\nranges are rejected where they are read; we have not seen a tool\nthat actually means ``[-10 ppm, +30 ppm]`` in earnest.",
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "enum": [
+                "ppm",
+                "Da"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "mode": {
+          "enum": [
+            "absolute",
+            "automatic"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        }
+      },
+      "required": [
+        "mode"
+      ],
+      "title": "MassTolerance",
+      "type": "object"
+    },
+    "ModType": {
+      "description": "Whether a modification was searched as fixed, variable, or unknown.",
+      "enum": [
+        "fixed",
+        "variable",
+        "unknown"
+      ],
+      "title": "ModType",
+      "type": "string"
+    },
     "Name": {
       "minLength": 1,
       "type": "string"
@@ -695,6 +765,415 @@
       "title": "Observations",
       "type": "object"
     },
+    "Parameters": {
+      "additionalProperties": false,
+      "description": "Proteomics search-parameter record with typed fields.",
+      "properties": {
+        "software_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Software Name"
+        },
+        "software_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Software Version"
+        },
+        "quantification_software": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Quantification Software"
+        },
+        "quantification_software_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Quantification Software Version"
+        },
+        "acquisition_method": {
+          "default": "unknown",
+          "enum": [
+            "DDA",
+            "DIA",
+            "unknown"
+          ],
+          "title": "Acquisition Method",
+          "type": "string"
+        },
+        "search_engine": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Search Engine"
+        },
+        "search_engine_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Search Engine Version"
+        },
+        "ident_fdr_psm": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Probability"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "ident_fdr_peptide": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Probability"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "ident_fdr_protein": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Probability"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "enable_match_between_runs": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enable Match Between Runs"
+        },
+        "precursor_mass_tolerance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MassTolerance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "fragment_mass_tolerance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MassTolerance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "enzyme": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enzyme"
+        },
+        "semi_enzymatic": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Semi Enzymatic"
+        },
+        "allowed_miscleavages": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Allowed Miscleavages"
+        },
+        "min_peptide_length": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min Peptide Length"
+        },
+        "max_peptide_length": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Peptide Length"
+        },
+        "fixed_mods": {
+          "items": {
+            "$ref": "#/$defs/SearchedModification"
+          },
+          "title": "Fixed Mods",
+          "type": "array"
+        },
+        "variable_mods": {
+          "items": {
+            "$ref": "#/$defs/SearchedModification"
+          },
+          "title": "Variable Mods",
+          "type": "array"
+        },
+        "max_mods": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Mods"
+        },
+        "min_precursor_charge": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min Precursor Charge"
+        },
+        "max_precursor_charge": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Precursor Charge"
+        },
+        "min_precursor_mz": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min Precursor Mz"
+        },
+        "max_precursor_mz": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Precursor Mz"
+        },
+        "min_fragment_mz": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min Fragment Mz"
+        },
+        "max_fragment_mz": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Fragment Mz"
+        },
+        "quantification_method": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Quantification Method"
+        },
+        "combine_charge_states": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Combine Charge States"
+        },
+        "protein_inference": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Protein Inference"
+        },
+        "abundance_normalization_ions": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Abundance Normalization Ions"
+        },
+        "predictors_library": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Predictors Library"
+        },
+        "scan_window": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scan Window"
+        }
+      },
+      "title": "Parameters",
+      "type": "object"
+    },
+    "Probability": {
+      "maximum": 1,
+      "minimum": 0,
+      "type": "number"
+    },
     "ProducerRecord": {
       "additionalProperties": {
         "anyOf": [
@@ -811,6 +1290,217 @@
         "observation_summaries"
       ],
       "title": "QuantitativeLayer",
+      "type": "object"
+    },
+    "RootApbPart": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/ProducerRecord"
+          },
+          {
+            "$ref": "#/$defs/NonObject"
+          }
+        ]
+      },
+      "description": "The root ``apb`` part: a level part's entries plus the typed root ``parse`` record.",
+      "properties": {
+        "parse": {
+          "$ref": "#/$defs/RootParseRecord"
+        },
+        "hierarchy": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Hierarchy",
+          "type": "object"
+        },
+        "roles": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Roles",
+          "type": "object"
+        },
+        "layer_descriptors": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Layer Descriptors",
+          "type": "object"
+        },
+        "annotation_tables": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Annotation Tables",
+          "type": "object"
+        },
+        "feature_relations": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Feature Relations",
+          "type": "object"
+        }
+      },
+      "title": "RootApbPart",
+      "type": "object"
+    },
+    "RootParseProvenance": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "description": "Conversion-wide parse provenance; absent keys mean the input was not supplied.",
+      "properties": {
+        "search_parameters": {
+          "$ref": "#/$defs/SearchParametersRecord"
+        }
+      },
+      "title": "RootParseProvenance",
+      "type": "object"
+    },
+    "RootParseRecord": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/NamedRecord"
+          },
+          {
+            "$ref": "#/$defs/NonObject"
+          }
+        ]
+      },
+      "description": "The root ``parse`` record: conversion-wide provenance and observation grouping.",
+      "properties": {
+        "schema_version": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "provenance": {
+          "$ref": "#/$defs/RootParseProvenance"
+        },
+        "result": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "summary": {
+          "items": {
+            "$ref": "#/$defs/SummaryEntry"
+          },
+          "title": "Summary",
+          "type": "array"
+        },
+        "details": {
+          "items": {
+            "$ref": "#/$defs/DetailReference"
+          },
+          "title": "Details",
+          "type": "array"
+        }
+      },
+      "title": "RootParseRecord",
+      "type": "object"
+    },
+    "SearchParametersRecord": {
+      "additionalProperties": false,
+      "description": "The parameter file a conversion read: base name, SHA-256 of its bytes, typed record.",
+      "properties": {
+        "file_name": {
+          "$ref": "#/$defs/Name"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "parameters": {
+          "$ref": "#/$defs/Parameters"
+        }
+      },
+      "required": [
+        "file_name",
+        "sha256",
+        "parameters"
+      ],
+      "title": "SearchParametersRecord",
+      "type": "object"
+    },
+    "SearchedModification": {
+      "additionalProperties": false,
+      "description": "A modification declared in a search-engine parameter file.\n\nPart of the parameter schema, not of modification domain knowledge: it is parsed from a\nvendor parameter file and carries no sequence localization; the sequence normalizer\nhandles localization independently.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "accession": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Accession"
+        },
+        "mod_type": {
+          "$ref": "#/$defs/ModType",
+          "default": "unknown"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        },
+        "position": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "Anywhere",
+          "title": "Position"
+        },
+        "mass_delta": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mass Delta"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "SearchedModification",
       "type": "object"
     },
     "Shape": {

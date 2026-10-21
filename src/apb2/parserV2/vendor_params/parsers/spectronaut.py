@@ -6,6 +6,13 @@ import re
 from pathlib import Path
 from typing import IO
 
+from apb2.parserV2.search_parameters.model import (
+    MassTolerance,
+    ModType,
+    Parameters,
+    Probability,
+    SearchedModification,
+)
 from apb2.parserV2.vendor_params.parsers.shared.common import (
     automatic_tolerance,
     homogenize_paren_mods,
@@ -15,13 +22,6 @@ from apb2.parserV2.vendor_params.parsers.shared.common import (
     settings_value,
     split_modifications,
     tolerance_unit,
-)
-from apb2.parserV2.vendor_params.parsers.shared.model import (
-    MassTolerance,
-    ModType,
-    Parameters,
-    Probability,
-    SearchedModification,
 )
 
 _Source = Path | IO[bytes] | IO[str]
@@ -65,7 +65,7 @@ def _homogenize_mods(raw_mods: str | None, mod_type: ModType) -> list[SearchedMo
 
 def _qvalue(raw: str | None) -> Probability | None:
     """Read a Spectronaut q-value cutoff, which uses a locale decimal comma in some exports."""
-    return None if raw is None else Probability(value=float(raw.replace(",", ".")))
+    return None if raw is None else float(raw.replace(",", "."))
 
 
 def _anchored_value(lines: list[str], term: str) -> str | None:

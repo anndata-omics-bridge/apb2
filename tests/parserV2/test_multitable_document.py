@@ -25,7 +25,7 @@ from apb2.parserV2.detect_document import (
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels
 from apb2.parserV2.parse_quant.io.json_representation import sidecar_path
 from apb2.parserV2.parse_quant.parameters.source import Folder, SingleFile
-from apb2.parserV2.vendor_params.parsers.shared.model import Parameters
+from apb2.parserV2.search_parameters.model import Parameters
 from apb2.parserV2.vendor_parse_rules.document import document_json_schema, make_rule_document
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import LEVELS, QuantificationLevel

@@ -439,7 +439,8 @@ class ParsedLevels:
     # {"ion": ion_parsed_level, "protein": protein_parsed_level}
 
     uns: dict[str, JsonValue]
-    # Empty after vendor parsing; later collection-level operations may add provenance.
+    # The root parse record: {"provenance": {"search_parameters": {...}}} when a parameter file
+    # was read, else empty; observation grouping adds "result" entries.
 
     metadata: dict[str, JsonValue] = field(default_factory=dict)
     # Post-parse sections persisted beside, never inside, APB's parse provenance.

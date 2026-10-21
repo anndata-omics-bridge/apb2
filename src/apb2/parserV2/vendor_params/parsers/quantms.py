@@ -7,8 +7,9 @@ from typing import IO, cast
 
 import yaml
 
+from apb2.parserV2.search_parameters.model import Parameters
 from apb2.parserV2.vendor_params.parsers.shared.common import read_text
-from apb2.parserV2.vendor_params.parsers.shared.model import Parameters, ParamsError
+from apb2.parserV2.vendor_params.parsers.shared.errors import ParamsError
 
 
 def extract_params(source: Path | IO[bytes] | IO[str]) -> Parameters:
