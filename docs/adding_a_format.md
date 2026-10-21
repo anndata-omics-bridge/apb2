@@ -238,7 +238,7 @@ Every set under [apb-catalog's `data/sources/`](https://github.com/anndata-omics
 - apb-catalog installs `../apb2`; a missing set fails its `make check`:
 
 ```text
-FAILED tests/test_source.py::test_every_packaged_rule_level_is_reviewed[miape]
+FAILED tests/test_source.py::test_every_packaged_rule_level_is_reviewed[identification_confidence]
 E   Extra items in the left set:
 E   ('ToyQuant', '^2\\.', 'protein')
 E   ('ToyQuant', '^1\\.', 'protein')
