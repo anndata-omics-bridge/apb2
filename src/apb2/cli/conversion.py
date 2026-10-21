@@ -182,7 +182,7 @@ def _packaged_compiler(
     """Choose the parameter-backed or column-backed compiler at the command boundary."""
     if parameters_path is None and software is not None:
         return ParseRuleCompiler.from_software(data, software, requested_levels, checks)
-    return ParseRuleCompiler(data, parameters_path, requested_levels, checks, software)
+    return ParseRuleCompiler.detect(data, parameters_path, requested_levels, checks, software)
 
 
 def _convert(build: Callable[[], ParseRuleCompiler], output: Path) -> ConversionSummary:

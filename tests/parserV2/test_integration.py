@@ -35,7 +35,13 @@ from apb2.parserV2.vendor_parse_rules.document import (
 )
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
-from parserV2.fixtures import PackagedDocument, document_pairs, level_pairs, write_level
+from parserV2.fixtures import (
+    PackagedDocument,
+    committed_sample,
+    document_pairs,
+    level_pairs,
+    write_level,
+)
 
 _SEPARATOR = "\x1f"
 """A unit separator, so a joined key cannot be confused with a key containing one."""
@@ -96,7 +102,9 @@ def parser_v2_conversion(
 
 def test_the_packaged_fragment_level_parses_its_own_export() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1_8")
-    data = pair.required_data_path()
+    # The committed sample, not a cached export: DIA-NN 1.9 reports lack the fragment column.
+    data = committed_sample(pair.sample_key)
+    assert data is not None
     facade = ParseRuleFacade(
         load_rule_document(pair.parser_v2_path), "fragment", evidence_for(pair)
     )

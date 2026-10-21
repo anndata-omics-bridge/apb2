@@ -83,19 +83,22 @@ class ParameterFile:
         }
 
 
+@dataclass(frozen=True, slots=True)
 class ParseRuleCompiler:
-    """Resolve vendor inputs once and compile their complete parser collection."""
+    """Resolved vendor inputs; build one with ``detect``, ``from_software`` or ``from_rule``."""
 
-    __slots__ = ("_detection", "_parameter_file")
+    detection: DetectedRuleSet
+    parameter_file: ParameterFile | None
 
-    def __init__(
-        self,
+    @classmethod
+    def detect(
+        cls,
         data: Path,
         parameters_path: Path | None,
         requested_levels: Iterable[QuantificationLevel] | None = None,
         checks: ValidationChecks = "standard",
         software: str | None = None,
-    ) -> None:
+    ) -> Self:
         """Resolve the source, parameters, vendor rules, and selected levels.
 
         Args:
@@ -138,8 +141,7 @@ class ParseRuleCompiler:
                 parameters, source, levels, vendors=vendors, checks=checks
             )
         _log_detection(detection)
-        self._detection = detection
-        self._parameter_file = parameter_file
+        return cls(detection, parameter_file)
 
     @classmethod
     def from_software(
@@ -162,7 +164,7 @@ class ParseRuleCompiler:
                 _input_source(data), levels, software=software, checks=checks
             )
         _log_detection(detection)
-        return cls._resolved(detection, None)
+        return cls(detection, None)
 
     @classmethod
     def from_rule(
@@ -213,33 +215,20 @@ class ParseRuleCompiler:
             version=None if parameter_file is None else parameter_file.parameters.software_version,
             levels=selections,
         )
-        return cls._resolved(detection, parameter_file)
-
-    @classmethod
-    def _resolved(cls, detection: DetectedRuleSet, parameter_file: ParameterFile | None) -> Self:
-        """The one place an alternate constructor sets the state ``__init__`` resolves."""
-        compiler = cls.__new__(cls)
-        compiler._detection = detection
-        compiler._parameter_file = parameter_file
-        return compiler
+        return cls(detection, parameter_file)
 
     @property
     def parameters(self) -> Parameters:
         """Typed vendor parameters used for rule detection, when supplied."""
-        if self._parameter_file is None:
+        if self.parameter_file is None:
             raise ValueError("this conversion has no vendor parameter file")
-        return self._parameter_file.parameters
-
-    @property
-    def detection(self) -> DetectedRuleSet:
-        """Resolved software metadata and selected rule levels."""
-        return self._detection
+        return self.parameter_file.parameters
 
     def compile(self) -> ParserCollection:
         """Compile every detected selection into one collection parser."""
-        provenance = {} if self._parameter_file is None else self._parameter_file.provenance()
+        provenance = {} if self.parameter_file is None else self.parameter_file.provenance()
         return ParserCollection(
-            tuple(selection.parser for selection in self._detection.levels), provenance
+            tuple(selection.parser for selection in self.detection.levels), provenance
         )
 
 

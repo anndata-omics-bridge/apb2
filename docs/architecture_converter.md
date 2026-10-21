@@ -260,7 +260,7 @@ select one effective rule and one physical source
 Omitting the CLI level changes only the outer composition:
 
 ```text
-ParseRuleCompiler(data, parameters_path, requested_levels)
+ParseRuleCompiler.detect(data, parameters_path, requested_levels)
     -> parameter parsing, rule detection and per-level strategy binding in the constructor
     -> compile() -> ParserCollection
     -> ParserCollection.parse() -> ParsedLevels({level: parsed_level, ...}, {})
@@ -1210,7 +1210,7 @@ There is no Builder and no requirement to route every constructor through a regi
 One or several detected levels:
 
 ```python
-parser = ParseRuleCompiler(
+parser = ParseRuleCompiler.detect(
     report_path,
     parameter_source,
     requested_levels=("ion",),

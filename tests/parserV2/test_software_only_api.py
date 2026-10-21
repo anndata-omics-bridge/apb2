@@ -31,7 +31,7 @@ def test_software_only_api_preserves_parsed_values_and_rule_provenance() -> None
     folder = committed_dir("fragpipe")
     assert folder is not None
     record = json.loads((folder / "expected.json").read_text())
-    with_parameters = ParseRuleCompiler(
+    with_parameters = ParseRuleCompiler.detect(
         source, folder / record["params"], software="fragpipe", requested_levels=("ion",)
     )
     without_parameters = ParseRuleCompiler.from_software(
@@ -58,7 +58,7 @@ def test_software_only_api_preserves_parsed_values_and_rule_provenance() -> None
         _ = without_parameters.parameters
     # The constructor used by the CLI retains its existing parameter requirement.
     with pytest.raises(RuleUnavailableError):
-        ParseRuleCompiler(source, None, software="fragpipe", requested_levels=("ion",))
+        ParseRuleCompiler.detect(source, None, software="fragpipe", requested_levels=("ion",))
 
 
 def test_software_only_api_accepts_pb_custom() -> None:

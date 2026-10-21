@@ -28,7 +28,7 @@ from pathlib import Path
 
 from apb2.api import ParseRuleCompiler, write_parsed_levels
 
-compiler = ParseRuleCompiler(
+compiler = ParseRuleCompiler.detect(
     Path("report.tsv"),
     Path("search-parameters.txt"),
     requested_levels=("ion",),
@@ -42,7 +42,7 @@ write_parsed_levels(parsed_levels, Path("results/ion.h5ad"))
 
 Construction binds the physical source, chooses the parameter parser, parses typed parameters, detects compatible rules, and resolves the requested levels. `compile()` returns one `ParserCollection`; `parse()` returns canonical `ParsedLevels` and performs no write. `compiler.parameters` and `compiler.detection` retain the typed parameter and detection results. Storage is selected only by the target passed to `write_parsed_levels()`.
 
-For a ProteoBench Custom upload, use `ParseRuleCompiler(Path("custom.txt"), None, software="pb_custom", requested_levels=("ion",))`. The packaged rule needs no parameter file; `compiler.parameters` is unavailable in this case, while `compiler.detection` still describes the selected rule.
+For a ProteoBench Custom upload, use `ParseRuleCompiler.detect(Path("custom.txt"), None, software="pb_custom", requested_levels=("ion",))`. The packaged rule needs no parameter file; `compiler.parameters` is unavailable in this case, while `compiler.detection` still describes the selected rule.
 
 For vendor exports uploaded without search parameters, the Python API provides a separate constructor:
 

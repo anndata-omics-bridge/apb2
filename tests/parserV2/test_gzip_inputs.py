@@ -188,7 +188,7 @@ def test_detection_finds_a_gzipped_table_in_a_folder(tmp_path: Path) -> None:
     record = _record("diann/v1_8")
     shutil.copy(folder / str(record["sample"]), tmp_path / "report.txt.gz")
 
-    parsed = ParseRuleCompiler(tmp_path, folder / str(record["params"])).compile().parse()
+    parsed = ParseRuleCompiler.detect(tmp_path, folder / str(record["params"])).compile().parse()
 
     expected = cast("dict[str, dict[str, object]]", record["levels"])
     assert sorted(parsed.levels) == sorted(expected)

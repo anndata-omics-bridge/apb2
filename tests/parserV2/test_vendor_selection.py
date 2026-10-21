@@ -80,7 +80,7 @@ def test_wombat_peptidoform_without_optional_psm_counts(tmp_path: Path) -> None:
 def test_hinted_and_unhinted_vendor_selection(key: str, hinted: bool) -> None:
     source, parameters = inputs(key)
     vendor = key.split("/", 1)[0]
-    compiler = ParseRuleCompiler(source, parameters, software=vendor if hinted else None)
+    compiler = ParseRuleCompiler.detect(source, parameters, software=vendor if hinted else None)
 
     assert compiler.detection.software == vendor
     assert compiler.detection.levels
@@ -118,7 +118,7 @@ def test_hint_skips_global_recognition_and_unrelated_readers(
     monkeypatch.setattr(compilation, "guess_software", no_global_scan)
     monkeypatch.setattr(compilation, "parse_params", record_params)
     monkeypatch.setattr(detection, "compile_level", check_compile)
-    compiler = ParseRuleCompiler(renamed, parameters, software="DIA-NN")
+    compiler = ParseRuleCompiler.detect(renamed, parameters, software="DIA-NN")
     compiler.compile()
     compiler.compile()
 
@@ -128,7 +128,7 @@ def test_hint_skips_global_recognition_and_unrelated_readers(
 
 def test_fragpipe_parameters_select_diann_results() -> None:
     source, _parameters = inputs("diann/v1_8")
-    compiler = ParseRuleCompiler(source, PARAMS / "fragpipe.workflow", software="FragPipe")
+    compiler = ParseRuleCompiler.detect(source, PARAMS / "fragpipe.workflow", software="FragPipe")
 
     assert compiler.parameters.software_name == "FragPipe"
     assert compiler.parameters.quantification_software == "DIA-NN"
@@ -164,7 +164,7 @@ def test_unhinted_recognition_visits_every_packaged_vendor(monkeypatch: pytest.M
 
     monkeypatch.setattr(ParseRuleFacade, "from_declared_rule", classmethod(record_document))
     monkeypatch.setattr(detection, "recognizes_preparation", record_preparation)
-    ParseRuleCompiler(source, parameters)
+    ParseRuleCompiler.detect(source, parameters)
 
     assert visited == {
         document.software_name
@@ -176,13 +176,13 @@ def test_unhinted_recognition_visits_every_packaged_vendor(monkeypatch: pytest.M
 def test_unhinted_compound_parameters_request_the_grammar() -> None:
     source, _parameters = inputs("diann/v1_8")
     with pytest.raises(ConversionError, match=r"cannot parse .* as diann: .*--software"):
-        ParseRuleCompiler(source, PARAMS / "fragpipe.workflow")
+        ParseRuleCompiler.detect(source, PARAMS / "fragpipe.workflow")
 
 
 def test_mismatched_hint_never_falls_back_to_global_recognition() -> None:
     source, _parameters = inputs("maxquant")
     with pytest.raises(RuleUnavailableError, match=r"candidate vendors: \['diann', 'fragpipe'\]"):
-        ParseRuleCompiler(source, PARAMS / "fragpipe.workflow", software="fragpipe")
+        ParseRuleCompiler.detect(source, PARAMS / "fragpipe.workflow", software="fragpipe")
 
 
 @pytest.mark.parametrize("hint", [None, "fragpipe"])
@@ -199,14 +199,14 @@ def test_ambiguous_vendors_remain_errors(
     source, _parameters = inputs("diann/v1_8")
 
     with pytest.raises(AmbiguousRuleError, match="several packaged"):
-        ParseRuleCompiler(source, PARAMS / "fragpipe.workflow", software=hint)
+        ParseRuleCompiler.detect(source, PARAMS / "fragpipe.workflow", software=hint)
 
 
 def test_unrecognized_input_has_an_actionable_error(tmp_path: Path) -> None:
     source = tmp_path / "unknown.tsv"
     source.write_text("unrecognized\tcolumns\n1\t2\n")
     with pytest.raises(RuleUnavailableError, match=r"could not recognize.*--software"):
-        ParseRuleCompiler(source, PARAMS / "fragpipe.workflow")
+        ParseRuleCompiler.detect(source, PARAMS / "fragpipe.workflow")
 
 
 def test_hint_does_not_bypass_version_checks(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -217,13 +217,13 @@ def test_hint_does_not_bypass_version_checks(monkeypatch: pytest.MonkeyPatch) ->
 
     monkeypatch.setattr(compilation, "parse_params", future_parameters)
     with pytest.raises(RuleUnavailableError, match=r"candidate vendors.*diann"):
-        ParseRuleCompiler(source, parameters, software="diann")
+        ParseRuleCompiler.detect(source, parameters, software="diann")
 
 
 def test_hint_does_not_bypass_level_checks() -> None:
     source, parameters = inputs("maxquant")
     with pytest.raises(RuleUnavailableError, match="requested level 'protein' is unavailable"):
-        ParseRuleCompiler(source, parameters, software="maxquant", requested_levels=("protein",))
+        ParseRuleCompiler.detect(source, parameters, ("protein",), software="maxquant")
 
 
 def test_hint_preserves_malformed_named_table_diagnostics(tmp_path: Path) -> None:
@@ -231,4 +231,4 @@ def test_hint_preserves_malformed_named_table_diagnostics(tmp_path: Path) -> Non
     source = tmp_path / "evidence.txt"
     source.write_text("wrong\tcolumns\n1\t2\n")
     with pytest.raises(ConversionError, match=r"evidence\.txt lacks the columns for evidence"):
-        ParseRuleCompiler(source, parameters, software="maxquant", requested_levels=("ion",))
+        ParseRuleCompiler.detect(source, parameters, software="maxquant", requested_levels=("ion",))

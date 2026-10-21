@@ -142,7 +142,7 @@ def test_the_search_parameter_record_survives_every_result_format(
     tmp_path: Path, suffix: str
 ) -> None:
     pair = _diann_v2()
-    compiler = ParseRuleCompiler(
+    compiler = ParseRuleCompiler.detect(
         pair.required_data_path(), _parameter_file(pair), requested_levels=("protein",)
     )
     parsed = compiler.compile().parse()
@@ -226,7 +226,7 @@ def test_in_memory_vendor_parse_returns_typed_inputs_without_writing(tmp_path: P
     pair = _diann_v2()
     parameters_path = _parameter_file(pair)
 
-    compiler = ParseRuleCompiler(
+    compiler = ParseRuleCompiler.detect(
         pair.required_data_path(),
         parameters_path,
         requested_levels=("protein",),
@@ -670,7 +670,7 @@ def test_diann_fragments_take_their_labels_from_fragment_info_when_present(
     labelled.write_csv(labelled_path, separator="\t")
 
     def fragments(path: Path) -> list[str]:
-        compiler = ParseRuleCompiler(
+        compiler = ParseRuleCompiler.detect(
             path, folder / "param_0..txt", software="diann", requested_levels=("fragment",)
         )
         level = compiler.compile().parse().levels["fragment"]

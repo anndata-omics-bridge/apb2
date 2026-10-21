@@ -100,7 +100,7 @@ from pathlib import Path
 
 from apb2.api import ParseRuleCompiler
 
-compiler = ParseRuleCompiler(
+compiler = ParseRuleCompiler.detect(
     Path("report.tsv"),
     Path("search-parameters.txt"),
     requested_levels=("ion",),
@@ -120,7 +120,7 @@ from pathlib import Path
 
 from apb2.api import ParseRuleCompiler, write_parsed_levels
 
-parser = ParseRuleCompiler(
+parser = ParseRuleCompiler.detect(
     Path("report.tsv"),
     Path("search-parameters.txt"),
     requested_levels=("ion",),

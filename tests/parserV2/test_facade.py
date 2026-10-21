@@ -72,14 +72,6 @@ _EVIDENCES = (
     SearchParameterEvidence(acquisition_method="DIA", combine_charge_states=True),
 )
 
-# Cached exports that do not carry their level's columns; conversion skips those unavailable
-# levels for the same reason.
-_INCOMPATIBLE = {
-    ("spectronaut", "fragment"),
-    ("spectronaut/v21", "fragment"),
-    ("wombat", "ion"),
-}
-
 _LEVEL_CASES = [
     pytest.param(pair, level, id=f"{pair.key}/{level}") for pair, level in level_pairs()
 ]
@@ -158,7 +150,8 @@ def test_every_compatible_level_resolves_both_axis_key_plans(
 ) -> None:
     facade = _facade_for(pair, level)
     header = pair.header()
-    if (pair.key, level) in _INCOMPATIBLE:
+    # An export without the level's columns: the header predicate and resolution agree.
+    if not facade.working_parameters.accepts_header(header):
         with pytest.raises(IncompatibleSourceError):
             facade.resolve_source(delimited(header))
         return
@@ -178,9 +171,10 @@ def test_every_compatible_level_resolves_both_axis_key_plans(
 def test_a_delimited_plan_decides_every_projected_column_dtype(
     pair: PackagedDocument, level: QuantificationLevel
 ) -> None:
-    if (pair.key, level) in _INCOMPATIBLE:
+    facade = _facade_for(pair, level)
+    if not facade.working_parameters.accepts_header(pair.header()):
         pytest.skip(f"cached export lacks columns for {pair.key}/{level}")
-    read = _facade_for(pair, level).resolve_source(delimited(pair.header())).read
+    read = facade.resolve_source(delimited(pair.header())).read
 
     assert read.text_sources.isdisjoint(read.native_numeric_sources)
     assert read.text_sources | read.native_numeric_sources == set(read.projected_columns)
@@ -191,10 +185,11 @@ def test_a_delimited_plan_decides_every_projected_column_dtype(
 def test_projected_columns_stay_in_physical_header_order(
     pair: PackagedDocument, level: QuantificationLevel
 ) -> None:
-    if (pair.key, level) in _INCOMPATIBLE:
-        pytest.skip(f"cached export lacks columns for {pair.key}/{level}")
+    facade = _facade_for(pair, level)
     header = pair.header()
-    projected = _facade_for(pair, level).resolve_source(delimited(header)).read.projected_columns
+    if not facade.working_parameters.accepts_header(header):
+        pytest.skip(f"cached export lacks columns for {pair.key}/{level}")
+    projected = facade.resolve_source(delimited(header)).read.projected_columns
 
     assert list(projected) == [name for name in header if name in set(projected)]
 

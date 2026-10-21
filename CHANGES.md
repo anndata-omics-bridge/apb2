@@ -2,7 +2,9 @@
 
 ## 2026-10-21
 
-- A conversion that reads a parameter file keeps it in the result: the root parse record holds `provenance.search_parameters`, and the `.apb.json` sidecar shows it at `root.apb.parse.provenance.search_parameters`. Before, the typed record existed only during conversion, so MIAPE's `search_engine_version`, a per-run normalisation answer and a per-corpus settings view had nothing to read.
+- **Breaking:** `ParseRuleCompiler(data, parameters_path, …)` becomes `ParseRuleCompiler.detect(data, parameters_path, …)` with the same parameters. `ParseRuleCompiler` is now a frozen dataclass of its resolved state, `detection` and `parameter_file`, which `detect`, `from_software` and `from_rule` build; the alternate constructors no longer bypass `__init__`. Callers in apb-proteobench and apb-export are updated in the same change.
+
+- A conversion that reads a parameter file keeps it in the result: the root parse record holds `provenance.search_parameters`, and the `.apb.json` sidecar shows it at `root.apb.parse.provenance.search_parameters`. Before, the typed record existed only during conversion, so a report's search-engine version, a per-run normalisation answer and a per-corpus settings view had nothing to read.
   - **Record:** `file_name`, the parameter file's base name, never a path; `sha256` of its bytes; `parameters`, `Parameters.model_dump(mode="json")` with every field, `null` where the parser recovered nothing
   - **Reading it:** `apb2.api.Parameters.model_validate(record["parameters"])`; `api.py` is unchanged
   - **Once per result:** root only, never per level; every file of a split conversion carries it

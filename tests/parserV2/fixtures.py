@@ -104,12 +104,12 @@ def committed_sample(key: str) -> Path | None:
 
 @cache
 def corpus_root() -> Path | None:
-    """The downloaded vendor corpus named by ``APB2_TEST_DATA``, when it carries an index."""
+    """The Fixture Manager store named by ``APB2_TEST_DATA``, when it carries ``downloads.csv``."""
     named = os.environ.get("APB2_TEST_DATA")
     if not named:
         return None
     root = Path(named).expanduser().resolve()
-    return root if (root / "raw_file_db_downloaded.csv").exists() else None
+    return root if (root / "downloads.csv").exists() else None
 
 
 def _cached_exports(software_name: str, version_pattern: str) -> tuple[Path, ...]:
@@ -118,13 +118,13 @@ def _cached_exports(software_name: str, version_pattern: str) -> tuple[Path, ...
     if root is None:
         return ()
     found: list[Path] = []
-    with (root / "raw_file_db_downloaded.csv").open(encoding="utf-8", newline="") as handle:
+    with (root / "downloads.csv").open(encoding="utf-8", newline="") as handle:
         for row in csv.DictReader(handle):
             if row["software_name"] != software_name or row.get("status") != "ok":
                 continue
             if not re.search(version_pattern, row["software_version"]):
                 continue
-            path = root / "json_dir" / row["input_file_path"]
+            path = root / row["input_file_path"]
             if path.exists():
                 found.append(path)
     return tuple(found)

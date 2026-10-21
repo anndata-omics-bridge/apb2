@@ -21,7 +21,7 @@ def _sample() -> Path:
 
 
 def test_pb_custom_hint_selects_parameter_free_packaged_rule() -> None:
-    compiler = ParseRuleCompiler(_sample(), None, software="pb_custom", requested_levels=("ion",))
+    compiler = ParseRuleCompiler.detect(_sample(), None, ("ion",), software="pb_custom")
 
     assert compiler.detection.software == "pbcustom"
     assert compiler.detection.version is None
@@ -47,6 +47,6 @@ def test_pb_custom_cli_conversion_without_params(tmp_path: Path) -> None:
 
 def test_parameter_free_packaged_rules_require_a_matching_software_hint() -> None:
     with pytest.raises(RuleUnavailableError, match="requires --software"):
-        ParseRuleCompiler(_sample(), None)
+        ParseRuleCompiler.detect(_sample(), None)
     with pytest.raises(RuleUnavailableError, match=r"candidate vendors.*maxquant"):
-        ParseRuleCompiler(_sample(), None, software="maxquant")
+        ParseRuleCompiler.detect(_sample(), None, software="maxquant")

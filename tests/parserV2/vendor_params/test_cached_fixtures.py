@@ -27,31 +27,22 @@ from parserV2.fixtures import corpus_root
 
 SNAPSHOT = Path(__file__).resolve().parent / "params" / "cached_parameters_snapshot.json"
 _ROOT = corpus_root()
-CACHE_INDEX = (
-    _ROOT / "raw_file_db_downloaded.csv" if _ROOT is not None else Path("cache-index-absent")
-)
 
 
 def cached_cases() -> list[tuple[str, str, ParameterInput]]:
-    """Return ``(case id, parser slug, source)`` for every cached parameter file."""
+    """Return ``(case id, parser slug, source)`` for every downloaded parameter file."""
     import csv
 
-    if not CACHE_INDEX.exists():
+    if _ROOT is None:
         return []
-    root = CACHE_INDEX.parent / "json_dir"
     cases: list[tuple[str, str, ParameterInput]] = []
-    with CACHE_INDEX.open(encoding="utf-8", newline="") as handle:
+    with (_ROOT / "downloads.csv").open(encoding="utf-8", newline="") as handle:
         for row in csv.DictReader(handle):
-            if row.get("status") != "ok":
-                continue
             slug = _slug(row["software_name"])
-            if not _has_parser(slug):
+            source = _ROOT / row["vendor_parameter_file_path"]
+            if row.get("status") != "ok" or not _has_parser(slug) or not source.is_file():
                 continue
-            directory = root / Path(row["input_file_path"]).parent
-            sources = sorted(directory.glob("param_0.*"))
-            if not sources:
-                continue
-            cases.append((f"{slug}/{directory.name[:8]}", slug, sources[0]))
+            cases.append((f"{slug}/{row['intermediate_hash'][:8]}", slug, source))
     return sorted(cases)
 
 
