@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import cast
@@ -62,7 +63,7 @@ class AnnDataWriter:
     __slots__ = ()
 
     def to_anndata_for_level(self, parsed: ParsedLevel, level_name: ParsedLevelName) -> AnnData:
-        """Build one level's AnnData with that level's APB part in ``uns["apb"]``."""
+        """Build one level's AnnData: its APB part in ``uns["apb"]``, its ``export_uns`` beside."""
         validate_parsed_level(level_name, parsed)
         arrays = {name: layer.values.to_numpy().T for name, layer in parsed.layers.items()}
         layer_names = safe_names(parsed.layers, prefix="layer", suffix="")
@@ -88,6 +89,7 @@ class AnnDataWriter:
             level_scope(parsed),
             _level_storage_metadata(parsed, level_name, layer_names, slot_names),
         )
+        adata.uns.update(parsed.export_uns)
         return adata
 
     @staticmethod
@@ -225,10 +227,15 @@ def _storage_index(
     return pd.Index(labels, name=name)
 
 
+@dataclass(frozen=True, slots=True)
 class MuDataWriter:
-    """Structurally serialize canonical parsed levels as one MuData file."""
+    """Structurally serialize canonical parsed levels as one MuData file.
 
-    __slots__ = ()
+    ``var_name_prefix`` prefixes each modality's var names with its level (``ion:``, ``prt:``);
+    without it a modality keeps its var index as written, named after a single String key.
+    """
+
+    var_name_prefix: bool = True
 
     def write(self, parsed: ParsedLevels, target: Path, /) -> None:
         if not parsed.levels:
@@ -237,8 +244,9 @@ class MuDataWriter:
         writer = AnnDataWriter()
         for level in parsed.levels:
             adata = writer.to_anndata_for_level(parsed.levels[level], level)
-            prefix = LEVEL_VAR_PREFIXES.get(level, f"{level}:")
-            adata.var_names = [f"{prefix}{name}" for name in adata.var_names]
+            if self.var_name_prefix:
+                prefix = LEVEL_VAR_PREFIXES.get(level, f"{level}:")
+                adata.var_names = [f"{prefix}{name}" for name in adata.var_names]
             modalities[level] = adata
 
         annotation_names = {
@@ -275,6 +283,7 @@ class MuDataWriter:
             shared=collection_shared_scope(parsed),
             storage=_collection_storage_metadata(parsed, annotation_names, relation_names),
         )
+        result.uns.update(parsed.export_uns)
         _write_atomically(target, result.write_h5mu)
 
 
@@ -294,6 +303,12 @@ class H5adWriter:
         level_name, level = next(iter(parsed.levels.items()))
         if level_name == NAMESPACE:
             raise MuDataLevelError(f"an h5ad level cannot be named {NAMESPACE!r}")
+        # Level and root export_uns share the h5ad's one uns with the level's APB part.
+        if level_name in {*level.export_uns, *parsed.export_uns}:
+            raise MuDataLevelError(f"export_uns cannot use the h5ad level's key {level_name!r}")
+        shared = sorted(set(level.export_uns) & set(parsed.export_uns))
+        if shared:
+            raise MuDataLevelError(f"export_uns keys {shared} are in both the level and the root")
         adata = AnnDataWriter().to_anndata_for_level(level, level_name)
         # The same two parts as a MuData: the level's under uns[level], the root's at uns["apb"].
         adata.uns[level_name] = {NAMESPACE: adata.uns.pop(NAMESPACE)}
@@ -301,17 +316,19 @@ class H5adWriter:
             shared_scope(parsed.uns, parsed.metadata, parsed.hierarchy),
             _collection_storage_metadata(parsed, {}, {}),
         )
+        adata.uns.update(parsed.export_uns)
         _write_atomically(target, adata.write_h5ad)
 
 
+@dataclass(frozen=True, slots=True)
 class H5muWriter:
-    """Collection-level structural h5mu adapter."""
+    """Collection-level structural h5mu adapter; ``var_name_prefix`` as in ``MuDataWriter``."""
 
-    __slots__ = ()
+    var_name_prefix: bool = True
 
     def write(self, parsed: ParsedLevels, target: Path, /) -> None:
         validate_parsed_levels(parsed)
-        MuDataWriter().write(parsed, target)
+        MuDataWriter(self.var_name_prefix).write(parsed, target)
 
 
 def represent_layer_values(
@@ -370,6 +387,7 @@ def _level_storage_metadata(
         "varm": _aligned_storage_entries(parsed.varm, slot_names["varm"]),
         "obsp": _pairwise_storage_entries(parsed.obsp, slot_names["obsp"]),
         "varp": _pairwise_storage_entries(parsed.varp, slot_names["varp"]),
+        "export_uns": cast(list[JsonValue], list(parsed.export_uns)),
     }
 
 
@@ -490,6 +508,7 @@ def _collection_storage_metadata(
                 for name, relation in parsed.feature_relations.items()
             ],
         ),
+        "export_uns": cast(list[JsonValue], list(parsed.export_uns)),
     }
 
 

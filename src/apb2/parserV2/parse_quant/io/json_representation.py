@@ -38,7 +38,7 @@ from apb2.parserV2.parse_quant.io.representation_schema import validate_represen
 from apb2.parserV2.parse_quant.io.validation import validate_parsed_levels
 
 FORMAT = "apb2-result-representation"
-FORMAT_VERSION = "5"
+FORMAT_VERSION = "6"
 SIDECAR_SUFFIX = ".apb.json"
 _EMBEDDED_JSON_FIELDS = frozenset(
     {
@@ -58,7 +58,7 @@ def project_result(
     artifact: Path | None = None,
     /,
 ) -> dict[str, JsonValue]:
-    """Project a storage-neutral APB2 result into the version-5 JSON document.
+    """Project a storage-neutral APB2 result into the version-6 JSON document.
 
     ``artifact`` is optional so in-memory clients can inspect and validate the scientific
     representation before selecting a physical format or output path. Sidecar publication
@@ -80,7 +80,7 @@ def project_result(
         "format": FORMAT,
         "format_version": FORMAT_VERSION,
         "artifact": _artifact_descriptor(artifact),
-        "root": {"apb": _portable(root)},
+        "root": {"apb": _portable(root), "export_uns": _portable(dict(parsed.export_uns))},
         "levels": [_level(name, parsed.levels[name], scopes[name]) for name in parsed.levels],
         "annotation_tables": [
             _annotation_table(name, table) for name, table in parsed.annotation_tables.items()
@@ -173,7 +173,7 @@ def _project_levels(
         "format": FORMAT,
         "format_version": FORMAT_VERSION,
         "artifact": _artifact_descriptor(artifact),
-        "root": None if root is None else {"apb": _portable(dict(root))},
+        "root": None if root is None else {"apb": _portable(dict(root)), "export_uns": {}},
         "levels": projected,
         "annotation_tables": [],
         "feature_relations": [],
@@ -224,6 +224,7 @@ def _level(
             "varp": _named_tables(parsed.varp),
         },
         "apb": _portable(dict(metadata)),
+        "export_uns": _portable(dict(parsed.export_uns)),
     }
 
 

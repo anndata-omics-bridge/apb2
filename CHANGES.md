@@ -1,5 +1,17 @@
 # Changes
 
+## 2026-10-22
+
+- `ParsedLevel.export_uns` and `ParsedLevels.export_uns`: keys a consumer reads from a file's top-level `uns`, beside APB's own `uns["apb"]`. Exporters set them; every parsed result leaves them empty. Step 2 of the workspace plan "Exports as ParsedLevels", so apb-export's targets can be written by `write_parsed_levels`.
+  - **API:** a new field on both classes and a new last parameter `export_uns` on `ParsedLevel.build`; `api.py` exposes no new names
+  - **Written:** natively, never as JSON text; a level's into its modality or the h5ad's `uns`, the result's into the MuData's or the h5ad's `uns`
+  - **Validated:** the key `apb` and any value AnnData cannot store as it is (lists of records, lists with nulls, mixed lists, keys HDF5 cannot link) are refused before the target is touched; an h5ad also refuses the level's name and a key on both level and result
+  - **Read:** exactly the keys the storage descriptor lists; keys another tool adds to `uns` are not read
+  - **Parquet and DuckDB:** an `export_uns` object beside `apb` in the manifest, root and levels
+  - **Sidecar:** `root.export_uns` and `levels[].export_uns`; containers APB2 did not write show an empty object
+- `write_parsed_levels(parsed, target, var_name_prefix=True)`: with `False`, an `.h5mu` keeps each modality's var names as written, not prefixed with `ion:` or `prt:`, and the index keeps the name of a single String key. AlphaPeptTools reads modalities this way. Other formats prefix nothing. `H5muWriter` and `MuDataWriter` are frozen dataclasses with that field.
+- **Breaking:** storage versions: HDF5 descriptor `7`, Parquet manifest `8`, DuckDB manifest `7`, representation document `6`. Results written before cannot be read; regenerate them.
+
 ## 2026-10-21
 
 - **Breaking:** `ParseRuleCompiler(data, parameters_path, …)` becomes `ParseRuleCompiler.detect(data, parameters_path, …)` with the same parameters. `ParseRuleCompiler` is now a frozen dataclass of its resolved state, `detection` and `parameter_file`, which `detect`, `from_software` and `from_rule` build; the alternate constructors no longer bypass `__init__`. Callers in apb-proteobench and apb-export are updated in the same change.

@@ -231,6 +231,7 @@ def _apply(
             metadata=dict(parsed.metadata),
             annotation_tables=dict(parsed.annotation_tables),
             feature_relations=dict(parsed.feature_relations),
+            export_uns=dict(parsed.export_uns),
         ),
         reports=reports,
     )
@@ -266,6 +267,7 @@ def _annotated_level(
         obsp={name: _subset_pairwise(frame, kept) for name, frame in level.obsp.items()},
         varp=dict(level.varp),
         metadata=dict(level.metadata),
+        export_uns=dict(level.export_uns),
     )
 
 

@@ -39,7 +39,7 @@ write_parsed_levels(parsed, Path("results.h5mu"))
 
 ## Compact JSON representation
 
-The sidecar is a versioned scientific view with `format: "apb2-result-representation"` and `format_version: "5"`. It is derived from `ParsedLevels`, so h5ad, h5mu, Parquet, and DuckDB results expose the same semantic sections. Projected before a physical artifact exists, its `artifact` member is `null`.
+The sidecar is a versioned scientific view with `format: "apb2-result-representation"` and `format_version: "6"`. It is derived from `ParsedLevels`, so h5ad, h5mu, Parquet, and DuckDB results expose the same semantic sections. Projected before a physical artifact exists, its `artifact` member is `null`.
 
 Its JSON Schema is published as [representation.schema.json](../src/apb2/parserV2/parse_quant/io/_schema/representation.schema.json), generated from the models in `parse_quant/io/representation_schema.py`. Structural objects allow no unknown keys; `apb` parts and annotation `metadata` stay open, except that producer records follow the summary and details contract. Every sidecar is validated against the schema before it is written, so a document outside it fails the producing call and leaves no sidecar.
 

@@ -48,7 +48,7 @@ from apb2.parserV2.parse_quant.io.metadata import (
     string_list,
     string_value,
 )
-from apb2.parserV2.parse_quant.io.uns_json import UnsJsonCodec
+from apb2.parserV2.parse_quant.io.uns_json import UnsJsonCodec, python_value
 from apb2.parserV2.parse_quant.io.validation import validate_parsed_levels
 
 
@@ -85,6 +85,7 @@ class H5adReader:
             levels={level_name: level},
             uns=shared_uns,
             metadata=shared_metadata,
+            export_uns=_export_uns(stored.uns, metadata),
         )
         validate_parsed_levels(parsed)
         return parsed
@@ -134,6 +135,7 @@ class H5muReader:
             feature_relations=_feature_relations(
                 stored, metadata, shared_metadata, annotation_names, level_names
             ),
+            export_uns=_export_uns(stored.uns, metadata),
         )
         validate_parsed_levels(parsed)
         return parsed
@@ -176,8 +178,18 @@ def _read_level(
             varp=_pairwise_frames(stored.varp, metadata, "varp"),
             uns=uns,
             metadata=level_metadata,
+            export_uns=_export_uns(stored.uns, metadata),
         )
     )
+
+
+def _export_uns(uns: Mapping[str, object], storage: Mapping[str, object]) -> dict[str, JsonValue]:
+    """The top-level keys the descriptor lists; keys another tool added are not read."""
+    keys = string_list(storage.get("export_uns"), "export_uns keys")
+    absent = [key for key in keys if key not in uns]
+    if absent:
+        raise InvalidResultError(f"uns lacks the recorded export_uns keys {absent}")
+    return {key: python_value(uns[key]) for key in keys}
 
 
 def _layers(

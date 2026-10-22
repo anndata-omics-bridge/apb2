@@ -200,6 +200,7 @@ def test_a_parsed_level_composes_final_values_and_nothing_new() -> None:
         "obsp",
         "varp",
         "metadata",
+        "export_uns",
     }
     assert isinstance(parsed.uns, dict)
     assert isinstance(parsed.layers, dict)

@@ -87,10 +87,19 @@ def read_parsed_levels(source: Path) -> ParsedLevels:
     return reader_for(result_format_for(source)).read(source)
 
 
-def write_parsed_levels(parsed: ParsedLevels, target: Path) -> None:
-    """Write a result and its compact APB JSON representation sidecar."""
+def write_parsed_levels(parsed: ParsedLevels, target: Path, var_name_prefix: bool = True) -> None:
+    """Write a result and its compact APB JSON representation sidecar.
+
+    ``var_name_prefix`` applies to ``.h5mu``: ``False`` keeps each modality's var index as
+    written, named after a single String key, instead of prefixing it with the level
+    (``ion:``, ``prt:``). The other formats prefix nothing.
+    """
     result_format = result_format_for(target)
-    writer = writer_for(result_format)
+    writer = (
+        H5muWriter(var_name_prefix)
+        if result_format is ResultFormat.H5MU
+        else writer_for(result_format)
+    )
     with logged_step("write", format=result_format, path=target):
         write_result_with_representation(
             parsed,

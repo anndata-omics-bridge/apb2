@@ -9,12 +9,15 @@ from apb2.parserV2.parse_quant.data.parsed import (
     AnnotationTable,
     CategoricalLayerSemantics,
     FeatureRelation,
+    JsonValue,
     ParsedLevel,
     ParsedLevels,
     QuantitativeLayerSemantics,
 )
 from apb2.parserV2.parse_quant.io.errors import InvalidResultError
+from apb2.parserV2.parse_quant.io.metadata import NAMESPACE
 from apb2.parserV2.parse_quant.io.records import RecordContract
+from apb2.parserV2.parse_quant.io.uns_json import stored_natively
 
 _PAIRWISE_COLUMNS = ("row", "column", "value")
 
@@ -39,6 +42,7 @@ def validate_parsed_levels(parsed: ParsedLevels, /) -> None:
     for name, relation in parsed.feature_relations.items():
         _validate_feature_relation(name, relation, parsed)
     RecordContract().validate_part({"parse": parsed.uns, **parsed.metadata}, "root")
+    _validate_export_uns("root", parsed.export_uns)
 
 
 def validate_parsed_level(name: str, parsed: ParsedLevel, /) -> None:
@@ -86,6 +90,19 @@ def validate_parsed_level(name: str, parsed: ParsedLevel, /) -> None:
     _validate_pairwise(name, "obsp", parsed.obsp, parsed.obs.frame.height)
     _validate_pairwise(name, "varp", parsed.varp, parsed.var.frame.height)
     RecordContract().validate_part({"parse": parsed.uns, **parsed.metadata}, f"level {name!r}")
+    _validate_export_uns(f"level {name!r}", parsed.export_uns)
+
+
+def _validate_export_uns(owner: str, values: dict[str, JsonValue]) -> None:
+    """Keys a consumer reads beside APB's own part, each storable by AnnData as it is."""
+    if NAMESPACE in values:
+        raise InvalidResultError(f"{owner} export_uns cannot use APB's key {NAMESPACE!r}")
+    for key, value in values.items():
+        if not stored_natively({key: value}):
+            raise InvalidResultError(
+                f"{owner} export_uns[{key!r}] is not storable in AnnData uns as it is: keys "
+                "must be HDF5 link names, lists must hold one scalar type and no nulls"
+            )
 
 
 def _validate_layer_values(

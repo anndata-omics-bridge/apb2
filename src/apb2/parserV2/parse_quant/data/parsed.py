@@ -265,6 +265,10 @@ class ParsedLevel:
     metadata: dict[str, JsonValue] = field(default_factory=dict)
     # Other producers' records: {"prolfquapp": {"result": {"annotation": {...}}, "summary": []}}
 
+    export_uns: dict[str, JsonValue] = field(default_factory=dict)
+    # Keys a consumer reads from the top-level uns, empty for a parsed result:
+    # {"search_engine": "dia-nn", "acquisition": None}
+
     @classmethod
     def build(
         cls,
@@ -282,12 +286,14 @@ class ParsedLevel:
         varm: Mapping[str, pl.DataFrame] | None = None,
         obsp: Mapping[str, pl.DataFrame] | None = None,
         varp: Mapping[str, pl.DataFrame] | None = None,
+        export_uns: Mapping[str, JsonValue] | None = None,
     ) -> ParsedLevel:
         """Build a level from plain frames.
 
         Every layer is one frame with a row per ``var`` row and a column per ``obs`` row, by
         position; its column names are replaced. Abundance layers are measurements carrying the
         ``abundance`` role; auxiliary layers are diagnostics, integer when all their columns are.
+        ``export_uns`` is written as it is into the level's top-level ``uns``.
 
         Raises:
             ValueError: A key or role column is absent, a layer's shape does not match the axes,
@@ -314,6 +320,7 @@ class ParsedLevel:
             obsp=dict(obsp or {}),
             varp=dict(varp or {}),
             metadata=dict(metadata or {}),
+            export_uns=dict(export_uns or {}),
         )
 
     def with_layers(
@@ -346,6 +353,7 @@ class ParsedLevel:
             obsp=dict(self.obsp),
             varp=dict(self.varp),
             metadata={**self.metadata, **(metadata or {})},
+            export_uns=dict(self.export_uns),
         )
 
     def abundance_layers(self, names: Sequence[str] | None = None) -> tuple[str, ...]:
@@ -452,6 +460,9 @@ class ParsedLevels:
     # {"protein_group_membership": FeatureRelation(...)}
 
     hierarchy: LevelHierarchy | None = None
+
+    export_uns: dict[str, JsonValue] = field(default_factory=dict)
+    # Keys a consumer reads from the file's root uns, empty for a parsed result.
 
     def with_annotation_table(
         self,
@@ -577,6 +588,7 @@ class ParsedLevels:
             metadata=dict(self.metadata),
             annotation_tables=dict(annotation_tables),
             feature_relations=dict(feature_relations),
+            export_uns=dict(self.export_uns),
         )
 
 

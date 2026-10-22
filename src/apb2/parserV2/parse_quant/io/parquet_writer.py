@@ -65,6 +65,7 @@ class ParquetLevelsWriter:
                 "level_order": list(parsed.levels),
                 "levels": level_metadata,
                 "apb": shared_scope(parsed.uns, parsed.metadata, parsed.hierarchy),
+                "export_uns": dict(parsed.export_uns),
                 "annotation_table_order": list(parsed.annotation_tables),
                 "annotation_tables": _write_annotation_tables(
                     parsed.annotation_tables,
@@ -105,6 +106,7 @@ def _write_level(parsed: ParsedLevel, directory: Path, physical_name: str) -> di
         "varp_order": list(parsed.varp),
         "varp": _write_named_frames(parsed.varp, directory / "varp"),
         "apb": level_scope(parsed),
+        "export_uns": dict(parsed.export_uns),
     }
 
 

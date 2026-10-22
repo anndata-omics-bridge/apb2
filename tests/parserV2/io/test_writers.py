@@ -170,7 +170,7 @@ def test_the_manifest_states_what_every_file_is(tmp_path: Path) -> None:
     ParquetLevelsWriter().write(one(parsed), target)
     manifest = manifest_of(target)
 
-    assert manifest["format_version"] == "7"
+    assert manifest["format_version"] == "8"
     assert manifest["level_order"] == ["ion"]
     levels = manifest["levels"]
     assert isinstance(levels, dict)

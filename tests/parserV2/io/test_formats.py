@@ -8,6 +8,7 @@ from pathlib import Path
 
 import anndata
 import duckdb
+import mudata
 import numpy as np
 import polars as pl
 import pytest
@@ -168,6 +169,18 @@ def _level(name: str, feature_column: str) -> ParsedLevel:
             "nested": {"tokens": ["x", "y"], "enabled": True},
         },
         metadata={"level_extension": {"name": name}},
+        export_uns={
+            "software": "Synthetic Ω",
+            "level": name,
+            "acquisition": None,
+            "charges": [2, 3],
+            "decoys": [False, True],
+            "runs": ["Zürich", "東京"],
+            "empty": [],
+            "fdr": 0.01,
+            "count": 7,
+            "settings": {"label": "label_free", "tolerance": {"ppm": 10.0}},
+        },
     )
 
 
@@ -179,6 +192,7 @@ def rich_result() -> ParsedLevels:
         },
         uns={"produced_by": "apb2", "quantification_levels": ["ion", "protein"]},
         metadata={"collection_extension": {"enabled": True}},
+        export_uns={"status": "experimental", "producers": ["apb2", "test"]},
     )
 
 
@@ -214,6 +228,7 @@ def _assert_result_equal(actual: ParsedLevels, expected: ParsedLevels) -> None:
     assert list(actual.levels) == list(expected.levels)
     assert actual.uns == expected.uns
     assert actual.metadata == expected.metadata
+    assert actual.export_uns == expected.export_uns
     assert list(actual.annotation_tables) == list(expected.annotation_tables)
     assert list(actual.feature_relations) == list(expected.feature_relations)
     for name, wanted in expected.annotation_tables.items():
@@ -234,6 +249,7 @@ def _assert_result_equal(actual: ParsedLevels, expected: ParsedLevels) -> None:
         assert got.var.key_columns == wanted.var.key_columns
         assert got.uns == wanted.uns
         assert got.metadata == wanted.metadata
+        assert got.export_uns == wanted.export_uns
         assert_frame_equal(got.obs.frame, wanted.obs.frame)
         assert_frame_equal(got.var.frame, wanted.var.frame)
         _assert_layer_mapping(got.layers, wanted.layers)
@@ -448,6 +464,7 @@ def test_h5ad_accepts_exactly_one_level_and_is_idempotent(tmp_path: Path) -> Non
         levels={"ion": rich_result().levels["ion"]},
         uns={"selected": "ion"},
         metadata={"collection_extension": {"enabled": True}},
+        export_uns={"status": "experimental"},
     )
     writer_for(ResultFormat.H5AD).write(single, target)
     projected = reader_for(ResultFormat.H5AD).read(target)
@@ -823,7 +840,7 @@ def test_root_and_level_parts_stay_apart_in_every_format(tmp_path: Path, suffix:
     restored = read_parsed_levels(target)
     _assert_result_equal(restored, parsed)
     representation = json.loads(Path(f"{target}.apb.json").read_text())
-    assert representation["format_version"] == "5"
+    assert representation["format_version"] == "6"
     assert "storage" not in representation["levels"][0]["apb"]
     assert representation["root"]["apb"]["tool"] == root["tool"]
     assert representation["root"]["apb"]["parse"] == {"result": {"n": 1}}
@@ -953,6 +970,115 @@ def test_one_field_may_sit_in_both_the_root_and_a_level_part(tmp_path: Path, suf
     restored = read_parsed_levels(target)
     assert restored.metadata["tool"] == parsed.metadata["tool"]
     assert restored.levels["ion"].metadata["tool"] == parsed.levels["ion"].metadata["tool"]
+
+
+def _one_level(export_uns: dict[str, JsonValue] | None = None) -> ParsedLevels:
+    return ParsedLevels(
+        levels={"ion": _level("ion", "Ion")},
+        uns={},
+        export_uns={"status": "experimental"} if export_uns is None else export_uns,
+    )
+
+
+@pytest.mark.parametrize("suffix", [".h5ad", ".h5mu", ".parquet", ".duckdb"])
+def test_export_uns_reads_back_with_its_json_types(tmp_path: Path, suffix: str) -> None:
+    parsed = _one_level()
+    target = tmp_path / f"result{suffix}"
+    write_parsed_levels(parsed, target)
+    restored = read_parsed_levels(target)
+    # JSON text distinguishes 1 from 1.0 and True, which list equality does not.
+    assert json.dumps(restored.export_uns, sort_keys=True) == json.dumps(
+        parsed.export_uns, sort_keys=True
+    )
+    assert json.dumps(restored.levels["ion"].export_uns, sort_keys=True) == json.dumps(
+        parsed.levels["ion"].export_uns, sort_keys=True
+    )
+
+
+def test_export_uns_sits_natively_in_the_top_level_uns(tmp_path: Path) -> None:
+    h5ad = tmp_path / "ion.h5ad"
+    h5mu = tmp_path / "result.h5mu"
+    write_parsed_levels(_one_level(), h5ad)
+    write_parsed_levels(rich_result(), h5mu)
+
+    single = anndata.read_h5ad(h5ad)
+    assert single.uns["status"] == "experimental"
+    assert single.uns["software"] == "Synthetic Ω"
+    assert isinstance(single.uns["charges"], np.ndarray), "a list, not JSON text"
+    assert single.uns["settings"]["tolerance"]["ppm"] == 10.0
+    container = mudata.read_h5mu(h5mu)
+    assert container.uns["status"] == "experimental"
+    assert container.mod["protein"].uns["level"] == "protein"
+    assert "status" not in container.mod["protein"].uns
+
+
+def test_keys_another_tool_adds_to_uns_are_not_read(tmp_path: Path) -> None:
+    target = tmp_path / "ion.h5ad"
+    write_parsed_levels(_one_level(), target)
+    stored = anndata.read_h5ad(target)
+    stored.uns["added_later"] = "by another tool"
+    stored.write_h5ad(target)
+
+    restored = read_parsed_levels(target)
+
+    assert "added_later" not in restored.export_uns
+    assert "added_later" not in restored.levels["ion"].export_uns
+
+
+@pytest.mark.parametrize(
+    ("export_uns", "message"),
+    [
+        ({"apb": "mine"}, "APB's key 'apb'"),
+        ({"a/b": 1}, "is not storable"),
+        ({"nested": {"a/b": 1}}, "is not storable"),
+        ({"records": [{"name": "x"}]}, "is not storable"),
+        ({"holes": ["a", None]}, "is not storable"),
+        ({"mixed": [1, "a"]}, "is not storable"),
+    ],
+)
+@pytest.mark.parametrize("suffix", [".h5ad", ".parquet"])
+def test_export_uns_anndata_cannot_store_is_refused_before_writing(
+    tmp_path: Path, suffix: str, export_uns: dict[str, JsonValue], message: str
+) -> None:
+    on_root = _one_level(export_uns)
+    on_level = _one_level()
+    on_level.levels["ion"].export_uns = export_uns
+    for owner, parsed in (("root", on_root), ("level 'ion'", on_level)):
+        target = tmp_path / f"{owner}{suffix}"
+        with pytest.raises(InvalidResultError, match=f"{owner} export_uns.*{message}"):
+            write_parsed_levels(parsed, target)
+        assert not target.exists()
+
+
+def test_h5ad_refuses_export_uns_keys_its_one_uns_would_hold_twice(tmp_path: Path) -> None:
+    level_named = _one_level({"ion": "the level part's key"})
+    in_both = _one_level({"software": "also on the level"})
+    for parsed, message in (
+        (level_named, "the h5ad level's key 'ion'"),
+        (in_both, r"\['software'\] are in both"),
+    ):
+        target = tmp_path / "ion.h5ad"
+        with pytest.raises(InvalidResultError, match=message):
+            write_parsed_levels(parsed, target)
+        assert not target.exists()
+
+    write_parsed_levels(in_both, tmp_path / "separate.h5mu")
+    restored = read_parsed_levels(tmp_path / "separate.h5mu")
+    assert restored.export_uns["software"] == "also on the level"
+    assert restored.levels["ion"].export_uns["software"] == "Synthetic Ω"
+
+
+def test_h5mu_without_var_name_prefix_keeps_the_var_index_as_written(tmp_path: Path) -> None:
+    prefixed = tmp_path / "prefixed.h5mu"
+    plain = tmp_path / "plain.h5mu"
+    write_parsed_levels(rich_result(), prefixed)
+    write_parsed_levels(rich_result(), plain, var_name_prefix=False)
+
+    assert list(mudata.read_h5mu(prefixed).mod["ion"].var_names) == ["ion:F1", "ion:F2"]
+    ion = mudata.read_h5mu(plain).mod["ion"]
+    assert list(ion.var_names) == ["F1", "F2"]
+    assert ion.var.index.name == "Ion", "named after the single String key"
+    _assert_result_equal(read_parsed_levels(plain), read_parsed_levels(prefixed))
 
 
 def test_previous_hdf_metadata_layout_is_rejected(tmp_path: Path) -> None:

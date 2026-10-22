@@ -25,6 +25,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
 )
 from apb2.parserV2.parse_quant.io.errors import InvalidResultError
 from apb2.parserV2.parse_quant.io.metadata import (
+    json_object,
     layer_role_from_metadata,
     layer_semantics_from_metadata,
     layer_semantics_metadata,
@@ -43,7 +44,7 @@ from apb2.parserV2.parse_quant.io.metadata import (
 from apb2.parserV2.parse_quant.io.validation import validate_parsed_levels
 
 FORMAT = "apb2-parsed-levels-duckdb"
-FORMAT_VERSION = "6"
+FORMAT_VERSION = "7"
 METADATA_TABLE = "apb2_result_metadata"
 _REGISTERED_FRAME = "apb2_incoming_frame"
 _PHYSICAL_TABLE = re.compile(r"data_[0-9]{6}")
@@ -90,6 +91,7 @@ class DuckDBWriter:
                     "level_order": list(parsed.levels),
                     "levels": levels,
                     "apb": shared_scope(parsed.uns, parsed.metadata, parsed.hierarchy),
+                    "export_uns": dict(parsed.export_uns),
                     "annotation_table_order": list(parsed.annotation_tables),
                     "annotation_tables": cast(
                         dict[str, JsonValue],
@@ -153,6 +155,7 @@ class DuckDBWriter:
             "varp_order": list(parsed.varp),
             "varp": {name: tables.write(frame) for name, frame in parsed.varp.items()},
             "apb": level_scope(parsed),
+            "export_uns": dict(parsed.export_uns),
         }
 
 
@@ -204,6 +207,7 @@ class DuckDBReader:
             metadata=metadata,
             annotation_tables=self._read_annotation_tables(connection, root),
             feature_relations=self._read_feature_relations(connection, root),
+            export_uns=json_object(root.get("export_uns"), "root export_uns"),
         )
 
     def _read_annotation_tables(
@@ -296,6 +300,7 @@ class DuckDBReader:
                 varp=self._read_named(connection, level, "varp"),
                 uns=uns,
                 metadata=extension_metadata,
+                export_uns=json_object(level.get("export_uns"), "level export_uns"),
             )
         )
 

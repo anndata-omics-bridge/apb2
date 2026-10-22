@@ -751,7 +751,7 @@ target.parquet/
             ...
 ```
 
-`manifest.json` version 7 records level and table order, axis keys, each layer's var keys and role,
+`manifest.json` version 8 records level and table order, axis keys, each layer's var keys and role,
 primary layers, both provenance scopes, every table's ordered logical Polars schema, and explicit
 logical-to-physical names. A user-authored name is never interpolated into a path without that
 mapping. `ParquetReader` accepts this APB2 dataset only; a vendor `.parquet` file is not a result.
@@ -799,7 +799,7 @@ class ParsedLevels:
 ```
 
 `MuDataWriter` constructs one stateless `AnnDataWriter` and reuses it in canonical level order. It calls `to_anndata_for_level()` for each `ParsedLevel`, prefixes only the AnnData
-storage `var_names` (`ion:`, `pfm:`, `pep:`, `prt:`, `frg:`), constructs `MuData(modalities,
+storage `var_names` (`ion:`, `pfm:`, `pep:`, `prt:`, `frg:`) unless configured with `var_name_prefix=False`, constructs `MuData(modalities,
 axis=0)`, writes shared provenance to
 `mdata.uns["apb"]["parse"]`, and
 atomically writes `.h5mu`. The authored unprefixed key remains an ordinary modality `.var` column.

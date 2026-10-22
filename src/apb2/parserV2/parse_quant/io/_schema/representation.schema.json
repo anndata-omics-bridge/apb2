@@ -140,14 +140,22 @@
     },
     "ApbRoot": {
       "additionalProperties": false,
-      "description": "The container's own ``apb`` part.",
+      "description": "The container's own ``apb`` part, and the keys written beside it for consumers.",
       "properties": {
         "apb": {
           "$ref": "#/$defs/RootApbPart"
+        },
+        "export_uns": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Export Uns",
+          "type": "object"
         }
       },
       "required": [
-        "apb"
+        "apb",
+        "export_uns"
       ],
       "title": "ApbRoot",
       "type": "object"
@@ -462,7 +470,7 @@
     },
     "Level": {
       "additionalProperties": false,
-      "description": "One quantification level: axes, layers, aligned tables and its ``apb`` part.",
+      "description": "One quantification level: axes, layers, aligned tables, ``apb`` part and ``export_uns``.",
       "properties": {
         "name": {
           "title": "Name",
@@ -496,6 +504,13 @@
         },
         "apb": {
           "$ref": "#/$defs/ApbPart"
+        },
+        "export_uns": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Export Uns",
+          "type": "object"
         }
       },
       "required": [
@@ -507,7 +522,8 @@
         "var",
         "layers",
         "aligned",
-        "apb"
+        "apb",
+        "export_uns"
       ],
       "title": "Level",
       "type": "object"
@@ -1763,7 +1779,7 @@
       "type": "string"
     },
     "format_version": {
-      "const": "5",
+      "const": "6",
       "title": "Format Version",
       "type": "string"
     },
@@ -1818,6 +1834,6 @@
     "annotation_tables",
     "feature_relations"
   ],
-  "title": "APB result representation, format version 5",
+  "title": "APB result representation, format version 6",
   "type": "object"
 }

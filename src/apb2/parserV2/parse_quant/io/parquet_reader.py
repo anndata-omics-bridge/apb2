@@ -26,6 +26,7 @@ from apb2.parserV2.parse_quant.io.metadata import (
     PARQUET_FORMAT_VERSION,
     PARQUET_LEVELS_DIRECTORY,
     PARQUET_MANIFEST_NAME,
+    json_object,
     layer_role_from_metadata,
     layer_semantics_from_metadata,
     object_mapping,
@@ -84,6 +85,7 @@ class ParquetReader:
             metadata=metadata,
             annotation_tables=annotation_tables,
             feature_relations=feature_relations,
+            export_uns=json_object(manifest.get("export_uns"), "root export_uns"),
         )
         validate_parsed_levels(parsed)
         return parsed
@@ -117,6 +119,7 @@ def _read_level(source: Path, metadata: dict[str, object] | object) -> ParsedLev
             varp=_read_named_frames(directory / "varp", level, "varp"),
             uns=uns,
             metadata=extension_metadata,
+            export_uns=json_object(level.get("export_uns"), "level export_uns"),
         )
     )
 

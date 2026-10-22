@@ -65,9 +65,7 @@ class UnsJsonCodec:
             raise InvalidResultError(f"APB2 storage descriptor has no {JSON_VALUES} list")
         paths = [string_list(entry, "JSON value path") for entry in cast(list[object], recorded)]
         result = {
-            key: _python_value(value)
-            for key, value in namespace.items()
-            if key != STORAGE_NAMESPACE
+            key: python_value(value) for key, value in namespace.items() if key != STORAGE_NAMESPACE
         }
         for path in paths:
             _decode_at(result, path)
@@ -129,15 +127,23 @@ def _decode_at(root: dict[str, JsonValue], path: list[str]) -> None:
         raise InvalidResultError(f"invalid JSON value at {path!r}: {error}") from error
 
 
-def _python_value(value: object) -> JsonValue:
+def stored_natively(value: JsonValue) -> bool:
+    """Whether AnnData writes ``value`` unchanged, with no JSON text needed at any depth."""
+    if isinstance(value, dict):
+        return all(_is_link_name(key) and stored_natively(item) for key, item in value.items())
+    return _is_native(value)
+
+
+def python_value(value: object) -> JsonValue:
+    """A value as AnnData read it, with NumPy scalars and arrays back as JSON types."""
     if value is None or isinstance(value, bool | int | float | str):
         return value
     if isinstance(value, np.generic):
-        return _python_value(value.item())
+        return python_value(value.item())
     if isinstance(value, np.ndarray):
-        return [_python_value(item) for item in value.tolist()]
+        return [python_value(item) for item in value.tolist()]
     if isinstance(value, list | tuple):
-        return [_python_value(item) for item in value]
+        return [python_value(item) for item in value]
     if isinstance(value, Mapping):
-        return {str(key): _python_value(item) for key, item in value.items()}
+        return {str(key): python_value(item) for key, item in value.items()}
     raise InvalidResultError(f"h5 metadata contains unsupported {type(value).__name__}")

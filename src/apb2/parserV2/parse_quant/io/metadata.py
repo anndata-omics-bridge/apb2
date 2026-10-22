@@ -27,10 +27,10 @@ PARSE_NAMESPACE = "parse"
 ROLES_NAMESPACE = "roles"
 STORAGE_NAMESPACE = "storage"
 RESULT_FORMAT = "apb2-parsed-levels"
-RESULT_FORMAT_VERSION = "6"
+RESULT_FORMAT_VERSION = "7"
 
 PARQUET_FORMAT = "apb2-parsed-levels-parquet"
-PARQUET_FORMAT_VERSION = "7"
+PARQUET_FORMAT_VERSION = "8"
 PARQUET_MANIFEST_NAME = "manifest.json"
 PARQUET_LEVELS_DIRECTORY = "levels"
 
@@ -356,6 +356,11 @@ def object_mapping(value: object, role: str, /) -> Mapping[str, object]:
     if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
         raise InvalidResultError(f"{role} is not an object")
     return cast(dict[str, object], value)
+
+
+def json_object(value: object, role: str, /) -> dict[str, JsonValue]:
+    """A manifest object as JSON parsing returned it, copied."""
+    return cast(dict[str, JsonValue], dict(object_mapping(value, role)))
 
 
 def string_value(value: object, role: str, /) -> str:

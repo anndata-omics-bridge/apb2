@@ -465,7 +465,7 @@ def test_an_anndata_or_mudata_apb2_did_not_write_is_described_as_levels(tmp_path
     assert (level["name"], level["dimensions"]) == ("protein", {"observations": 2, "variables": 3})
     assert [layer["name"] for layer in level["layers"]] == ["X", "q"]
     assert [column["name"] for column in level["var"]["columns"]] == ["var_names", "protein"]
-    assert document["root"] == {"apb": {"export": {"schema_version": "1"}}}
+    assert document["root"] == {"apb": {"export": {"schema_version": "1"}}, "export_uns": {}}
     assert level["apb"] == {"export": {"summary": summary}}
 
     # Long exports store each cell in its run's row only, as a block-diagonal sparse X.

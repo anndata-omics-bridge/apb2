@@ -102,6 +102,37 @@ def test_with_layers_returns_a_new_level_and_refuses_existing_names() -> None:
         extended.with_layers(auxiliary={"Summed": pl.DataFrame({"s": [1, 1, 1], "t": [1, 1, 1]})})
 
 
+def test_export_uns_is_built_empty_or_as_given_and_copied_with_the_level() -> None:
+    assert _level().export_uns == {}
+    level = ParsedLevel.build(
+        obs=pl.DataFrame({"sample": ["A"]}),
+        obs_keys=("sample",),
+        var=pl.DataFrame({"peptide": ["PEPA"]}),
+        var_keys=("peptide",),
+        var_roles={},
+        primary_layer="Intensity",
+        abundance={"Intensity": pl.DataFrame({"A": [1.0]})},
+        export_uns={"search_engine": "dia-nn", "acquisition": None},
+    )
+
+    extended = level.with_layers(auxiliary={"Count": pl.DataFrame({"A": [1]})})
+    extended.export_uns["added"] = True
+
+    assert level.export_uns == {"search_engine": "dia-nn", "acquisition": None}
+    assert extended.export_uns["search_engine"] == "dia-nn"
+
+
+def test_a_result_copy_owns_its_export_uns() -> None:
+    parsed = ParsedLevels(levels={"protein": _level()}, uns={}, export_uns={"status": "draft"})
+
+    annotated = parsed.with_annotation_table(
+        "members", pl.DataFrame({"member": ["P1"]}), ("member",)
+    )
+    annotated.export_uns["status"] = "final"
+
+    assert parsed.export_uns == {"status": "draft"}
+
+
 def test_abundance_layers_selects_all_or_validates_names() -> None:
     level = _level()
 

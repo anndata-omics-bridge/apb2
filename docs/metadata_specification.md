@@ -63,16 +63,18 @@ The primary quantity's only physical matrix must be `X`; `adata.layers` contains
 
 AnnData stores each `uns` list as one NumPy array and each key as an HDF5 link name, so h5ad and h5mu must store a value as JSON text when AnnData cannot hold it exactly. Such values are lists that are not empty and not one scalar type, integers outside 64 bits, text containing NUL, and mappings with a key that is empty, `.`, or contains `/` or NUL. The storage descriptor's `json_values` lists their key-segment paths, and readers decode exactly those paths. Every other mapping stays a native `uns` group. A top-level section name HDF5 cannot link is rejected. All `uns["apb"]` writes go through `UnsJsonCodec`.
 
+`export_uns` on a level and on the result holds keys a consumer reads from the top-level `uns` beside `apb`; every parsed result leaves it empty. h5ad and h5mu write it natively: a level's into its modality's or the h5ad's `uns`, the result's into the MuData's or the h5ad's `uns`. Validation rejects the key `apb` and any value that would need JSON text; an h5ad also rejects the level's name and a key on both level and result. Each storage descriptor lists its `export_uns` keys and readers read exactly those, so keys other tools add are ignored. Parquet and DuckDB keep it in their manifests; the sidecar shows it as `root.export_uns` and `levels[].export_uns`.
+
 Unknown extension metadata must survive storage; APB2 must not import producer packages to interpret it. Representation must reuse persistence projections: every document exposes `root.apb` and `levels[].apb`. The sidecar is a derived, bounded view, never part of `uns`; see [its lifecycle and redaction rules](result_io.md#compact-json-representation). Consumers must not merge the parts.
 
 ## Versions
 
 | Persisted component | Current version |
 |---|---|
-| HDF5 storage descriptor | `6` |
-| Parquet manifest | `7` |
-| DuckDB manifest | `6` |
-| Representation document | `5` |
+| HDF5 storage descriptor | `7` |
+| Parquet manifest | `8` |
+| DuckDB manifest | `7` |
+| Representation document | `6` |
 
 Readers and writers must change together and reject unsupported older layouts explicitly. No aliases or automatic migrations are provided. Producer payload versions remain independently owned; a parsing-rule schema version is not a result-storage version. Historical artifacts must not be rewritten as a side effect of reading or viewing them.
 
