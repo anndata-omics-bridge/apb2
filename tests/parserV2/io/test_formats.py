@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
+from dataclasses import replace
 from pathlib import Path
 
 import anndata
@@ -211,14 +212,15 @@ def annotated_result() -> ParsedLevels:
         key_columns=("member_id",),
         metadata={"producer": "test"},
     )
+    # Two blocks in one relation: table members and ions, each to the protein they belong to.
     parsed.feature_relations["protein_group_membership"] = FeatureRelation(
-        annotation_table="protein_group_members",
-        target_level="protein",
         coordinates=pl.DataFrame(
             {
-                "row": [0, 1, 2],
-                "column": [0, 0, 1],
-                "value": [1.0, 1.0, 1.0],
+                "source": ["protein_group_members"] * 3 + ["ion"] * 2,
+                "row": [0, 1, 2, 0, 1],
+                "target": ["protein"] * 5,
+                "column": [0, 0, 1, 0, 1],
+                "value": [1.0] * 5,
             }
         ),
         metadata={"semantic": "member_of"},
@@ -240,10 +242,8 @@ def _assert_result_equal(actual: ParsedLevels, expected: ParsedLevels) -> None:
         assert_frame_equal(got.frame, wanted.frame)
     for name, wanted in expected.feature_relations.items():
         got = actual.feature_relations[name]
-        assert got.annotation_table == wanted.annotation_table
-        assert got.target_level == wanted.target_level
         assert got.metadata == wanted.metadata
-        assert_frame_equal(got.coordinates, wanted.coordinates)
+        assert_frame_equal(got.coordinates, wanted.coordinates, check_row_order=False)
     for name, wanted in expected.levels.items():
         got = actual.levels[name]
         assert got.primary_layer_name == wanted.primary_layer_name
@@ -348,13 +348,125 @@ def test_annotation_tables_and_relations_round_trip(
         second = tmp_path / "annotated-again.h5mu"
         writer_for(result_format).write(restored, second)
         _assert_result_equal(reader_for(result_format).read(second), restored)
+        relation = restored.feature_relations["protein_group_membership"]
+        expected = annotated_result().feature_relations["protein_group_membership"]
+        assert_frame_equal(relation.coordinates, expected.coordinates, check_row_order=False)
     else:
         _assert_result_equal(restored, annotated_result())
+
+
+def test_h5mu_stores_a_relation_as_one_matrix_under_its_own_name(tmp_path: Path) -> None:
+    target = tmp_path / "annotated.h5mu"
+    writer_for(ResultFormat.H5MU).write(annotated_result(), target)
+
+    stored = mudata.read_h5mu(target)
+    matrix = stored.varp["protein_group_membership"].tocoo()
+
+    # Two ions, then two proteins, then three table members on the MuData's var axis.
+    assert list(stored.mod) == ["ion", "protein", "annotation_protein_group_members"]
+    assert set(zip(matrix.row.tolist(), matrix.col.tolist(), strict=True)) == {
+        (0, 2),
+        (1, 3),
+        (4, 2),
+        (5, 2),
+        (6, 3),
+    }, "rows are the sources, columns the targets"
+
+
+@pytest.mark.parametrize(
+    ("coordinates", "message"),
+    [
+        (
+            {"source": ["peptide"], "row": [0], "target": ["protein"], "column": [0]},
+            "links 'peptide', neither a level nor an annotation table",
+        ),
+        (
+            {"source": ["ion"], "row": [2], "target": ["protein"], "column": [0]},
+            "outside its source or target axis",
+        ),
+        (
+            {"source": ["ion", "ion"], "row": [0, 0], "target": ["protein"] * 2, "column": [1, 1]},
+            "repeats a matrix coordinate",
+        ),
+        (
+            {
+                "source": pl.Series(["ion"], dtype=pl.Categorical),
+                "row": [0],
+                "target": ["protein"],
+                "column": [0],
+            },
+            "must name its sources and targets as strings",
+        ),
+    ],
+)
+def test_a_relation_names_existing_features_once(
+    coordinates: dict[str, list[object] | pl.Series], message: str, tmp_path: Path
+) -> None:
+    parsed = rich_result()
+    values = [1.0] * len(coordinates["row"])
+    parsed.feature_relations["links"] = FeatureRelation(
+        coordinates=pl.DataFrame({**coordinates, "value": values})
+    )
+
+    with pytest.raises(InvalidResultError, match=message):
+        writer_for(ResultFormat.H5MU).write(parsed, tmp_path / "links.h5mu")
+
+
+def test_an_annotation_table_named_like_a_level_is_refused(tmp_path: Path) -> None:
+    """A relation's block names must each reach one modality."""
+    parsed = rich_result().with_annotation_table(
+        "protein", pl.DataFrame({"member": ["M1"]}), ("member",)
+    )
+
+    with pytest.raises(
+        InvalidResultError, match="annotation table 'protein' collides with a level"
+    ):
+        writer_for(ResultFormat.H5MU).write(parsed, tmp_path / "collide.h5mu")
+
+
+def test_empty_tables_and_relations_keep_every_link_in_its_block(tmp_path: Path) -> None:
+    """An empty modality starts where the next begins; an empty relation stays empty."""
+    annotated = annotated_result()
+    parsed = replace(
+        annotated,
+        annotation_tables={
+            "empty_members": AnnotationTable(
+                frame=pl.DataFrame(schema={"member_id": pl.String}), key_columns=("member_id",)
+            ),
+            **annotated.annotation_tables,
+        },
+        feature_relations={
+            **annotated.feature_relations,
+            "nothing": FeatureRelation(
+                coordinates=pl.DataFrame(
+                    schema={
+                        "source": pl.String,
+                        "row": pl.Int64,
+                        "target": pl.String,
+                        "column": pl.Int64,
+                        "value": pl.Float64,
+                    }
+                )
+            ),
+        },
+    )
+    target = tmp_path / "empty.h5mu"
+
+    writer_for(ResultFormat.H5MU).write(parsed, target)
+    restored = reader_for(ResultFormat.H5MU).read(target)
+
+    assert list(restored.annotation_tables) == ["empty_members", "protein_group_members"]
+    assert list(restored.feature_relations) == ["protein_group_membership", "nothing"]
+    for name, relation in parsed.feature_relations.items():
+        coordinates = restored.feature_relations[name].coordinates
+        assert_frame_equal(coordinates, relation.coordinates, check_row_order=False)
 
 
 def test_h5ad_rejects_annotation_tables_before_touching_target(tmp_path: Path) -> None:
     parsed = annotated_result()
     parsed.levels = {"protein": parsed.levels["protein"]}
+    relation = parsed.feature_relations["protein_group_membership"]
+    relation.coordinates = relation.coordinates.filter(pl.col("source") != "ion")
     target = tmp_path / "annotated.h5ad"
 
     with pytest.raises(InvalidResultError, match="cannot store annotation tables"):
@@ -842,7 +954,7 @@ def test_root_and_level_parts_stay_apart_in_every_format(tmp_path: Path, suffix:
     restored = read_parsed_levels(target)
     _assert_result_equal(restored, parsed)
     representation = json.loads(Path(f"{target}.apb.json").read_text())
-    assert representation["format_version"] == "6"
+    assert representation["format_version"] == "7"
     assert "storage" not in representation["levels"][0]["apb"]
     assert representation["root"]["apb"]["tool"] == root["tool"]
     assert representation["root"]["apb"]["parse"] == {"result": {"n": 1}}
@@ -1093,6 +1205,34 @@ def test_h5mu_without_var_name_prefix_keeps_the_var_index_as_written(tmp_path: P
     assert list(ion.var_names) == ["F1", "F2"]
     assert ion.var.index.name == "Ion", "named after the single String key"
     _assert_result_equal(read_parsed_levels(plain), read_parsed_levels(prefixed))
+
+
+def test_links_between_modalities_sharing_var_labels_survive_without_prefix(
+    tmp_path: Path,
+) -> None:
+    # Both levels label their features F1 and F2; crossed links tell positions from labels.
+    links = pl.DataFrame(
+        {
+            "source": ["ion", "ion"],
+            "row": [0, 1],
+            "target": ["peptide", "peptide"],
+            "column": [1, 0],
+            "value": [1.0, 1.0],
+        }
+    )
+    parsed = ParsedLevels(
+        levels={"ion": _level("ion", "Ion"), "peptide": _level("ion", "Peptide")}, uns={}
+    ).with_feature_relation("feature_mapping", links)
+    target = tmp_path / "shared.h5mu"
+
+    write_parsed_levels(parsed, target, var_name_prefix=False)
+
+    stored = mudata.read_h5mu(target)
+    matrix = stored.varp["feature_mapping"].tocoo()
+    assert list(stored.var_names) == ["F1", "F2", "F1", "F2"]
+    assert set(zip(matrix.row.tolist(), matrix.col.tolist(), strict=True)) == {(0, 3), (1, 2)}
+    restored = read_parsed_levels(target).feature_relations["feature_mapping"].coordinates
+    assert_frame_equal(restored, links, check_row_order=False)
 
 
 def test_previous_hdf_metadata_layout_is_rejected(tmp_path: Path) -> None:

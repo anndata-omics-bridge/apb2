@@ -119,7 +119,7 @@ write_parsed_levels(parsed, Path("results.duckdb"))
 print(sidecar_path(Path("results.duckdb")))  # results.duckdb.apb.json
 ```
 
-The suffix selects the format: `.h5ad`, `.h5mu`, `.parquet` or `.duckdb`. `write_parsed_levels()` also publishes an adjacent compact `<artifact>.apb.json` representation, which `sidecar_path(artifact)` names. `write_container_representation(container, artifact)` publishes the same sidecar for an AnnData or MuData APB2 did not write, such as an apb-export file. Converting between formats is `write_parsed_levels(read_parsed_levels(source), target)`; the CLI command `apb2 reformat` does the same. An `.h5mu` prefixes each modality's var names with its level (`ion:`, `prt:`); `write_parsed_levels(parsed, target, var_name_prefix=False)` keeps them as written, the index named after a single String key. `ParsedLevel.export_uns` and `ParsedLevels.export_uns`, empty for parsed results and set through `ParsedLevel.build(..., export_uns=...)`, are written as they are into the file's top-level `uns`, for consumers that read their own keys there.
+The suffix selects the format: `.h5ad`, `.h5mu`, `.parquet` or `.duckdb`. `write_parsed_levels()` also publishes an adjacent compact `<artifact>.apb.json` representation, which `sidecar_path(artifact)` names. Converting between formats is `write_parsed_levels(read_parsed_levels(source), target)`; the CLI command `apb2 reformat` does the same. An `.h5mu` prefixes each modality's var names with its level (`ion:`, `prt:`); `write_parsed_levels(parsed, target, var_name_prefix=False)` keeps them as written, the index named after a single String key. `ParsedLevel.export_uns` and `ParsedLevels.export_uns`, empty for parsed results and set through `ParsedLevel.build(..., export_uns=...)`, are written as they are into the file's top-level `uns`, for consumers that read their own keys there.
 
 ## Result model
 
@@ -189,7 +189,7 @@ numbers = level.layers["Intensity"].quantitative_values()
 - `ParsedLevel.with_layers()`: a new level with layers and `varm` tables added and metadata sections set; existing names raise
 - `FinalLayerTable.quantitative_values()`: the numeric value block; a categorical layer raises
 - `FinalLayerTable.decoded_values()`: category codes replaced by their labels, numbers unchanged
-- `ParsedLevels.with_annotation_table()` and `with_feature_relation()`: a new result with a keyed feature table, or its relation to one level's variable axis
+- `ParsedLevels.with_annotation_table()` and `with_feature_relation()`: a new result with a keyed feature table, or a directed relation between features of its levels and annotation tables (`source`, `row`, `target`, `column`, `value`)
 
 ## Errors
 
@@ -214,4 +214,4 @@ been moved into this user reference.
 
 ## Level hierarchies
 
-Packaged rules name a hierarchy from `hierarchies.json`: `lfq` (fragment, ion, peptidoform, peptide, protein), `psm` (psm, ion, peptidoform, peptide, protein), or `ptm_site` (peptidoform, multisite, site). Level names are open and validated against the declared hierarchy. The collection persists its hierarchy name and complete ordered identities under `uns["apb"]["hierarchy"]`; custom results remain interpretable without the packaged rule configuration. Parser output aligns explicitly declared sample keys to their ordered union, retaining missing cells; readers and writers reject differing observation axes. Parquet uses format version 8 and DuckDB version 7.
+Packaged rules name a hierarchy from `hierarchies.json`: `lfq` (fragment, ion, peptidoform, peptide, protein), `psm` (psm, ion, peptidoform, peptide, protein), or `ptm_site` (peptidoform, multisite, site). Level names are open and validated against the declared hierarchy. The collection persists its hierarchy name and complete ordered identities under `uns["apb"]["hierarchy"]`; custom results remain interpretable without the packaged rule configuration. Parser output aligns explicitly declared sample keys to their ordered union, retaining missing cells; readers and writers reject differing observation axes. Parquet uses format version 9 and DuckDB version 8.

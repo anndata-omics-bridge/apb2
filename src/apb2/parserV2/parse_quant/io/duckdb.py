@@ -44,7 +44,7 @@ from apb2.parserV2.parse_quant.io.metadata import (
 from apb2.parserV2.parse_quant.io.validation import validate_parsed_levels
 
 FORMAT = "apb2-parsed-levels-duckdb"
-FORMAT_VERSION = "7"
+FORMAT_VERSION = "8"
 METADATA_TABLE = "apb2_result_metadata"
 _REGISTERED_FRAME = "apb2_incoming_frame"
 _PHYSICAL_TABLE = re.compile(r"data_[0-9]{6}")
@@ -110,8 +110,6 @@ class DuckDBWriter:
                         {
                             name: {
                                 **tables.write(relation.coordinates),
-                                "annotation_table": relation.annotation_table,
-                                "target_level": relation.target_level,
                                 "metadata": dict(relation.metadata),
                             }
                             for name, relation in parsed.feature_relations.items()
@@ -246,19 +244,7 @@ class DuckDBReader:
         result: dict[str, FeatureRelation] = {}
         for name in order:
             entry = object_mapping(entries.get(name), f"feature relation {name!r}")
-            target_level = string_value(
-                entry.get("target_level"), f"feature relation {name!r} target level"
-            )
-            if not target_level:
-                raise InvalidResultError(
-                    f"feature relation {name!r} has unknown target level {target_level!r}"
-                )
             result[name] = FeatureRelation(
-                annotation_table=string_value(
-                    entry.get("annotation_table"),
-                    f"feature relation {name!r} annotation table",
-                ),
-                target_level=target_level,
                 coordinates=self._read_table(connection, entry),
                 metadata=cast(
                     dict[str, JsonValue],

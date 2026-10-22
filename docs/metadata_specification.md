@@ -15,7 +15,7 @@ Every result has one root part and one part per level, in every format:
 
 Parts must never be merged, so one key may appear in both. In memory the root part is `parse` (from `ParsedLevels.uns`) plus `ParsedLevels.metadata` and the typed `hierarchy`; a level part is `parse` (from `ParsedLevel.uns`), `roles` (from the typed column and layer roles) and `ParsedLevel.metadata`. Storage copies records unchanged; it never regroups or computes them.
 
-APB2 owns `parse`, `roles`, `hierarchy` and `storage`, and an h5mu root's `annotation_tables` and `feature_relations`; extensions must not use these names. Every `uns["apb"]` part carries its own `storage` descriptor. An h5ad root descriptor names its single level and the `uns` key holding that level's part; an h5ad holds exactly one level and no annotation tables or feature relations.
+APB2 owns `parse`, `roles`, `hierarchy` and `storage`, and an h5mu root's `annotation_tables` and `feature_relations`; extensions must not use these names. Every `uns["apb"]` part carries its own `storage` descriptor. An h5ad root descriptor names its single level and the `uns` key holding that level's part; an h5ad holds exactly one level and no annotation tables or feature relations. An h5mu stores each feature relation as one matrix in the root `varp`, under its own name: rows and columns follow the MuData's var axis, and a nonzero at (u, v) maps feature u to feature v.
 
 ## Records
 
@@ -71,10 +71,10 @@ Unknown extension metadata must survive storage; APB2 must not import producer p
 
 | Persisted component | Current version |
 |---|---|
-| HDF5 storage descriptor | `7` |
-| Parquet manifest | `8` |
-| DuckDB manifest | `7` |
-| Representation document | `6` |
+| HDF5 storage descriptor | `8` |
+| Parquet manifest | `9` |
+| DuckDB manifest | `8` |
+| Representation document | `7` |
 
 Readers and writers must change together and reject unsupported older layouts explicitly. No aliases or automatic migrations are provided. Producer payload versions remain independently owned; a parsing-rule schema version is not a result-storage version. Historical artifacts must not be rewritten as a side effect of reading or viewing them.
 

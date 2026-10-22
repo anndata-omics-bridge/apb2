@@ -1,4 +1,4 @@
-"""The JSON Schema of the format-version-6 result representation written beside every result.
+"""The JSON Schema of the format-version-7 result representation written beside every result.
 
 The models mirror the dictionaries ``json_representation`` builds; they only validate. Structural
 objects forbid unknown keys. Tool metadata (``apb`` parts and annotation ``metadata``) stays open,
@@ -24,7 +24,7 @@ from apb2.parserV2.parse_quant.io.errors import InvalidResultError
 from apb2.parserV2.search_parameters.model import Parameters
 
 SCHEMA_PACKAGE = "apb2.parserV2.parse_quant.io"
-SCHEMA_TITLE = "APB result representation, format version 6"
+SCHEMA_TITLE = "APB result representation, format version 7"
 
 _STRICT = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
 _OPEN = ConfigDict(strict=True, allow_inf_nan=False)
@@ -330,12 +330,20 @@ class AnnotationTable(Table):
 
 
 @with_config(_STRICT)
+class RelationBlock(TypedDict):
+    """The links of one relation from one level or annotation table to another."""
+
+    source: str
+    target: str
+    links: Count
+
+
+@with_config(_STRICT)
 class FeatureRelation(TypedDict):
-    """A relation from an annotation table to a level's features."""
+    """Directed links between the features of the result's levels and annotation tables."""
 
     name: str
-    annotation_table: str
-    target_level: str
+    blocks: list[RelationBlock]
     coordinates: Table
     metadata: dict[str, JsonValue]
 
@@ -345,7 +353,7 @@ class RepresentationDocument(TypedDict):
     """The JSON document written beside an APB result as ``<artifact>.apb.json``."""
 
     format: Literal["apb2-result-representation"]
-    format_version: Literal["6"]
+    format_version: Literal["7"]
     artifact: Artifact | None
     root: ApbRoot | None
     levels: list[Level]
@@ -357,7 +365,7 @@ _REPRESENTATION_ADAPTER: TypeAdapter[RepresentationDocument] = TypeAdapter(Repre
 
 
 def validate_representation(document: Mapping[str, JsonValue]) -> None:
-    """Refuse a document that does not match the format-version-6 schema."""
+    """Refuse a document that does not match the format-version-7 schema."""
     try:
         _REPRESENTATION_ADAPTER.validate_python(document)
     except ValidationError as error:
@@ -365,7 +373,7 @@ def validate_representation(document: Mapping[str, JsonValue]) -> None:
 
 
 def representation_json_schema() -> dict[str, object]:
-    """Return the JSON Schema of the format-version-6 result representation."""
+    """Return the JSON Schema of the format-version-7 result representation."""
     schema = _REPRESENTATION_ADAPTER.json_schema()
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",

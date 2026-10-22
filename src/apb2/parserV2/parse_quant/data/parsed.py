@@ -431,10 +431,13 @@ class AnnotationTable:
 
 @dataclass(slots=True)
 class FeatureRelation:
-    """Directed coordinates from an annotation table to a level's variable axis."""
+    """Directed links between the features of a result's levels and annotation tables.
 
-    annotation_table: str
-    target_level: ParsedLevelName
+    Each row of ``coordinates`` (``source``, ``row``, ``target``, ``column``, ``value``) maps
+    feature ``row`` of the level or annotation table ``source`` to feature ``column`` of
+    ``target``; one relation may link several pairs of them.
+    """
+
     coordinates: pl.DataFrame
     metadata: dict[str, JsonValue] = field(default_factory=dict)
 
@@ -489,28 +492,27 @@ class ParsedLevels:
     def with_feature_relation(
         self,
         name: str,
-        table: str,
-        target_level: str,
         coordinates: pl.DataFrame,
         metadata: Mapping[str, JsonValue] | None = None,
     ) -> ParsedLevels:
-        """Return a new result relating one annotation table to one level's variable axis.
+        """Return a new result with one directed relation between features added.
+
+        ``coordinates`` holds ``source``, ``row``, ``target``, ``column`` and ``value``: feature
+        ``row`` of the level or annotation table ``source`` maps to feature ``column`` of
+        ``target``.
 
         Raises:
-            ValueError: The relation name exists, or the table or level is absent.
+            ValueError: The relation name exists, or a source or target is neither a level nor
+                an annotation table of this result.
         """
         if name in self.feature_relations:
             raise ValueError(f"result already has feature relation {name!r}")
-        if table not in self.annotation_tables:
-            raise ValueError(f"result has no annotation table {table!r}")
-        if target_level not in self.levels:
-            raise ValueError(f"result has no level {target_level!r}")
-        relation = FeatureRelation(
-            annotation_table=table,
-            target_level=target_level,
-            coordinates=coordinates,
-            metadata=dict(metadata or {}),
-        )
+        names = pl.concat([coordinates.get_column("source"), coordinates.get_column("target")])
+        known = names.is_in([*self.levels, *self.annotation_tables]).fill_null(value=False)
+        unknown = sorted(repr(name) for name in names.filter(~known).unique().to_list())
+        if unknown:
+            raise ValueError(f"result has no level or annotation table {', '.join(unknown)}")
+        relation = FeatureRelation(coordinates=coordinates, metadata=dict(metadata or {}))
         return self._copy(self.annotation_tables, {**self.feature_relations, name: relation})
 
     def observation_groups(self) -> tuple[ParsedLevels, ...]:
@@ -566,11 +568,9 @@ class ParsedLevels:
                         "observation_relationships": json.dumps(relationships),
                     },
                 ),
-                feature_relations={
-                    name: relation
-                    for name, relation in self.feature_relations.items()
-                    if relation.target_level in levels
-                },
+                feature_relations=_relations_between(
+                    self.feature_relations, [*levels, *self.annotation_tables]
+                ),
             )
             for keys, levels in groups.items()
         )
@@ -651,6 +651,20 @@ def _with_result(
     if not isinstance(result, dict):
         raise TypeError("the parse record's result is not an object")
     return {**record, "result": {**result, **values}}
+
+
+def _relations_between(
+    relations: dict[str, FeatureRelation], names: list[str]
+) -> dict[str, FeatureRelation]:
+    """Each relation's links between ``names``; a relation left without links is dropped."""
+    result: dict[str, FeatureRelation] = {}
+    for name, relation in relations.items():
+        kept = relation.coordinates.filter(
+            pl.col("source").is_in(names) & pl.col("target").is_in(names)
+        )
+        if kept.height or relation.coordinates.is_empty():
+            result[name] = replace(relation, coordinates=kept)
+    return result
 
 
 def _shared_axis(levels: dict[str, ParsedLevel]) -> dict[str, ParsedLevel]:

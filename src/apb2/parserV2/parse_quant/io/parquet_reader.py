@@ -192,19 +192,7 @@ def _read_feature_relations(
     result: dict[str, FeatureRelation] = {}
     for name in order:
         entry = object_mapping(entries.get(name), f"feature relation {name!r}")
-        target_level = string_value(
-            entry.get("target_level"), f"feature relation {name!r} target level"
-        )
-        if not target_level:
-            raise InvalidResultError(
-                f"feature relation {name!r} has unknown target level {target_level!r}"
-            )
         result[name] = FeatureRelation(
-            annotation_table=string_value(
-                entry.get("annotation_table"),
-                f"feature relation {name!r} annotation table",
-            ),
-            target_level=target_level,
             coordinates=_read_table(source / "feature_relations", entry),
             metadata=cast(
                 dict[str, JsonValue],

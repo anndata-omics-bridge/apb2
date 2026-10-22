@@ -105,6 +105,32 @@ def test_nonbijective_or_incomplete_mapping_stays_separate(
             assert level is parsed.levels[name]
 
 
+def test_separate_groups_keep_only_the_links_within_them() -> None:
+    members = pl.DataFrame({"member": ["M1"]})
+    parsed = (
+        _parsed(["A", "A"], ["A"])
+        .with_annotation_table("members", members, ("member",))
+        .with_feature_relation(
+            "membership",
+            pl.DataFrame(
+                {
+                    "source": ["ion", "members"],
+                    "row": [0, 0],
+                    "target": ["protein", "ion"],
+                    "column": [0, 0],
+                    "value": [1.0, 1.0],
+                }
+            ),
+        )
+    )
+
+    ion, protein = parsed.observation_groups()
+
+    links = ion.feature_relations["membership"].coordinates
+    assert links.select("source", "target").rows() == [("members", "ion")]
+    assert "membership" not in protein.feature_relations, "no link lies within the protein group"
+
+
 def test_every_separate_group_keeps_the_root_parse_provenance() -> None:
     parsed = _parsed(["A", "A"], ["A"])
     provenance: dict[str, JsonValue] = {"search_parameters": {"file_name": "search.params"}}

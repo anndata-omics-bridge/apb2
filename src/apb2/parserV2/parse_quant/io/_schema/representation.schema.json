@@ -378,19 +378,18 @@
     },
     "FeatureRelation": {
       "additionalProperties": false,
-      "description": "A relation from an annotation table to a level's features.",
+      "description": "Directed links between the features of the result's levels and annotation tables.",
       "properties": {
         "name": {
           "title": "Name",
           "type": "string"
         },
-        "annotation_table": {
-          "title": "Annotation Table",
-          "type": "string"
-        },
-        "target_level": {
-          "title": "Target Level",
-          "type": "string"
+        "blocks": {
+          "items": {
+            "$ref": "#/$defs/RelationBlock"
+          },
+          "title": "Blocks",
+          "type": "array"
         },
         "coordinates": {
           "$ref": "#/$defs/Table"
@@ -405,8 +404,7 @@
       },
       "required": [
         "name",
-        "annotation_table",
-        "target_level",
+        "blocks",
         "coordinates",
         "metadata"
       ],
@@ -1308,6 +1306,30 @@
       "title": "QuantitativeLayer",
       "type": "object"
     },
+    "RelationBlock": {
+      "additionalProperties": false,
+      "description": "The links of one relation from one level or annotation table to another.",
+      "properties": {
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "target": {
+          "title": "Target",
+          "type": "string"
+        },
+        "links": {
+          "$ref": "#/$defs/Count"
+        }
+      },
+      "required": [
+        "source",
+        "target",
+        "links"
+      ],
+      "title": "RelationBlock",
+      "type": "object"
+    },
     "RootApbPart": {
       "additionalProperties": {
         "anyOf": [
@@ -1779,7 +1801,7 @@
       "type": "string"
     },
     "format_version": {
-      "const": "6",
+      "const": "7",
       "title": "Format Version",
       "type": "string"
     },
@@ -1834,6 +1856,6 @@
     "annotation_tables",
     "feature_relations"
   ],
-  "title": "APB result representation, format version 6",
+  "title": "APB result representation, format version 7",
   "type": "object"
 }

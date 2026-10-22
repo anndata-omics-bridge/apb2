@@ -55,7 +55,6 @@ def test_the_public_api_is_exactly_the_approved_names() -> None:
         "parse_search_parameters",
         "read_parsed_levels",
         "sidecar_path",
-        "write_container_representation",
         "write_parsed_levels",
     ]
     assert public_api.canonical_modification_names()["UNIMOD:35"] == "Oxidation"
@@ -169,13 +168,29 @@ def test_annotation_tables_and_relations_attach_to_a_new_result() -> None:
     annotated = parsed.with_annotation_table(
         "members", pl.DataFrame({"member": ["P1", "P2"]}), ("member",), {"producer": "test"}
     ).with_feature_relation(
-        "membership", "members", "protein", pl.DataFrame({"row": [0, 1], "column": [0, 2]})
+        "membership",
+        pl.DataFrame(
+            {"source": ["members"] * 2, "row": [0, 1], "target": ["protein"] * 2, "column": [0, 2]}
+        ),
     )
 
     assert annotated.annotation_tables["members"].metadata == {"producer": "test"}
-    assert annotated.feature_relations["membership"].target_level == "protein"
+    assert annotated.feature_relations["membership"].coordinates.get_column("row").to_list() == [
+        0,
+        1,
+    ]
     assert parsed.annotation_tables == {}
-    with pytest.raises(ValueError, match="no annotation table"):
-        parsed.with_feature_relation("r", "absent", "protein", pl.DataFrame())
+    with pytest.raises(ValueError, match="no level or annotation table 'absent'"):
+        parsed.with_feature_relation(
+            "r", pl.DataFrame({"source": ["absent"], "target": ["protein"]})
+        )
+    with pytest.raises(ValueError, match="no level or annotation table None"):
+        parsed.with_feature_relation(
+            "r",
+            pl.DataFrame(
+                {"source": [None], "target": ["protein"]},
+                schema=dict.fromkeys(("source", "target"), pl.String),
+            ),
+        )
     with pytest.raises(ValueError, match="lacks key columns"):
         parsed.with_annotation_table("t", pl.DataFrame({"a": [1]}), ("b",))

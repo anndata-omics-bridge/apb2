@@ -31,14 +31,12 @@ from apb2.parserV2.parse_quant.data.parsed import (
     VarFinal,
 )
 from apb2.parserV2.parse_quant.io.errors import InvalidResultError
-from apb2.parserV2.parse_quant.io.json_representation import write_levels_representation
 from apb2.parserV2.parse_quant.io.metadata import (
     NAMESPACE,
     PARSE_NAMESPACE,
     RESULT_FORMAT,
     RESULT_FORMAT_VERSION,
     ROLES_NAMESPACE,
-    STORAGE_NAMESPACE,
     layer_role_from_metadata,
     layer_semantics_from_metadata,
     object_mapping,
@@ -261,87 +259,6 @@ def _axis_frame(frame: pd.DataFrame) -> pl.DataFrame:
     return pl.from_pandas(frame.reset_index(drop=True), include_index=False)
 
 
-def write_container_representation(container: AnnData | mudata.MuData, artifact: Path, /) -> Path:
-    """Atomically write the sidecar of an AnnData or MuData APB2 did not write, such as an export.
-
-    Each AnnData, or MuData modality, is one level keyed by its obs and var names, X and every
-    layer described as numbers. The container's ``uns["apb"]`` is the root part; a modality's
-    ``uns["apb"]``, or an AnnData's ``uns[<level>]["apb"]``, is that level's part. A standalone
-    AnnData's level is named by that ``uns`` key, or by the artifact when it has no level part.
-    """
-    if isinstance(container, mudata.MuData):
-        parts = {
-            name: (data, _apb(data.uns))
-            for name, data in cast(Mapping[str, AnnData], container.mod).items()
-        }
-    else:
-        name, part = _level_part(container.uns)
-        parts = {name or artifact.stem: (container, part)}
-    levels = {name: (_container_level(data), part) for name, (data, part) in parts.items()}
-    root = _apb(container.uns) if NAMESPACE in container.uns else None
-    return write_levels_representation(levels, root, artifact)
-
-
-def _container_level(data: AnnData) -> ParsedLevel:
-    """One AnnData as a level keyed by its names; its role-less matrices count as measured."""
-    names = [str(name) for name in data.obs_names]
-    layers = {
-        str(name): FinalLayerTable(
-            str(name), pl.DataFrame(_numbers(matrix).T, schema=names, orient="row")
-        )
-        # anndata also lists X itself among the layers, under the key None.
-        for name, matrix in [("X", data.X), *data.layers.items()]
-        if name is not None
-    }
-    obs = cast(pd.DataFrame, data.obs).reset_index(names="obs_names")
-    var = cast(pd.DataFrame, data.var).reset_index(names="var_names")
-    return ParsedLevel(
-        obs=ObsFinal(_axis_frame(obs), ("obs_names",)),
-        var=VarFinal(_axis_frame(var), ("var_names",)),
-        primary_layer_name="X",
-        uns={},
-        layers=layers,
-        obsm={},
-        varm={},
-        obsp={},
-        varp={},
-    )
-
-
-def _apb(uns: Mapping[str, object]) -> dict[str, JsonValue]:
-    """One APB part, decoded when it was written through the codec."""
-    stored = uns.get(NAMESPACE)
-    if not isinstance(stored, dict):
-        return {}
-    namespace = cast(Mapping[str, object], stored)
-    if STORAGE_NAMESPACE not in namespace:
-        return cast(dict[str, JsonValue], dict(namespace))
-    codec = UnsJsonCodec()
-    return codec.decode(namespace, codec.storage(namespace))
-
-
-def _level_part(uns: Mapping[str, object]) -> tuple[str | None, dict[str, JsonValue]]:
-    """A standalone AnnData's level and its part: the one ``uns[<level>]`` holding an APB part."""
-    owners = [
-        (name, cast(Mapping[str, object], value))
-        for name, value in uns.items()
-        if isinstance(value, dict) and NAMESPACE in value
-    ]
-    if len(owners) > 1:
-        raise InvalidResultError("an AnnData holds more than one APB level part")
-    return (owners[0][0], _apb(owners[0][1])) if owners else (None, {})
-
-
-def _numbers(matrix: object) -> np.ndarray:
-    """A matrix as floats; a sparse matrix's unstored cells are missing, not zero."""
-    if not sparse.issparse(matrix):
-        return np.asarray(matrix, dtype=np.float64)
-    stored = cast(sparse.csr_matrix, matrix).tocoo()
-    dense = np.full_like(cast(np.ndarray, stored.toarray()), np.nan, dtype=np.float64)
-    dense[stored.row, stored.col] = stored.data
-    return dense
-
-
 def _aligned_frames(
     stored: Mapping[str, object],
     metadata: Mapping[str, object],
@@ -434,11 +351,9 @@ def _feature_relations(
     scientific = object_mapping(
         shared_metadata.get("feature_relations", {}), "feature relation metadata"
     )
-    offsets: dict[str, tuple[int, int]] = {}
-    offset = 0
-    for modality_name, modality in stored.mod.items():
-        offsets[modality_name] = (offset, modality.n_vars)
-        offset += modality.n_vars
+    logical = {physical: name for name, physical in {**level_names, **annotation_names}.items()}
+    blocks = pl.Series("name", [logical[physical] for physical in stored.mod], dtype=pl.String)
+    starts = np.cumsum([0, *(modality.n_vars for modality in stored.mod.values())])[:-1]
     result: dict[str, FeatureRelation] = {}
     for storage_entry in entries:
         name = string_value(storage_entry.get("name"), "feature relation name")
@@ -448,37 +363,11 @@ def _feature_relations(
         )
         if physical_name not in stored.varp:
             raise InvalidResultError(f"h5mu has no declared feature relation {name!r}")
-        annotation_table = string_value(
-            entry.get("annotation_table"), f"feature relation {name!r} annotation table"
-        )
-        target_level = string_value(
-            entry.get("target_level"), f"feature relation {name!r} target level"
-        )
-        if annotation_table not in annotation_names:
-            raise InvalidResultError(
-                f"feature relation {name!r} has unknown annotation table {annotation_table!r}"
-            )
-        if target_level not in level_names:
-            raise InvalidResultError(
-                f"feature relation {name!r} has unknown target level {target_level!r}"
-            )
-        coordinates = _coordinate_frame(stored.varp[physical_name])
-        source_offset, source_size = offsets[annotation_names[annotation_table]]
-        target_offset, target_size = offsets[level_names[target_level]]
-        rows, columns = pl.col("row"), pl.col("column")
-        source_valid = (rows >= source_offset) & (rows < source_offset + source_size)
-        target_valid = (columns >= target_offset) & (columns < target_offset + target_size)
-        if not coordinates.select((source_valid & target_valid).all()).item():
-            raise InvalidResultError(
-                f"feature relation {name!r} has values outside its declared modality blocks"
-            )
         restored_coordinates = restore_table_schema(
-            coordinates.with_columns(row=rows - source_offset, column=columns - target_offset),
+            _relation_blocks(_coordinate_frame(stored.varp[physical_name]), blocks, starts),
             storage_entry,
         )
         result[name] = FeatureRelation(
-            annotation_table=annotation_table,
-            target_level=target_level,
             coordinates=restored_coordinates,
             metadata=cast(
                 dict[str, JsonValue],
@@ -490,6 +379,27 @@ def _feature_relations(
     ):
         raise InvalidResultError("feature relation order and metadata name different relations")
     return result
+
+
+def _relation_blocks(
+    coordinates: pl.DataFrame, blocks: pl.Series, starts: np.ndarray
+) -> pl.DataFrame:
+    """Positions on the MuData's var axis as features of the modality each falls in."""
+    rows = coordinates.get_column("row").to_numpy()
+    columns = coordinates.get_column("column").to_numpy()
+    # The last modality starting at or before a position holds it; empty ones start where the
+    # next begins.
+    source = np.searchsorted(starts, rows, side="right") - 1
+    target = np.searchsorted(starts, columns, side="right") - 1
+    return pl.DataFrame(
+        {
+            "source": blocks.gather(source),
+            "row": pl.Series(rows - starts[source], dtype=pl.Int64),
+            "target": blocks.gather(target),
+            "column": pl.Series(columns - starts[target], dtype=pl.Int64),
+            "value": coordinates.get_column("value"),
+        }
+    )
 
 
 def _coordinate_frame(value: object) -> pl.DataFrame:

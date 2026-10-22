@@ -9,13 +9,9 @@ from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
-import pandas as pd
 import polars as pl
 import pytest
-from anndata import AnnData
 from jsonschema import Draft202012Validator
-from mudata import MuData
-from scipy import sparse
 
 from apb2.parserV2.parse_quant.data.parsed import (
     AnnotationTable,
@@ -23,7 +19,6 @@ from apb2.parserV2.parse_quant.data.parsed import (
     CategoricalLayerSemantics,
     FeatureRelation,
     FinalLayerTable,
-    JsonValue,
     ObsFinal,
     ParsedLevel,
     ParsedLevels,
@@ -31,7 +26,6 @@ from apb2.parserV2.parse_quant.data.parsed import (
     VarFinal,
 )
 from apb2.parserV2.parse_quant.io import formats, json_representation
-from apb2.parserV2.parse_quant.io.anndata_reader import write_container_representation
 from apb2.parserV2.parse_quant.io.errors import InvalidResultError
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels, write_parsed_levels
 from apb2.parserV2.parse_quant.io.json_representation import (
@@ -46,7 +40,6 @@ from apb2.parserV2.parse_quant.io.representation_schema import (
     representation_json_schema,
     representation_schema_path,
 )
-from apb2.parserV2.parse_quant.io.uns_json import UnsJsonCodec
 
 
 def _parsed() -> ParsedLevels:
@@ -124,9 +117,15 @@ def _parsed() -> ParsedLevels:
         },
         feature_relations={
             "membership": FeatureRelation(
-                annotation_table="proteins",
-                target_level="ion",
-                coordinates=pl.DataFrame({"row": [0], "column": [1], "value": [1.0]}),
+                coordinates=pl.DataFrame(
+                    {
+                        "source": ["proteins"],
+                        "row": [0],
+                        "target": ["ion"],
+                        "column": [1],
+                        "value": [1.0],
+                    }
+                ),
                 metadata={"relation": "member_of"},
             )
         },
@@ -259,6 +258,9 @@ def test_version_four_representation_is_structured_bounded_and_deterministic(
     ]
     assert document["annotation_tables"][0]["row_count"] == 2
     assert document["feature_relations"][0]["coordinates"]["row_count"] == 1
+    assert document["feature_relations"][0]["blocks"] == [
+        {"source": "proteins", "target": "ion", "links": 1}
+    ]
 
     serialized = json.dumps(document, allow_nan=False)
     assert "vendor.tsv" in serialized
@@ -441,46 +443,6 @@ def test_public_result_writer_always_emits_the_adjacent_sidecar(tmp_path: Path) 
     document = json.loads(sidecar_path(target).read_text(encoding="utf-8"))
     assert document["artifact"]["physical_format"] == "parquet"
     assert document["artifact"]["size_bytes"] > 0
-
-
-def test_an_anndata_or_mudata_apb2_did_not_write_is_described_as_levels(tmp_path: Path) -> None:
-    obs = pd.DataFrame({"sample": ["A", "B"]}, index=["r1", "r2"])
-    adata = AnnData(
-        X=np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
-        obs=obs,
-        var=pd.DataFrame({"protein": ["P1", "P2", "P3"]}, index=["f1", "f2", "f3"]),
-        layers={"q": np.array([[0.01, 0.02, np.nan], [0.03, 0.04, 0.05]])},
-    )
-    summary: list[JsonValue] = [
-        {"name": "exported", "label": "Exported", "value": 1, "unit": "matrices", "status": "ok"}
-    ]
-    adata.uns["apb"] = {"export": {"schema_version": "1"}}
-    adata.uns["protein"] = {"apb": UnsJsonCodec().encode({"export": {"summary": summary}}, {})}
-    single = tmp_path / "export.h5ad"
-    adata.write_h5ad(single)
-    document = json.loads(write_container_representation(adata, single).read_text("utf-8"))
-    (level,) = document["levels"]
-
-    assert (document["format"], document["format_version"]) == (FORMAT, FORMAT_VERSION)
-    assert (level["name"], level["dimensions"]) == ("protein", {"observations": 2, "variables": 3})
-    assert [layer["name"] for layer in level["layers"]] == ["X", "q"]
-    assert [column["name"] for column in level["var"]["columns"]] == ["var_names", "protein"]
-    assert document["root"] == {"apb": {"export": {"schema_version": "1"}}, "export_uns": {}}
-    assert level["apb"] == {"export": {"summary": summary}}
-
-    # Long exports store each cell in its run's row only, as a block-diagonal sparse X.
-    cells = sparse.csr_matrix(([7.0, 8.0], ([0, 1], [0, 2])), shape=(2, 3))
-    psm = AnnData(X=cells, obs=obs, var=pd.DataFrame(index=["c1", "c2", "c3"]))
-    multiple = tmp_path / "export.h5mu"
-    mdata = MuData({"psm": psm, "protein": adata})
-    mdata.write_h5mu(multiple)
-    levels = json.loads(write_container_representation(mdata, multiple).read_text("utf-8"))[
-        "levels"
-    ]
-
-    assert [level["name"] for level in levels] == ["psm", "protein"]
-    assert levels[0]["layers"][0]["statistics"]["minimum"] == 7.0, "unstored cells are missing"
-    assert levels[1]["apb"] == {"export": {"schema_version": "1"}}, "a modality's own part"
 
 
 def test_sidecar_failure_is_visible_after_the_scientific_artifact_is_written(
@@ -854,27 +816,6 @@ def test_written_sidecars_match_the_published_schema(
     write_parsed_levels(result(), target)
 
     document = json.loads(sidecar_path(target).read_text(encoding="utf-8"))
-    assert [error.message for error in _published_schema().iter_errors(document)] == []
-
-
-def test_a_container_sidecar_matches_the_published_schema(tmp_path: Path) -> None:
-    summary: list[JsonValue] = [
-        {"name": "exported", "label": "Exported", "value": 1, "unit": "matrices", "status": "ok"}
-    ]
-    adata = AnnData(
-        X=np.array([[1.0, 2.0], [3.0, np.nan]]),
-        obs=pd.DataFrame(index=["r1", "r2"]),
-        var=pd.DataFrame(index=["f1", "f2"]),
-    )
-    adata.uns["apb"] = UnsJsonCodec().encode(
-        {"export": {"schema_version": "1", "summary": summary}}, {}
-    )
-    target = tmp_path / "export.h5mu"
-    mdata = MuData({"protein": adata})
-    mdata.write_h5mu(target)
-
-    document = json.loads(write_container_representation(mdata, target).read_text("utf-8"))
-
     assert [error.message for error in _published_schema().iter_errors(document)] == []
 
 

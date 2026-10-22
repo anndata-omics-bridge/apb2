@@ -266,18 +266,11 @@ class MuDataWriter:
             modalities[physical_name] = annotation
 
         result = MuData(modalities, axis=0)
-        relation_names = {
-            name: f"relation_{physical}"
-            for name, physical in safe_names(
-                parsed.feature_relations,
-                prefix="edge",
-                suffix="",
-            ).items()
-        }
+        relation_names = safe_names(parsed.feature_relations, prefix="relation", suffix="")
         _write_root_feature_relations(
             result,
             parsed.feature_relations,
-            annotation_names,
+            {**{level: level for level in parsed.levels}, **annotation_names},
             relation_names,
         )
         _write_namespaces(
@@ -449,26 +442,30 @@ def _annotation_anndata(
 def _write_root_feature_relations(
     result: MuData,
     relations: Mapping[str, FeatureRelation],
-    annotation_names: Mapping[str, str],
+    modality_names: Mapping[str, str],
     relation_names: Mapping[str, str],
 ) -> None:
-    offsets: dict[str, int] = {}
+    """Store each relation as one matrix over the MuData's var axis, rows its sources."""
+    starts: dict[str, int] = {}
     offset = 0
-    for name, modality in result.mod.items():
-        offsets[name] = offset
+    for physical, modality in result.mod.items():
+        starts[physical] = offset
         offset += modality.n_vars
+    offsets = {name: starts[physical] for name, physical in modality_names.items()}
     for name, relation in relations.items():
-        coordinates = relation.coordinates
-        source_offset = offsets[annotation_names[relation.annotation_table]]
-        target_offset = offsets[relation.target_level]
+        coordinates = relation.coordinates.select(
+            pl.col("value").cast(pl.Float64, strict=True),
+            row=pl.col("row").cast(pl.Int64, strict=True)
+            + pl.col("source").replace_strict(offsets, return_dtype=pl.Int64),
+            column=pl.col("column").cast(pl.Int64, strict=True)
+            + pl.col("target").replace_strict(offsets, return_dtype=pl.Int64),
+        )
         matrix = sparse.coo_matrix(
             (
-                coordinates.get_column("value").cast(pl.Float64, strict=True).to_numpy(),
+                coordinates.get_column("value").to_numpy(),
                 (
-                    coordinates.get_column("row").cast(pl.Int64, strict=True).to_numpy()
-                    + source_offset,
-                    coordinates.get_column("column").cast(pl.Int64, strict=True).to_numpy()
-                    + target_offset,
+                    coordinates.get_column("row").to_numpy(),
+                    coordinates.get_column("column").to_numpy(),
                 ),
             ),
             shape=(result.n_vars, result.n_vars),

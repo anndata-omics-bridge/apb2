@@ -27,10 +27,10 @@ PARSE_NAMESPACE = "parse"
 ROLES_NAMESPACE = "roles"
 STORAGE_NAMESPACE = "storage"
 RESULT_FORMAT = "apb2-parsed-levels"
-RESULT_FORMAT_VERSION = "7"
+RESULT_FORMAT_VERSION = "8"
 
 PARQUET_FORMAT = "apb2-parsed-levels-parquet"
-PARQUET_FORMAT_VERSION = "8"
+PARQUET_FORMAT_VERSION = "9"
 PARQUET_MANIFEST_NAME = "manifest.json"
 PARQUET_LEVELS_DIRECTORY = "levels"
 
@@ -125,11 +125,7 @@ def collection_shared_scope(parsed: ParsedLevels, /) -> dict[str, JsonValue]:
         result["feature_relations"] = cast(
             JsonValue,
             {
-                name: {
-                    "annotation_table": relation.annotation_table,
-                    "target_level": relation.target_level,
-                    "metadata": dict(relation.metadata),
-                }
+                name: {"metadata": dict(relation.metadata)}
                 for name, relation in parsed.feature_relations.items()
             },
         )

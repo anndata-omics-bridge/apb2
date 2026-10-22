@@ -2,6 +2,15 @@
 
 ## 2026-10-22
 
+- **Breaking:** a `FeatureRelation` links features of any levels and annotation tables, not one annotation table to one level. Step 2b of the workspace plan "Exports as ParsedLevels": apb-export's linked targets map peptides, peptidoforms and ions to proteins in one matrix, as mulink reads it.
+  - **Model:** `FeatureRelation(coordinates, metadata)`; coordinates `source`, `row`, `target`, `column`, `value`, where `source` and `target` name a level or an annotation table; `annotation_table` and `target_level` are gone
+  - **API:** `ParsedLevels.with_feature_relation(name, coordinates, metadata=None)`; it refuses a name that is neither a level nor an annotation table
+  - **h5mu:** one directed matrix per relation in the root `varp`, under the relation's own name, without the `relation_` prefix; rows are sources, columns targets
+  - **Parquet and DuckDB:** the coordinates as they are; the manifest no longer names a table and a level
+  - **Sidecar:** each relation lists its `blocks`, `{source, target, links}`
+  - **observation_groups:** a group keeps the links between its own levels and the annotation tables
+  - Storage versions: HDF5 descriptor `8`, Parquet manifest `9`, DuckDB manifest `8`, representation document `7`
+- **Breaking:** `write_container_representation` leaves `apb2.api`: apb-export, its only caller, now writes every export through `write_parsed_levels`.
 - `ParsedLevel.export_uns` and `ParsedLevels.export_uns`: keys a consumer reads from a file's top-level `uns`, beside APB's own `uns["apb"]`. Exporters set them; every parsed result leaves them empty. Step 2 of the workspace plan "Exports as ParsedLevels", so apb-export's targets can be written by `write_parsed_levels`.
   - **API:** a new field on both classes and a new last parameter `export_uns` on `ParsedLevel.build`; `api.py` exposes no new names
   - **Written:** natively, never as JSON text; a level's into its modality or the h5ad's `uns`, the result's into the MuData's or the h5ad's `uns`

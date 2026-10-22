@@ -38,7 +38,7 @@ from apb2.parserV2.parse_quant.io.representation_schema import validate_represen
 from apb2.parserV2.parse_quant.io.validation import validate_parsed_levels
 
 FORMAT = "apb2-result-representation"
-FORMAT_VERSION = "6"
+FORMAT_VERSION = "7"
 SIDECAR_SUFFIX = ".apb.json"
 _EMBEDDED_JSON_FIELDS = frozenset(
     {
@@ -58,7 +58,7 @@ def project_result(
     artifact: Path | None = None,
     /,
 ) -> dict[str, JsonValue]:
-    """Project a storage-neutral APB2 result into the version-6 JSON document.
+    """Project a storage-neutral APB2 result into the version-7 JSON document.
 
     ``artifact`` is optional so in-memory clients can inspect and validate the scientific
     representation before selecting a physical format or output path. Sidecar publication
@@ -99,19 +99,6 @@ def write_result_representation(parsed: ParsedLevels, artifact: Path, /) -> Path
     newly replaced artifact after a failed representation write.
     """
     return _write_representation(artifact, lambda: project_result(parsed, artifact))
-
-
-def write_levels_representation(
-    levels: Mapping[str, tuple[ParsedLevel, Mapping[str, JsonValue]]],
-    root: Mapping[str, JsonValue] | None,
-    artifact: Path,
-    /,
-) -> Path:
-    """Atomically write the sidecar of standalone levels, each with its APB part.
-
-    ``root`` is the container's own APB part, or ``None`` when it has none.
-    """
-    return _write_representation(artifact, lambda: _project_levels(levels, root, artifact))
 
 
 def _write_representation(artifact: Path, project: Callable[[], dict[str, JsonValue]]) -> Path:
@@ -159,25 +146,6 @@ def write_result_with_representation(
     """
     write_artifact()
     return write_result_representation(parsed, artifact)
-
-
-def _project_levels(
-    levels: Mapping[str, tuple[ParsedLevel, Mapping[str, JsonValue]]],
-    root: Mapping[str, JsonValue] | None,
-    artifact: Path,
-) -> dict[str, JsonValue]:
-    projected: list[JsonValue] = [
-        _level(name, level, metadata) for name, (level, metadata) in levels.items()
-    ]
-    return {
-        "format": FORMAT,
-        "format_version": FORMAT_VERSION,
-        "artifact": _artifact_descriptor(artifact),
-        "root": None if root is None else {"apb": _portable(dict(root)), "export_uns": {}},
-        "levels": projected,
-        "annotation_tables": [],
-        "feature_relations": [],
-    }
 
 
 def _level(
@@ -249,10 +217,10 @@ def _annotation_table(name: str, table: AnnotationTable) -> dict[str, JsonValue]
 
 
 def _feature_relation(name: str, relation: FeatureRelation) -> dict[str, JsonValue]:
+    blocks = relation.coordinates.group_by("source", "target", maintain_order=True).len("links")
     return {
         "name": name,
-        "annotation_table": relation.annotation_table,
-        "target_level": relation.target_level,
+        "blocks": cast(list[JsonValue], blocks.to_dicts()),
         "coordinates": _table(relation.coordinates),
         "metadata": _portable(relation.metadata),
     }

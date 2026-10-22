@@ -35,11 +35,11 @@ parsed = read_parsed_levels(Path("results.duckdb"))
 write_parsed_levels(parsed, Path("results.h5mu"))
 ```
 
-`read_parsed_levels()` returns `ParsedLevels`. `write_parsed_levels()` persists the supplied value, then publishes an adjacent `<artifact>.apb.json` document once the scientific artifact succeeds; `apb2.api.sidecar_path(artifact)` names it. `write_container_representation(container, artifact)` publishes the same document for an AnnData or MuData APB2 did not write, such as an apb-export file: each AnnData or modality is one level keyed by its obs and var names, and X and every layer are summarised as numbers. The container's `uns["apb"]` is the root part; a modality's `uns["apb"]`, or a standalone AnnData's `uns[<level>]["apb"]`, is that level's part. The programmatic equivalent of the CLI command is `write_parsed_levels(read_parsed_levels(source), target)`. The `apb2 convert` and `apb2 annotate` workflows use the same sidecar lifecycle.
+`read_parsed_levels()` returns `ParsedLevels`. `write_parsed_levels()` persists the supplied value, then publishes an adjacent `<artifact>.apb.json` document once the scientific artifact succeeds; `apb2.api.sidecar_path(artifact)` names it. The programmatic equivalent of the CLI command is `write_parsed_levels(read_parsed_levels(source), target)`. The `apb2 convert` and `apb2 annotate` workflows use the same sidecar lifecycle.
 
 ## Compact JSON representation
 
-The sidecar is a versioned scientific view with `format: "apb2-result-representation"` and `format_version: "6"`. It is derived from `ParsedLevels`, so h5ad, h5mu, Parquet, and DuckDB results expose the same semantic sections. Projected before a physical artifact exists, its `artifact` member is `null`.
+The sidecar is a versioned scientific view with `format: "apb2-result-representation"` and `format_version: "7"`. It is derived from `ParsedLevels`, so h5ad, h5mu, Parquet, and DuckDB results expose the same semantic sections. Projected before a physical artifact exists, its `artifact` member is `null`.
 
 Its JSON Schema is published as [representation.schema.json](../src/apb2/parserV2/parse_quant/io/_schema/representation.schema.json), generated from the models in `parse_quant/io/representation_schema.py`. Structural objects allow no unknown keys; `apb` parts and annotation `metadata` stay open, except that producer records follow the summary and details contract. Every sidecar is validated against the schema before it is written, so a document outside it fails the producing call and leaves no sidecar.
 

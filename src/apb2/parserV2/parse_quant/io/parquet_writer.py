@@ -165,8 +165,6 @@ def _write_feature_relations(
         relation.coordinates.write_parquet(directory / names[name])
         result[name] = {
             **table_metadata(relation.coordinates, names[name]),
-            "annotation_table": relation.annotation_table,
-            "target_level": relation.target_level,
             "metadata": dict(relation.metadata),
         }
     return result

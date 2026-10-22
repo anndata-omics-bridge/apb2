@@ -1527,7 +1527,7 @@ class ParsedLevels:
     feature_relations: dict[str, FeatureRelation] = field(default_factory=dict)
 ```
 
-`AnnotationTable` holds a keyed annotation frame and metadata; `FeatureRelation` holds annotation/level names, coordinates and metadata. Vendor parsing leaves these collection extensions empty; the metadata specification describes their persistence.
+`AnnotationTable` holds a keyed annotation frame and metadata; `FeatureRelation` holds coordinates (`source`, `row`, `target`, `column`, `value`) that map features of levels or annotation tables to features of others, and metadata. Vendor parsing leaves these collection extensions empty; the metadata specification describes their persistence.
 
 Every `obsm` frame has the same row count and order as `obs.frame`; every `varm` frame aligns to
 `var.frame`. Pairwise frames use zero-based final-axis positions, contain unique coordinates, and

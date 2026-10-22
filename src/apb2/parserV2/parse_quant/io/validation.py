@@ -20,6 +20,7 @@ from apb2.parserV2.parse_quant.io.records import RecordContract
 from apb2.parserV2.parse_quant.io.uns_json import stored_natively
 
 _PAIRWISE_COLUMNS = ("row", "column", "value")
+_RELATION_COLUMNS = ("source", "row", "target", "column", "value")
 
 
 def validate_parsed_levels(parsed: ParsedLevels, /) -> None:
@@ -224,31 +225,37 @@ def _validate_feature_relation(
     relation: FeatureRelation,
     parsed: ParsedLevels,
 ) -> None:
-    try:
-        source_size = parsed.annotation_tables[relation.annotation_table].frame.height
-    except KeyError as error:
-        raise InvalidResultError(
-            f"feature relation {name!r} references unavailable annotation table "
-            f"{relation.annotation_table!r}"
-        ) from error
-    try:
-        target_size = parsed.levels[relation.target_level].var.frame.height
-    except KeyError as error:
-        raise InvalidResultError(
-            f"feature relation {name!r} references unavailable target level "
-            f"{relation.target_level!r}"
-        ) from error
     frame = relation.coordinates
-    if tuple(frame.columns) != _PAIRWISE_COLUMNS:
+    if tuple(frame.columns) != _RELATION_COLUMNS:
         raise InvalidResultError(
-            f"feature relation {name!r} must have exactly {list(_PAIRWISE_COLUMNS)}, "
+            f"feature relation {name!r} must have exactly {list(_RELATION_COLUMNS)}, "
             f"got {frame.columns}"
         )
-    if frame.select(pl.struct("row", "column").is_duplicated().any()).item():
-        raise InvalidResultError(f"feature relation {name!r} repeats a matrix coordinate")
+    if frame.select(cs.by_name("source", "target") & cs.string()).width != 2:
+        raise InvalidResultError(
+            f"feature relation {name!r} must name its sources and targets as strings"
+        )
     if frame.select(cs.by_name("row", "column") & cs.integer()).width != 2:
         raise InvalidResultError(f"feature relation {name!r} coordinates must be integers")
+    sizes = {
+        **{level: parsed.levels[level].var.frame.height for level in parsed.levels},
+        **{
+            table: parsed.annotation_tables[table].frame.height
+            for table in parsed.annotation_tables
+        },
+    }
+    names = set(pl.concat([frame.get_column("source"), frame.get_column("target")]).unique())
+    if not names <= set(sizes):
+        unknown = sorted(repr(value) for value in names - set(sizes))
+        raise InvalidResultError(
+            f"feature relation {name!r} links {', '.join(unknown)}, "
+            "neither a level nor an annotation table"
+        )
+    if frame.select(pl.struct("source", "row", "target", "column").is_duplicated().any()).item():
+        raise InvalidResultError(f"feature relation {name!r} repeats a matrix coordinate")
     source, target = pl.col("row"), pl.col("column")
+    source_size = pl.col("source").replace_strict(sizes, return_dtype=pl.Int64)
+    target_size = pl.col("target").replace_strict(sizes, return_dtype=pl.Int64)
     invalid_source = source.is_null() | (source < 0) | (source >= source_size)
     invalid_target = target.is_null() | (target < 0) | (target >= target_size)
     if frame.select(pl.any_horizontal(invalid_source, invalid_target).any()).item():
