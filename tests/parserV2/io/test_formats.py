@@ -8,6 +8,7 @@ from pathlib import Path
 
 import anndata
 import duckdb
+import h5py
 import mudata
 import numpy as np
 import polars as pl
@@ -30,6 +31,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
     QuantitativeLayerSemantics,
     VarFinal,
 )
+from apb2.parserV2.parse_quant.io.anndata_writer import GZIP_LEVEL
 from apb2.parserV2.parse_quant.io.duckdb import METADATA_TABLE
 from apb2.parserV2.parse_quant.io.errors import InvalidResultError, UnsupportedResultFormatError
 from apb2.parserV2.parse_quant.io.formats import (
@@ -1066,6 +1068,18 @@ def test_h5ad_refuses_export_uns_keys_its_one_uns_would_hold_twice(tmp_path: Pat
     restored = read_parsed_levels(tmp_path / "separate.h5mu")
     assert restored.export_uns["software"] == "also on the level"
     assert restored.levels["ion"].export_uns["software"] == "Synthetic Ω"
+
+
+def test_h5_results_compress_their_arrays_with_gzip(tmp_path: Path) -> None:
+    h5ad = tmp_path / "ion.h5ad"
+    h5mu = tmp_path / "result.h5mu"
+    write_parsed_levels(_one_level(), h5ad)
+    write_parsed_levels(rich_result(), h5mu)
+
+    with h5py.File(h5ad) as single, h5py.File(h5mu) as container:
+        for dataset in (single["X"], single["layers/Count"], container["mod/protein/X"]):
+            assert isinstance(dataset, h5py.Dataset)
+            assert (dataset.compression, dataset.compression_opts) == ("gzip", GZIP_LEVEL)
 
 
 def test_h5mu_without_var_name_prefix_keeps_the_var_index_as_written(tmp_path: Path) -> None:

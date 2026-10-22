@@ -11,6 +11,7 @@
   - **Sidecar:** `root.export_uns` and `levels[].export_uns`; containers APB2 did not write show an empty object
 - `write_parsed_levels(parsed, target, var_name_prefix=True)`: with `False`, an `.h5mu` keeps each modality's var names as written, not prefixed with `ion:` or `prt:`, and the index keeps the name of a single String key. AlphaPeptTools reads modalities this way. Other formats prefix nothing. `H5muWriter` and `MuDataWriter` are frozen dataclasses with that field.
 - **Breaking:** storage versions: HDF5 descriptor `7`, Parquet manifest `8`, DuckDB manifest `7`, representation document `6`. Results written before cannot be read; regenerate them.
+- h5ad and h5mu results compress their arrays with gzip level 4; they were written uncompressed while Parquet and DuckDB compress by default. gzip rather than lzf, which only h5py reads. Variable-length strings stay uncompressed, as HDF5 filters cannot reach them. No version change: readers see the same layout.
 
 ## 2026-10-21
 

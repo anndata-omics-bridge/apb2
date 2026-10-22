@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import cast
+from typing import Literal, Protocol, cast
 
 import pandas as pd
 import polars as pl
@@ -43,6 +43,8 @@ from apb2.parserV2.parse_quant.io.uns_json import UnsJsonCodec
 from apb2.parserV2.parse_quant.io.validation import validate_parsed_level, validate_parsed_levels
 
 KEY_SEPARATOR = "_"
+
+GZIP_LEVEL = 4
 
 LEVEL_VAR_PREFIXES: Mapping[ParsedLevelName, str] = {
     "ion": "ion:",
@@ -522,12 +524,24 @@ def _write_namespaces(
     target.uns[NAMESPACE] = UnsJsonCodec().encode(shared, storage)
 
 
-def _write_atomically(target: Path, write: Callable[[Path], None]) -> None:
-    """Write beside the destination and replace it only after a complete write."""
+class _HDF5Write(Protocol):
+    """``write_h5ad`` or ``write_h5mu`` of the object being written."""
+
+    def __call__(
+        self, filename: Path, /, *, compression: Literal["gzip"], compression_opts: int
+    ) -> None: ...
+
+
+def _write_atomically(target: Path, write: _HDF5Write) -> None:
+    """Write beside the destination and replace it only after a complete write.
+
+    Arrays are gzip-compressed: every HDF5 reader has that filter, R's included, unlike lzf.
+    Variable-length strings stay as they are; HDF5 filters do not reach them.
+    """
     with TemporaryDirectory(dir=target.parent, prefix=f".{target.name}.") as scratch:
         staged = Path(scratch) / target.name
         # Polars string columns become pandas nullable StringArray values here.
         # AnnData's default deliberately rejects them unless the writer opts in.
         with anndata_settings.override(allow_write_nullable_strings=True):
-            write(staged)
+            write(staged, compression="gzip", compression_opts=GZIP_LEVEL)
         staged.replace(target)
