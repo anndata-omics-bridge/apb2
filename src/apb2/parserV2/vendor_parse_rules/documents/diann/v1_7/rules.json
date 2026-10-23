@@ -322,14 +322,14 @@
                 "source": "Lib.Q.Value",
                 "type": "number",
                 "required": false,
-                "note": "From the spectral library: the precursor's library q-value, one per precursor; DIA-NN repeats it in every run row."
+                "note": "Spectral-library q-value, one per precursor, repeated in every run row"
               },
               {
                 "name": "Global_Q_Value",
                 "source": "Global.Q.Value",
                 "type": "number",
                 "required": false,
-                "note": "Experiment-wide precursor q-value, one per precursor; DIA-NN repeats it in every run row."
+                "note": "Experiment-wide q-value, one per precursor, repeated in every run row"
               }
             ]
           }

@@ -383,28 +383,28 @@
                 "source": "Lib.Q.Value",
                 "type": "number",
                 "required": false,
-                "note": "From the spectral library: the precursor's library q-value, one per precursor; DIA-NN repeats it in every run row."
+                "note": "Spectral-library q-value, one per precursor, repeated in every run row"
               },
               {
                 "name": "Global_Q_Value",
                 "source": "Global.Q.Value",
                 "type": "number",
                 "required": false,
-                "note": "Experiment-wide precursor q-value, one per precursor; DIA-NN repeats it in every run row."
+                "note": "Experiment-wide q-value, one per precursor, repeated in every run row"
               },
               {
                 "name": "Lib_PTM_Site_Confidence",
                 "source": "Lib.PTM.Site.Confidence",
                 "type": "number",
                 "required": false,
-                "note": "From the spectral library: the library entry's site localisation confidence, one per precursor."
+                "note": "Spectral-library site confidence, one per precursor, repeated in every run row"
               },
               {
                 "name": "Lib_Peptidoform_Q_Value",
                 "source": "Lib.Peptidoform.Q.Value",
                 "type": "number",
                 "required": false,
-                "note": "From the spectral library: the library entry's peptidoform q-value, one per precursor."
+                "note": "Spectral-library peptidoform q-value, one per precursor, repeated in every run row"
               },
               {
                 "name": "Global_Peptidoform_Q_Value",
