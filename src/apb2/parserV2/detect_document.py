@@ -235,7 +235,7 @@ def _selection_columns(selection: LevelSelection) -> tuple[str, ...]:
         return tuple(selection.source.frame.columns)
     facade = ParseRuleFacade.from_declared_rule(selection.document, selection.level)
     bound = BoundTable(selection.source, facade.working_parameters.input)
-    return bound.recognition_evidence(facade.working_parameters.accepts_header).columns
+    return bound.header(facade.working_parameters.accepts_header)
 
 
 def select_document_levels(
@@ -480,8 +480,7 @@ def _source_matches(facade: ParseRuleFacade, source: InputSource) -> bool:
         if isinstance(source, PreparedTable):
             return working.accepts_header(tuple(source.frame.columns))
         bound = BoundTable(source, working.input)
-        observed = bound.recognition_evidence(working.accepts_header)
-        return working.accepts_header(observed.columns)
+        return working.accepts_header(bound.header(working.accepts_header))
     except IncompatibleSourceError:
         return False
 

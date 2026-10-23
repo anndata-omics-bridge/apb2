@@ -136,7 +136,7 @@ def test_a_quoted_delimiter_stays_inside_its_field(tmp_path: Path) -> None:
     evidence = delimited_input.detected_evidence(
         make_vendor_file(path), TSV, accepts_sample_and_feature
     )
-    frame = delimited_input.make_delimited_reader(
+    frame = delimited_input.DelimitedInputReader(
         make_vendor_file(path), evidence, plan("Sample", "Feature")
     ).read()
 
@@ -169,7 +169,7 @@ def test_declared_encoding_candidates_resolve_a_windows_1252_export(tmp_path: Pa
     evidence = delimited_input.detected_evidence(
         make_vendor_file(path), contract, accepts_sample_and_feature
     )
-    frame = delimited_input.make_delimited_reader(
+    frame = delimited_input.DelimitedInputReader(
         make_vendor_file(path), evidence, plan("Sample", "Feature", "Label")
     ).read()
 
@@ -203,7 +203,7 @@ def test_a_single_utf8_candidate_still_rejects_invalid_bytes(tmp_path: Path) -> 
         make_vendor_file(path), TSV, accepts_sample_and_feature
     )
     with pytest.raises(pl.exceptions.ComputeError, match="invalid utf-8"):
-        delimited_input.make_delimited_reader(
+        delimited_input.DelimitedInputReader(
             make_vendor_file(path), evidence, plan("Sample", "Feature")
         ).read()
 
@@ -222,7 +222,7 @@ def test_a_comma_decimal_file_is_detected_from_its_own_values(tmp_path: Path) ->
     )
 
     assert evidence.number_format == COMMA
-    frame = delimited_input.make_delimited_reader(
+    frame = delimited_input.DelimitedInputReader(
         make_vendor_file(path),
         evidence,
         plan("Sample", "Feature", "Quantity", numeric=("Quantity",)),
@@ -304,7 +304,7 @@ def test_a_grouped_notation_leaves_its_values_as_text_for_a_later_encoder(
         make_vendor_file(path), TSV, accepts_sample_and_feature
     )
 
-    frame = delimited_input.make_delimited_reader(
+    frame = delimited_input.DelimitedInputReader(
         make_vendor_file(path), evidence, plan("Sample", "Feature", "Quantity")
     ).read()
 
@@ -321,7 +321,7 @@ def test_no_projected_column_is_left_to_inference(tmp_path: Path) -> None:
         make_vendor_file(path), TSV, accepts_sample_and_feature
     )
 
-    frame = delimited_input.make_delimited_reader(
+    frame = delimited_input.DelimitedInputReader(
         make_vendor_file(path),
         evidence,
         plan("Sample", "Feature", "Charge", "Quantity", numeric=("Quantity",)),
@@ -338,7 +338,7 @@ def test_a_read_returns_the_projection_in_plan_order(tmp_path: Path) -> None:
         make_vendor_file(path), TSV, accepts_sample_and_feature
     )
 
-    frame = delimited_input.make_delimited_reader(
+    frame = delimited_input.DelimitedInputReader(
         make_vendor_file(path), evidence, plan("Feature", "Sample")
     ).read()
 
@@ -477,7 +477,7 @@ def test_workbook_keeps_header_only_and_missing_trailing_cells(tmp_path: Path, r
         path, WORKBOOK, lambda columns: columns == ("ID", "Quantity")
     )
     frame = (
-        excel_input.make_excel_reader(path, evidence, plan("Quantity", "ID", numeric=("Quantity",)))
+        excel_input.ExcelInputReader(path, evidence, plan("Quantity", "ID", numeric=("Quantity",)))
         .read()
         .frame
     )
@@ -498,7 +498,7 @@ def test_workbook_keeps_empty_rows_and_text_identifiers(tmp_path: Path) -> None:
         '<row r="4"><c r="B4"><v>2</v></c></row>',
     )
     evidence = excel_input.schema_evidence(path, WORKBOOK, lambda columns: "ID" in columns)
-    source = excel_input.make_excel_reader(
+    source = excel_input.ExcelInputReader(
         path, evidence, plan("ID", "Quantity", numeric=("Quantity",))
     ).read()
     assert source.frame.to_dict(as_series=False) == {
@@ -517,9 +517,7 @@ def test_workbook_invalid_numeric_tokens_are_not_silently_discarded(tmp_path: Pa
     )
     evidence = excel_input.schema_evidence(path, WORKBOOK, lambda columns: "ID" in columns)
     with pytest.raises(pl.exceptions.InvalidOperationError, match="bad"):
-        excel_input.make_excel_reader(
-            path, evidence, plan("Quantity", numeric=("Quantity",))
-        ).read()
+        excel_input.ExcelInputReader(path, evidence, plan("Quantity", numeric=("Quantity",))).read()
 
 
 def test_workbook_reports_missing_and_empty_sheets(tmp_path: Path) -> None:
@@ -552,7 +550,7 @@ def test_a_parquet_read_preserves_physical_types_and_projects_in_plan_order(
     path = tmp_path / "report.parquet"
     pl.DataFrame({"Sample": ["A"], "Feature": ["F"], "Count": [3]}).write_parquet(path)
 
-    frame = parquet_input.make_parquet_reader(
+    frame = parquet_input.ParquetInputReader(
         path, ("Sample", "Feature", "Count"), plan("Count", "Sample")
     ).read()
 
@@ -610,7 +608,7 @@ def test_two_levels_of_one_document_read_their_own_projections(tmp_path: Path) -
     assert "PG.MaxLFQ" in protein.read.projected_columns
     assert "PG.MaxLFQ" not in ion.read.projected_columns
     for resolved in (ion, protein):
-        frame = delimited_input.make_delimited_reader(
+        frame = delimited_input.DelimitedInputReader(
             make_vendor_file(path), evidence, resolved.read
         ).read()
         assert frame.frame.columns == list(resolved.read.projected_columns)
@@ -628,8 +626,8 @@ def test_both_readers_satisfy_the_parser_owned_reader_contract(tmp_path: Path) -
     )
 
     readers: tuple[BoundInputReader, ...] = (
-        delimited_input.make_delimited_reader(make_vendor_file(text), evidence, plan("Sample")),
-        parquet_input.make_parquet_reader(table, ("Sample", "Feature"), plan("Sample")),
+        delimited_input.DelimitedInputReader(make_vendor_file(text), evidence, plan("Sample")),
+        parquet_input.ParquetInputReader(table, ("Sample", "Feature"), plan("Sample")),
     )
 
     for reader in readers:

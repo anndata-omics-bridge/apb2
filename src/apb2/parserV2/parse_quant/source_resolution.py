@@ -60,8 +60,6 @@ from apb2.parserV2.parse_quant.parameters.measurements import (
 )
 from apb2.parserV2.parse_quant.parameters.source import (
     ColumnLabeledFragmentLayout,
-    DelimitedSourceEvidence,
-    ExcelSourceEvidence,
     FrameSourceEvidence,
     LevelReadPlan,
     LongRawLayerSource,
@@ -115,7 +113,7 @@ class SourcePlanResolver:
         """Compile source-dependent decisions directly into the executable strategy."""
         working = self._configuration
         present = frozenset(evidence.columns)
-        numbers = self._resolved_numbers(evidence)
+        numbers = evidence.number_format
         var_source, var, var_json = self._resolve_axis(
             working.var, present, self._var_synthesized(), numbers
         )
@@ -682,10 +680,3 @@ class SourcePlanResolver:
             ),
             computers=computers,
         ), {"selections": selections, "computers": computers}
-
-    @staticmethod
-    def _resolved_numbers(evidence: SourceEvidence) -> NumericTextFormat:
-        """The notation a retained token must be read with; Parquet values are already numbers."""
-        if isinstance(evidence, DelimitedSourceEvidence | ExcelSourceEvidence):
-            return evidence.number_format
-        return NumericTextFormat(decimal_mark=".", thousands_marks=())

@@ -104,7 +104,7 @@ def test_a_gzipped_windows_1252_table_resolves_its_encoding_from_decompressed_by
         text_sources=frozenset({"Sample", "Feature"}),
         native_numeric_sources=frozenset(),
     )
-    frame = delimited_input.make_delimited_reader(file, evidence, plan).read()
+    frame = delimited_input.DelimitedInputReader(file, evidence, plan).read()
 
     assert evidence.encoding == "windows-1252"
     assert frame.frame.get_column("Sample").to_list() == ["Café"]

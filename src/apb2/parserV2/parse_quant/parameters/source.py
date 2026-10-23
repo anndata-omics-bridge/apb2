@@ -305,10 +305,14 @@ class DelimitedSourceEvidence:
 
 @dataclass(frozen=True, slots=True)
 class FrameSourceEvidence:
-    """Native schema from a Parquet file or a prepared frame, in column order."""
+    """Native schema from a Parquet file or a prepared frame, in column order.
+
+    Its numeric columns are already numbers; text values are read with a dot decimal mark.
+    """
 
     columns: tuple[str, ...]
     dtypes: tuple[tuple[str, pl.DataType], ...]
+    number_format: NumericTextFormat = NumericTextFormat(decimal_mark=".", thousands_marks=())
 
 
 @dataclass(frozen=True, slots=True)

@@ -49,10 +49,3 @@ class ParquetInputReader:
         )
         table = InputTable(InputFile(self.path, "table", "parquet"), self.columns, frame.height)
         return LevelSourceTable(frame, (table,))
-
-
-def make_parquet_reader(
-    path: Path, columns: tuple[str, ...], plan: LevelReadPlan
-) -> ParquetInputReader:
-    """Construct the reader one Parquet source and level plan describe."""
-    return ParquetInputReader(path=path, columns=columns, plan=plan)

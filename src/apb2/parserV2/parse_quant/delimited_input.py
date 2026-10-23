@@ -62,26 +62,13 @@ def detected_evidence(
     )
 
 
-def detected_header_evidence(
+def detected_header(
     file: VendorFile,
     contract: DelimitedFormatContract,
     accepts: HeaderPredicate,
-) -> DelimitedSourceEvidence:
-    """Resolve only header metadata for rule recognition, without inspecting data rows."""
-    encoding = _resolved_encoding(file, contract)
-    delimiter, header = _detected_header(file.path, contract, accepts, encoding)
-    candidates = contract.number_format_candidates
-    number_format = next(
-        (candidate for candidate in candidates if candidate.decimal_mark != delimiter),
-        candidates[0],
-    )
-    return DelimitedSourceEvidence(
-        columns=header,
-        delimiter=delimiter,
-        quote_char=contract.quote_char,
-        encoding=encoding,
-        number_format=number_format,
-    )
+) -> tuple[str, ...]:
+    """Resolve only the accepted header, for rule recognition, without inspecting data rows."""
+    return _detected_header(file.path, contract, accepts, _resolved_encoding(file, contract))[1]
 
 
 def _detected_header(
@@ -294,10 +281,3 @@ def _without_empty_rows(frame: pl.DataFrame) -> pl.DataFrame:
     if not frame.columns:
         return frame
     return frame.filter(pl.any_horizontal(pl.all().is_not_null()))
-
-
-def make_delimited_reader(
-    file: VendorFile, evidence: DelimitedSourceEvidence, plan: LevelReadPlan
-) -> DelimitedInputReader:
-    """Construct the reader one resolved delimited source and level plan describe."""
-    return DelimitedInputReader(file=file, evidence=evidence, plan=plan)

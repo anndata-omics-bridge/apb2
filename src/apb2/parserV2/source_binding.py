@@ -7,6 +7,7 @@ from pathlib import Path
 from apb2.parserV2.parse_quant import delimited_input, excel_input, parquet_input
 from apb2.parserV2.parse_quant.errors import AmbiguousDialectError, IncompatibleSourceError
 from apb2.parserV2.parse_quant.parameters.source import (
+    DelimitedFormatContract,
     ExcelFormatContract,
     ExcelSourceEvidence,
     Folder,
@@ -24,7 +25,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
 class BoundTable:
     """One caller source bound to one declared physical table interpretation."""
 
-    __slots__ = ("_file", "_format", "_source")
+    __slots__ = ("_file", "_format")
 
     def __init__(self, source: InputSource, contract: InputContract) -> None:
         """Resolve the source file and its one unambiguous declared format."""
@@ -71,7 +72,6 @@ class BoundTable:
         else:
             selected = next(iter(claiming))
 
-        self._source = source
         self._file = file
         self._format = selected
 
@@ -93,13 +93,11 @@ class BoundTable:
             return excel_input.schema_evidence(self._file.path, self._format, accepts)
         return delimited_input.detected_evidence(self._file, self._format, accepts)
 
-    def recognition_evidence(self, accepts: delimited_input.HeaderPredicate) -> SourceEvidence:
-        """Observe only schema/header evidence for packaged-rule recognition."""
-        if isinstance(self._format, ParquetFormatContract):
-            return parquet_input.schema_evidence(self._file.path)
-        if isinstance(self._format, ExcelFormatContract):
-            return excel_input.schema_evidence(self._file.path, self._format, accepts)
-        return delimited_input.detected_header_evidence(self._file, self._format, accepts)
+    def header(self, accepts: delimited_input.HeaderPredicate) -> tuple[str, ...]:
+        """Observe only the header, without inspecting data rows, for rule recognition."""
+        if isinstance(self._format, DelimitedFormatContract):
+            return delimited_input.detected_header(self._file, self._format, accepts)
+        return self.evidence(accepts).columns
 
     def reader(
         self,
@@ -112,7 +110,7 @@ class BoundTable:
     ):
         """Construct the reader for observed evidence and one resolved level plan."""
         if isinstance(evidence, FrameSourceEvidence):
-            return parquet_input.make_parquet_reader(self._file.path, evidence.columns, plan)
+            return parquet_input.ParquetInputReader(self._file.path, evidence.columns, plan)
         if isinstance(evidence, ExcelSourceEvidence):
-            return excel_input.make_excel_reader(self._file.path, evidence, plan)
-        return delimited_input.make_delimited_reader(self._file, evidence, plan)
+            return excel_input.ExcelInputReader(self._file.path, evidence, plan)
+        return delimited_input.DelimitedInputReader(self._file, evidence, plan)

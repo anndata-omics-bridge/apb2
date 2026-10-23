@@ -98,12 +98,3 @@ class ExcelInputReader:
             InputFile(self.path, "table", "xlsx"), self.evidence.columns, projected.height
         )
         return LevelSourceTable(projected, (table,))
-
-
-def make_excel_reader(
-    path: Path,
-    evidence: ExcelSourceEvidence,
-    plan: LevelReadPlan,
-) -> ExcelInputReader:
-    """Construct the reader one resolved workbook source and level plan describe."""
-    return ExcelInputReader(path=path, evidence=evidence, plan=plan)
