@@ -139,7 +139,7 @@ def test_parser_constructs_a_dataset_bound_annotation_with_inspectable_matches()
     }
     assert parsed.levels["ion"].obs.frame.columns == ["run"]
     root = result.parsed.metadata["prolfquapp"]
-    assert isinstance(root, dict) and root["schema_version"] == "3"
+    assert isinstance(root, dict) and root["schema_version"] == "4"
     local = result.parsed.levels["ion"].metadata["prolfquapp"]
     assert isinstance(local, dict)
     summary = local["summary"]
@@ -714,7 +714,14 @@ def test_compiler_recognises_sdrf_and_matches_extensionless_runs(tmp_path: Path)
     assert isinstance(provenance, dict)
     record = provenance["annotation"]
     assert isinstance(record, dict)
-    assert record["source"] == {"path": str(source.resolve())}
+    file = record["source"]
+    assert isinstance(file, dict)
+    assert (file["role"], file["file_name"], file["format"]) == (
+        "sample_annotation",
+        source.name,
+        source.suffix[1:],
+    )
+    assert file["size_bytes"] == source.stat().st_size
     columns = record["columns"]
     assert isinstance(columns, list)
     assert {

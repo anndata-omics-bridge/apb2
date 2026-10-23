@@ -2131,22 +2131,7 @@ class Folder:
     path: Path
 
 
-@dataclass(frozen=True, slots=True)
-class InputFiles:
-    path: Path
-    files: Mapping[str, Path]
-
-
-@dataclass(frozen=True, slots=True)
-class PreparedTable:
-    path: Path
-    frame: pl.DataFrame
-    how: str
-    source_paths: tuple[Path, ...]
-    duration_seconds: float
-
-
-type InputSource = SingleFile | Folder | InputFiles | PreparedTable
+type InputSource = SingleFile | Folder
 
 
 @dataclass(frozen=True, slots=True)

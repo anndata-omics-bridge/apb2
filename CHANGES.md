@@ -2,6 +2,7 @@
 
 ## 2026-10-23
 
+- **Breaking:** an annotation's `provenance.annotation.source` is the annotation file's input-file record (`role` `sample_annotation`, `file_name`, `size_bytes`, `sha256`, `compression`, `format`), not its absolute `path`; annotation `schema_version` 4. Producers record base names, so the sidecar no longer rewrites `*_path` fields.
 - A preparation finds `.csv` tables in a folder, such as WOMBAT-P's peptide table, where it listed only `.tsv` and `.txt`. A prepared table may not declare delimiter, number or encoding detection: a preparation reads its files by extension and would ignore it.
 - **Breaking:** one absence rule for every source: null, a float `NaN`, or text without a non-whitespace character is a missing cell, and a row with no value in any read column is dropped, whichever reader or preparation produced the table.
   - **Parquet:** `""` is missing; DIA-NN 2 ion `Protein_Group` and `Protein_Names` of precursors without a protein group are missing, not `""`

@@ -21,6 +21,11 @@ class AnnotationFileOrigin:
 
     path: Path
 
+    @property
+    def format(self) -> str:
+        """The file's format, named by its suffix, such as ``tsv``."""
+        return self.path.suffix.removeprefix(".").lower()
+
 
 @dataclass(frozen=True, slots=True)
 class InMemoryAnnotationOrigin:

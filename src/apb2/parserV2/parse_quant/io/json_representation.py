@@ -12,7 +12,7 @@ import math
 import os
 import tempfile
 from collections.abc import Callable, Mapping
-from pathlib import Path, PureWindowsPath
+from pathlib import Path
 from typing import cast
 
 import polars as pl
@@ -281,8 +281,6 @@ def _portable(value: JsonValue, field_name: str | None = None) -> JsonValue:
         return [_portable(item, field_name) for item in value]
     if isinstance(value, float) and not math.isfinite(value):
         return None
-    if isinstance(value, str) and _is_path_field(field_name) and _is_absolute_path(value):
-        return _path_name(value)
     return value
 
 
@@ -295,21 +293,6 @@ def _json_container(value: str) -> dict[str, JsonValue] | list[JsonValue] | None
     if not isinstance(decoded, dict | list):
         return None
     return cast(dict[str, JsonValue] | list[JsonValue], decoded)
-
-
-def _is_absolute_path(value: str) -> bool:
-    return Path(value).is_absolute() or PureWindowsPath(value).is_absolute()
-
-
-def _is_path_field(field_name: str | None) -> bool:
-    if field_name is None:
-        return False
-    normalized = field_name.casefold()
-    return normalized in {"path", "paths"} or normalized.endswith(("_path", "_paths"))
-
-
-def _path_name(value: str) -> str:
-    return PureWindowsPath(value).name if PureWindowsPath(value).is_absolute() else Path(value).name
 
 
 def _json_scalar(value: object) -> JsonScalar:

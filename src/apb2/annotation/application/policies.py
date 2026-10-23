@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
-from typing import Protocol
+from typing import Protocol, cast
 
 import polars as pl
 
@@ -26,8 +26,9 @@ from apb2.parserV2.parse_quant.data.parsed import (
     ParsedLevelName,
     ParsedLevels,
 )
+from apb2.parserV2.parse_quant.parameters.source import InputFile
 
-ANNOTATION_SCHEMA_VERSION = "3"
+ANNOTATION_SCHEMA_VERSION = "4"
 
 
 class ObservationSelection(Protocol):
@@ -177,7 +178,9 @@ def record_annotation_provenance(
     record: dict[str, JsonValue] = dict(metadata or {})
     if "source" not in record:
         record["source"] = (
-            {"path": str(origin.path)} if isinstance(origin, AnnotationFileOrigin) else None
+            cast(JsonValue, InputFile(origin.path, "sample_annotation", origin.format).record())
+            if isinstance(origin, AnnotationFileOrigin)
+            else None
         )
     # New record objects: the result's metadata copies share them with the input.
     root = _record(result.parsed.metadata, convention)

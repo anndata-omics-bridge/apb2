@@ -99,7 +99,7 @@ def _parsed() -> ParsedLevels:
         uns={
             "hierarchy": "lfq",
             "quantification_level": "ion",
-            "source_path": "/private/input/vendor.tsv",
+            "source_file": "vendor.tsv",
         },
         metadata={
             "layer_descriptors": {"Intensity": {"unit": "arbitrary units", "scale": "linear"}}
@@ -264,7 +264,6 @@ def test_version_four_representation_is_structured_bounded_and_deterministic(
 
     serialized = json.dumps(document, allow_nan=False)
     assert "vendor.tsv" in serialized
-    assert "/private/input" not in serialized
     assert serialized.count("sample A") == 2  # One key value and one display label.
     for forbidden in ("F1", "P1", "0.1"):
         assert forbidden not in serialized
@@ -334,7 +333,7 @@ def test_known_embedded_json_containers_are_projected_recursively_without_mutati
             "software_name": "Sage",
             "separator": "/",
             "value_pattern": "/foo/bar",
-            "resource_paths": ["/private/rules/a.json", r"C:\private\rules\b.json"],
+            "resource_paths": ["a.json", "b.json"],
         }
     )
     plan_text = json.dumps(
