@@ -378,7 +378,7 @@ def test_independent_stripping_handles_vendor_syntax_terminals_and_nulls(
 ) -> None:
     computer = TokenRegexStripper("Peptide", ("Sequence",), pattern, position)
     result, tokens = computer.compute(pl.DataFrame({"Sequence": [modified, None, ""]}))
-    assert result["Peptide"].to_list() == ["PEPMIDE", "", ""]
+    assert result["Peptide"].to_list() == ["PEPMIDE", None, ""]
     assert tokens == ()
 
 
@@ -425,7 +425,7 @@ def test_plain_stripping_and_site_lists_refuse_the_same_non_residues() -> None:
         "Peptide"
     ].to_list() == [
         "PEPMIDE",
-        "",
+        None,
     ]
     with pytest.raises(UnrecognizedSequenceCharacterError, match=r"PEP\.MIDE"):
         computer.compute(pl.DataFrame({"Sequence": ["_PEP.MIDE_"]}))

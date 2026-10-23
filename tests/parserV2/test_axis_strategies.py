@@ -331,7 +331,7 @@ def test_a_stripping_column_consumes_the_sequence_directly(
     assert tokens == ()
 
 
-def test_a_proforma_ion_needs_a_present_positive_charge() -> None:
+def test_a_proforma_ion_needs_a_present_sequence_and_positive_charge() -> None:
     sequences = pl.Series("s", ["PEPTIDE", "OTHER"])
     charges = pl.Series("c", [2, 3], dtype=pl.Int64)
 
@@ -343,6 +343,10 @@ def test_a_proforma_ion_needs_a_present_positive_charge() -> None:
     with pytest.raises(ColumnComputationError, match="missing charge"):
         ProformaIonColumn(name="ProForma_ion", inputs=("s", "c")).compute(
             pl.DataFrame([sequences, pl.Series("c", [2, None], dtype=pl.Int64)])
+        )
+    with pytest.raises(ColumnComputationError, match="missing sequence"):
+        ProformaIonColumn(name="ProForma_ion", inputs=("s", "c")).compute(
+            pl.DataFrame([pl.Series("s", ["PEPTIDE", None]), charges])
         )
     with pytest.raises(ColumnComputationError, match="positive"):
         ProformaIonColumn(name="ProForma_ion", inputs=("s", "c")).compute(
@@ -448,7 +452,7 @@ def test_sequence_mapping_handles_empty_and_all_null_frames(sequences: list[str 
         "Peptide", ("Sequence",), r"^\((?P<nterm>[^()]*)\)|\((?P<residue>[^()]*)\)", "after_residue"
     )
     result, tokens = computer.compute(frame)
-    assert result["Peptide"].to_list() == [""] * len(sequences)
+    assert result["Peptide"].to_list() == [None] * len(sequences)
     assert result.schema["Peptide"] == pl.String
     assert tokens == ()
 
@@ -490,7 +494,7 @@ def test_plain_stripping_keeps_residues_and_handles_empty_frames() -> None:
     computer = PlainSequenceStripper("Sequence", ("Sequence",))
     frame = pl.DataFrame({"Sequence": ["_PEPTIDEK-", None, ""]})
     result, tokens = computer.compute(frame)
-    assert result["Sequence"].to_list() == ["PEPTIDEK", "", ""]
+    assert result["Sequence"].to_list() == ["PEPTIDEK", None, ""]
     assert tokens == ()
     assert computer.compute(frame.clear())[0].equals(frame.clear())
 
@@ -669,7 +673,7 @@ def test_normalization_returns_one_column_and_explicit_diagnostics_in_row_order(
         "PEPM[UNIMOD:35]IDE",
         "PEPM[weird]IDE",
         "PEPM[UNIMOD:35]IDE",
-        "",
+        None,
     ]
     assert tokens == ("weird",)
     assert result.height == sequences.len()

@@ -536,7 +536,7 @@ class PlainSequenceStripper:
 
     def compute(self, frame: pl.DataFrame, /) -> tuple[pl.DataFrame, tuple[str, ...]]:
         (source,) = self.inputs
-        sequences = frame.get_column(source).cast(pl.String).fill_null("")
+        sequences = frame.get_column(source).cast(pl.String)
         stripped = sequences.str.strip_chars(_TERM_MARKERS)
         _require_residues(stripped, sequences)
         return frame.with_columns(stripped.alias(self.name)), ()
@@ -563,7 +563,7 @@ class TokenRegexStripper:
         except pl.exceptions.ComputeError:
             return SequenceColumn(self.name, self.inputs, self).compute(frame)
         (source,) = self.inputs
-        sequences = frame.get_column(source).cast(pl.String).fill_null("")
+        sequences = frame.get_column(source).cast(pl.String)
         unmarked = (
             sequences.str.replace_all(self.marker_pattern, "") if self.marker_pattern else sequences
         )
@@ -590,17 +590,28 @@ class SequenceColumn:
     operation: SequenceOperation
 
     def compute(self, frame: pl.DataFrame, /) -> tuple[pl.DataFrame, tuple[str, ...]]:
+        # A missing sequence stays missing; a missing modification list means none.
+        sequence, *others = self.inputs
         inputs = frame.select(
-            pl.col(name).cast(pl.String).fill_null("").alias(str(index))
-            for index, name in enumerate(self.inputs)
+            pl.col(sequence).cast(pl.String).alias("0"),
+            *(
+                pl.col(name).cast(pl.String).fill_null("").alias(str(index))
+                for index, name in enumerate(others, start=1)
+            ),
         )
-        parsed = inputs.unique(maintain_order=True).with_columns(
-            pl.struct(pl.all())
-            .map_elements(
-                self._transform,
-                return_dtype=pl.Struct({"value": pl.String, "unknown_tokens": pl.List(pl.String)}),
+        parsed = (
+            inputs.unique(maintain_order=True)
+            .drop_nulls("0")
+            .with_columns(
+                pl.struct(pl.all())
+                .map_elements(
+                    self._transform,
+                    return_dtype=pl.Struct(
+                        {"value": pl.String, "unknown_tokens": pl.List(pl.String)}
+                    ),
+                )
+                .alias("_result")
             )
-            .alias("_result")
         )
         values = inputs.join(parsed, on=inputs.columns, how="left", maintain_order="left").select(
             pl.col("_result").struct.field("value").alias(self.name)

@@ -193,8 +193,9 @@ class ProformaIonColumn:
 
     def compute(self, frame: pl.DataFrame, /) -> tuple[pl.DataFrame, tuple[str, ...]]:
         sequences, charges = (pl.col(name) for name in self.inputs)
-        if frame.select(charges.is_null().any()).item():
-            raise ColumnComputationError(f"cannot derive {self.name!r} from a missing charge")
+        for label, column in (("sequence", sequences), ("charge", charges)):
+            if frame.select(column.is_null().any()).item():
+                raise ColumnComputationError(f"cannot derive {self.name!r} from a missing {label}")
         nonpositive = charges <= 0
         examples = frame.select(
             charges.filter(nonpositive).unique(maintain_order=True).head(_EXAMPLE_LIMIT)
