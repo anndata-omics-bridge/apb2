@@ -16,8 +16,10 @@ from apb2.parserV2.parse_quant.data.step_log import logged_step
 from apb2.parserV2.parse_quant.errors import IncompatibleSourceError
 from apb2.parserV2.parse_quant.parameters.source import (
     Folder,
+    InputFile,
     InputFiles,
     InputSource,
+    InputTable,
     PreparedTable,
 )
 from apb2.parserV2.parse_quant.parameters.vendor_file import VendorFile, make_vendor_file
@@ -67,26 +69,29 @@ def _header(file: VendorFile) -> tuple[str, ...]:
         return tuple(next(csv.reader(handle, delimiter=_separator(file)), ()))
 
 
-def _bindings(source: InputSource, identify: Identify) -> dict[str, VendorFile]:
+def _bindings(
+    source: InputSource, identify: Identify
+) -> dict[str, tuple[VendorFile, tuple[str, ...]]]:
+    """Each role's file with the header that identified it."""
     files = _files(source)
-    selected = identify({name: _header(file) for name, file in files.items()})
-    return {role: files[name] for role, name in selected.items()}
+    headers = {name: _header(file) for name, file in files.items()}
+    return {role: (files[name], headers[name]) for role, name in identify(headers).items()}
 
 
 def _projection(
-    file: VendorFile, role: str, keys: tuple[str, ...] | None, wanted: Wanted | None
+    header: tuple[str, ...], role: str, keys: tuple[str, ...] | None, wanted: Wanted | None
 ) -> list[str] | None:
     """Name the columns of one table to read, or ``None`` to read all of them."""
     if keys is None or wanted is None:
         return None
-    return [column for column in _header(file) if column in keys or wanted(f"{role}.{column}")]
+    return [column for column in header if column in keys or wanted(f"{role}.{column}")]
 
 
 def preparation_paths(source: InputSource, how: str) -> tuple[Path, ...]:
     """Identify this table group's physical inputs without reading its quantitative rows."""
     identify, _join, _keys = _PREPARATIONS[how]
     try:
-        return tuple(file.path for file in _bindings(source, identify).values())
+        return tuple(file.path for file, _ in _bindings(source, identify).values())
     except (UnicodeError, csv.Error):
         return ()
     except ValueError as error:
@@ -119,8 +124,9 @@ def prepare_source(
         if not files:
             raise IncompatibleSourceError(f"{source.path} has no recognizable {how} inputs")
         frames: dict[str, pl.DataFrame] = {}
-        for role, file in files.items():
-            columns = _projection(file, role, keys, wanted)
+        tables: list[InputTable] = []
+        for role, (file, header) in files.items():
+            columns = _projection(header, role, keys, wanted)
             with logged_step("prepare.read", how=how, table=file.name):
                 frames[role] = pl.read_csv(
                     file.path,
@@ -135,6 +141,10 @@ def prepare_source(
                 frames[role].height,
                 frames[role].width,
             )
+            file_format = "csv" if _separator(file) == "," else "tsv"
+            tables.append(
+                InputTable(InputFile(file.path, role, file_format), header, frames[role].height)
+            )
         with logged_step("prepare.join", how=how, tables=",".join(sorted(frames))):
             frame = join(frames)
         logger.info("prepare.join how={} rows={} columns={}", how, frame.height, frame.width)
@@ -146,6 +156,6 @@ def prepare_source(
         path=source.path,
         frame=frame,
         how=how,
-        source_paths=tuple(file.path for file in files.values()),
+        input_tables=tuple(tables),
         duration_seconds=perf_counter() - started,
     )

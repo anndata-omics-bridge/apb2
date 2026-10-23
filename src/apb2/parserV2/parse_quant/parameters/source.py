@@ -7,11 +7,12 @@ which is the only physical fact source resolution may consult.
 
 ``LevelReadPlan`` and the decomposition configurations are the resolved output side: exactly
 which columns one level reads, which of them must stay text, and which physical shape its
-table has.
+table has. A reader returns a ``LevelSourceTable`` with the ``InputTable`` of each file it read.
 """
 
 from __future__ import annotations
 
+import hashlib
 import re
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass
@@ -75,6 +76,63 @@ class InputFiles:
     files: Mapping[str, Path]
 
 
+type InputFileRecord = dict[str, int | str | list[str]]
+"""One entry of root parse provenance ``input_files``."""
+
+
+@dataclass(frozen=True, slots=True)
+class InputFile:
+    """One file a conversion read, in the role and format its reader gave it."""
+
+    path: Path
+    role: str
+    format: str
+
+    def record(self) -> InputFileRecord:
+        """Hash and size the file's bytes on disk; only its base name enters the record."""
+        with self.path.open("rb") as stream:
+            sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
+        return {
+            "role": self.role,
+            "file_name": self.path.name,
+            "size_bytes": self.path.stat().st_size,
+            "sha256": sha256,
+            "compression": "gzip" if self.path.suffix.lower() == GZIP_SUFFIX else "none",
+            "format": self.format,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class InputTable:
+    """One table a reader read: its file, full header and data rows before any filter."""
+
+    file: InputFile
+    columns: tuple[str, ...]
+    nrows: int
+
+    def record(self) -> InputFileRecord:
+        """The file's record with the reader's header and row count."""
+        return {
+            **self.file.record(),
+            "nrows": self.nrows,
+            "ncols": len(self.columns),
+            "columns": list(self.columns),
+        }
+
+
+@dataclass(slots=True)
+class LevelSourceTable:
+    """One level's projected physical rows: what a reader returns and a decomposer accepts.
+
+    The columns one level's read plan asked for, in that order, with no axis identity yet.
+    Which columns are keys and which are measurements is the decomposer's decision.
+    """
+
+    frame: pl.DataFrame
+    input_tables: tuple[InputTable, ...] = ()
+    """The physical tables read, for root ``input_files``; none for an in-memory frame."""
+
+
 @dataclass(frozen=True, slots=True)
 class PreparedTable:
     """One preparation result shared by detection and every requested level."""
@@ -82,7 +140,7 @@ class PreparedTable:
     path: Path
     frame: pl.DataFrame
     how: str
-    source_paths: tuple[Path, ...]
+    input_tables: tuple[InputTable, ...]
     duration_seconds: float
 
 

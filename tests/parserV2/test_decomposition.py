@@ -12,7 +12,6 @@ import pytest
 
 from apb2.parserV2.parse_quant.data.layer_columns import observation_labels
 from apb2.parserV2.parse_quant.data.raw import DISAGREEING_VALUES, DecomposedDataRaw
-from apb2.parserV2.parse_quant.data.source import LevelSourceTable
 from apb2.parserV2.parse_quant.decomposition import (
     DelimitedFragmentSourceDecomposer,
     LongSourceDecomposer,
@@ -30,6 +29,7 @@ from apb2.parserV2.parse_quant.fragments import (
 )
 from apb2.parserV2.parse_quant.parameters.axis import AxisKeyPlan, AxisSourcePlan
 from apb2.parserV2.parse_quant.parameters.source import (
+    LevelSourceTable,
     LongRawLayerSource,
     NumericTextFormat,
     WideRawLayerPlan,

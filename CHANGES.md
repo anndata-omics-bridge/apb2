@@ -2,6 +2,12 @@
 
 ## 2026-10-23
 
+- **Breaking:** every result records the files its conversion read, once each, in the root parse record's `provenance.input_files`, so a result names the bytes it came from.
+  - **Record:** `role` (`table`, a preparation's binding role, or `parameter_file`), `file_name` (base name), `size_bytes`, `sha256` of the bytes on disk, `compression`, `format`; a table adds `nrows` (data rows before any filter), `ncols` and `columns` (its full header)
+  - **Moved:** `search_parameters` keeps only `parameters`; its `file_name` and `sha256` are in the parameter file's `input_files` entry
+  - **Removed:** `input_preparation.sources` (absolute paths) and `input_preparation.rows` (the joined frame's height)
+  - **Root never empty:** a conversion without a parameter file now has a root `provenance` with `input_files`
+  - **Internal:** `LevelSourceTable` moves from `parse_quant.data.source` to `parse_quant.parameters.source`, beside `PreparedTable`, which carries its tables' records
 - **Breaking:** Spectronaut 21's library q-values are `var` columns, not layers: ion `EG_LibraryQvalue` and protein `PG_LibraryQvalue` never differ across runs (submission 790d6197: 142,425 ions and 11,588 protein groups in several runs). The fragment level of the 19–20 and 21 rules keeps `F_FrgMz` and `F_TheoreticalMz` only as `var` columns, where each was also a layer: neither differs across runs in a 2021 Spectronaut export (980,998 fragments in several runs), while `F.MeasuredMz` does. Each entry carries a `note`.
 - `LayerContractError` is a `ConversionError`: `apb2 convert --strict` on an effectively empty layer, or an empty primary layer, logs the error and exits 1 instead of ending in a traceback.
 - **Breaking:** DIA-NN's protein level has no `Protein_Ids` column; `Protein_Group` carries `fasta_accessions` beside `protein_assignment`, as at the fragment level and in the AlphaDIA 2 and MaxQuant protein rules. `Protein.Ids` lists the proteins of each precursor's peptide and differs between the rows of one protein group (71 groups in submission 4cc229a7, 440 in 300beac4), so the protein level kept whichever row came first. apb-fasta now annotates each group by its own members. The ion level keeps `Protein_Ids`.

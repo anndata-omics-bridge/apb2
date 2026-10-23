@@ -112,7 +112,7 @@ class BoundTable:
     ):
         """Construct the reader for observed evidence and one resolved level plan."""
         if isinstance(evidence, FrameSourceEvidence):
-            return parquet_input.make_parquet_reader(self._file.path, plan)
+            return parquet_input.make_parquet_reader(self._file.path, evidence.columns, plan)
         if isinstance(evidence, ExcelSourceEvidence):
             return excel_input.make_excel_reader(self._file.path, evidence, plan)
         return delimited_input.make_delimited_reader(self._file, evidence, plan)

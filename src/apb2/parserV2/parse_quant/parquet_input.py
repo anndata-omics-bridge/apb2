@@ -12,8 +12,13 @@ from pathlib import Path
 
 import polars as pl
 
-from apb2.parserV2.parse_quant.data.source import LevelSourceTable
-from apb2.parserV2.parse_quant.parameters.source import FrameSourceEvidence, LevelReadPlan
+from apb2.parserV2.parse_quant.parameters.source import (
+    FrameSourceEvidence,
+    InputFile,
+    InputTable,
+    LevelReadPlan,
+    LevelSourceTable,
+)
 
 
 def schema_evidence(path: Path) -> FrameSourceEvidence:
@@ -28,9 +33,10 @@ def schema_evidence(path: Path) -> FrameSourceEvidence:
 
 @dataclass(frozen=True, slots=True)
 class ParquetInputReader:
-    """One Parquet file and one level's exact projection."""
+    """One Parquet file, its column names, and one level's exact projection."""
 
     path: Path
+    columns: tuple[str, ...]
     plan: LevelReadPlan
 
     def read(self) -> LevelSourceTable:
@@ -41,9 +47,12 @@ class ParquetInputReader:
             .with_columns(pl.col(sorted(self.plan.native_numeric_sources)).cast(pl.Float64))
             .collect()
         )
-        return LevelSourceTable(frame=frame)
+        table = InputTable(InputFile(self.path, "table", "parquet"), self.columns, frame.height)
+        return LevelSourceTable(frame, (table,))
 
 
-def make_parquet_reader(path: Path, plan: LevelReadPlan) -> ParquetInputReader:
+def make_parquet_reader(
+    path: Path, columns: tuple[str, ...], plan: LevelReadPlan
+) -> ParquetInputReader:
     """Construct the reader one Parquet source and level plan describe."""
-    return ParquetInputReader(path=path, plan=plan)
+    return ParquetInputReader(path=path, columns=columns, plan=plan)

@@ -411,6 +411,61 @@
       "title": "FeatureRelation",
       "type": "object"
     },
+    "InputFileRecord": {
+      "additionalProperties": false,
+      "description": "One file a conversion read; a table adds its rows before any filter and its header.",
+      "properties": {
+        "role": {
+          "$ref": "#/$defs/Name"
+        },
+        "file_name": {
+          "$ref": "#/$defs/Name"
+        },
+        "size_bytes": {
+          "$ref": "#/$defs/Count"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "compression": {
+          "enum": [
+            "gzip",
+            "none"
+          ],
+          "title": "Compression",
+          "type": "string"
+        },
+        "format": {
+          "title": "Format",
+          "type": "string"
+        },
+        "nrows": {
+          "$ref": "#/$defs/Count"
+        },
+        "ncols": {
+          "$ref": "#/$defs/Count"
+        },
+        "columns": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Columns",
+          "type": "array"
+        }
+      },
+      "required": [
+        "role",
+        "file_name",
+        "size_bytes",
+        "sha256",
+        "compression",
+        "format"
+      ],
+      "title": "InputFileRecord",
+      "type": "object"
+    },
     "JsonScalar": {
       "anyOf": [
         {
@@ -1393,6 +1448,13 @@
       "properties": {
         "search_parameters": {
           "$ref": "#/$defs/SearchParametersRecord"
+        },
+        "input_files": {
+          "items": {
+            "$ref": "#/$defs/InputFileRecord"
+          },
+          "title": "Input Files",
+          "type": "array"
         }
       },
       "title": "RootParseProvenance",
@@ -1440,23 +1502,13 @@
     },
     "SearchParametersRecord": {
       "additionalProperties": false,
-      "description": "The parameter file a conversion read: base name, SHA-256 of its bytes, typed record.",
+      "description": "The typed record of the parameter file a conversion read.",
       "properties": {
-        "file_name": {
-          "$ref": "#/$defs/Name"
-        },
-        "sha256": {
-          "pattern": "^[0-9a-f]{64}$",
-          "title": "Sha256",
-          "type": "string"
-        },
         "parameters": {
           "$ref": "#/$defs/Parameters"
         }
       },
       "required": [
-        "file_name",
-        "sha256",
         "parameters"
       ],
       "title": "SearchParametersRecord",

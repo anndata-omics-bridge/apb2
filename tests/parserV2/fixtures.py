@@ -18,6 +18,7 @@ import zipfile
 from dataclasses import dataclass, replace
 from functools import cache
 from pathlib import Path
+from typing import cast
 
 import polars as pl
 import pytest
@@ -289,6 +290,14 @@ def parse_section(uns: dict[str, JsonValue], section: str) -> dict[str, JsonValu
 def search_parameters_record(uns: dict[str, JsonValue]) -> dict[str, JsonValue]:
     """The parameter-file record a conversion stores in its root parse provenance."""
     return parse_section(parse_section(uns, "provenance"), "search_parameters")
+
+
+def input_files(uns: dict[str, JsonValue]) -> list[dict[str, JsonValue]]:
+    """The records of the files a conversion read, from its root parse provenance."""
+    records = parse_section(uns, "provenance")["input_files"]
+    assert isinstance(records, list)
+    assert all(isinstance(record, dict) for record in records)
+    return cast(list[dict[str, JsonValue]], records)
 
 
 def write_level(parsed: ParsedLevel, target: Path) -> None:

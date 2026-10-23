@@ -36,7 +36,7 @@ from apb2.parserV2.prepare_source import InputPreparationError, prepare_source
 from apb2.parserV2.search_parameters.model import Parameters
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
-from parserV2.fixtures import committed_dir, committed_sample, parse_section
+from parserV2.fixtures import committed_dir, committed_sample, input_files, parse_section
 from parserV2.join_fixtures import maxquant_tables
 
 RULES = Path("src/apb2/parserV2/vendor_parse_rules/documents")
@@ -254,12 +254,7 @@ def test_folder_conversion_joins_all_levels_and_round_trips(tmp_path: Path, suff
         for level in loaded.levels.values()
     ]
     assert all(item == sources[0] for item in sources)
-    provenance = sources[0]
-    assert isinstance(provenance, dict)
-    paths = provenance["sources"]
-    assert isinstance(paths, list)
-    assert len(paths) == 3
-    assert all("evidence.txt" not in str(path) for path in paths)
+    assert {str(record["file_name"]) for record in input_files(loaded.uns)} == set(names.values())
 
 
 def test_renamed_alphadia_companions_and_shared_preparation(tmp_path: Path) -> None:
@@ -348,19 +343,11 @@ def test_maxquant_every_nonempty_subset_round_trips_available_levels(
         assert level.obs.frame[obs_key].to_list() == expected_samples
         preparation = parse_section(level.uns, "provenance")["input_preparation"]
         assert isinstance(preparation, dict)
-        paths = preparation["sources"]
-        assert isinstance(paths, list)
         if name == "ion":
             assert preparation["how"] == "maxquant_evidence"
-            assert set(paths) == {
-                str(tmp_path / MAXQUANT_FILES[role])
-                for role in roles
-                if role in {"evidence", "protein"}
-            }
-            continue
-        assert set(paths) == {
-            str(tmp_path / MAXQUANT_FILES[role]) for role in roles if role != "evidence"
-        }
+    for path in summary.outputs:
+        names = {str(record["file_name"]) for record in input_files(read_parsed_levels(path).uns)}
+        assert names == {MAXQUANT_FILES[role] for role in roles}
     if "protein" in parsed:
         protein = parsed["protein"]
         lfq = protein.layers["LFQ_Intensity"].values.cast(pl.Float64).fill_nan(None)

@@ -44,6 +44,7 @@ from parserV2.fixtures import (
     committed_dir,
     committed_sample,
     document_pairs,
+    input_files,
     search_parameters_record,
 )
 from parserV2.join_fixtures import maxquant_tables
@@ -124,9 +125,13 @@ def test_packaged_conversion_records_the_parameter_file_once_at_the_root(tmp_pat
     provenance = stored.uns["protein"][NAMESPACE][PARSE_NAMESPACE]["provenance"]
     assert "search_parameters" not in provenance
     assert "rule_selection_method" not in provenance
-    record = search_parameters_record(formats.read_parsed_levels(target).uns)
-    assert record["file_name"] == parameters_path.name
-    assert record["sha256"] == hashlib.sha256(parameters_path.read_bytes()).hexdigest()
+    uns = formats.read_parsed_levels(target).uns
+    record = search_parameters_record(uns)
+    assert list(record) == ["parameters"]
+    parameter_file = input_files(uns)[0]
+    assert parameter_file["role"] == "parameter_file"
+    assert parameter_file["file_name"] == parameters_path.name
+    assert parameter_file["sha256"] == hashlib.sha256(parameters_path.read_bytes()).hexdigest()
     assert Parameters.model_validate(record["parameters"]) == parse_params(
         parameters_path, software="diann"
     )

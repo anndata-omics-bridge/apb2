@@ -12,8 +12,11 @@ from apb2.parserV2.parse_quant.data.parsed import (
     ObsFinal,
     VarFinal,
 )
-from apb2.parserV2.parse_quant.data.source import LevelSourceTable
-from apb2.parserV2.parse_quant.parameters.source import DelimitedSourceEvidence, NumericTextFormat
+from apb2.parserV2.parse_quant.parameters.source import (
+    DelimitedSourceEvidence,
+    LevelSourceTable,
+    NumericTextFormat,
+)
 from apb2.parserV2.parse_quant.uninformative import UninformativeFields
 from parserV2 import synthetic
 

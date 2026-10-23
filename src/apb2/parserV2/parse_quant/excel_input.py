@@ -16,12 +16,14 @@ import polars as pl
 import polars.selectors as cs
 from fastexcel import FastExcelError
 
-from apb2.parserV2.parse_quant.data.source import LevelSourceTable
 from apb2.parserV2.parse_quant.errors import IncompatibleSourceError
 from apb2.parserV2.parse_quant.parameters.source import (
     ExcelFormatContract,
     ExcelSourceEvidence,
+    InputFile,
+    InputTable,
     LevelReadPlan,
+    LevelSourceTable,
     NumericTextFormat,
 )
 
@@ -92,7 +94,10 @@ class ExcelInputReader:
             pl.col(self.plan.text_sources).cast(pl.String).fill_null(""),
             pl.col(self.plan.native_numeric_sources).cast(pl.Float64),
         )
-        return LevelSourceTable(frame=projected)
+        table = InputTable(
+            InputFile(self.path, "table", "xlsx"), self.evidence.columns, projected.height
+        )
+        return LevelSourceTable(projected, (table,))
 
 
 def make_excel_reader(

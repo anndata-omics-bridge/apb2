@@ -42,13 +42,12 @@ def compile_level(
                 for keys in (strategy.obs.keys.raw_key_columns, strategy.var.keys.raw_key_columns)
                 if set(keys) <= projected
             ),
+            source.input_tables,
         )
         preparation = {
             "input_preparation": {
                 "how": source.how,
-                "sources": [str(path) for path in source.source_paths],
                 "duration_seconds": source.duration_seconds,
-                "rows": source.frame.height,
                 "estimated_size_bytes": source.frame.estimated_size(),
             }
         }

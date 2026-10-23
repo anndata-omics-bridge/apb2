@@ -502,12 +502,15 @@ def test_workbook_keeps_empty_rows_and_text_identifiers(tmp_path: Path) -> None:
         '<row r="4"><c r="B4"><v>2</v></c></row>',
     )
     evidence = excel_input.schema_evidence(path, WORKBOOK, lambda columns: "ID" in columns)
-    frame = (
-        excel_input.make_excel_reader(path, evidence, plan("ID", "Quantity", numeric=("Quantity",)))
-        .read()
-        .frame
-    )
-    assert frame.to_dict(as_series=False) == {"ID": ["001", "", ""], "Quantity": [1.5, None, 2.0]}
+    source = excel_input.make_excel_reader(
+        path, evidence, plan("ID", "Quantity", numeric=("Quantity",))
+    ).read()
+    assert source.frame.to_dict(as_series=False) == {
+        "ID": ["001", "", ""],
+        "Quantity": [1.5, None, 2.0],
+    }
+    (table,) = source.input_tables
+    assert (table.file.format, table.columns, table.nrows) == ("xlsx", ("ID", "Quantity"), 3)
 
 
 def test_workbook_invalid_numeric_tokens_are_not_silently_discarded(tmp_path: Path) -> None:
@@ -553,7 +556,9 @@ def test_a_parquet_read_preserves_physical_types_and_projects_in_plan_order(
     path = tmp_path / "report.parquet"
     pl.DataFrame({"Sample": ["A"], "Feature": ["F"], "Count": [3]}).write_parquet(path)
 
-    frame = parquet_input.make_parquet_reader(path, plan("Count", "Sample")).read()
+    frame = parquet_input.make_parquet_reader(
+        path, ("Sample", "Feature", "Count"), plan("Count", "Sample")
+    ).read()
 
     assert frame.frame.columns == ["Count", "Sample"]
     assert frame.frame.schema["Count"] == pl.Int64
@@ -628,7 +633,7 @@ def test_both_readers_satisfy_the_parser_owned_reader_contract(tmp_path: Path) -
 
     readers: tuple[BoundInputReader, ...] = (
         delimited_input.make_delimited_reader(make_vendor_file(text), evidence, plan("Sample")),
-        parquet_input.make_parquet_reader(table, plan("Sample")),
+        parquet_input.make_parquet_reader(table, ("Sample", "Feature"), plan("Sample")),
     )
 
     for reader in readers:

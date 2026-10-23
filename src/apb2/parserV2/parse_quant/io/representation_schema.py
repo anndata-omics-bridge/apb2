@@ -101,11 +101,24 @@ class ApbPart(TypedDict, extra_items=ProducerRecord | NonObject):
 
 @with_config(_STRICT)
 class SearchParametersRecord(TypedDict):
-    """The parameter file a conversion read: base name, SHA-256 of its bytes, typed record."""
+    """The typed record of the parameter file a conversion read."""
 
-    file_name: Name
-    sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
     parameters: Parameters
+
+
+@with_config(_STRICT)
+class InputFileRecord(TypedDict):
+    """One file a conversion read; a table adds its rows before any filter and its header."""
+
+    role: Name
+    file_name: Name
+    size_bytes: Count
+    sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+    compression: Literal["gzip", "none"]
+    format: str
+    nrows: NotRequired[Count]
+    ncols: NotRequired[Count]
+    columns: NotRequired[list[str]]
 
 
 @with_config(_OPEN)
@@ -113,6 +126,7 @@ class RootParseProvenance(TypedDict, extra_items=JsonValue):
     """Conversion-wide parse provenance; absent keys mean the input was not supplied."""
 
     search_parameters: NotRequired[SearchParametersRecord]
+    input_files: NotRequired[list[InputFileRecord]]
 
 
 @with_config(_OPEN)

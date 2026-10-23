@@ -33,10 +33,13 @@ from apb2.parserV2.parse_quant.data.raw import (
     RawLayerTable,
     VarRaw,
 )
-from apb2.parserV2.parse_quant.data.source import LevelSourceTable
 from apb2.parserV2.parse_quant.numeric_text import blank
 from apb2.parserV2.parse_quant.parameters.axis import AxisSourcePlan
-from apb2.parserV2.parse_quant.parameters.source import LongRawLayerSource, WideRawLayerPlan
+from apb2.parserV2.parse_quant.parameters.source import (
+    LevelSourceTable,
+    LongRawLayerSource,
+    WideRawLayerPlan,
+)
 
 _VALUE_LIMIT = 5
 _DISAGREES = "_disagrees_"

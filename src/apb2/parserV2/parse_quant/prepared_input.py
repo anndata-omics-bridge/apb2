@@ -6,8 +6,7 @@ from dataclasses import dataclass
 
 import polars as pl
 
-from apb2.parserV2.parse_quant.data.source import LevelSourceTable
-from apb2.parserV2.parse_quant.parameters.source import LevelReadPlan
+from apb2.parserV2.parse_quant.parameters.source import InputTable, LevelReadPlan, LevelSourceTable
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,6 +16,7 @@ class PreparedInputReader:
     frame: pl.DataFrame
     plan: LevelReadPlan
     raw_keys: tuple[tuple[str, ...], ...]
+    input_tables: tuple[InputTable, ...]
 
     def read(self) -> LevelSourceTable:
         """Keep native prepared types and the rule's declared source closure."""
@@ -27,4 +27,4 @@ class PreparedInputReader:
         # absent identity is skipped; partially malformed identities still fail parsing.
         for keys in self.raw_keys:
             frame = frame.filter(pl.any_horizontal(pl.col(key).is_not_null() for key in keys))
-        return LevelSourceTable(frame)
+        return LevelSourceTable(frame, self.input_tables)

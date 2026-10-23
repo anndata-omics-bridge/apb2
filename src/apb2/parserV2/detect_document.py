@@ -329,7 +329,8 @@ def _table_sources(
     preparation = declaration.preparation
     if preparation is not None:
         if isinstance(source, PreparedTable):
-            return ((source,), source.source_paths) if source.how == preparation else ((), ())
+            paths = tuple(table.file.path for table in source.input_tables)
+            return ((source,), paths) if source.how == preparation else ((), ())
         paths = preparation_paths(source, preparation)
         if not paths or not selected:
             return (), paths

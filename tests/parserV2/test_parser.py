@@ -46,7 +46,6 @@ from apb2.parserV2.parse_quant.data.raw import (
     RawLayerTable,
     VarRaw,
 )
-from apb2.parserV2.parse_quant.data.source import LevelSourceTable
 from apb2.parserV2.parse_quant.decomposition import LongSourceDecomposer
 from apb2.parserV2.parse_quant.duplicates import (
     DuplicateCellError,
@@ -65,6 +64,7 @@ from apb2.parserV2.parse_quant.parameters.measurements import (
 )
 from apb2.parserV2.parse_quant.parameters.source import (
     LevelReadPlan,
+    LevelSourceTable,
     LongRawLayerSource,
     NumericTextFormat,
 )

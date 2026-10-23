@@ -19,7 +19,9 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from time import perf_counter
+from typing import cast
 
 import polars as pl
 
@@ -53,11 +55,15 @@ from apb2.parserV2.parse_quant.data.raw import (
     RawToFinalKeyMap,
     VarRaw,
 )
-from apb2.parserV2.parse_quant.data.source import LevelSourceTable
 from apb2.parserV2.parse_quant.data.step_log import logged_step
 from apb2.parserV2.parse_quant.duplicates import KeepBestDuplicate
 from apb2.parserV2.parse_quant.parameters.level import QuantificationLevel
-from apb2.parserV2.parse_quant.parameters.source import LevelReadPlan
+from apb2.parserV2.parse_quant.parameters.source import (
+    InputFileRecord,
+    InputTable,
+    LevelReadPlan,
+    LevelSourceTable,
+)
 
 _EXAMPLE_LIMIT = 5
 _WORKING_ONLY = ("hierarchy", "schema_version", "software_name", "shape", "quantification_level")
@@ -84,14 +90,22 @@ class LevelParseTimings:
 class ParserCollection:
     """Compiled level parsers that produce one canonical ``ParsedLevels`` value.
 
-    ``provenance`` is the root parse provenance, such as the search-parameter record; an empty
-    mapping leaves the root parse record empty.
+    ``provenance`` is the root parse provenance, such as the search-parameter record; ``read``
+    records the files read before parsing, such as the parameter file. Parsing adds every input
+    table, once per file, to the root ``input_files``.
     """
 
-    __slots__ = ("_hierarchy", "_parsers", "_uns")
+    __slots__ = ("_hierarchy", "_parsers", "_provenance", "_read")
 
-    def __init__(self, parsers: tuple[Parser, ...], provenance: Mapping[str, JsonValue], /) -> None:
-        self._uns: dict[str, JsonValue] = {"provenance": dict(provenance)} if provenance else {}
+    def __init__(
+        self,
+        parsers: tuple[Parser, ...],
+        provenance: Mapping[str, JsonValue],
+        read: tuple[InputFileRecord, ...] = (),
+        /,
+    ) -> None:
+        self._provenance = dict(provenance)
+        self._read = read
         if not parsers:
             raise ValueError("a parser collection requires at least one level parser")
         levels = tuple(parser.level for parser in parsers)
@@ -113,21 +127,24 @@ class ParserCollection:
 
     def parse(self) -> ParsedLevels:
         """Parse every compiled level once and assemble the canonical collection."""
-        return ParsedLevels(
-            levels={parser.level: parser.parse() for parser in self._parsers},
-            uns=dict(self._uns),
-            hierarchy=self._hierarchy,
-        )
+        return self.parse_with_timings()[0]
 
     def parse_with_timings(self) -> tuple[ParsedLevels, tuple[LevelParseTimings, ...]]:
         """Parse once while measuring each bound read and strategy execution."""
         levels: dict[QuantificationLevel, ParsedLevel] = {}
         timings: list[LevelParseTimings] = []
+        tables: dict[Path, InputTable] = {}
         for parser in self._parsers:
-            parsed_level, timing = parser.parse_with_timings()
+            parsed_level, timing, read = parser.parse_with_timings()
             levels[parser.level] = parsed_level
             timings.append(timing)
-        parsed = ParsedLevels(levels=levels, uns=dict(self._uns), hierarchy=self._hierarchy)
+            for table in read:
+                tables.setdefault(table.file.path, table)
+        input_files = [*self._read, *(table.record() for table in tables.values())]
+        uns: dict[str, JsonValue] = {
+            "provenance": {**self._provenance, "input_files": cast(JsonValue, input_files)}
+        }
+        parsed = ParsedLevels(levels=levels, uns=uns, hierarchy=self._hierarchy)
         return parsed, tuple(timings)
 
 
@@ -149,15 +166,18 @@ class Parser:
             source = self.input_reader.read()
         return self.strategy.parse(source)
 
-    def parse_with_timings(self) -> tuple[ParsedLevel, LevelParseTimings]:
-        """Read and parse once, reporting the two separate wall times."""
+    def parse_with_timings(
+        self,
+    ) -> tuple[ParsedLevel, LevelParseTimings, tuple[InputTable, ...]]:
+        """Read and parse once, reporting the two wall times and the tables read."""
         started = perf_counter()
         with logged_step("read", level=self.level):
             source = self.input_reader.read()
         read_seconds = perf_counter() - started
         started = perf_counter()
         parsed = self.strategy.parse(source)
-        return parsed, LevelParseTimings(self.level, read_seconds, perf_counter() - started)
+        timing = LevelParseTimings(self.level, read_seconds, perf_counter() - started)
+        return parsed, timing, source.input_tables
 
 
 @dataclass(frozen=True, slots=True)

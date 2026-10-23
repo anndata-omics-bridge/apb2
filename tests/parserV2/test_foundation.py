@@ -36,7 +36,6 @@ from apb2.parserV2.parse_quant.data.raw import (
     RawToFinalKeyMap,
     VarRaw,
 )
-from apb2.parserV2.parse_quant.data.source import LevelSourceTable
 from apb2.parserV2.parse_quant.operations import (
     RetainedFields,
     WorkingAxisConfiguration,
@@ -56,6 +55,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
     DelimitedFormatContract,
     DelimitedSourceEvidence,
     InputContract,
+    LevelSourceTable,
     LongSourceLayout,
     NumericTextFormat,
     PositionalFragmentLayout,

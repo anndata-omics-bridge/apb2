@@ -19,7 +19,7 @@ from dataclasses import dataclass
 import polars as pl
 
 from apb2.parserV2.parse_quant.data.errors import ConversionError
-from apb2.parserV2.parse_quant.data.source import LevelSourceTable
+from apb2.parserV2.parse_quant.parameters.source import LevelSourceTable
 
 _LENGTH = "_packed_length"
 _POSITION = "_packed_position"

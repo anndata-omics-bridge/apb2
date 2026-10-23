@@ -16,7 +16,8 @@ from parserV2.fixtures import (
     committed_dir,
     committed_sample,
     document_pairs,
-    search_parameters_record,
+    input_files,
+    parse_section,
 )
 
 
@@ -40,8 +41,9 @@ def test_software_only_api_preserves_parsed_values_and_rule_provenance() -> None
 
     expected_result = with_parameters.compile().parse()
     actual_result = without_parameters.compile().parse()
-    assert search_parameters_record(expected_result.uns)["file_name"] == record["params"]
-    assert actual_result.uns == {}, "no parameter file, no root parse provenance"
+    assert input_files(expected_result.uns)[0]["file_name"] == record["params"]
+    assert [file["role"] for file in input_files(actual_result.uns)] == ["table"]
+    assert "search_parameters" not in parse_section(actual_result.uns, "provenance")
     expected = expected_result.levels["ion"]
     actual = actual_result.levels["ion"]
     assert actual.obs.frame.height == record["levels"]["ion"]["observations"]

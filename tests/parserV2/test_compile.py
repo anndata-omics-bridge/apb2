@@ -642,7 +642,8 @@ def test_collection_parser_has_no_persistence_api() -> None:
     ).compile()
 
     assert not hasattr(parser, "convert")
-    assert parser.parse().uns == {}
+    provenance = parser.parse().uns["provenance"]
+    assert isinstance(provenance, dict) and list(provenance) == ["input_files"]
 
 
 def test_an_incompatible_level_does_not_poison_the_compatible_ones() -> None:

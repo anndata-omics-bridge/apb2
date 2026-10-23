@@ -80,7 +80,7 @@ apb2 convert alphadia-results ion \
     --params parameters.txt --software alphadia --output results/ion
 ```
 
-AlphaDIA 1.12 joins matrix values with precursor metadata; it never substitutes secondary intensities. Ambiguous roles, missing required inputs and conflicting identities fail before writing. Preparation runs once per selected table group and records sources, duration, row count and estimated frame size in that group's `input_preparation` provenance. Direct evidence has no preparation provenance. DIA-NN is unchanged.
+AlphaDIA 1.12 joins matrix values with precursor metadata; it never substitutes secondary intensities. Ambiguous roles, missing required inputs and conflicting identities fail before writing. Preparation runs once per selected table group and records its duration and estimated frame size in that group's `input_preparation` provenance; each file it read, with its rows and header, appears in the root `input_files`. Direct evidence has no preparation provenance. DIA-NN is unchanged.
 
 ## Explicit rule document
 

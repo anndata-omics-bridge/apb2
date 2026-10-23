@@ -21,12 +21,14 @@ from typing import Literal
 
 import polars as pl
 
-from apb2.parserV2.parse_quant.data.source import LevelSourceTable
 from apb2.parserV2.parse_quant.errors import AmbiguousDialectError, IncompatibleSourceError
 from apb2.parserV2.parse_quant.parameters.source import (
     DelimitedFormatContract,
     DelimitedSourceEvidence,
+    InputFile,
+    InputTable,
     LevelReadPlan,
+    LevelSourceTable,
     NumericTextFormat,
     TextEncoding,
 )
@@ -264,20 +266,27 @@ class DelimitedInputReader:
                     schema_overrides=overrides,
                     decimal_comma=self.evidence.number_format.decimal_mark == ",",
                 ).select(list(self.plan.projected_columns))
-            return LevelSourceTable(frame=_without_empty_rows(frame))
-        frame = (
-            pl.scan_csv(
-                self.file.path,
-                separator=self.evidence.delimiter,
-                quote_char=self.evidence.quote_char,
-                encoding=encoding,
-                schema_overrides=overrides,
-                decimal_comma=self.evidence.number_format.decimal_mark == ",",
+        else:
+            frame = (
+                pl.scan_csv(
+                    self.file.path,
+                    separator=self.evidence.delimiter,
+                    quote_char=self.evidence.quote_char,
+                    encoding=encoding,
+                    schema_overrides=overrides,
+                    decimal_comma=self.evidence.number_format.decimal_mark == ",",
+                )
+                .select(list(self.plan.projected_columns))
+                .collect()
             )
-            .select(list(self.plan.projected_columns))
-            .collect()
+        file_format = _FORMATS.get(self.evidence.delimiter, "delimited")
+        table = InputTable(
+            InputFile(self.file.path, "table", file_format), self.evidence.columns, frame.height
         )
-        return LevelSourceTable(frame=_without_empty_rows(frame))
+        return LevelSourceTable(_without_empty_rows(frame), (table,))
+
+
+_FORMATS = {"\t": "tsv", ",": "csv"}
 
 
 def _without_empty_rows(frame: pl.DataFrame) -> pl.DataFrame:

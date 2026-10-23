@@ -145,7 +145,6 @@ forbidden_modules =
     apb2.parserV2.parse_quant.delimited_input
     apb2.parserV2.parse_quant.parquet_input
     apb2.parserV2.parse_quant.data.raw
-    apb2.parserV2.parse_quant.data.source
     apb2.parserV2.parse_quant.parameters
 
 # ---------------------------------------------------------------------- sample annotation

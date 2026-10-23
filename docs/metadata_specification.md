@@ -47,7 +47,7 @@ Each entry is `{name, label, value, unit, status}` plus an optional `layer` nami
 
 | Key | Writer | Root record | Level record |
 |---|---|---|---|
-| `parse` | apb2 conversion | `provenance.search_parameters` (parameter file name, SHA-256, typed record; absent without a parameter file), `result`: observation keys and relationships | `provenance` (`rule_json`, `plan_json`, input preparation, sample matching), `result` (unknown tokens, layer diagnostics, uninformative fields left out, var disagreements), `summary` |
+| `parse` | apb2 conversion | `provenance.input_files` (one record per file read: role, base name, size, SHA-256, compression, format; a table adds rows, column count and header), `provenance.search_parameters` (typed parameter record; absent without a parameter file), `result`: observation keys and relationships | `provenance` (`rule_json`, `plan_json`, input preparation, sample matching), `result` (unknown tokens, layer diagnostics, uninformative fields left out, var disagreements), `summary` |
 | `prolfquapp`, `sdrf` | apb2 annotation | `schema_version`, `provenance.annotation` | `result.annotation`, `summary` |
 | `fasta` | apb-fasta | `schema_version`, `provenance` per operation | `result`, `summary`, `details` |
 | `aggregate` | apb-aggregate | none | `schema_version`, `provenance.lineage`, `summary`, `details` |

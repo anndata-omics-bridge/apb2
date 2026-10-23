@@ -22,7 +22,6 @@ from apb2.parserV2.parse_quant.axis_columns import (
     MarkerColumn,
     ProformaIonColumn,
 )
-from apb2.parserV2.parse_quant.data.source import LevelSourceTable
 from apb2.parserV2.parse_quant.decomposition import (
     DelimitedFragmentSourceDecomposer,
     LongSourceDecomposer,
@@ -51,6 +50,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
     DelimitedSourceEvidence,
     FrameSourceEvidence,
     LevelReadPlan,
+    LevelSourceTable,
     NumericTextFormat,
     WideRawLayerPlan,
     WideRawLayerSource,

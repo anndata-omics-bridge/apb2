@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import io
 import json
 from collections.abc import Iterable
@@ -28,7 +27,13 @@ from apb2.parserV2.detect_document import (
 from apb2.parserV2.parse_quant.data.errors import ConversionError
 from apb2.parserV2.parse_quant.data.parsed import JsonValue
 from apb2.parserV2.parse_quant.data.step_log import logged_step
-from apb2.parserV2.parse_quant.parameters.source import Folder, InputSource, SingleFile
+from apb2.parserV2.parse_quant.parameters.source import (
+    Folder,
+    InputFile,
+    InputFileRecord,
+    InputSource,
+    SingleFile,
+)
 from apb2.parserV2.parse_quant.parser import ParserCollection
 from apb2.parserV2.search_parameters.model import Parameters
 from apb2.parserV2.vendor_params.parsers.shared.errors import ParamsError
@@ -46,41 +51,31 @@ type ValidationChecks = Literal["standard", "strict"]
 
 @dataclass(frozen=True, slots=True)
 class ParameterFile:
-    """A vendor parameter file read once: its base name, the SHA-256 of its bytes, its record.
+    """A vendor parameter file: its ``input_files`` record and its typed parameters."""
 
-    Only the base name is kept, so no absolute path enters the result.
-    """
-
-    file_name: str
-    sha256: str
+    record: InputFileRecord
     parameters: Parameters
 
     @classmethod
     def read(cls, path: Path, software: str) -> Self:
-        """Read the file's bytes once, then hash and parse those same bytes.
+        """Parse the file in ``software``'s parameter grammar and record the file.
 
         Raises:
             ConversionError: The bytes do not parse in ``software``'s parameter grammar.
         """
-        data = path.read_bytes()
         try:
-            parameters = parse_params(io.BytesIO(data), software=software)
+            parameters = parse_params(io.BytesIO(path.read_bytes()), software=software)
         except (ParamsError, json.JSONDecodeError, ValidationError) as error:
             raise ConversionError(
                 f"cannot parse {path} as {software}: {error}; "
                 "use --software (software= in Python) to select the parameter-file grammar"
             ) from error
-        return cls(path.name, hashlib.sha256(data).hexdigest(), parameters)
+        file_format = path.suffix.removeprefix(".").lower()
+        return cls(InputFile(path, "parameter_file", file_format).record(), parameters)
 
     def provenance(self) -> dict[str, JsonValue]:
-        """The root parse provenance that records this file."""
-        return {
-            "search_parameters": {
-                "file_name": self.file_name,
-                "sha256": self.sha256,
-                "parameters": self.parameters.model_dump(mode="json"),
-            }
-        }
+        """The root parse provenance that records the typed parameters."""
+        return {"search_parameters": {"parameters": self.parameters.model_dump(mode="json")}}
 
 
 @dataclass(frozen=True, slots=True)
@@ -226,9 +221,11 @@ class ParseRuleCompiler:
 
     def compile(self) -> ParserCollection:
         """Compile every detected selection into one collection parser."""
-        provenance = {} if self.parameter_file is None else self.parameter_file.provenance()
+        parsers = tuple(selection.parser for selection in self.detection.levels)
+        if self.parameter_file is None:
+            return ParserCollection(parsers, {})
         return ParserCollection(
-            tuple(selection.parser for selection in self.detection.levels), provenance
+            parsers, self.parameter_file.provenance(), (self.parameter_file.record,)
         )
 
 

@@ -27,8 +27,8 @@ import polars as pl
 
 from apb2.parserV2.parse_quant.data.parsed import FinalLayerTable, JsonValue, ObsFinal, VarFinal
 from apb2.parserV2.parse_quant.data.raw import DecomposedDataRaw, RawLayerTable
-from apb2.parserV2.parse_quant.data.source import LevelSourceTable
 from apb2.parserV2.parse_quant.parameters.axis import AxisKeyPlan
+from apb2.parserV2.parse_quant.parameters.source import LevelSourceTable
 
 
 class BoundInputReader(Protocol):
