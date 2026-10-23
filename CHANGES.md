@@ -2,6 +2,7 @@
 
 ## 2026-10-23
 
+- **Breaking:** DIA-NN's experiment-wide and library values are `var` columns, not layers: they hold one value per feature, which a long report repeats in every run row. Ion `Lib_Q_Value`, `Global_Q_Value`, and from 1.8 `Lib_PTM_Site_Confidence`, `Lib_Peptidoform_Q_Value`; protein `Global_PG_Q_Value`, and from 1.8 `Lib_PG_Q_Value`, both with duplicates mode `min`, since DIA-NN writes 1.0 into the rows of precursors without a global q-value (Q8N1G4 in submission 4cc229a7: 0.000651, was 1.0 in some runs). Each entry carries a `note`. `Predicted_IM` and `Predicted_iIM` stay layers: they differ across runs on timsTOF data; so does AlphaDIA 1.12's `Mz_Observed`.
 - Rule schema 0.9: an optional `note` on every column and layer entry, which parsing ignores; a `duplicates` block on var columns; the duplicate mode `min`. Packaged rules and tests move to `0.9`; schema 0.8 documents are refused.
   - **Var duplicates:** `keep_first` (default) keeps a feature's first nonblank value, where it kept the first row's value, blank or not; `min` and `max` keep the smallest or largest number as the vendor wrote it, for a tool that writes placeholders into some of a feature's rows. Obs payload keeps its first row
   - **Record:** each level's `parse` record lists `result.var_disagreements` (per vendor column, the features whose rows disagree, with up to five examples) and a summary entry `var_disagreements`, `attention` above zero

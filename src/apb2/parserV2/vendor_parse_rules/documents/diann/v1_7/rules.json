@@ -144,14 +144,6 @@
                 "source": "Q.Value"
               },
               {
-                "name": "Lib_Q_Value",
-                "source": "Lib.Q.Value"
-              },
-              {
-                "name": "Global_Q_Value",
-                "source": "Global.Q.Value"
-              },
-              {
                 "name": "RT",
                 "source": "RT"
               },
@@ -197,7 +189,8 @@
               },
               {
                 "name": "Predicted_IM",
-                "source": "Predicted.IM"
+                "source": "Predicted.IM",
+                "note": "Calibrated per run: differs across runs on timsTOF data, so a layer; constant without ion mobility."
               },
               {
                 "name": "Predicted_RT",
@@ -205,7 +198,8 @@
               },
               {
                 "name": "Predicted_iIM",
-                "source": "Predicted.iIM"
+                "source": "Predicted.iIM",
+                "note": "Differs across runs on timsTOF data, like Predicted_IM, so a layer."
               },
               {
                 "name": "Predicted_iRT",
@@ -322,6 +316,20 @@
                   "Precursor_Charge"
                 ],
                 "how": "proforma_ion"
+              },
+              {
+                "name": "Lib_Q_Value",
+                "source": "Lib.Q.Value",
+                "type": "number",
+                "required": false,
+                "note": "From the spectral library: the precursor's library q-value, one per precursor; DIA-NN repeats it in every run row."
+              },
+              {
+                "name": "Global_Q_Value",
+                "source": "Global.Q.Value",
+                "type": "number",
+                "required": false,
+                "note": "Experiment-wide precursor q-value, one per precursor; DIA-NN repeats it in every run row."
               }
             ]
           }
@@ -469,10 +477,6 @@
                 "source": "PG.Q.Value"
               },
               {
-                "name": "Global_PG_Q_Value",
-                "source": "Global.PG.Q.Value"
-              },
-              {
                 "name": "Genes_MaxLFQ_Unique",
                 "source": "Genes.MaxLFQ.Unique"
               },
@@ -524,6 +528,16 @@
                 "name": "First_Protein_Description",
                 "source": "First.Protein.Description",
                 "required": false
+              },
+              {
+                "name": "Global_PG_Q_Value",
+                "source": "Global.PG.Q.Value",
+                "type": "number",
+                "required": false,
+                "duplicates": {
+                  "mode": "min"
+                },
+                "note": "Experiment-wide protein-group q-value, one per group. DIA-NN writes 1.0 into the rows of precursors without a global q-value, so the group's value is the smallest."
               }
             ]
           }

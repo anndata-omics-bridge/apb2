@@ -95,7 +95,8 @@
               },
               {
                 "name": "Mz_Observed",
-                "source": "mz_observed"
+                "source": "mz_observed",
+                "note": "Measured in each run: differs across runs, unlike mz_library, so a layer."
               },
               {
                 "name": "Mobility_Observed",
