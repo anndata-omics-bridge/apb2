@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -359,6 +359,21 @@ class LevelReadPlan:
     projected_columns: tuple[str, ...]
     text_sources: frozenset[str]
     native_numeric_sources: frozenset[str]
+
+    @classmethod
+    def union(cls, plans: Sequence[LevelReadPlan]) -> LevelReadPlan:
+        """One plan reading every column of several, each with the dtype they agree on."""
+        return cls(
+            tuple(dict.fromkeys(name for plan in plans for name in plan.projected_columns)),
+            frozenset[str]().union(*(plan.text_sources for plan in plans)),
+            frozenset[str]().union(*(plan.native_numeric_sources for plan in plans)),
+        )
+
+    def disagrees(self, other: LevelReadPlan) -> bool:
+        """Whether one plan reads a column as a number that the other reads as written."""
+        mine = frozenset(self.projected_columns) - self.native_numeric_sources
+        theirs = frozenset(other.projected_columns) - other.native_numeric_sources
+        return bool(self.native_numeric_sources & theirs or other.native_numeric_sources & mine)
 
 
 @dataclass(frozen=True, slots=True)

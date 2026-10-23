@@ -31,6 +31,7 @@ from apb2.parserV2.parse_quant.decomposition import (
     LongSourceDecomposer,
     WideSourceDecomposer,
 )
+from apb2.parserV2.parse_quant.delimited_input import DelimitedInputReader
 from apb2.parserV2.parse_quant.duplicates import (
     AggregateNumericDuplicates,
     ErrorOnDuplicates,
@@ -67,6 +68,7 @@ from apb2.parserV2.parse_quant.parameters.measurements import (
 )
 from apb2.parserV2.parse_quant.parameters.source import (
     DelimitedSourceEvidence,
+    LevelSourceTable,
     NumericTextFormat,
     SingleFile,
     SourceEvidence,
@@ -93,7 +95,7 @@ from apb2.parserV2.vendor_parse_rules.schema.axis import (
 )
 from apb2.parserV2.vendor_parse_rules.schema.base import LEVELS, SCHEMA_VERSION
 from parserV2 import synthetic
-from parserV2.fixtures import PackagedDocument, document_pairs, level_pairs
+from parserV2.fixtures import PackagedDocument, committed_sample, document_pairs, level_pairs
 
 DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
 DOT_NUMBERS = NumericTextFormat(decimal_mark=".", thousands_marks=())
@@ -623,6 +625,30 @@ def test_each_detection_selection_is_compiled_exactly_once(
     compiler.compile()
 
     assert sorted(compiled) == ["ion", "protein"], "only requested levels are compiled"
+
+
+def test_levels_of_one_file_read_it_once_per_parse(monkeypatch: pytest.MonkeyPatch) -> None:
+    pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1_8")
+    document = load_rule_document(pair.parser_v2_path)
+    reads: list[tuple[str, ...]] = []
+    original = DelimitedInputReader.read
+
+    def record(reader: DelimitedInputReader) -> LevelSourceTable:
+        reads.append(reader.plan.projected_columns)
+        return original(reader)
+
+    monkeypatch.setattr(DelimitedInputReader, "read", record)
+    sample = committed_sample("diann/v1_8")
+    assert sample is not None
+    collection = ExplicitRuleCompiler(
+        document, SingleFile(path=sample), ("ion", "protein"), synthetic.NO_EVIDENCE
+    ).compile()
+    first = collection.parse()
+    second = collection.parse()
+
+    assert len(reads) == 2, "one read of the union per parse"
+    assert {"Modified.Sequence", "PG.MaxLFQ"} <= set(reads[0])
+    assert first.levels["ion"].var.frame.equals(second.levels["ion"].var.frame)
 
 
 def test_collection_parser_has_no_persistence_api() -> None:

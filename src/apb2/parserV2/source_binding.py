@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
@@ -16,6 +16,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
     FrameSourceEvidence,
     InputContract,
     LevelReadPlan,
+    LevelSourceTable,
     ParquetFormatContract,
     PhysicalFormatContract,
     SourceEvidence,
@@ -109,9 +110,14 @@ class BoundTable:
 
 @dataclass(frozen=True, slots=True)
 class PhysicalTable:
-    """One vendor table file, bound per level to that level's declared format."""
+    """One vendor table file, bound per level to that level's declared format.
+
+    Levels that observe the same evidence and agree on each shared column's read dtype read
+    the file once, through the union of their columns; each projects its own.
+    """
 
     file: VendorFile
+    _reads: list[_SharedRead] = field(default_factory=list["_SharedRead"], compare=False)
 
     @property
     def path(self) -> Path:
@@ -128,4 +134,55 @@ class PhysicalTable:
         bound = BoundTable(self.file, working.input)
         evidence = bound.evidence(working.accepts_header)
         strategy = facade.resolve_source(evidence, checks=checks)
-        return Parser(bound.reader(evidence, strategy.read), strategy)
+        shared = next((read for read in self._reads if read.admits(evidence, strategy.read)), None)
+        if shared is None:
+            shared = _SharedRead(bound, evidence)
+            self._reads.append(shared)
+        return Parser(shared.reader(strategy.read), strategy)
+
+
+class _SharedRead:
+    """One read of a file through the union of the level plans it serves, once per parse."""
+
+    __slots__ = ("_bound", "_evidence", "_plans", "_table", "_unread")
+
+    def __init__(self, bound: BoundTable, evidence: SourceEvidence) -> None:
+        self._bound = bound
+        self._evidence = evidence
+        self._plans: list[LevelReadPlan] = []
+        self._table: LevelSourceTable | None = None
+        self._unread = 0
+
+    def admits(self, evidence: SourceEvidence, plan: LevelReadPlan) -> bool:
+        """Same evidence, and no column one plan reads as a number while another does not."""
+        return evidence == self._evidence and not any(
+            plan.disagrees(other) for other in self._plans
+        )
+
+    def reader(self, plan: LevelReadPlan) -> _LevelProjection:
+        self._plans.append(plan)
+        return _LevelProjection(self, plan)
+
+    def table(self, plan: LevelReadPlan) -> LevelSourceTable:
+        """One level's columns; the first level of each parse reads the union for all."""
+        if self._table is None:
+            self._table = self._bound.reader(
+                self._evidence, LevelReadPlan.union(self._plans)
+            ).read()
+            self._unread = len(self._plans)
+        table = self._table
+        self._unread -= 1
+        if not self._unread:
+            self._table = None
+        return LevelSourceTable(table.frame.select(plan.projected_columns), table.input_tables)
+
+
+@dataclass(frozen=True, slots=True)
+class _LevelProjection:
+    """The reader one level's parser holds: its projection of a shared read."""
+
+    shared: _SharedRead
+    plan: LevelReadPlan
+
+    def read(self) -> LevelSourceTable:
+        return self.shared.table(self.plan)
