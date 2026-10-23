@@ -1,5 +1,9 @@
 # Changes
 
+## 2026-10-23
+
+- **Breaking:** the WOMBAT-P rule and parameter parser write `software_name` `WOMBAT-P`, as the tool's publication names it (doi 10.1021/acs.jproteome.3c00636), not `WOMBAT` and `Wombat`. The slug follows: `--software wombatp`; the parameter-parser registry takes `wombatp` and `wombat-p`. Names APB reads from ProteoBench keep ProteoBench's spelling; folder, file and `prepare.how` names stay `wombat`. WOMBAT results written before bind no apb-catalog entry; regenerate them.
+
 ## 2026-10-22
 
 - **Breaking:** a `FeatureRelation` links features of any levels and annotation tables, not one annotation table to one level. Step 2b of the workspace plan "Exports as ParsedLevels": apb-export's linked targets map peptides, peptidoforms and ions to proteins in one matrix, as mulink reads it.

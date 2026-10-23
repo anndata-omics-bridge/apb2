@@ -43,7 +43,7 @@ def test_wombat_peptidoform_without_optional_psm_counts(tmp_path: Path) -> None:
 
     parsed = (
         ParseRuleCompiler.from_software(
-            source, software="WOMBAT", requested_levels=("peptidoform",)
+            source, software="WOMBAT-P", requested_levels=("peptidoform",)
         )
         .compile()
         .parse()
@@ -79,7 +79,8 @@ def test_wombat_peptidoform_without_optional_psm_counts(tmp_path: Path) -> None:
 @pytest.mark.parametrize("hinted", [False, True])
 def test_hinted_and_unhinted_vendor_selection(key: str, hinted: bool) -> None:
     source, parameters = inputs(key)
-    vendor = key.split("/", 1)[0]
+    folder = key.split("/", 1)[0]
+    vendor = {"wombat": "wombatp"}.get(folder, folder)  # WOMBAT-P's folder keeps its short name
     compiler = ParseRuleCompiler.detect(source, parameters, software=vendor if hinted else None)
 
     assert compiler.detection.software == vendor

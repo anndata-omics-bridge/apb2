@@ -2,7 +2,7 @@
   "hierarchy": "lfq",
   "schema_version": "0.8",
   "file_version": "3",
-  "software_name": "WOMBAT",
+  "software_name": "WOMBAT-P",
   "software_version_pattern": "^0\\.9\\.11$",
   "tables": [
     {

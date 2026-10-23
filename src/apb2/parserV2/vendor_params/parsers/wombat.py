@@ -82,7 +82,7 @@ def extract_params(source: Path | IO[bytes] | IO[str]) -> Parameters:
     parameters = record.params
 
     return Parameters(
-        software_name="Wombat",
+        software_name="WOMBAT-P",
         software_version=record.version,
         search_engine="various",
         enzyme="Trypsin" if parameters.enzyme == "trypsin" else parameters.enzyme,

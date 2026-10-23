@@ -315,7 +315,7 @@ def test_no_runtime_module_compares_a_vendor_or_a_level(path: Path) -> None:
         "PEAKS",
         "Sage",
         "Spectronaut",
-        "WOMBAT",
+        "WOMBAT-P",
     }
     levels = {"ion", "peptidoform", "peptide", "protein", "fragment"}
 

@@ -91,7 +91,7 @@ _prolinestudio_parse = _single_source("ProlineStudio", _prolinestudio_extract)
 _quantms_parse = _single_source("quantms", _quantms_extract)
 _sage_parse = _single_source("Sage", _sage_extract)
 _spectronaut_parse = _single_source("Spectronaut", _spectronaut_extract)
-_wombat_parse = _single_source("Wombat", _wombat_extract)
+_wombat_parse = _single_source("WOMBAT-P", _wombat_extract)
 
 _REGISTRY: dict[str, ParseFn] = {
     "alphadia": _alphadia_parse,
@@ -108,7 +108,8 @@ _REGISTRY: dict[str, ParseFn] = {
     "quantms": _quantms_parse,
     "sage": _sage_parse,
     "spectronaut": _spectronaut_parse,
-    "wombat": _wombat_parse,
+    "wombat-p": _wombat_parse,
+    "wombatp": _wombat_parse,
 }
 
 

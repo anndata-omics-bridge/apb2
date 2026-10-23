@@ -37,6 +37,7 @@ from apb2.parserV2.vendor_parse_rules.loader import PACKAGED as PARSER_V2_PACKAG
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
 from parserV2.rule_inventory import document_key
+from parserV2.vendor_params.proteobench_params import apb_software_name
 
 _TEXT_DELIMITERS = ("\t", ",", ";")
 
@@ -120,7 +121,10 @@ def _cached_exports(software_name: str, version_pattern: str) -> tuple[Path, ...
     found: list[Path] = []
     with (root / "downloads.csv").open(encoding="utf-8", newline="") as handle:
         for row in csv.DictReader(handle):
-            if row["software_name"] != software_name or row.get("status") != "ok":
+            if (
+                apb_software_name(row["software_name"]) != software_name
+                or row.get("status") != "ok"
+            ):
                 continue
             if not re.search(version_pattern, row["software_version"]):
                 continue

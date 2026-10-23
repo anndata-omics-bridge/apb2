@@ -65,6 +65,15 @@ _ENZYME_MAP: Final = {
     "glu-c": "Glu-C",
 }
 
+# ProteoBench's spellings of software APB names as its publication does, keyed lower-case.
+SOFTWARE_NAMES: Final = {"wombat": "WOMBAT-P"}
+
+
+def apb_software_name(name: str) -> str:
+    """APB's name for a software ProteoBench names ``name``."""
+    return SOFTWARE_NAMES.get(name.strip().lower(), name)
+
+
 _AUTOMATIC: Final = frozenset(
     {
         "dynamic",
@@ -123,6 +132,8 @@ def expected(raw: Mapping[str, object]) -> Series:
             out[field] = _number(_read_probability(value))
         elif field == "enzyme":
             out[field] = _ENZYME_MAP.get(str(value).strip().lower(), str(value))
+        elif field == "software_name":
+            out[field] = apb_software_name(str(value))
         else:
             out[field] = _format_scalar(field, value)
     return out

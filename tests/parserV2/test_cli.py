@@ -250,7 +250,7 @@ def test_convert_with_rule_config_does_not_embed_the_parameter_record(tmp_path: 
         "ion",
         ConvertCliOptions(
             params=parameters,
-            software="WOMBAT",
+            software="WOMBAT-P",
             rule_config=rule_config,
             output=tmp_path / "out",
         ),
@@ -350,7 +350,7 @@ def test_convert_invalid_parameters_fail(tmp_path: Path) -> None:
         "ion",
         ConvertCliOptions(
             params=parameters,
-            software="wombat",
+            software="wombatp",
             rule_config=rule_config,
             output=tmp_path / "out",
         ),

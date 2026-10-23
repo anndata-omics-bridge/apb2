@@ -28,9 +28,9 @@ This table has one row per packaged rule document.
 | [Spectronaut](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/spectronaut/rules.json) | 19.x or 20.x | `.tsv` | long | Spectronaut settings text report |
 | [Spectronaut 15](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/spectronaut/v15/rules.json) | 15.x | `.tsv` | long | Spectronaut settings text report |
 | [Spectronaut 21](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/spectronaut/v21/rules.json) | 21.x | `.tsv` | long | Spectronaut settings text report |
-| [WOMBAT](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/wombat/rules.json) | 0.9.11 | `.csv` | wide | WOMBAT YAML parameter file |
+| [WOMBAT-P](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/wombat/rules.json) | 0.9.11 | `.csv` | wide | WOMBAT-P YAML parameter file |
 
-`--software` uses lower-case software names; DIA-NN accepts both `diann` and `dia-nn`. The parameter-parser registry applies only to parameter-bearing rules; `pb_custom` is selected directly.
+`--software` uses lower-case software names; DIA-NN accepts both `diann` and `dia-nn`, WOMBAT-P both `wombatp` and `wombat-p`. The parameter-parser registry applies only to parameter-bearing rules; `pb_custom` is selected directly.
 
 MaxQuant uses two table groups: evidence → ion (`Raw_File`), with each row's protein group looked up in proteinGroups.txt when present, and joined modification-specific peptide, peptide and protein exports → higher levels (`Experiment`). All nonempty subsets work from a vendor-result directory. A complete one-to-one run/experiment mapping aligns observations; fractionated or unmapped inputs produce separate results. See [conversion and output naming](conversion.md#output-naming).
 
@@ -60,7 +60,7 @@ A check mark means that the linked rule document can convert that level. APB2 re
 | [Spectronaut](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/spectronaut/rules.json) | ✓ | — | — | ✓ | ✓ |
 | [Spectronaut 15](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/spectronaut/v15/rules.json) | ✓ | — | — | ✓ | ✓ |
 | [Spectronaut 21](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/spectronaut/v21/rules.json) | ✓ | — | — | ✓ | ✓ |
-| [WOMBAT](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/wombat/rules.json) | ✓ | ✓ | — | — | — |
+| [WOMBAT-P](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/wombat/rules.json) | ✓ | ✓ | — | — | — |
 
 ## Planned prolfquapp migrations
 

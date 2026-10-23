@@ -74,7 +74,7 @@ def test_dda_query_keeps_only_version_with_dda_evidence() -> None:
         "ProlineStudio",
         "quantms",
         "Sage",
-        "WOMBAT",
+        "WOMBAT-P",
     }
     assert [variant.rule for variant in dda["DIA-NN"].variants] == ["diann/v2/rules.json"]
 

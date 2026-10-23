@@ -32,7 +32,8 @@ REGISTERED = (
     "quantms",
     "sage",
     "spectronaut",
-    "wombat",
+    "wombat-p",
+    "wombatp",
 )
 METAMORPHEUS_TOML = PARAMS / "metamorpheus_search_task_config.toml"
 METAMORPHEUS_VERSION = PARAMS / "metamorpheus_version_result.txt"
@@ -50,9 +51,9 @@ def test_every_registered_parser_has_the_uniform_callable_signature() -> None:
 
 
 def test_registry_preserves_single_source_calls() -> None:
-    parsed = parse_params(WOMBAT_YAML, "wombat")
+    parsed = parse_params(WOMBAT_YAML, "wombatp")
 
-    assert parsed.software_name == "Wombat"
+    assert parsed.software_name == "WOMBAT-P"
 
 
 def test_registry_accepts_explicit_metamorpheus_source_pair() -> None:

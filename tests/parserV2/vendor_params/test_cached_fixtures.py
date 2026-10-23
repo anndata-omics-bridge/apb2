@@ -24,6 +24,7 @@ from apb2.parserV2.vendor_params.registry import (
     parse_params,
 )
 from parserV2.fixtures import corpus_root
+from parserV2.vendor_params.proteobench_params import apb_software_name
 
 SNAPSHOT = Path(__file__).resolve().parent / "params" / "cached_parameters_snapshot.json"
 _ROOT = corpus_root()
@@ -47,10 +48,10 @@ def cached_cases() -> list[tuple[str, str, ParameterInput]]:
 
 
 def _slug(software_name: str) -> str:
-    """Map a catalog label such as ``FragPipe (DIA-NN quant)`` to its parser slug."""
+    """Map a catalog label such as ``FragPipe (DIA-NN quant)`` or ``WOMBAT`` to its parser slug."""
     import re
 
-    return re.sub(r"[^a-z0-9]", "", software_name.split("(")[0].strip().lower())
+    return re.sub(r"[^a-z0-9]", "", apb_software_name(software_name.split("(")[0].strip()).lower())
 
 
 def _has_parser(slug: str) -> bool:

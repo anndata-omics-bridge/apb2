@@ -16060,7 +16060,7 @@
       }
     ]
   },
-  "wombat/4decb9e0": {
+  "wombatp/4decb9e0": {
     "abundance_normalization_ions": "median",
     "acquisition_method": "unknown",
     "allowed_miscleavages": 1,
@@ -16111,7 +16111,7 @@
     "search_engine": "various",
     "search_engine_version": null,
     "semi_enzymatic": null,
-    "software_name": "Wombat",
+    "software_name": "WOMBAT-P",
     "software_version": "0.9.11",
     "variable_mods": [
       {
@@ -16134,7 +16134,7 @@
       }
     ]
   },
-  "wombat/51b4f2e8": {
+  "wombatp/51b4f2e8": {
     "abundance_normalization_ions": "median",
     "acquisition_method": "unknown",
     "allowed_miscleavages": 1,
@@ -16185,7 +16185,7 @@
     "search_engine": "various",
     "search_engine_version": null,
     "semi_enzymatic": null,
-    "software_name": "Wombat",
+    "software_name": "WOMBAT-P",
     "software_version": "0.9.11",
     "variable_mods": [
       {
@@ -16208,7 +16208,7 @@
       }
     ]
   },
-  "wombat/557e8c64": {
+  "wombatp/557e8c64": {
     "abundance_normalization_ions": "median",
     "acquisition_method": "unknown",
     "allowed_miscleavages": 1,
@@ -16259,7 +16259,7 @@
     "search_engine": "various",
     "search_engine_version": null,
     "semi_enzymatic": null,
-    "software_name": "Wombat",
+    "software_name": "WOMBAT-P",
     "software_version": "0.9.11",
     "variable_mods": [
       {
@@ -16282,7 +16282,7 @@
       }
     ]
   },
-  "wombat/58dfec05": {
+  "wombatp/58dfec05": {
     "abundance_normalization_ions": "median",
     "acquisition_method": "unknown",
     "allowed_miscleavages": 1,
@@ -16333,7 +16333,7 @@
     "search_engine": "various",
     "search_engine_version": null,
     "semi_enzymatic": null,
-    "software_name": "Wombat",
+    "software_name": "WOMBAT-P",
     "software_version": "0.9.11",
     "variable_mods": [
       {
@@ -16356,7 +16356,7 @@
       }
     ]
   },
-  "wombat/6636a8c8": {
+  "wombatp/6636a8c8": {
     "abundance_normalization_ions": "median",
     "acquisition_method": "unknown",
     "allowed_miscleavages": 1,
@@ -16407,7 +16407,7 @@
     "search_engine": "various",
     "search_engine_version": null,
     "semi_enzymatic": null,
-    "software_name": "Wombat",
+    "software_name": "WOMBAT-P",
     "software_version": "0.9.11",
     "variable_mods": [
       {
@@ -16430,7 +16430,7 @@
       }
     ]
   },
-  "wombat/6d76320c": {
+  "wombatp/6d76320c": {
     "abundance_normalization_ions": "median",
     "acquisition_method": "unknown",
     "allowed_miscleavages": 1,
@@ -16481,7 +16481,7 @@
     "search_engine": "various",
     "search_engine_version": null,
     "semi_enzymatic": null,
-    "software_name": "Wombat",
+    "software_name": "WOMBAT-P",
     "software_version": "0.9.11",
     "variable_mods": [
       {
@@ -16504,7 +16504,7 @@
       }
     ]
   },
-  "wombat/c9b6df26": {
+  "wombatp/c9b6df26": {
     "abundance_normalization_ions": "median",
     "acquisition_method": "unknown",
     "allowed_miscleavages": 1,
@@ -16555,7 +16555,7 @@
     "search_engine": "various",
     "search_engine_version": null,
     "semi_enzymatic": null,
-    "software_name": "Wombat",
+    "software_name": "WOMBAT-P",
     "software_version": "0.9.11",
     "variable_mods": [
       {
@@ -16578,7 +16578,7 @@
       }
     ]
   },
-  "wombat/e6d810fc": {
+  "wombatp/e6d810fc": {
     "abundance_normalization_ions": "median",
     "acquisition_method": "unknown",
     "allowed_miscleavages": 1,
@@ -16629,7 +16629,7 @@
     "search_engine": "various",
     "search_engine_version": null,
     "semi_enzymatic": null,
-    "software_name": "Wombat",
+    "software_name": "WOMBAT-P",
     "software_version": "0.9.11",
     "variable_mods": [
       {
