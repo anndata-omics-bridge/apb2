@@ -1179,6 +1179,7 @@ def test_a_resolved_plan_carries_every_field_the_compiler_destructures() -> None
         "duplicates",
         "layer_parsers",
         "layer_validator",
+        "pruner",
         "provenance",
     }
     assert all(getattr(resolved, field) is not None for field in ("read", "decomposer"))

@@ -78,6 +78,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
 )
 from apb2.parserV2.parse_quant.parser import ParseStrategy
 from apb2.parserV2.parse_quant.plan_json import PLAN_JSON_KEY, resolved_plan_json
+from apb2.parserV2.parse_quant.uninformative import UninformativeFields
 
 _EMPTY_RATIO = 0.001
 _POPULATED_RATIO = 0.5
@@ -175,6 +176,11 @@ class SourcePlanResolver:
                 for layer in layers.retained
             },
             layer_validator=validator,
+            pruner=UninformativeFields(
+                retained_obs=working.retained.obs,
+                retained_var=working.retained.var,
+                retained_layers=working.retained.layers,
+            ),
             provenance={
                 **working.provenance,
                 "layer_roles": self._layer_roles(layers.retained),

@@ -28,6 +28,7 @@ from apb2.parserV2.parse_quant.contracts import (
     AxisRuntimePlan,
     BoundInputReader,
     DuplicatePolicy,
+    FieldPruner,
     LayerSetValidator,
     LayerValueParser,
     SourceDecomposer,
@@ -171,6 +172,7 @@ class ParseStrategy:
     duplicates: DuplicatePolicy | KeepBestDuplicate
     layer_parsers: Mapping[str, LayerValueParser]
     layer_validator: LayerSetValidator
+    pruner: FieldPruner
     provenance: dict[str, JsonValue]
 
     def parse(self, source: LevelSourceTable) -> ParsedLevel:
@@ -185,6 +187,8 @@ class ParseStrategy:
             layers, unreadable_numeric = self._prepare_layers(raw.layers, obs_map, var_map)
         with logged_step("parse.validate", level=self.level):
             effectively_empty = self.layer_validator.validate(layers)
+            pruned = self.pruner.prune(obs, var, layers, effectively_empty or {})
+        obs, var, layers = pruned.obs, pruned.var, pruned.layers
         provenance = dict(self.provenance)
         raw_columns = provenance.pop("column_roles", {})
         raw_layers = provenance.pop("layer_roles", {})
@@ -206,7 +210,8 @@ class ParseStrategy:
         evidence = ConversionEvidence(
             unknown_mod_tokens,
             unreadable_numeric,
-            effectively_empty,
+            pruned.single_valued,
+            pruned.effectively_empty,
             self._var_disagreements(raw.var, var_map),
         )
 

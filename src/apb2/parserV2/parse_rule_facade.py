@@ -50,6 +50,7 @@ from apb2.parserV2.parse_quant.modifications import (
 from apb2.parserV2.parse_quant.operations import (
     NUMERIC_DUPLICATE_MODES,
     ComputedOperation,
+    RetainedFields,
     WorkingAxisConfiguration,
     WorkingParseConfiguration,
 )
@@ -179,7 +180,44 @@ class ParseRuleFacade:
             var=ParseRuleFacade._project_axis(rule.axis.var_keys, rule.columns.var, rule),
             measurements=ParseRuleFacade._project_measurements(rule),
             provenance=ParseRuleFacade._project_provenance(rule),
+            retained=ParseRuleFacade._project_retained(rule, obs_group),
             preparation=effective.preparation,
+        )
+
+    @staticmethod
+    def _project_retained(rule: LongRule | WideRule, obs: ColumnGroup | None) -> RetainedFields:
+        """The fields a level keeps even when they carry no information.
+
+        Keys identify features and runs; consumers read role columns, computed columns and the
+        flags' inputs by name; the primary and sample layers define the level.
+        """
+        measurements = rule.measurements
+        return RetainedFields(
+            obs=ParseRuleFacade._retained_columns(rule.axis.obs_keys, obs or []),
+            var=ParseRuleFacade._retained_columns(rule.axis.var_keys, rule.columns.var),
+            layers=frozenset(
+                name
+                for name in (measurements.primary_layer, measurements.sample_layer)
+                if name is not None
+            ),
+        )
+
+    @staticmethod
+    def _retained_columns(keys: Sequence[str], group: ColumnGroup) -> frozenset[str]:
+        computed = computed_columns(group)
+        flagged = (
+            name
+            for column in computed
+            if isinstance(column, DecoyFlag | ContaminantFlag)
+            for name in column.inputs
+        )
+        return frozenset(
+            {
+                *keys,
+                *(column.name for column in group if column.roles),
+                *(column.name for column in computed),
+                *flagged,
+            }
         )
 
     @staticmethod

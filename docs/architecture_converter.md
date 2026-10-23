@@ -595,6 +595,7 @@ class ParseStrategy:
     duplicates: DuplicatePolicy
     layer_parsers: Mapping[str, LayerValueParser]
     layer_validator: LayerSetValidator
+    pruner: FieldPruner
     provenance: dict[str, JsonValue]
 
     def parse(self, source: LevelSourceTable) -> ParsedLevel:
@@ -603,7 +604,15 @@ class ParseStrategy:
         var, var_map, unknown_mod_tokens = self._prepare_var(raw.var)
         layers, unreadable_numeric = self._prepare_layers(raw.layers, obs_map, var_map)
         effectively_empty = self.layer_validator.validate(layers)
-        evidence = ConversionEvidence(unknown_mod_tokens, unreadable_numeric, effectively_empty)
+        pruned = self.pruner.prune(obs, var, layers, effectively_empty or {})
+        obs, var, layers = pruned.obs, pruned.var, pruned.layers
+        evidence = ConversionEvidence(
+            unknown_mod_tokens,
+            unreadable_numeric,
+            pruned.single_valued,
+            pruned.effectively_empty,
+            self._var_disagreements(raw.var, var_map),
+        )
         return ParsedLevel(
             obs=obs,
             var=var,

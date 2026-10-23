@@ -30,6 +30,7 @@ A rule document and the standard reader handle everything listed here. A prepara
 - Rows with a missing or empty-text final key component are dropped
 - Two raw keys mapping to one final key raise an error
 - A feature's repeated rows in a var column: first nonblank value (`keep_first`, disagreements reported), or the smallest or largest number (`min`, `max`)
+- Columns and layers that hold one value or none are not created; the parse record lists them ([conversion](conversion.md#uninformative-columns-and-layers))
 
 ## Measurements
 

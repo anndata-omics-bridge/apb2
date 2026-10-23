@@ -106,17 +106,22 @@ apb2 convert report.tsv ion \
 
 Explicit rules support the same directory bundles as packaged detection. Each table group independently selects direct input or preparation before source-column validation. See [rule authoring](rule-based.md#one-software-multiple-input-tables) for the `tables` structure.
 
-## Layer checks
+## Uninformative columns and layers
 
-The standard writer reports layer-occupancy problems. Add `--strict` to promote those findings to
-conversion errors:
+A column or layer that carries no information is not created; each level's `parse` record lists it under `result.uninformative_fields` and counts it in the summary entries `single_valued_fields` and `effectively_empty_fields`:
+
+- Single-valued: every filled cell holds one value, judged from two filled cells on; the finding keeps the value. An Astral run's ion-mobility layers, all 0, are one case
+- Empty: no filled cell; the finding keeps the filled count, 0
+- Effectively empty: a measurement layer under 0.1% filled while another is at least half filled; the finding adds the occupancy and a six-number summary of its values
+- Kept whatever they hold: axis keys, columns a role names, computed columns, the inputs of `apb_Decoy` and `apb_Contaminant`, the primary and sample layers. An empty primary layer is an error
+
+Add `--strict` to make an effectively empty layer a conversion error instead:
 
 ```bash
 apb2 convert report.tsv ion --params parameters.txt --strict
 ```
 
-Strictness changes validation policy only. It does not select a different parser or modify the
-scientific result.
+Strictness changes validation policy only. It does not select a different parser.
 
 ## Output naming
 

@@ -25,7 +25,7 @@ from typing import Protocol
 
 import polars as pl
 
-from apb2.parserV2.parse_quant.data.parsed import FinalLayerTable, JsonValue
+from apb2.parserV2.parse_quant.data.parsed import FinalLayerTable, JsonValue, ObsFinal, VarFinal
 from apb2.parserV2.parse_quant.data.raw import DecomposedDataRaw, RawLayerTable
 from apb2.parserV2.parse_quant.data.source import LevelSourceTable
 from apb2.parserV2.parse_quant.parameters.axis import AxisKeyPlan
@@ -113,6 +113,37 @@ class LayerSetValidator(Protocol):
     """
 
     def validate(self, layers: Mapping[str, FinalLayerTable]) -> dict[str, JsonValue] | None: ...
+
+
+@dataclass(frozen=True, slots=True)
+class PrunedFields:
+    """A level's axes and layers without their uninformative fields, and what those held.
+
+    ``single_valued`` and ``effectively_empty`` map each location, ``obs``, ``var`` or
+    ``layers``, to the fields left out there and their findings.
+    """
+
+    obs: ObsFinal
+    var: VarFinal
+    layers: dict[str, FinalLayerTable]
+    single_valued: dict[str, dict[str, JsonValue]]
+    effectively_empty: dict[str, dict[str, JsonValue]]
+
+
+class FieldPruner(Protocol):
+    """Leave out the columns and layers of one level that carry no information.
+
+    ``effectively_empty`` is the layer validator's verdict: the layers to leave out as empty.
+    """
+
+    def prune(
+        self,
+        obs: ObsFinal,
+        var: VarFinal,
+        layers: Mapping[str, FinalLayerTable],
+        effectively_empty: Mapping[str, JsonValue],
+        /,
+    ) -> PrunedFields: ...
 
 
 # ------------------------------------------------------------------------- runtime axis plans

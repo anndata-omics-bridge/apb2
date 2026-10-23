@@ -18,12 +18,9 @@
         "Best_Fr_Mz",
         "Best_Fr_Mz_Delta",
         "Channel_Evidence",
-        "Channel_Q_Value",
         "Empirical_Quality",
         "Evidence",
         "FWHM",
-        "GG_Q_Value",
-        "IM",
         "Mass_Evidence",
         "Ms1_Apex_Area",
         "Ms1_Apex_Mz_Delta",
@@ -32,17 +29,11 @@
         "Ms1_Total_Signal_Before",
         "Normalisation_Factor",
         "Normalisation_Noise",
-        "PTM_Site_Confidence",
-        "Peptidoform_Q_Value",
-        "Predicted_IM",
         "Predicted_RT",
-        "Predicted_iIM",
         "Predicted_iRT",
-        "Protein_Q_Value",
         "Quantity_Quality",
         "RT_Start",
-        "RT_Stop",
-        "Translated_Q_Value"
+        "RT_Stop"
       ]
     },
     "protein": {
@@ -50,15 +41,9 @@
       "variables": 124,
       "layers": [
         "PG_MaxLFQ",
-        "Genes_MaxLFQ",
         "PG_Q_Value",
         "PG_PEP",
-        "Genes_MaxLFQ_Quality",
-        "Genes_MaxLFQ_Unique",
-        "Genes_MaxLFQ_Unique_Quality",
-        "Genes_TopN",
-        "PG_MaxLFQ_Quality",
-        "PG_TopN"
+        "PG_MaxLFQ_Quality"
       ]
     }
   }

@@ -38,6 +38,7 @@ from apb2.parserV2.parse_quant.data.raw import (
 )
 from apb2.parserV2.parse_quant.data.source import LevelSourceTable
 from apb2.parserV2.parse_quant.operations import (
+    RetainedFields,
     WorkingAxisConfiguration,
     WorkingParseConfiguration,
 )
@@ -272,6 +273,9 @@ def test_a_working_configuration_derives_presence_and_canonical_values() -> None
             required_names=frozenset({"Intensity"}),
         ),
         provenance={"software_name": "AlphaDIA"},
+        retained=RetainedFields(
+            obs=frozenset({"sample"}), var=frozenset({"ProForma_ion"}), layers=frozenset()
+        ),
     )
 
     assert working.measurements.required_layers[0] is layer

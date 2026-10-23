@@ -26,8 +26,6 @@
         "Averagine",
         "CScore",
         "Evidence",
-        "GG_Q_Value",
-        "IM",
         "MS2_Scan",
         "Mass_Evidence",
         "Ms1_Profile_Corr",
@@ -35,18 +33,13 @@
         "PTM_Informative",
         "PTM_Localising",
         "PTM_Q_Value",
-        "PTM_Site_Confidence",
         "PTM_Specific",
-        "Predicted_IM",
         "Predicted_RT",
-        "Predicted_iIM",
         "Predicted_iRT",
-        "Protein_Q_Value",
         "Quantity_Quality",
         "RT_Start",
         "RT_Stop",
-        "Spectrum_Similarity",
-        "Translated_Q_Value"
+        "Spectrum_Similarity"
       ]
     },
     "protein": {
@@ -56,11 +49,7 @@
         "PG_MaxLFQ",
         "PG_Normalised",
         "PG_Quantity",
-        "Genes_MaxLFQ",
-        "PG_Q_Value",
-        "Genes_MaxLFQ_Unique",
-        "Genes_Normalised",
-        "Genes_Quantity"
+        "PG_Q_Value"
       ]
     }
   }

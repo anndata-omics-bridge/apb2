@@ -97,6 +97,15 @@ class WorkingAxisConfiguration:
 
 
 @dataclass(frozen=True, slots=True)
+class RetainedFields:
+    """The columns and layers a level keeps even when they carry no information."""
+
+    obs: frozenset[str]
+    var: frozenset[str]
+    layers: frozenset[str]
+
+
+@dataclass(frozen=True, slots=True)
 class WorkingParseConfiguration:
     """Pydantic-free source requirements and operations produced by the facade."""
 
@@ -107,6 +116,7 @@ class WorkingParseConfiguration:
     var: WorkingAxisConfiguration
     measurements: WorkingMeasurements
     provenance: Mapping[str, JsonValue]
+    retained: RetainedFields
     preparation: str | None = None
 
     def accepts_header(self, header: tuple[str, ...]) -> bool:

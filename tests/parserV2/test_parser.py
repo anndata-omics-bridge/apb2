@@ -9,6 +9,7 @@ mistaken for another.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import replace
 from typing import get_args
 
@@ -27,10 +28,17 @@ from apb2.parserV2.parse_quant.contracts import (
     ColumnComputer,
     LayerSetValidator,
     LayerValueParser,
+    PrunedFields,
     RawValuePresence,
     SelectedAxisColumn,
 )
-from apb2.parserV2.parse_quant.data.parsed import FinalLayerTable, JsonValue, ParsedLevel
+from apb2.parserV2.parse_quant.data.parsed import (
+    FinalLayerTable,
+    JsonValue,
+    ObsFinal,
+    ParsedLevel,
+    VarFinal,
+)
 from apb2.parserV2.parse_quant.data.raw import (
     DecomposedDataRaw,
     LayersRaw,
@@ -72,6 +80,21 @@ DOT_NUMBERS = NumericTextFormat(decimal_mark=".", thousands_marks=())
 
 def numeric_layer_parser(name: str) -> LayerValueParser:
     return make_layer_parser(name, PlainNumericLayerDeclaration(missing_values=()), DOT)
+
+
+class KeepEveryField:
+    """A pruner that leaves every field in, for tests about everything else."""
+
+    def prune(
+        self,
+        obs: ObsFinal,
+        var: VarFinal,
+        layers: Mapping[str, FinalLayerTable],
+        effectively_empty: Mapping[str, JsonValue],
+        /,
+    ) -> PrunedFields:
+        nothing: dict[str, dict[str, JsonValue]] = {"obs": {}, "var": {}, "layers": {}}
+        return PrunedFields(obs, var, dict(layers), nothing, {"obs": {}, "var": {}, "layers": {}})
 
 
 def layer_validator(primary: str) -> LayerSetValidator:
@@ -149,6 +172,7 @@ def parser_for(
             ),
             layer_parsers={name: numeric_layer_parser(name) for name, _source in layers},
             layer_validator=layer_validator(layers[0][0]),
+            pruner=KeepEveryField(),
             provenance={
                 "hierarchy": "lfq",
                 "software_name": "Synthetic",
@@ -249,6 +273,7 @@ def test_parse_runs_its_collaborators_in_the_documented_order() -> None:
             duplicates=Policy(),
             layer_parsers={"Intensity": Values()},
             layer_validator=layer_validator("Intensity"),
+            pruner=KeepEveryField(),
             provenance={},
             read=LevelReadPlan((), frozenset(), frozenset()),
         ),
@@ -722,7 +747,11 @@ def test_a_parsed_level_is_a_direct_composition_and_keeps_no_key_map() -> None:
         "provenance": {},
         "result": {
             "unknown_mod_tokens": [],
-            "layer_diagnostics": {"unreadable_numeric": {}, "effectively_empty": {}},
+            "layer_diagnostics": {"unreadable_numeric": {}},
+            "uninformative_fields": {
+                "single_valued": {"obs": {}, "var": {}, "layers": {}},
+                "effectively_empty": {"obs": {}, "var": {}, "layers": {}},
+            },
             "var_disagreements": {},
         },
         "summary": [
@@ -741,10 +770,17 @@ def test_a_parsed_level_is_a_direct_composition_and_keeps_no_key_map() -> None:
                 "status": "ok",
             },
             {
-                "name": "effectively_empty_layers",
-                "label": "Effectively empty layers",
+                "name": "single_valued_fields",
+                "label": "Single-valued columns and layers left out",
                 "value": 0,
-                "unit": "layers",
+                "unit": "fields",
+                "status": "ok",
+            },
+            {
+                "name": "effectively_empty_fields",
+                "label": "Empty columns and layers left out",
+                "value": 0,
+                "unit": "fields",
                 "status": "ok",
             },
             {
@@ -799,6 +835,7 @@ def test_the_parser_holds_only_configured_behaviour() -> None:
         "duplicates",
         "layer_parsers",
         "layer_validator",
+        "pruner",
         "provenance",
     }
     assert parser.level == "ion"
@@ -863,6 +900,7 @@ def test_a_computed_column_of_the_wrong_length_fails_at_the_boundary() -> None:
             duplicates=duplicate_policy_for("error"),
             layer_parsers={"Intensity": numeric_layer_parser("Intensity")},
             layer_validator=layer_validator("Intensity"),
+            pruner=KeepEveryField(),
             provenance={},
             read=LevelReadPlan((), frozenset(), frozenset()),
         ),

@@ -12,11 +12,9 @@
       "variables": 458,
       "layers": [
         "Intensity",
-        "QValue",
         "Proba",
         "RT_Observed",
-        "Mz_Observed",
-        "Mobility_Observed"
+        "Mz_Observed"
       ]
     }
   }

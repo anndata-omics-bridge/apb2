@@ -73,6 +73,7 @@ must execute `lint-imports`, so the prose rule is also a merge-blocking check.
 - Decide the placement from the tool's documentation, the data and what the column means. One dataset alone does not decide it: a column with the same value in every cell of one result says nothing about whether it varies per run, while one that differs across runs in any result is a layer.
 - Write the reason for a placement in the entry's `note`, especially where a reader would expect the other one.
 - A `var` column keeps a feature's first nonblank value (`keep_first`) and reports features whose rows disagree as `var_disagreements`, so check in a real report that the rows agree. A tool that writes placeholders into some rows, as DIA-NN writes 1.0 into `Global.PG.Q.Value`, needs `"duplicates": {"mode": "min"}` (or `max`).
+- A column or layer that holds one value, or none, in a result is not created; the parse record keeps what it held. That says nothing about placement, so declare it where its meaning belongs. Keys, role and computed columns, the flags' inputs and the primary layer are kept.
 - A moved layer becomes a `var` entry with `"type": "number", "required": false`: a `var` entry is a required string by default, and a required column decides which files the rule accepts.
 - The steps for a new format are in [docs/adding_a_format.md](docs/adding_a_format.md).
 
