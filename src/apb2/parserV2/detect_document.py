@@ -12,7 +12,6 @@ from apb2.parserV2.parse_quant.data.errors import ConversionError
 from apb2.parserV2.parse_quant.errors import IncompatibleSourceError
 from apb2.parserV2.parse_quant.parameters.source import (
     Folder,
-    InputFiles,
     InputSource,
     PreparedTable,
     SingleFile,
@@ -21,12 +20,7 @@ from apb2.parserV2.parse_quant.parameters.vendor_file import make_vendor_file
 from apb2.parserV2.parse_quant.parser import Parser
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.parser_factory import compile_level
-from apb2.parserV2.prepare_source import (
-    InputPreparationError,
-    preparation_paths,
-    prepare_source,
-    recognizes_preparation,
-)
+from apb2.parserV2.prepare_source import PreparationInputs
 from apb2.parserV2.search_parameters.model import Parameters
 from apb2.parserV2.source_binding import BoundTable
 from apb2.parserV2.vendor_parse_rules.document import (
@@ -100,7 +94,7 @@ def software_slug(software_name: str) -> str:
     return re.sub(r"[^a-z0-9]", "", software_name.lower())
 
 
-def guess_software(source: InputSource) -> str:
+def guess_software(source: SingleFile | Folder) -> str:
     """Return the unique vendor slug whose declared levels accept this source."""
     slugs = {
         software_slug(document.software_name)
@@ -147,7 +141,7 @@ def detect_rule_documents(
             continue
         for level in requested:
             if level in document.levels:
-                name = document.declared(level).input.file_name
+                name = document.table_input(level).file_name
                 if name is not None:
                     expected_names[level].add(name)
         for selection in select_document_levels(
@@ -263,32 +257,31 @@ def select_document_levels(
     """
     requested = _requested_levels(levels)
     tables = document.table_levels
-    if not isinstance(source, Folder | InputFiles):
+    if not isinstance(source, Folder):
         named = tuple(
             table
             for table in tables
-            if document.declared(table[0]).input.file_name == source.path.name
+            if document.table_input(table[0]).file_name == source.path.name
         )
         tables = named or tables
     accepted: list[_TableDetection] = []
-    consumed: set[Path] = set()
     for table in tables:
         selected: tuple[QuantificationLevel, ...] = tuple(
             level for level in requested if level in table
         )
-        candidates, paths = _table_sources(document, table, source, selected)
-        consumed.update(paths)
+        if not selected:
+            continue
+        candidates = _table_sources(document, table, source)
         table_matches: list[LevelSelection] = []
         for candidate in candidates:
-            observed = _detect_table_levels(document, table, evidence, candidate, checks)
-            consumed.update(match.source_path for match in observed.matches)
-            if selected and _present_table_is_incompatible(observed):
+            observed = _detect_table_levels(document, selected, evidence, candidate, checks)
+            if _present_table_is_incompatible(observed):
                 raise RuleUnavailableError(
                     f"declared table(s) {sorted(str(path) for path in observed.named_tables)} "
                     "are present but incompatible with "
                     f"{document.path}: {list(observed.incompatibilities)}"
                 )
-            table_matches.extend(match for match in observed.matches if match.level in selected)
+            table_matches.extend(observed.matches)
         if len({match.source_path for match in table_matches}) > 1:
             raise AmbiguousRuleError(
                 f"multiple inputs match table levels {table}: "
@@ -296,18 +289,9 @@ def select_document_levels(
             )
         if table_matches:
             accepted.append(_TableDetection(tuple(table_matches), (), ()))
-    if isinstance(source, InputFiles) and consumed:
-        unused = set(source.files.values()) - consumed
-        if unused:
-            raise InputPreparationError(
-                f"unrecognized explicit companion inputs: {sorted(str(path) for path in unused)}"
-            )
-    if not isinstance(source, Folder | InputFiles) and len(accepted) > 1:
+    if not isinstance(source, Folder) and len(accepted) > 1:
         candidates = [
-            [
-                (match.level, document.declared(match.level).input.file_name)
-                for match in item.matches
-            ]
+            [(match.level, document.table_input(match.level).file_name) for match in item.matches]
             for item in accepted
         ]
         raise AmbiguousRuleError(
@@ -322,32 +306,24 @@ def _table_sources(
     document: RuleDocument,
     table: tuple[QuantificationLevel, ...],
     source: InputSource,
-    selected: tuple[QuantificationLevel, ...],
-) -> tuple[tuple[InputSource, ...], tuple[Path, ...]]:
-    """Bind one group, reading quantitative rows only for requested prepared groups."""
-    declaration = document.declared(table[0])
-    preparation = declaration.preparation
+) -> tuple[InputSource, ...]:
+    """Bind one requested group; a prepared group reads its inputs here, once."""
+    preparation = document.preparation(table[0])
     if preparation is not None:
         if isinstance(source, PreparedTable):
-            paths = tuple(table.file.path for table in source.input_tables)
-            return ((source,), paths) if source.how == preparation else ((), ())
-        paths = preparation_paths(source, preparation)
-        if not paths or not selected:
-            return (), paths
-        prepared = prepare_source(
-            InputFiles(source.path, {path.name: path for path in paths}),
-            preparation,
-            _RuleColumns.of(document, table),
-        )
-        return (prepared,), paths
-    filename = declaration.input.file_name
-    declared_names = {document.declared(level).input.file_name for level in document.levels}
+            return (source,) if source.how == preparation else ()
+        inputs = PreparationInputs.identify(source, preparation)
+        if not inputs.tables:
+            return ()
+        return (inputs.prepare(source.path, _RuleColumns.of(document, table)),)
+    filename = document.table_input(table[0]).file_name
+    declared_names = {document.table_input(level).file_name for level in document.levels}
     candidates = tuple(
         candidate
         for candidate in _direct_table_sources(source, filename)
         if candidate.path.name == filename or candidate.path.name not in declared_names
     )
-    return candidates, ()
+    return candidates
 
 
 @dataclass(frozen=True, slots=True)
@@ -381,9 +357,7 @@ class _RuleColumns:
 
 
 def _direct_table_sources(source: InputSource, filename: str | None) -> tuple[InputSource, ...]:
-    """Bind direct groups independently, including renamed files in explicit bundles."""
-    if isinstance(source, InputFiles):
-        return tuple(SingleFile(path) for path in source.files.values())
+    """Bind direct groups independently: a folder's declared member, else each table in it."""
     if isinstance(source, Folder):
         if filename is not None and source.member(filename) is not None:
             return (source,)
@@ -487,16 +461,16 @@ def _packaged_documents(
     )
 
 
-def _document_matches(document: RuleDocument, source: InputSource) -> bool:
+def _document_matches(document: RuleDocument, source: SingleFile | Folder) -> bool:
     for table in document.table_levels:
-        preparation = document.declared(table[0]).preparation
-        if preparation is not None and recognizes_preparation(source, preparation):
+        preparation = document.preparation(table[0])
+        if preparation is not None and PreparationInputs.identify(source, preparation).tables:
             return True
     return any(
         _source_matches(ParseRuleFacade.from_declared_rule(document, level), candidate)
         for level in document.levels
-        if document.declared(level).preparation is None
-        for candidate in _direct_table_sources(source, document.declared(level).input.file_name)
+        if document.preparation(level) is None
+        for candidate in _direct_table_sources(source, document.table_input(level).file_name)
     )
 
 

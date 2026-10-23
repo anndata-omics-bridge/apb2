@@ -626,7 +626,7 @@ def test_each_detection_selection_is_compiled_exactly_once(
     compiler.compile()
     compiler.compile()
 
-    assert compiled.count("ion") == compiled.count("protein") == 1
+    assert sorted(compiled) == ["ion", "protein"], "only requested levels are compiled"
 
 
 def test_collection_parser_has_no_persistence_api() -> None:

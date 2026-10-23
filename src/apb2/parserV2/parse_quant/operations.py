@@ -117,7 +117,6 @@ class WorkingParseConfiguration:
     measurements: WorkingMeasurements
     provenance: Mapping[str, JsonValue]
     retained: RetainedFields
-    preparation: str | None = None
 
     def accepts_header(self, header: tuple[str, ...]) -> bool:
         """Whether all required physical sources occur in a candidate header."""

@@ -249,7 +249,7 @@ class ExplicitRuleCompiler:
         )
         if not selections:
             names = {
-                level: document.declared(level).input.file_name
+                level: document.table_input(level).file_name
                 for level in levels
                 if level in document.levels
             }
@@ -288,7 +288,7 @@ def _validated_levels(
     return levels
 
 
-def _input_source(data: Path) -> InputSource:
+def _input_source(data: Path) -> SingleFile | Folder:
     return Folder(path=data) if data.is_dir() else SingleFile(path=data)
 
 

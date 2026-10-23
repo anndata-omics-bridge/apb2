@@ -181,7 +181,6 @@ class ParseRuleFacade:
             measurements=ParseRuleFacade._project_measurements(rule),
             provenance=ParseRuleFacade._project_provenance(rule),
             retained=ParseRuleFacade._project_retained(rule, obs_group),
-            preparation=effective.preparation,
         )
 
     @staticmethod

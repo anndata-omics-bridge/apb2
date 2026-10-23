@@ -70,7 +70,6 @@ class EffectiveRule:
 
     input: Input
     declaration: LongRule | WideRule
-    preparation: str | None = None
 
 
 # ------------------------------------------------------------------ the document shell
@@ -135,6 +134,15 @@ class RuleDocument(ModelBase):
         table = self._table_for(level)
         return self._effective(self._payload_for(level, table), table)
 
+    def table_input(self, level: QuantificationLevel) -> Input:
+        """The input policy of ``level``'s table, without composing or validating the level."""
+        return self._table_for(level).input
+
+    def preparation(self, level: QuantificationLevel) -> str | None:
+        """The preparation that builds ``level``'s table from several inputs, if any."""
+        prepare = self._table_for(level).prepare
+        return None if prepare is None else prepare.how
+
     def rule(
         self,
         level: QuantificationLevel,
@@ -172,11 +180,7 @@ class RuleDocument(ModelBase):
 
     def _effective(self, payload: JsonDict, table: _RuleTableSchema) -> EffectiveRule:
         declaration = validate_rule(payload)
-        return EffectiveRule(
-            input=table.input,
-            declaration=declaration,
-            preparation=table.prepare.how if table.prepare is not None else None,
-        )
+        return EffectiveRule(input=table.input, declaration=declaration)
 
     def _table_for(self, level: QuantificationLevel) -> _RuleTableSchema:
         for table in self.tables:

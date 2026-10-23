@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-from collections.abc import Collection, Mapping
+from collections.abc import Collection
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -66,14 +66,6 @@ class Folder:
             if candidate.is_file():
                 return make_vendor_file(candidate)
         return None
-
-
-@dataclass(frozen=True, slots=True)
-class InputFiles:
-    """Explicit physical inputs; keys may bind renamed files to canonical vendor names."""
-
-    path: Path
-    files: Mapping[str, Path]
 
 
 type InputFileRecord = dict[str, int | str | list[str]]
@@ -144,7 +136,7 @@ class PreparedTable:
     duration_seconds: float
 
 
-type InputSource = SingleFile | Folder | InputFiles | PreparedTable
+type InputSource = SingleFile | Folder | PreparedTable
 
 
 # ------------------------------------------------------------------- rule-permitted formats

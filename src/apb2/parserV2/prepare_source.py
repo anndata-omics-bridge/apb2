@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import csv
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
+from typing import Self
 
 import polars as pl
 from loguru import logger
@@ -13,14 +15,12 @@ from loguru import logger
 from apb2.parserV2.joins import alphadia, maxquant, metamorpheus, wombat
 from apb2.parserV2.parse_quant.data.errors import ConversionError
 from apb2.parserV2.parse_quant.data.step_log import logged_step
-from apb2.parserV2.parse_quant.errors import IncompatibleSourceError
 from apb2.parserV2.parse_quant.parameters.source import (
     Folder,
     InputFile,
-    InputFiles,
-    InputSource,
     InputTable,
     PreparedTable,
+    SingleFile,
 )
 from apb2.parserV2.parse_quant.parameters.vendor_file import VendorFile, make_vendor_file
 
@@ -48,10 +48,8 @@ class InputPreparationError(ConversionError):
     """Recognized vendor inputs could not produce a valid joined table."""
 
 
-def _files(source: InputSource) -> dict[str, VendorFile]:
+def _files(source: SingleFile | Folder) -> dict[str, VendorFile]:
     """Each candidate table keyed by the name its tool wrote, plain or gzipped."""
-    if isinstance(source, InputFiles):
-        return {name: make_vendor_file(path) for name, path in source.files.items()}
     if isinstance(source, Folder):
         files = (make_vendor_file(path) for path in sorted(source.path.iterdir()) if path.is_file())
         return {file.name: file for file in files if file.suffix in {".tsv", ".txt"}}
@@ -69,15 +67,6 @@ def _header(file: VendorFile) -> tuple[str, ...]:
         return tuple(next(csv.reader(handle, delimiter=_separator(file)), ()))
 
 
-def _bindings(
-    source: InputSource, identify: Identify
-) -> dict[str, tuple[VendorFile, tuple[str, ...]]]:
-    """Each role's file with the header that identified it."""
-    files = _files(source)
-    headers = {name: _header(file) for name, file in files.items()}
-    return {role: (files[name], headers[name]) for role, name in identify(headers).items()}
-
-
 def _projection(
     header: tuple[str, ...], role: str, keys: tuple[str, ...] | None, wanted: Wanted | None
 ) -> list[str] | None:
@@ -87,75 +76,70 @@ def _projection(
     return [column for column in header if column in keys or wanted(f"{role}.{column}")]
 
 
-def preparation_paths(source: InputSource, how: str) -> tuple[Path, ...]:
-    """Identify this table group's physical inputs without reading its quantitative rows."""
-    identify, _join, _keys = _PREPARATIONS[how]
-    try:
-        return tuple(file.path for file, _ in _bindings(source, identify).values())
-    except (UnicodeError, csv.Error):
-        return ()
-    except ValueError as error:
-        raise InputPreparationError(f"{how} preparation: {error}") from error
+@dataclass(frozen=True, slots=True)
+class PreparationInputs:
+    """One preparation's physical tables, each identified once from its header."""
 
+    how: str
+    tables: Mapping[str, tuple[VendorFile, tuple[str, ...]]]
+    """Each role's file and the header that identified it; empty when no input matches."""
 
-def recognizes_preparation(source: InputSource, how: str) -> bool:
-    """Recognize a tool from bounded headers without reading quantities or joining."""
-    return bool(preparation_paths(source, how))
+    @classmethod
+    def identify(cls, source: SingleFile | Folder, how: str) -> Self:
+        """Bind this preparation's tables from bounded headers, without reading quantities."""
+        identify, _join, _keys = _PREPARATIONS[how]
+        try:
+            files = _files(source)
+            headers = {name: _header(file) for name, file in files.items()}
+            roles = identify(headers)
+        except (UnicodeError, csv.Error):
+            return cls(how, {})
+        except ValueError as error:
+            raise InputPreparationError(f"{how} preparation: {error}") from error
+        return cls(how, {role: (files[name], headers[name]) for role, name in roles.items()})
 
+    def prepare(self, path: Path, wanted: Wanted | None = None) -> PreparedTable:
+        """Read and join the bound tables once, for every level the preparation serves.
 
-def prepare_source(
-    source: InputSource, how: str | None, wanted: Wanted | None = None
-) -> InputSource:
-    """Prepare once; already prepared sources are passed to all level compilers unchanged.
-
-    ``wanted`` limits reading to the columns the rules can use, for joins that name their own
-    key columns.
-    """
-    if how is None:
-        return source
-    if isinstance(source, PreparedTable):
-        if source.how != how:
-            raise InputPreparationError(f"source prepared with {source.how}, rule requests {how}")
-        return source
-    started = perf_counter()
-    identify, join, keys = _PREPARATIONS[how]
-    try:
-        files = _bindings(source, identify)
-        if not files:
-            raise IncompatibleSourceError(f"{source.path} has no recognizable {how} inputs")
+        ``wanted`` limits reading to the columns the rules can use, for joins that name their
+        own key columns.
+        """
+        started = perf_counter()
+        _identify, join, keys = _PREPARATIONS[self.how]
         frames: dict[str, pl.DataFrame] = {}
         tables: list[InputTable] = []
-        for role, (file, header) in files.items():
-            columns = _projection(header, role, keys, wanted)
-            with logged_step("prepare.read", how=how, table=file.name):
-                frames[role] = pl.read_csv(
-                    file.path,
-                    separator=_separator(file),
-                    infer_schema=False,
-                    null_values=[""],
-                    columns=columns,
+        try:
+            for role, (file, header) in self.tables.items():
+                columns = _projection(header, role, keys, wanted)
+                with logged_step("prepare.read", how=self.how, table=file.name):
+                    frames[role] = pl.read_csv(
+                        file.path,
+                        separator=_separator(file),
+                        infer_schema=False,
+                        null_values=[""],
+                        columns=columns,
+                    )
+                logger.info(
+                    "prepare.read table={} rows={} columns={}",
+                    file.name,
+                    frames[role].height,
+                    frames[role].width,
                 )
+                file_format = "csv" if _separator(file) == "," else "tsv"
+                tables.append(
+                    InputTable(InputFile(file.path, role, file_format), header, frames[role].height)
+                )
+            with logged_step("prepare.join", how=self.how, tables=",".join(sorted(frames))):
+                frame = join(frames)
             logger.info(
-                "prepare.read table={} rows={} columns={}",
-                file.name,
-                frames[role].height,
-                frames[role].width,
+                "prepare.join how={} rows={} columns={}", self.how, frame.height, frame.width
             )
-            file_format = "csv" if _separator(file) == "," else "tsv"
-            tables.append(
-                InputTable(InputFile(file.path, role, file_format), header, frames[role].height)
-            )
-        with logged_step("prepare.join", how=how, tables=",".join(sorted(frames))):
-            frame = join(frames)
-        logger.info("prepare.join how={} rows={} columns={}", how, frame.height, frame.width)
-    except IncompatibleSourceError:
-        raise
-    except (ValueError, pl.exceptions.PolarsError) as error:
-        raise InputPreparationError(f"{how} preparation: {error}") from error
-    return PreparedTable(
-        path=source.path,
-        frame=frame,
-        how=how,
-        input_tables=tuple(tables),
-        duration_seconds=perf_counter() - started,
-    )
+        except (ValueError, pl.exceptions.PolarsError) as error:
+            raise InputPreparationError(f"{self.how} preparation: {error}") from error
+        return PreparedTable(
+            path=path,
+            frame=frame,
+            how=self.how,
+            input_tables=tuple(tables),
+            duration_seconds=perf_counter() - started,
+        )

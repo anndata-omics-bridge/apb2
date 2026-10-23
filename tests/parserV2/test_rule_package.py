@@ -373,12 +373,12 @@ def test_maxquant_prepares_evidence_apart_from_the_wide_higher_level_join() -> N
     ion = wide.declared("ion")
     assert ion.input.extensions == [".txt"]
     roles = {column.name: column.roles for column in ion.declaration.columns.var}
-    assert ion.preparation == "maxquant_evidence"
+    assert wide.preparation("ion") == "maxquant_evidence"
     assert roles["Protein_IDs"] == ["protein_assignment"]
     assert roles["Proteins"] == ["fasta_accessions"]
     assert wide.table_levels == (("ion",), ("peptidoform", "peptide", "protein"))
     for level in ("peptidoform", "peptide", "protein"):
-        assert wide.declared(level).preparation == "maxquant_wide"
+        assert wide.preparation(level) == "maxquant_wide"
         assert wide.declared(level).declaration.shape == "wide"
         assert wide.declared(level).declaration.axis.obs_keys == ["Experiment"]
 

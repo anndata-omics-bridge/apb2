@@ -28,12 +28,11 @@ from apb2.parserV2.parse_quant.parameters.source import (
     LevelReadPlan,
     NumericTextFormat,
     ParquetFormatContract,
-    PreparedTable,
     SingleFile,
 )
 from apb2.parserV2.parse_quant.parameters.vendor_file import make_vendor_file
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
-from apb2.parserV2.prepare_source import prepare_source
+from apb2.parserV2.prepare_source import PreparationInputs
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from parserV2 import synthetic
 from parserV2.fixtures import PackagedDocument, document_pairs
@@ -411,12 +410,9 @@ def test_a_folder_bound_to_a_rule_declaring_no_candidate_names_is_incompatible(
 
 def test_the_maxquant_ion_table_is_prepared_from_evidence() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "maxquant_wide")
-    facade = ParseRuleFacade(
-        load_rule_document(pair.parser_v2_path),
-        "ion",
-        synthetic.NO_EVIDENCE,
-    )
-    assert facade.working_parameters.preparation == "maxquant_evidence"
+    document = load_rule_document(pair.parser_v2_path)
+    facade = ParseRuleFacade(document, "ion", synthetic.NO_EVIDENCE)
+    assert document.preparation("ion") == "maxquant_evidence"
     assert facade.working_parameters.input.file_name is None
 
 
@@ -651,10 +647,10 @@ def test_every_cached_vendor_export_resolves_to_one_unambiguous_reading(
         pytest.skip(f"no cached export for {pair.key}")
     facade = pair.first_admitted_facade()
     source = Folder(path=path) if path.is_dir() else SingleFile(path=path)
-    if facade.working_parameters.preparation is not None:
-        prepared = prepare_source(source, facade.working_parameters.preparation)
-        assert isinstance(prepared, PreparedTable)
-        assert tuple(prepared.frame.columns) == pair.header()
+    preparation = document.preparation(facade.working_parameters.level)
+    if preparation is not None:
+        inputs = PreparationInputs.identify(source, preparation)
+        assert tuple(inputs.prepare(path).frame.columns) == pair.header()
         return
     bound = composition.BoundTable(source, facade.working_parameters.input)
 

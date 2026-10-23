@@ -12,9 +12,10 @@ from apb2.api import ConversionError, ParseRuleCompiler
 from apb2.parserV2 import compile as compilation
 from apb2.parserV2 import detect_document as detection
 from apb2.parserV2.detect_document import AmbiguousRuleError, RuleUnavailableError
-from apb2.parserV2.parse_quant.parameters.source import InputSource
+from apb2.parserV2.parse_quant.parameters.source import Folder, InputSource, SingleFile
 from apb2.parserV2.parse_quant.parser import Parser
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
+from apb2.parserV2.prepare_source import PreparationInputs
 from apb2.parserV2.search_parameters.model import Parameters
 from apb2.parserV2.vendor_params.registry import parse_params
 from apb2.parserV2.vendor_parse_rules.document import RuleDocument
@@ -155,16 +156,16 @@ def test_unhinted_recognition_visits_every_packaged_vendor(monkeypatch: pytest.M
         for path in detection.PACKAGED
         for document in [load_rule_document(path)]
         for level in document.levels
-        if (preparation := document.declared(level).preparation) is not None
+        if (preparation := document.preparation(level)) is not None
     }
-    original_recognizes = detection.recognizes_preparation
+    original_identify = PreparationInputs.identify
 
-    def record_preparation(source: InputSource, how: str) -> bool:
+    def record_preparation(source: SingleFile | Folder, how: str) -> PreparationInputs:
         visited.add(prepared[how])
-        return original_recognizes(source, how)
+        return original_identify(source, how)
 
     monkeypatch.setattr(ParseRuleFacade, "from_declared_rule", classmethod(record_document))
-    monkeypatch.setattr(detection, "recognizes_preparation", record_preparation)
+    monkeypatch.setattr(PreparationInputs, "identify", staticmethod(record_preparation))
     ParseRuleCompiler.detect(source, parameters)
 
     assert visited == {

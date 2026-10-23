@@ -13,7 +13,6 @@ from apb2.parserV2.parse_quant.parameters.source import (
 from apb2.parserV2.parse_quant.parser import Parser
 from apb2.parserV2.parse_quant.prepared_input import PreparedInputReader
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
-from apb2.parserV2.prepare_source import prepare_source
 from apb2.parserV2.source_binding import BoundTable
 
 
@@ -24,7 +23,6 @@ def compile_level(
 ) -> Parser:
     """Resolve one selected level and bind its fully configured strategy."""
     working = facade.working_parameters
-    source = prepare_source(source, working.preparation)
     preparation: dict[str, JsonValue] = {}
     if isinstance(source, PreparedTable):
         evidence = FrameSourceEvidence(

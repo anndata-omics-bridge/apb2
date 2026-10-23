@@ -5,6 +5,7 @@ from __future__ import annotations
 from io import StringIO
 from itertools import combinations
 from pathlib import Path
+from typing import TextIO
 
 import mudata
 import polars as pl
@@ -27,12 +28,9 @@ from apb2.parserV2.detect_document import (
 )
 from apb2.parserV2.joins import alphadia, maxquant, metamorpheus, wombat
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels
-from apb2.parserV2.parse_quant.parameters.source import (
-    Folder,
-    InputFiles,
-    PreparedTable,
-)
-from apb2.parserV2.prepare_source import InputPreparationError, prepare_source
+from apb2.parserV2.parse_quant.parameters.source import Folder, PreparedTable
+from apb2.parserV2.parse_quant.parameters.vendor_file import PlainFile
+from apb2.parserV2.prepare_source import InputPreparationError
 from apb2.parserV2.search_parameters.model import Parameters
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
@@ -258,21 +256,16 @@ def test_folder_conversion_joins_all_levels_and_round_trips(tmp_path: Path, suff
 
 
 def test_renamed_alphadia_companions_and_shared_preparation(tmp_path: Path) -> None:
-    paths = {}
-    for index, (role, frame) in enumerate(_alphadia().items()):
-        paths[role] = tmp_path / f"renamed_{index}.tsv"
-        frame.write_csv(paths[role], separator="\t")
+    for index, frame in enumerate(_alphadia().values()):
+        frame.write_csv(tmp_path / f"renamed_{index}.tsv", separator="\t")
     document = load_rule_document(RULES / "alphadia/v1_12/rules.json")
     selected = select_document_levels(
-        document, InputFiles(tmp_path, paths), document.levels, UNKNOWN_SEARCH_PARAMETERS
+        document, Folder(tmp_path), document.levels, UNKNOWN_SEARCH_PARAMETERS
     )
     assert len(selected) == 1
     prepared = selected[0].source
     assert isinstance(prepared, PreparedTable)
-    assert prepare_source(prepared, "alphadia") is prepared
     assert prepared.frame["intensity"].to_list() == ["12", None]
-    with pytest.raises(InputPreparationError, match="rule requests"):
-        prepare_source(prepared, "maxquant_wide")
 
 
 def test_conflicting_renamed_inputs_are_rejected(tmp_path: Path) -> None:
@@ -358,15 +351,12 @@ def test_maxquant_every_nonempty_subset_round_trips_available_levels(
 def test_maxquant_renamed_subsets_select_only_present_levels(
     tmp_path: Path, roles: tuple[str, ...]
 ) -> None:
-    paths = {}
     tables = maxquant_tables()
     for index, role in enumerate(roles):
-        path = tmp_path / f"input_{index}.txt"
-        tables[role].write_csv(path, separator="\t")
-        paths[path.name] = path
+        tables[role].write_csv(tmp_path / f"input_{index}.txt", separator="\t")
     document = load_rule_document(RULES / "maxquant_wide/rules.json")
     selected = select_document_levels(
-        document, InputFiles(tmp_path, paths), document.levels, UNKNOWN_SEARCH_PARAMETERS
+        document, Folder(tmp_path), document.levels, UNKNOWN_SEARCH_PARAMETERS
     )
     assert [item.level for item in selected] == [MAXQUANT_LEVELS[role] for role in roles]
     prepared = [item.source for item in selected if item.level != "ion"]
@@ -489,19 +479,23 @@ def test_each_preparation_reads_each_of_its_inputs_once(
     )
 
 
-def test_unknown_explicit_companion_is_not_silently_ignored(tmp_path: Path) -> None:
-    evidence = tmp_path / "input.txt"
-    maxquant_tables()["evidence"].write_csv(evidence, separator="\t")
-    unknown = tmp_path / "unknown.txt"
-    unknown.write_text("unrecognized\n1\n")
+def test_each_preparation_reads_each_folder_header_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for role, frame in maxquant_tables().items():
+        frame.write_csv(tmp_path / MAXQUANT_FILES[role], separator="\t")
+    original_open_text = PlainFile.open_text
+    calls: list[str] = []
+
+    def counted_open_text(file: PlainFile, encoding: str) -> TextIO:
+        calls.append(file.name)
+        return original_open_text(file, encoding)
+
+    monkeypatch.setattr(PlainFile, "open_text", counted_open_text)
     document = load_rule_document(RULES / "maxquant_wide/rules.json")
-    with pytest.raises(InputPreparationError, match="unrecognized explicit companion"):
-        select_document_levels(
-            document,
-            InputFiles(tmp_path, {path.name: path for path in (evidence, unknown)}),
-            document.levels,
-            UNKNOWN_SEARCH_PARAMETERS,
-        )
+    select_document_levels(document, Folder(tmp_path), document.levels, UNKNOWN_SEARCH_PARAMETERS)
+    # Two preparations identify their inputs from the folder's headers; reading keeps them.
+    assert sorted(calls) == sorted(2 * list(MAXQUANT_FILES.values()))
 
 
 def test_cli_reports_both_resolution_outputs(tmp_path: Path) -> None:

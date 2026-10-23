@@ -26,9 +26,9 @@ import pytest
 from apb2.parserV2.parse_quant.data.parsed import JsonValue, ParsedLevel, ParsedLevels
 from apb2.parserV2.parse_quant.excel_input import sheet_header
 from apb2.parserV2.parse_quant.io.formats import write_parsed_levels
-from apb2.parserV2.parse_quant.parameters.source import Folder, PreparedTable, SingleFile
+from apb2.parserV2.parse_quant.parameters.source import Folder, SingleFile
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
-from apb2.parserV2.prepare_source import prepare_source
+from apb2.parserV2.prepare_source import PreparationInputs
 from apb2.parserV2.vendor_parse_rules.document import (
     RuleDocument,
     RuleNotApplicable,
@@ -232,14 +232,12 @@ class PackagedDocument:
             for level in document.levels
             if TABLE_FIXTURES.get((self.key, level), self.key) == self.sample_key
         )
-        preparation = document.declared(level).preparation
+        preparation = document.preparation(level)
         if preparation is not None:
             data = self.required_data_path()
-            source = prepare_source(
-                Folder(data) if data.is_dir() else SingleFile(data), preparation
-            )
-            assert isinstance(source, PreparedTable)
-            return tuple(source.frame.columns)
+            source = Folder(data) if data.is_dir() else SingleFile(data)
+            prepared = PreparationInputs.identify(source, preparation).prepare(data)
+            return tuple(prepared.frame.columns)
         found = _admitted_export(self.parser_v2_path)
         if found is not None:
             return _header_of(found)
