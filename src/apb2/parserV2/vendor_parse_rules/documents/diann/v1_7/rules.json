@@ -506,15 +506,10 @@
                 "name": "Protein_Group",
                 "source": "Protein.Group",
                 "roles": [
-                  "protein_assignment"
-                ]
-              },
-              {
-                "name": "Protein_Ids",
-                "source": "Protein.Ids",
-                "roles": [
+                  "protein_assignment",
                   "fasta_accessions"
-                ]
+                ],
+                "note": "The group's members are its FASTA accessions. Protein.Ids describes each precursor and differs within a group, so the protein level leaves it out."
               },
               {
                 "name": "Protein_Names",

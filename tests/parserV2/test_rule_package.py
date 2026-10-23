@@ -447,10 +447,12 @@ def test_msangel_measurements_canonicalize_the_dda_run_prefix() -> None:
     [
         pytest.param("diann/v1_8", "ion", "Protein_Group", "Protein_Ids", id="diann-v1_8-ion"),
         pytest.param(
-            "diann/v1_8", "protein", "Protein_Group", "Protein_Ids", id="diann-v1_8-protein"
+            "diann/v1_8", "protein", "Protein_Group", "Protein_Group", id="diann-v1_8-protein"
         ),
         pytest.param("diann/v2", "ion", "Protein_Group", "Protein_Ids", id="diann-v2-ion"),
-        pytest.param("diann/v2", "protein", "Protein_Group", "Protein_Ids", id="diann-v2-protein"),
+        pytest.param(
+            "diann/v2", "protein", "Protein_Group", "Protein_Group", id="diann-v2-protein"
+        ),
         pytest.param(
             "spectronaut",
             "ion",
