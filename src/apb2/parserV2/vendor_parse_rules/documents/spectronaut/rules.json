@@ -411,14 +411,6 @@
                 "missing_values": [
                   "<=0"
                 ]
-              },
-              {
-                "name": "F_FrgMz",
-                "source": "F.FrgMz"
-              },
-              {
-                "name": "F_TheoreticalMz",
-                "source": "F.TheoreticalMz"
               }
             ]
           },
@@ -490,12 +482,14 @@
               {
                 "name": "F_FrgMz",
                 "source": "F.FrgMz",
-                "type": "number"
+                "type": "number",
+                "note": "Fragment m/z, one per fragment, repeated in every run row; F.MeasuredMz is the per-run value"
               },
               {
                 "name": "F_TheoreticalMz",
                 "source": "F.TheoreticalMz",
-                "type": "number"
+                "type": "number",
+                "note": "Theoretical fragment m/z, one per fragment, repeated in every run row"
               },
               {
                 "name": "ProForma_peptidoform",

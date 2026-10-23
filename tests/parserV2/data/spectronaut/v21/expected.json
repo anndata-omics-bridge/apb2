@@ -13,7 +13,6 @@
         "EG_MinChannelQvalue",
         "EG_PEP",
         "EG_Qvalue",
-        "EG_LibraryQvalue",
         "FG_PrecMzCalibrated",
         "FG_CScore",
         "FG_Qvalue",
@@ -37,7 +36,6 @@
         "PG_PEP_Run_Wise",
         "PG_PValue_Run_Wise",
         "PG_QValue_Run_Wise",
-        "PG_LibraryQvalue",
         "PG_RunEvidenceCount"
       ]
     }

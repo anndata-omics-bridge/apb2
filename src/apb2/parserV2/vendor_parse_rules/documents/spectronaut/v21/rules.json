@@ -114,10 +114,6 @@
                 "required": true
               },
               {
-                "name": "EG_LibraryQvalue",
-                "source": "EG.LibraryQvalue"
-              },
-              {
                 "name": "EG_IsUserPeak",
                 "source": "EG.IsUserPeak"
               },
@@ -321,6 +317,13 @@
                 "type": "number"
               },
               {
+                "name": "EG_LibraryQvalue",
+                "source": "EG.LibraryQvalue",
+                "type": "number",
+                "required": false,
+                "note": "Spectral-library q-value, one per precursor, repeated in every run row"
+              },
+              {
                 "name": "FG_Charge",
                 "source": "FG.Charge",
                 "type": "integer"
@@ -412,14 +415,6 @@
                 "missing_values": [
                   "<=0"
                 ]
-              },
-              {
-                "name": "F_FrgMz",
-                "source": "F.FrgMz"
-              },
-              {
-                "name": "F_TheoreticalMz",
-                "source": "F.TheoreticalMz"
               }
             ]
           },
@@ -491,12 +486,14 @@
               {
                 "name": "F_FrgMz",
                 "source": "F.FrgMz",
-                "type": "number"
+                "type": "number",
+                "note": "Fragment m/z, one per fragment, repeated in every run row; F.MeasuredMz is the per-run value"
               },
               {
                 "name": "F_TheoreticalMz",
                 "source": "F.TheoreticalMz",
-                "type": "number"
+                "type": "number",
+                "note": "Theoretical fragment m/z, one per fragment, repeated in every run row"
               },
               {
                 "name": "ProForma_peptidoform",
@@ -585,10 +582,6 @@
                 "source": "PG.QValue (Run-Wise)"
               },
               {
-                "name": "PG_LibraryQvalue",
-                "source": "PG.LibraryQvalue"
-              },
-              {
                 "name": "PG_RunEvidenceCount",
                 "source": "PG.RunEvidenceCount",
                 "type": "integer"
@@ -668,6 +661,13 @@
                 "name": "PG_Qvalue",
                 "source": "PG.Qvalue",
                 "type": "number"
+              },
+              {
+                "name": "PG_LibraryQvalue",
+                "source": "PG.LibraryQvalue",
+                "type": "number",
+                "required": false,
+                "note": "Spectral-library q-value, one per protein group, repeated in every run row"
               },
               {
                 "name": "EG_IsDecoy",
