@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import gzip
 import json
 from pathlib import Path
 from typing import Any
@@ -164,6 +165,20 @@ def test_declared_filename_selects_only_its_table_despite_identical_headers(tmp_
     selected = select_document_levels(document, source, LEVELS, UNKNOWN_SEARCH_PARAMETERS)
     assert [item.level for item in selected] == ["ion"]
     assert select_document_levels(document, source, ("protein",), UNKNOWN_SEARCH_PARAMETERS) == ()
+
+
+def test_a_gzipped_declared_filename_selects_its_table_by_its_unzipped_name(
+    tmp_path: Path,
+) -> None:
+    document = load_rule_document(_rule_file(tmp_path))
+    path = tmp_path / "ions.tsv.gz"
+    path.write_bytes(gzip.compress(_source(tmp_path / "plain.tsv").read_bytes()))
+
+    selected = select_document_levels(
+        document, SingleFile(path=path), LEVELS, UNKNOWN_SEARCH_PARAMETERS
+    )
+
+    assert [item.level for item in selected] == ["ion"]
 
 
 def test_renamed_file_rejects_ambiguous_groups_but_explicit_level_resolves(tmp_path: Path) -> None:

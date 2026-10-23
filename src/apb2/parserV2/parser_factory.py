@@ -5,11 +5,8 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Literal
 
-from apb2.parserV2.parse_quant.parameters.source import (
-    FrameSourceEvidence,
-    InputSource,
-    PreparedTable,
-)
+from apb2.parserV2.parse_quant.parameters.source import FrameSourceEvidence, PreparedTable
+from apb2.parserV2.parse_quant.parameters.vendor_file import VendorFile
 from apb2.parserV2.parse_quant.parser import Parser
 from apb2.parserV2.parse_quant.prepared_input import PreparedInputReader
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
@@ -18,7 +15,7 @@ from apb2.parserV2.source_binding import BoundTable
 
 def compile_level(
     facade: ParseRuleFacade,
-    source: InputSource,
+    source: VendorFile | PreparedTable,
     checks: Literal["standard", "strict"],
 ) -> Parser:
     """Resolve one selected level and bind its fully configured strategy."""

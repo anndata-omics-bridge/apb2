@@ -16,7 +16,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
     PreparedTable,
     SingleFile,
 )
-from apb2.parserV2.parse_quant.parameters.vendor_file import make_vendor_file
+from apb2.parserV2.parse_quant.parameters.vendor_file import VendorFile, make_vendor_file
 from apb2.parserV2.parse_quant.parser import Parser
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.parser_factory import compile_level
@@ -52,7 +52,7 @@ class LevelSelection:
     level: QuantificationLevel
     document: RuleDocument
     source_path: Path
-    source: InputSource
+    source: VendorFile | PreparedTable
     parser: Parser = field(repr=False, compare=False)
 
 
@@ -261,7 +261,7 @@ def select_document_levels(
         named = tuple(
             table
             for table in tables
-            if document.table_input(table[0]).file_name == source.path.name
+            if document.table_input(table[0]).file_name == make_vendor_file(source.path).name
         )
         tables = named or tables
     accepted: list[_TableDetection] = []
@@ -306,24 +306,27 @@ def _table_sources(
     document: RuleDocument,
     table: tuple[QuantificationLevel, ...],
     source: InputSource,
-) -> tuple[InputSource, ...]:
-    """Bind one requested group; a prepared group reads its inputs here, once."""
+) -> tuple[VendorFile | PreparedTable, ...]:
+    """Bind one requested group; a prepared group reads its inputs here, once.
+
+    A direct group binds its declared file, else every table file another group of the same
+    document does not claim by name.
+    """
     preparation = document.preparation(table[0])
+    if isinstance(source, PreparedTable):
+        return (source,) if source.how == preparation else ()
     if preparation is not None:
-        if isinstance(source, PreparedTable):
-            return (source,) if source.how == preparation else ()
         inputs = PreparationInputs.identify(source, preparation)
         if not inputs.tables:
             return ()
         return (inputs.prepare(source.path, _RuleColumns.of(document, table)),)
     filename = document.table_input(table[0]).file_name
     declared_names = {document.table_input(level).file_name for level in document.levels}
-    candidates = tuple(
+    return tuple(
         candidate
-        for candidate in _direct_table_sources(source, filename)
-        if candidate.path.name == filename or candidate.path.name not in declared_names
+        for candidate in source.tables(filename)
+        if candidate.name == filename or candidate.name not in declared_names
     )
-    return candidates
 
 
 @dataclass(frozen=True, slots=True)
@@ -356,25 +359,11 @@ class _RuleColumns:
         return column in self.names or any(pattern.match(column) for pattern in self.patterns)
 
 
-def _direct_table_sources(source: InputSource, filename: str | None) -> tuple[InputSource, ...]:
-    """Bind direct groups independently: a folder's declared member, else each table in it."""
-    if isinstance(source, Folder):
-        if filename is not None and source.member(filename) is not None:
-            return (source,)
-        return tuple(
-            SingleFile(path)
-            for path in sorted(source.path.iterdir())
-            if path.is_file()
-            and make_vendor_file(path).suffix in {".txt", ".tsv", ".csv", ".parquet", ".xlsx"}
-        )
-    return (source,)
-
-
 def _detect_table_levels(
     document: RuleDocument,
     requested: tuple[QuantificationLevel, ...],
     evidence: SearchParameterEvidence | None,
-    source: InputSource,
+    source: VendorFile | PreparedTable,
     checks: Literal["standard", "strict"],
 ) -> _TableDetection:
     """Inspect requested levels that share one physical input."""
@@ -393,29 +382,14 @@ def _detect_table_levels(
         except RuleNotApplicable:
             continue
         declared_name = facade.working_parameters.input.file_name
-        declared_path: Path | None = None
-        if declared_name is not None:
-            if isinstance(source, Folder):
-                member = source.member(declared_name)
-                declared_path = source.path / declared_name if member is None else member.path
-                named_tables.add(declared_path)
-            elif make_vendor_file(source.path).name == declared_name:
-                named_tables.add(source.path)
+        if declared_name is not None and make_vendor_file(source.path).name == declared_name:
+            named_tables.add(source.path)
         try:
             parser = compile_level(facade, source, checks)
-            source_path = source.path if declared_path is None else declared_path
         except IncompatibleSourceError as error:
             incompatibilities.append(f"{level}: {error}")
             continue
-        matches.append(
-            LevelSelection(
-                level=level,
-                document=document,
-                source_path=source_path,
-                source=SingleFile(source_path) if isinstance(source, Folder) else source,
-                parser=parser,
-            )
-        )
+        matches.append(LevelSelection(level, document, source.path, source, parser))
     return _TableDetection(
         matches=tuple(matches),
         incompatibilities=tuple(incompatibilities),
@@ -470,16 +444,14 @@ def _document_matches(document: RuleDocument, source: SingleFile | Folder) -> bo
         _source_matches(ParseRuleFacade.from_declared_rule(document, level), candidate)
         for level in document.levels
         if document.preparation(level) is None
-        for candidate in _direct_table_sources(source, document.table_input(level).file_name)
+        for candidate in source.tables(document.table_input(level).file_name)
     )
 
 
-def _source_matches(facade: ParseRuleFacade, source: InputSource) -> bool:
+def _source_matches(facade: ParseRuleFacade, file: VendorFile) -> bool:
     try:
         working = facade.working_parameters
-        if isinstance(source, PreparedTable):
-            return working.accepts_header(tuple(source.frame.columns))
-        bound = BoundTable(source, working.input)
+        bound = BoundTable(file, working.input)
         return working.accepts_header(bound.header(working.accepts_header))
     except IncompatibleSourceError:
         return False

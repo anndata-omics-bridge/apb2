@@ -10,41 +10,23 @@ from apb2.parserV2.parse_quant.parameters.source import (
     DelimitedFormatContract,
     ExcelFormatContract,
     ExcelSourceEvidence,
-    Folder,
     FrameSourceEvidence,
     InputContract,
-    InputSource,
     LevelReadPlan,
     ParquetFormatContract,
     PhysicalFormatContract,
-    SingleFile,
     SourceEvidence,
 )
+from apb2.parserV2.parse_quant.parameters.vendor_file import GzipFile, VendorFile
 
 
 class BoundTable:
-    """One caller source bound to one declared physical table interpretation."""
+    """One physical table file bound to one declared interpretation."""
 
     __slots__ = ("_file", "_format")
 
-    def __init__(self, source: InputSource, contract: InputContract) -> None:
-        """Resolve the source file and its one unambiguous declared format."""
-        if isinstance(source, SingleFile):
-            file = source.file
-        elif isinstance(source, Folder):
-            if contract.file_name is None:
-                raise IncompatibleSourceError(
-                    f"{source.path} is a folder, but this rule declares no file_name"
-                )
-            member = source.member(contract.file_name)
-            if member is None:
-                raise IncompatibleSourceError(
-                    f"{source.path} does not contain the declared file {contract.file_name!r}"
-                )
-            file = member
-        else:
-            raise IncompatibleSourceError("multiple/prepared inputs require a preparation rule")
-
+    def __init__(self, file: VendorFile, contract: InputContract) -> None:
+        """Resolve the file's one unambiguous declared format."""
         path = file.path
         suffix = file.suffix
         extensions = {
@@ -71,6 +53,10 @@ class BoundTable:
             )
         else:
             selected = next(iter(claiming))
+        if isinstance(file, GzipFile) and not isinstance(selected, DelimitedFormatContract):
+            raise IncompatibleSourceError(
+                f"{path}: decompress gzipped Parquet or Excel input first"
+            )
 
         self._file = file
         self._format = selected

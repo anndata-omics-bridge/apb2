@@ -23,7 +23,7 @@ from apb2.parserV2.parse_quant.modifications import (
     UnrecognizedSequenceCharacterError,
 )
 from apb2.parserV2.parse_quant.parameters.axis import ModificationTokenPosition
-from apb2.parserV2.parse_quant.parameters.source import SingleFile
+from apb2.parserV2.parse_quant.parameters.vendor_file import make_vendor_file
 from apb2.parserV2.parse_quant.source_resolution import SourcePlanResolver
 from apb2.parserV2.parser_factory import compile_level
 from apb2.parserV2.vendor_params.parsers.shared.unimod import UNIMOD_REGISTRY
@@ -96,7 +96,7 @@ def frame() -> pl.DataFrame:
 def parse(tmp_path: Path, built: RuleDocument, values: pl.DataFrame | None = None) -> ParsedLevel:
     path = tmp_path / "input.tsv"
     (frame() if values is None else values).write_csv(path, separator="\t")
-    return compile_level(synthetic.facade(built), SingleFile(path), "standard").parse()
+    return compile_level(synthetic.facade(built), make_vendor_file(path), "standard").parse()
 
 
 def parse_result(parsed: ParsedLevel) -> dict[str, JsonValue]:

@@ -7,6 +7,7 @@ decided before the read, so a lexical token cannot be reinterpreted on the way i
 
 from __future__ import annotations
 
+import gzip
 from dataclasses import replace
 from pathlib import Path
 from zipfile import ZipFile
@@ -360,7 +361,7 @@ def contract(
 def test_a_single_file_binds_through_its_extension(tmp_path: Path) -> None:
     path = write(tmp_path / "report.tsv", "Sample\tFeature\nA\tF\n")
 
-    bound = composition.BoundTable(SingleFile(path=path), contract(TSV, PARQUET))
+    bound = composition.BoundTable(make_vendor_file(path), contract(TSV, PARQUET))
 
     assert bound.path == path
     assert bound.format == TSV
@@ -369,7 +370,7 @@ def test_a_single_file_binds_through_its_extension(tmp_path: Path) -> None:
 def test_one_declared_format_treats_the_extension_as_a_hint(tmp_path: Path) -> None:
     path = write(tmp_path / "generic-name.txt", "Sample\tFeature\nA\tF\n")
 
-    bound = composition.BoundTable(SingleFile(path=path), contract(TSV))
+    bound = composition.BoundTable(make_vendor_file(path), contract(TSV))
 
     assert bound.format == TSV
 
@@ -378,34 +379,36 @@ def test_an_unknown_extension_is_incompatible_before_anything_is_read(tmp_path: 
     path = write(tmp_path / "report.dat", "Sample\tFeature\nA\tF\n")
 
     with pytest.raises(IncompatibleSourceError, match="no declared format accepts"):
-        composition.BoundTable(SingleFile(path=path), contract(TSV, PARQUET))
+        composition.BoundTable(make_vendor_file(path), contract(TSV, PARQUET))
 
 
-def test_a_folder_binds_the_one_declared_candidate_it_holds(tmp_path: Path) -> None:
+def test_a_folder_offers_the_declared_table_it_holds(tmp_path: Path) -> None:
     write(tmp_path / "evidence.txt", "Sample\tFeature\nA\tF\n")
     write(tmp_path / "peptides.txt", "Sample\tFeature\nA\tF\n")
-    declared = contract(TEXT, file_name="evidence.txt")
 
-    bound = composition.BoundTable(Folder(path=tmp_path), declared)
+    assert Folder(path=tmp_path).tables("evidence.txt") == (
+        make_vendor_file(tmp_path / "evidence.txt"),
+    )
 
-    assert bound.path == tmp_path / "evidence.txt"
 
-
-def test_a_folder_holding_none_of_the_declared_candidates_is_incompatible(
-    tmp_path: Path,
-) -> None:
+def test_a_folder_without_the_declared_table_offers_each_table_it_holds(tmp_path: Path) -> None:
     write(tmp_path / "peptides.txt", "Sample\tFeature\nA\tF\n")
-    declared = contract(TEXT, file_name="evidence.txt")
+    write(tmp_path / "notes.md", "not a table\n")
+    gzipped = tmp_path / "proteins.tsv.gz"
+    gzipped.write_bytes(gzip.compress(b"Sample\tFeature\nA\tF\n"))
 
-    with pytest.raises(IncompatibleSourceError, match="does not contain the declared file"):
-        composition.BoundTable(Folder(path=tmp_path), declared)
+    tables = Folder(path=tmp_path).tables("evidence.txt")
+
+    assert [table.name for table in tables] == ["peptides.txt", "proteins.tsv"]
+    assert Folder(path=tmp_path).tables(None) == tables
 
 
-def test_a_folder_bound_to_a_rule_declaring_no_candidate_names_is_incompatible(
-    tmp_path: Path,
-) -> None:
-    with pytest.raises(IncompatibleSourceError, match="declares no file_name"):
-        composition.BoundTable(Folder(path=tmp_path), contract(TEXT))
+def test_a_gzipped_parquet_file_is_refused_at_binding(tmp_path: Path) -> None:
+    path = tmp_path / "report.parquet.gz"
+    path.write_bytes(b"")
+
+    with pytest.raises(IncompatibleSourceError, match="decompress gzipped"):
+        composition.BoundTable(make_vendor_file(path), contract(PARQUET))
 
 
 def test_the_maxquant_ion_table_is_prepared_from_evidence() -> None:
@@ -422,8 +425,7 @@ def test_the_maxquant_ion_table_is_prepared_from_evidence() -> None:
 def test_a_workbook_with_a_txt_suffix_reads_its_declared_sheet() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "prolinestudio")
     path = pair.required_data_path()
-    source = SingleFile(path=path)
-    bound = composition.BoundTable(source, contract(WORKBOOK))
+    bound = composition.BoundTable(make_vendor_file(path), contract(WORKBOOK))
 
     evidence = bound.evidence(lambda columns: "quant_is_valid_for_protein_set" in columns)
     assert isinstance(evidence, ExcelSourceEvidence)
@@ -563,8 +565,7 @@ def test_binding_and_evidence_route_a_parquet_source_without_a_dialect(
 ) -> None:
     path = tmp_path / "report.parquet"
     pl.DataFrame({"Sample": ["A"], "Feature": ["F"]}).write_parquet(path)
-    source = SingleFile(path=path)
-    bound = composition.BoundTable(source, contract(TSV, PARQUET))
+    bound = composition.BoundTable(make_vendor_file(path), contract(TSV, PARQUET))
 
     evidence = bound.evidence(accepts_sample_and_feature)
 
@@ -650,7 +651,8 @@ def test_every_cached_vendor_export_resolves_to_one_unambiguous_reading(
         inputs = PreparationInputs.identify(source, preparation)
         assert tuple(inputs.prepare(path).frame.columns) == pair.header()
         return
-    bound = composition.BoundTable(source, facade.working_parameters.input)
+    (file,) = source.tables(facade.working_parameters.input.file_name)
+    bound = composition.BoundTable(file, facade.working_parameters.input)
 
     # A document with several levels shares one binding, so the predicate that decides a
     # dialect is "does any level recognize this header" -- the same question vendor

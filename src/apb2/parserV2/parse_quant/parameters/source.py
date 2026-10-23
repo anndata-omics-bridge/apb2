@@ -53,6 +53,10 @@ class SingleFile:
         """The file as apb2 reads it, plain or gzipped."""
         return make_vendor_file(self.path)
 
+    def tables(self, file_name: str | None) -> tuple[VendorFile, ...]:
+        """The one table this file is, whatever name a rule declares for it."""
+        return (self.file,)
+
 
 @dataclass(frozen=True, slots=True)
 class Folder:
@@ -66,6 +70,17 @@ class Folder:
             if candidate.is_file():
                 return make_vendor_file(candidate)
         return None
+
+    def tables(self, file_name: str | None) -> tuple[VendorFile, ...]:
+        """The member a rule declares by name, else every table file the folder holds."""
+        member = None if file_name is None else self.member(file_name)
+        if member is not None:
+            return (member,)
+        files = (make_vendor_file(path) for path in sorted(self.path.iterdir()) if path.is_file())
+        return tuple(file for file in files if file.suffix in _TABLE_SUFFIXES)
+
+
+_TABLE_SUFFIXES = frozenset({".txt", ".tsv", ".csv", ".parquet", ".xlsx"})
 
 
 type InputFileRecord = dict[str, int | str | list[str]]

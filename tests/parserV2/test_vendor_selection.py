@@ -12,7 +12,13 @@ from apb2.api import ConversionError, ParseRuleCompiler
 from apb2.parserV2 import compile as compilation
 from apb2.parserV2 import detect_document as detection
 from apb2.parserV2.detect_document import AmbiguousRuleError, RuleUnavailableError
-from apb2.parserV2.parse_quant.parameters.source import Folder, InputSource, SingleFile
+from apb2.parserV2.parse_quant.parameters.source import (
+    Folder,
+    InputSource,
+    PreparedTable,
+    SingleFile,
+)
+from apb2.parserV2.parse_quant.parameters.vendor_file import VendorFile
 from apb2.parserV2.parse_quant.parser import Parser
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.prepare_source import PreparationInputs
@@ -109,7 +115,7 @@ def test_hint_skips_global_recognition_and_unrelated_readers(
 
     def check_compile(
         facade: ParseRuleFacade,
-        source: InputSource,
+        source: VendorFile | PreparedTable,
         checks: Literal["standard", "strict"],
     ) -> Parser:
         assert facade.working_parameters.software_name == "DIA-NN"
