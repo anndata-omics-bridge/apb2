@@ -29,11 +29,12 @@ src/apb2/parserV2/vendor_parse_rules/documents/
 - Folder name: free; `--software` matches `software_name` lowercased, alphanumerics only (`DIA-NN` → `diann`)
 - Required: `hierarchy`, `schema_version`, `file_version`, `software_name`, `software_version_pattern`; per table `input.shape`, `input.extensions`, `base`, `levels`
 - Optional: `parameter_file: "none"` when no parameter file exists (`pb_custom`)
+- Placement: a value per run and feature is a layer, a value per run alone an `obs` column, and a value per feature, experiment-wide or from the spectral library, a `var` column. Decide from the tool's documentation and the data, not from one dataset
 
 ```json title="toyquant/v1/rules.json"
 {
   "hierarchy": "lfq",
-  "schema_version": "0.8",
+  "schema_version": "0.9",
   "file_version": "1",
   "software_name": "ToyQuant",
   "software_version_pattern": "^1\\.",

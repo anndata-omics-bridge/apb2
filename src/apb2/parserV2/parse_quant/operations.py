@@ -31,11 +31,14 @@ from apb2.parserV2.parse_quant.axis_columns import (
 from apb2.parserV2.parse_quant.contracts import (
     AxisValueCoercer,
     DuplicatePolicy,
+    FeatureValuePolicy,
     LayerValueParser,
 )
 from apb2.parserV2.parse_quant.duplicates import (
     AggregateNumericDuplicates,
     ErrorOnDuplicates,
+    ExtremeFeatureValue,
+    FirstFeatureValue,
     KeepBestDuplicate,
     KeepFirstDuplicate,
 )
@@ -47,6 +50,7 @@ from apb2.parserV2.parse_quant.modifications import (
 from apb2.parserV2.parse_quant.parameters.axis import (
     AxisColumnSelection,
     AxisLogicalType,
+    FeatureDuplicateMode,
 )
 from apb2.parserV2.parse_quant.parameters.level import JsonValue, QuantificationLevel
 from apb2.parserV2.parse_quant.parameters.measurements import (
@@ -122,11 +126,12 @@ _DUPLICATE_POLICIES: Mapping[DuplicateMode, DuplicatePolicy] = {
     "error": ErrorOnDuplicates(),
     "keep_first": KeepFirstDuplicate(),
     "sum": AggregateNumericDuplicates(pl.Expr.sum),
+    "min": AggregateNumericDuplicates(pl.Expr.min),
     "max": AggregateNumericDuplicates(pl.Expr.max),
 }
 """One policy per stateless duplicate mode; keep_best is built from its ranking instead."""
 
-NUMERIC_DUPLICATE_MODES: frozenset[DuplicateMode] = frozenset({"sum", "max"})
+NUMERIC_DUPLICATE_MODES: frozenset[DuplicateMode] = frozenset({"sum", "min", "max"})
 """Modes that reduce numbers, so their layers must be plain numeric and read as numbers."""
 
 
@@ -162,6 +167,15 @@ def duplicate_policy(measurements: WorkingMeasurements) -> DuplicatePolicy | Kee
     if ranking is None:
         raise ValueError("keep_best duplicates need the layer they rank by")
     return KeepBestDuplicate(by=ranking.layer, highest=ranking.highest, summed=ranking.summed)
+
+
+def feature_value_policy(
+    source: str, mode: FeatureDuplicateMode, numbers: NumericTextFormat
+) -> FeatureValuePolicy:
+    """Construct the resolution one var column's duplicate mode names."""
+    if mode == "keep_first":
+        return FirstFeatureValue(source)
+    return ExtremeFeatureValue(source, largest=mode == "max", notation=numbers)
 
 
 def make_layer_parser(

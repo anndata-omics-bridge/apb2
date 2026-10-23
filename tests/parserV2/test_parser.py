@@ -40,7 +40,11 @@ from apb2.parserV2.parse_quant.data.raw import (
 )
 from apb2.parserV2.parse_quant.data.source import LevelSourceTable
 from apb2.parserV2.parse_quant.decomposition import LongSourceDecomposer
-from apb2.parserV2.parse_quant.duplicates import DuplicateCellError, KeepBestDuplicate
+from apb2.parserV2.parse_quant.duplicates import (
+    DuplicateCellError,
+    FirstFeatureValue,
+    KeepBestDuplicate,
+)
 from apb2.parserV2.parse_quant.layer_validation import LayerContractValidator
 from apb2.parserV2.parse_quant.operations import (
     duplicate_policy_for,
@@ -129,6 +133,7 @@ def parser_for(
         ),
         obs=obs,
         var=var,
+        var_values=tuple(FirstFeatureValue(source) for source in var.payload_sources),
     )
     return Parser(
         input_reader=Reader(),
@@ -718,6 +723,7 @@ def test_a_parsed_level_is_a_direct_composition_and_keeps_no_key_map() -> None:
         "result": {
             "unknown_mod_tokens": [],
             "layer_diagnostics": {"unreadable_numeric": {}, "effectively_empty": {}},
+            "var_disagreements": {},
         },
         "summary": [
             {
@@ -739,6 +745,13 @@ def test_a_parsed_level_is_a_direct_composition_and_keeps_no_key_map() -> None:
                 "label": "Effectively empty layers",
                 "value": 0,
                 "unit": "layers",
+                "status": "ok",
+            },
+            {
+                "name": "var_disagreements",
+                "label": "Var columns whose repeated rows disagree",
+                "value": 0,
+                "unit": "columns",
                 "status": "ok",
             },
         ],
@@ -838,6 +851,9 @@ def test_a_computed_column_of_the_wrong_length_fails_at_the_boundary() -> None:
                 layer_sources=(LongRawLayerSource(name="Intensity", source_column="intensity"),),
                 obs=SIMPLE_OBS,
                 var=SIMPLE_VAR,
+                var_values=tuple(
+                    FirstFeatureValue(source) for source in SIMPLE_VAR.payload_sources
+                ),
             ),
             obs=SIMPLE_OBS_PLAN,
             var=replace(

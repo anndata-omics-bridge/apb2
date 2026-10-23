@@ -26,6 +26,8 @@ import polars.selectors as cs
 from apb2.parserV2.parse_quant.contracts import RawValuePresence
 from apb2.parserV2.parse_quant.data.errors import ConversionError
 from apb2.parserV2.parse_quant.data.raw import RawLayerTable
+from apb2.parserV2.parse_quant.numeric_text import as_numbers, blank
+from apb2.parserV2.parse_quant.parameters.source import NumericTextFormat
 
 _EXAMPLE_LIMIT = 5
 
@@ -208,3 +210,44 @@ class RankedDuplicates:
             for name, alias in ranks.items()
         )
         return replace(layer, values=resolved)
+
+
+@dataclass(frozen=True, slots=True)
+class FirstFeatureValue:
+    """A feature's first nonblank value; rows that give another value are a disagreement.
+
+    A feature whose rows are all blank keeps its first value as written, such as empty text.
+    """
+
+    source: str
+
+    def value(self, dtype: pl.DataType, /) -> pl.Expr:
+        nonblank = pl.col(self.source).filter(~blank(pl.col(self.source), dtype)).first()
+        return pl.coalesce(nonblank, pl.col(self.source).first())
+
+    def disagrees(self, dtype: pl.DataType, /) -> pl.Expr:
+        return pl.col(self.source).filter(~blank(pl.col(self.source), dtype)).n_unique() > 1
+
+
+@dataclass(frozen=True, slots=True)
+class ExtremeFeatureValue:
+    """A feature's smallest or largest number, kept as the vendor wrote it.
+
+    For a tool that writes a placeholder into some of a feature's rows, such as DIA-NN's
+    protein-group q-value of 1.0 on precursors without one; such rows disagree by design.
+    """
+
+    source: str
+    largest: bool
+    notation: NumericTextFormat
+
+    def value(self, dtype: pl.DataType, /) -> pl.Expr:
+        number = as_numbers(pl.col(self.source), dtype, self.notation)
+        return (
+            pl.col(self.source)
+            .sort_by(number, descending=self.largest, nulls_last=True, maintain_order=True)
+            .first()
+        )
+
+    def disagrees(self, dtype: pl.DataType, /) -> pl.Expr:
+        return pl.lit(value=False)

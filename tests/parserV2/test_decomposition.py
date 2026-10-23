@@ -18,7 +18,11 @@ from apb2.parserV2.parse_quant.decomposition import (
     LongSourceDecomposer,
     WideSourceDecomposer,
 )
-from apb2.parserV2.parse_quant.duplicates import KeepFirstDuplicate
+from apb2.parserV2.parse_quant.duplicates import (
+    ExtremeFeatureValue,
+    FirstFeatureValue,
+    KeepFirstDuplicate,
+)
 from apb2.parserV2.parse_quant.fragments import (
     ColumnLabeledFragmentTableSeparator,
     PackedLengthError,
@@ -27,6 +31,7 @@ from apb2.parserV2.parse_quant.fragments import (
 from apb2.parserV2.parse_quant.parameters.axis import AxisKeyPlan, AxisSourcePlan
 from apb2.parserV2.parse_quant.parameters.source import (
     LongRawLayerSource,
+    NumericTextFormat,
     WideRawLayerPlan,
     WideRawLayerSource,
 )
@@ -40,12 +45,18 @@ def axis(raw: tuple[str, ...], payload: tuple[str, ...] = ()) -> AxisSourcePlan:
     )
 
 
+def first_values(var: AxisSourcePlan) -> tuple[FirstFeatureValue, ...]:
+    """The default policy, a feature's first nonblank value, for every var payload column."""
+    return tuple(FirstFeatureValue(source) for source in var.payload_sources)
+
+
 def long_decomposer(
     *sources: tuple[str, str], primary: str, obs: AxisSourcePlan, var: AxisSourcePlan
 ) -> LongSourceDecomposer:
     return LongSourceDecomposer(
         obs=obs,
         var=var,
+        var_values=first_values(var),
         primary_layer_name=primary,
         layer_sources=tuple(
             LongRawLayerSource(name=name, source_column=column) for name, column in sources
@@ -90,6 +101,7 @@ def test_equivalent_long_and_wide_inputs_produce_the_same_raw_invariant() -> Non
         ),
         obs=axis(("run",)),
         var=axis(("Feature",)),
+        var_values=(),
     ).decompose(wide_table)
 
     assert from_long.obs.frame.get_column("run").to_list() == ["A", "B"]
@@ -152,6 +164,66 @@ def test_a_raw_axis_keeps_the_first_payload_it_saw_for_one_key() -> None:
     ).decompose(table)
 
     assert raw.var.frame.to_dicts() == [{"Feature": "F1", "Gene": "first"}]
+    assert raw.var.disagreements == {
+        "Gene": {"features": 1, "examples": [{"key": ["F1"], "values": ["first", "second"]}]}
+    }
+
+
+def test_keep_first_takes_the_first_nonblank_value_and_agreeing_rows_are_no_finding() -> None:
+    table = LevelSourceTable(
+        frame=pl.DataFrame(
+            {
+                "run": ["A", "B", "A", "B"],
+                "Feature": ["F1", "F1", "F2", "F2"],
+                "Gene": [None, "G1", " ", "G2"],
+                "Lib": ["0.01", "0.01", "0.02", None],
+                "intensity": [1.0, 2.0, 3.0, 4.0],
+            }
+        )
+    )
+
+    raw = long_decomposer(
+        ("Intensity", "intensity"),
+        primary="Intensity",
+        obs=axis(("run",)),
+        var=axis(("Feature",), ("Gene", "Lib")),
+    ).decompose(table)
+
+    assert raw.var.frame.to_dicts() == [
+        {"Feature": "F1", "Gene": "G1", "Lib": "0.01"},
+        {"Feature": "F2", "Gene": "G2", "Lib": "0.02"},
+    ]
+    assert raw.var.disagreements == {}
+
+
+@pytest.mark.parametrize(("largest", "kept"), [(False, ["6,51e-4", "0,5"]), (True, ["1,0", "0,5"])])
+def test_an_extreme_value_keeps_the_vendor_text_of_the_smallest_or_largest_number(
+    largest: bool, kept: list[str]
+) -> None:
+    """DIA-NN writes 1.0 into some rows of a protein group; ``min`` keeps the group's value."""
+    table = LevelSourceTable(
+        frame=pl.DataFrame(
+            {
+                "run": ["A", "B", "C", "A"],
+                "Group": ["P1", "P1", "P1", "P2"],
+                "Global": ["6,51e-4", "1,0", None, "0,5"],
+                "intensity": [1.0, 2.0, 3.0, 4.0],
+            }
+        )
+    )
+    var = axis(("Group",), ("Global",))
+    comma = NumericTextFormat(decimal_mark=",", thousands_marks=())
+
+    raw = LongSourceDecomposer(
+        obs=axis(("run",)),
+        var=var,
+        var_values=(ExtremeFeatureValue("Global", largest=largest, notation=comma),),
+        primary_layer_name="Intensity",
+        layer_sources=(LongRawLayerSource(name="Intensity", source_column="intensity"),),
+    ).decompose(table)
+
+    assert raw.var.frame.get_column("Global").to_list() == kept
+    assert raw.var.disagreements == {}, "the rule expects the rows to disagree"
 
 
 def test_a_missing_raw_key_component_is_an_identity_of_its_own() -> None:
@@ -316,6 +388,7 @@ def test_two_wide_columns_claiming_one_sample_become_repeated_rows() -> None:
         ),
         obs=axis(("sample",)),
         var=axis(("Feature",)),
+        var_values=(),
     )
 
     values = layers_of(config.decompose(table))["Intensity"]
@@ -340,6 +413,7 @@ def test_a_required_wide_layer_with_no_aligned_column_stays_aligned_and_empty() 
         ),
         obs=axis(("sample",)),
         var=axis(("Feature",)),
+        var_values=(),
     )
 
     raw = config.decompose(table)
@@ -373,6 +447,7 @@ def test_wide_keep_first_preserves_file_order_for_equal_keys(
         layer_plans=(WideRawLayerPlan("Intensity", sources),),
         obs=axis(("sample",)),
         var=axis(("Feature",)),
+        var_values=(),
     ).decompose(table)
     result = KeepFirstDuplicate().resolve(raw.layers.values[0], FactorLayerParser(()))
     assert result.values.to_dict(as_series=False) == {
@@ -397,6 +472,7 @@ def test_the_wide_observation_axis_comes_from_the_primary_layer_alone() -> None:
         ),
         obs=axis(("sample",)),
         var=axis(("Feature",)),
+        var_values=(),
     )
 
     raw = config.decompose(table)

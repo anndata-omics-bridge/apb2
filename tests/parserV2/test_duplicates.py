@@ -480,8 +480,9 @@ def test_the_declared_mode_selects_one_stateless_policy() -> None:
     assert isinstance(duplicate_policy_for("error"), ErrorOnDuplicates)
     assert isinstance(duplicate_policy_for("keep_first"), KeepFirstDuplicate)
     assert isinstance(duplicate_policy_for("sum"), AggregateNumericDuplicates)
+    assert isinstance(duplicate_policy_for("min"), AggregateNumericDuplicates)
     assert isinstance(duplicate_policy_for("max"), AggregateNumericDuplicates)
-    assert set(MODES) == {"error", "keep_first", "sum", "max", "keep_best"}
+    assert set(MODES) == {"error", "keep_first", "sum", "min", "max", "keep_best"}
 
 
 def test_the_numeric_modes_are_exactly_those_whose_policy_reduces_numbers() -> None:

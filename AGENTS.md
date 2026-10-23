@@ -67,6 +67,15 @@ must execute `lint-imports`, so the prose rule is also a merge-blocking check.
 - Multi-file vendor inputs use their canonical directory as the source. Do not
   add per-file companion options to the CLI or conversion facade.
 
+## Writing parsing rules
+
+- A value per run and feature is a layer (`measurements.layers`). A value per run alone is an `obs` column (`columns.obs`). A value per feature, experiment-wide or taken from the spectral library, is a `var` column (`columns.var`), even where a long report repeats it in every run row: DIA-NN's `Global.Q.Value` and `Lib.Q.Value` are examples.
+- Decide the placement from the tool's documentation, the data and what the column means. One dataset alone does not decide it: a column with the same value in every cell of one result says nothing about whether it varies per run, while one that differs across runs in any result is a layer.
+- Write the reason for a placement in the entry's `note`, especially where a reader would expect the other one.
+- A `var` column keeps a feature's first nonblank value (`keep_first`) and reports features whose rows disagree as `var_disagreements`, so check in a real report that the rows agree. A tool that writes placeholders into some rows, as DIA-NN writes 1.0 into `Global.PG.Q.Value`, needs `"duplicates": {"mode": "min"}` (or `max`).
+- A moved layer becomes a `var` entry with `"type": "number", "required": false`: a `var` entry is a required string by default, and a required column decides which files the rule accepts.
+- The steps for a new format are in [docs/adding_a_format.md](docs/adding_a_format.md).
+
 ## Dependency rules
 
 ### MUST

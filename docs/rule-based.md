@@ -2,7 +2,7 @@
 
 APB2 keeps vendor-table knowledge in one declarative `rules.json` document per software/version. Each document contains a nonempty `tables` list; every table declares its physical input, observation and variable identity, sourced or computed axis columns, measurement layers, semantic roles, and supported quantification levels. Supporting another layout normally means adding a table declaration rather than another Python reader.
 
-The current rule format is schema `0.8`. The generated [document schema](../src/apb2/parserV2/vendor_parse_rules/documents/_schema/document.schema.json) describes the authored shell and physical inputs. Table-local base/level composition is then validated against the [effective-rule schema](../src/apb2/parserV2/vendor_parse_rules/documents/_schema/rule.schema.json). Older documents must be migrated; there is no compatibility model.
+The current rule format is schema `0.9`. The generated [document schema](../src/apb2/parserV2/vendor_parse_rules/documents/_schema/document.schema.json) describes the authored shell and physical inputs. Table-local base/level composition is then validated against the [effective-rule schema](../src/apb2/parserV2/vendor_parse_rules/documents/_schema/rule.schema.json). Older documents must be migrated; there is no compatibility model.
 
 ## One software, multiple input tables
 
@@ -46,7 +46,7 @@ P2	b	21
 ```json title="rules.json"
 {
   "hierarchy": "lfq",
-  "schema_version": "0.8",
+  "schema_version": "0.9",
   "file_version": "1",
   "software_name": "MinimalLongExample",
   "software_version_pattern": "^1$",
@@ -129,7 +129,7 @@ P2	20	21
 ```json title="rules.json"
 {
   "hierarchy": "lfq",
-  "schema_version": "0.8",
+  "schema_version": "0.9",
   "file_version": "1",
   "software_name": "MinimalWideExample",
   "software_version_pattern": "^1$",
@@ -198,6 +198,21 @@ By default the primary layer's captures are the sample names, and every other la
 - `required`: source must exist; defaults to `true`
 - `type`: `string`, `integer`, `number`, or `boolean`; defaults to `string`
 - `roles`: semantic meanings owned by this entry
+- `note`: why the entry is placed or read as it is; parsing ignores it. Layers and computed entries take one too
+- `duplicates` (var only): how a feature's repeated rows become one value. `keep_first` (default) keeps the first nonblank value and reports features whose rows disagree as `var_disagreements`; `min` and `max` keep the smallest or largest number, for a tool that writes a placeholder into some rows
+
+A long report repeats a feature's values in every row of it, so a value per feature belongs in `columns.var` even where every run row carries it; a value per run and feature is a layer. DIA-NN's experiment-wide protein-group q-value is one such column, with a 1.0 placeholder on precursors without a global q-value:
+
+```json
+{
+  "name": "Global_PG_Q_Value",
+  "source": "Global.PG.Q.Value",
+  "type": "number",
+  "required": false,
+  "duplicates": {"mode": "min"},
+  "note": "Experiment-wide; DIA-NN writes 1.0 in rows of precursors without one, so the smallest value is the group's"
+}
+```
 
 Computed entries replace `source` with `how` and `inputs`. They appear after the entries they consume:
 

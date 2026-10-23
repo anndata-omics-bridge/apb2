@@ -69,6 +69,10 @@
           "title": "Roles",
           "type": "array"
         },
+        "note": {
+          "$ref": "#/$defs/Note",
+          "default": null
+        },
         "how": {
           "const": "coalesce",
           "title": "How",
@@ -93,6 +97,18 @@
         "inputs"
       ],
       "title": "Coalesce",
+      "type": "object"
+    },
+    "ColumnDuplicates": {
+      "additionalProperties": false,
+      "description": "How a var column resolves the values a feature's repeated rows give it.\n\nA long report repeats a feature's values in every row of it, one per run. ``keep_first``\nkeeps the first nonblank value and reports features whose rows disagree. ``min`` and\n``max`` keep the smallest or largest number, for a tool that writes a placeholder into\nsome of a feature's rows, such as DIA-NN's protein-group q-value of 1.0.",
+      "properties": {
+        "mode": {
+          "$ref": "#/$defs/VarDuplicateMode",
+          "default": "keep_first"
+        }
+      },
+      "title": "ColumnDuplicates",
       "type": "object"
     },
     "ColumnEntry": {
@@ -290,6 +306,10 @@
           "default": null,
           "title": "Separator"
         },
+        "note": {
+          "$ref": "#/$defs/Note",
+          "default": null
+        },
         "how": {
           "const": "contaminant",
           "title": "How",
@@ -383,6 +403,10 @@
           "default": null,
           "title": "Separator"
         },
+        "note": {
+          "$ref": "#/$defs/Note",
+          "default": null
+        },
         "how": {
           "const": "decoy",
           "title": "How",
@@ -410,6 +434,7 @@
       "enum": [
         "error",
         "sum",
+        "min",
         "max",
         "keep_first",
         "keep_best"
@@ -549,6 +574,10 @@
           },
           "title": "Roles",
           "type": "array"
+        },
+        "note": {
+          "$ref": "#/$defs/Note",
+          "default": null
         }
       },
       "required": [
@@ -656,6 +685,10 @@
           },
           "title": "Roles",
           "type": "array"
+        },
+        "note": {
+          "$ref": "#/$defs/Note",
+          "default": null
         },
         "how": {
           "const": "join_nonempty",
@@ -910,6 +943,18 @@
       "title": "NoValuePattern",
       "type": "object"
     },
+    "Note": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Why the entry is placed or read as it is, for the rule's readers; parsing ignores it"
+    },
     "NumericLayer": {
       "additionalProperties": false,
       "description": "A quantitative layer encoded numerically only at an output boundary.",
@@ -972,6 +1017,10 @@
           },
           "title": "Roles",
           "type": "array"
+        },
+        "note": {
+          "$ref": "#/$defs/Note",
+          "default": null
         }
       },
       "required": [
@@ -1063,6 +1112,10 @@
           "title": "Roles",
           "type": "array"
         },
+        "note": {
+          "$ref": "#/$defs/Note",
+          "default": null
+        },
         "how": {
           "const": "proforma_fragment",
           "title": "How",
@@ -1123,6 +1176,10 @@
           "title": "Roles",
           "type": "array"
         },
+        "note": {
+          "$ref": "#/$defs/Note",
+          "default": null
+        },
         "how": {
           "const": "proforma_ion",
           "title": "How",
@@ -1182,6 +1239,10 @@
           },
           "title": "Roles",
           "type": "array"
+        },
+        "note": {
+          "$ref": "#/$defs/Note",
+          "default": null
         },
         "how": {
           "const": "proforma_sequence",
@@ -1291,7 +1352,7 @@
       ]
     },
     "SchemaVersion": {
-      "const": "0.8",
+      "const": "0.9",
       "type": "string"
     },
     "SearchParameterField": {
@@ -1392,7 +1453,7 @@
     },
     "SourcedColumn": {
       "additionalProperties": false,
-      "description": "One logical axis column read from one physical vendor column.\n\nA protein-list column may declare the vendor's own further list ``separator``, such as\nPEAKS's ``:``; ``;`` and ``,`` separate every protein list already.",
+      "description": "One logical axis column read from one physical vendor column.\n\nA protein-list column may declare the vendor's own further list ``separator``, such as\nPEAKS's ``:``; ``;`` and ``,`` separate every protein list already. Only a var column\ndeclares ``duplicates``; without it, a feature keeps its first nonblank value.",
       "properties": {
         "name": {
           "title": "Name",
@@ -1430,6 +1491,21 @@
           ],
           "default": null,
           "title": "Separator"
+        },
+        "duplicates": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ColumnDuplicates"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "note": {
+          "$ref": "#/$defs/Note",
+          "default": null
         }
       },
       "required": [
@@ -1470,6 +1546,10 @@
           },
           "title": "Roles",
           "type": "array"
+        },
+        "note": {
+          "$ref": "#/$defs/Note",
+          "default": null
         },
         "how": {
           "const": "stripped_sequence",
@@ -1579,6 +1659,14 @@
           "$ref": "#/$defs/RegexValuePattern"
         }
       ]
+    },
+    "VarDuplicateMode": {
+      "enum": [
+        "keep_first",
+        "min",
+        "max"
+      ],
+      "type": "string"
     },
     "WideColumns": {
       "additionalProperties": false,

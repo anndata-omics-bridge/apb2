@@ -116,7 +116,7 @@ def convert_from_rule_config(
     software: str | None,
     checks: AnnDataChecks,
 ) -> ConversionSummary:
-    """Convert one level using an explicitly supplied schema-0.8 rule document."""
+    """Convert one level using an explicitly supplied schema-0.9 rule document."""
     return _convert(
         lambda: ParseRuleCompiler.from_rule(
             data, rule_config, parameters_path, (level,), software, checks
@@ -134,7 +134,7 @@ def convert_all_from_rule_config(
     software: str | None,
     checks: AnnDataChecks,
 ) -> ConversionSummary:
-    """Convert every compatible level of an explicit schema-0.8 document."""
+    """Convert every compatible level of an explicit schema-0.9 document."""
     return _convert(
         lambda: ParseRuleCompiler.from_rule(
             data, rule_config, parameters_path, None, software, checks

@@ -176,7 +176,7 @@ class ParseRuleCompiler:
         software: str | None = None,
         checks: ValidationChecks = "standard",
     ) -> Self:
-        """Compile a caller's schema-0.8 rule file instead of a detected packaged one.
+        """Compile a caller's schema-0.9 rule file instead of a detected packaged one.
 
         ``requested_levels`` defaults to every level the rule declares. A parameter file adds
         search-parameter evidence and the detected version; ``software`` selects its grammar

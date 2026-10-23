@@ -567,7 +567,7 @@ def test_a_level_without_a_gate_is_applicable_without_any_evidence() -> None:
         document.rule("peptide", NO_EVIDENCE)
 
 
-# ------------------------------------------------------------------ what schema 0.8 refuses
+# ------------------------------------------------------------------ what schema 0.9 refuses
 
 
 def _document_payload() -> dict[str, Any]:
@@ -609,6 +609,30 @@ def test_the_reference_payload_is_valid_so_every_rejection_below_is_the_change(
     tmp_path: Path,
 ) -> None:
     _declared(_document_payload(), tmp_path)
+
+
+def test_every_column_and_layer_takes_a_note_and_a_var_column_its_duplicates(
+    tmp_path: Path,
+) -> None:
+    payload = _document_payload()
+    base = payload["tables"][0]["base"]
+    base["columns"]["obs"][0]["note"] = "one sample per run"
+    for flag in base["columns"]["var"]:
+        flag["note"] = "the vendor marks no such rows"
+    base["measurements"]["layers"][0]["note"] = "a value per run and feature"
+    payload["tables"][0]["levels"]["ion"]["columns"]["var"].append(
+        {
+            "name": "global_q",
+            "source": "Global Q",
+            "type": "number",
+            "required": False,
+            "duplicates": {"mode": "min"},
+            "note": "experiment-wide; placeholder 1.0 in some rows",
+        }
+    )
+
+    _declared(payload, tmp_path)
+    assert SourcedColumn(name="gene", source="Gene").duplicates_mode == "keep_first"
 
 
 def test_numeric_layer_type_defaults_to_number_and_rejects_unknown_values() -> None:
@@ -710,6 +734,51 @@ def test_factor_layers_do_not_acquire_a_numeric_type() -> None:
             "list_type",
             id="column-side-map",
         ),
+        pytest.param(
+            lambda payload: payload["tables"][0]["base"]["columns"]["obs"][0].update(
+                {"duplicates": {"mode": "keep_first"}}
+            ),
+            "var columns only",
+            id="obs-duplicates",
+        ),
+        pytest.param(
+            lambda payload: payload["tables"][0]["levels"]["ion"]["columns"]["var"][0].update(
+                {"duplicates": {"mode": "keep_first"}}
+            ),
+            "resolve no duplicates",
+            id="var-key-duplicates",
+        ),
+        pytest.param(
+            lambda payload: payload["tables"][0]["levels"]["ion"]["columns"]["var"].append(
+                {"name": "gene", "source": "Gene", "duplicates": {"mode": "min"}}
+            ),
+            "numeric column",
+            id="min-on-text",
+        ),
+        pytest.param(
+            lambda payload: payload["tables"][0]["levels"]["ion"]["columns"]["var"].append(
+                {"name": "q", "source": "Q", "type": "number", "duplicates": {"mode": "sum"}}
+            ),
+            "keep_first",
+            id="var-sum",
+        ),
+        pytest.param(
+            lambda payload: payload["tables"][0]["levels"]["ion"]["columns"]["var"].extend(
+                [
+                    {"name": "q", "source": "Q", "type": "number", "duplicates": {"mode": "min"}},
+                    {"name": "q_copy", "source": "Q", "type": "number"},
+                ]
+            ),
+            "resolves duplicates both",
+            id="one-source-two-modes",
+        ),
+        pytest.param(
+            lambda payload: payload["tables"][0]["base"]["measurements"]["layers"][0].update(
+                {"note": ""}
+            ),
+            "at least 1 character",
+            id="empty-note",
+        ),
     ],
 )
 def test_schema_0_4_refuses_a_legacy_or_illegal_declaration(
@@ -722,7 +791,7 @@ def test_schema_0_4_refuses_a_legacy_or_illegal_declaration(
         _declared(payload, tmp_path)
 
 
-@pytest.mark.parametrize("version", ["0.3", "0.5", "0.6", "0.7"])
+@pytest.mark.parametrize("version", ["0.3", "0.5", "0.6", "0.7", "0.8"])
 def test_a_document_of_a_previous_generation_is_refused_at_the_shell(
     version: str, tmp_path: Path
 ) -> None:

@@ -84,6 +84,7 @@ def test_the_serialization_covers_every_source_decision_without_provenance() -> 
         "var",
         "duplicate_mode",
         "duplicate_ranking",
+        "var_duplicates",
         "layer_values",
         "layer_contract",
     }

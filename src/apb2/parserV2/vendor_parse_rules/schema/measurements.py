@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 
 from pydantic import Discriminator, Field, Tag, model_validator
 
-from apb2.parserV2.vendor_parse_rules.schema.base import DuplicateMode, ModelBase
+from apb2.parserV2.vendor_parse_rules.schema.base import DuplicateMode, ModelBase, Note
 from apb2.parserV2.vendor_parse_rules.schema.roles import SemanticRole
 
 _MISSING_BOUND = r"^<=\s*(-?\d+(?:\.\d+)?)$"
@@ -94,6 +94,7 @@ class NumericLayer(ModelBase):
     value_pattern: ValuePattern = Field(default_factory=NoValuePattern)
     required: bool = False
     roles: list[SemanticRole] = Field(default_factory=list)
+    note: Note = None
 
     @model_validator(mode="after")
     def _validate_one_threshold(self) -> NumericLayer:
@@ -127,6 +128,7 @@ class FactorLayer(ModelBase):
     categories: dict[str, int] = Field(min_length=1)
     required: bool = False
     roles: list[SemanticRole] = Field(default_factory=list)
+    note: Note = None
 
 
 def _layer_encoding(value: object) -> str:

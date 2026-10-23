@@ -29,6 +29,7 @@ A rule document and the standard reader handle everything listed here. A prepara
 - Modification maps to UniMod, with unknown tokens kept, dropped or rejected
 - Rows with a missing or empty-text final key component are dropped
 - Two raw keys mapping to one final key raise an error
+- A feature's repeated rows in a var column: first nonblank value (`keep_first`, disagreements reported), or the smallest or largest number (`min`, `max`)
 
 ## Measurements
 
@@ -36,8 +37,8 @@ A rule document and the standard reader handle everything listed here. A prepara
 - `missing_values`: exact numbers and one `<=` threshold
 - `missing_tokens`: text written for a missing value, such as `-` or `NA`
 - `value_pattern`: one number extracted from structured cells by regex
-- Repeated cells: `error`, `keep_first`, `sum`, `max`, or `keep_best` (one row per cell by a ranking layer, with optional summed layers); another reduction is a new mode here, never hook work
-- `sum` and `max` leave a cell null when nothing is present, and reduce each layer separately, so with several layers one feature's cells can come from different repeated rows
+- Repeated cells: `error`, `keep_first`, `sum`, `min`, `max`, or `keep_best` (one row per cell by a ranking layer, with optional summed layers); another reduction is a new mode here, never hook work
+- `sum`, `min` and `max` leave a cell null when nothing is present, and reduce each layer separately, so with several layers one feature's cells can come from different repeated rows
 - Primary layer, swapped by `search_parameter_overrides`
 - Semantic roles: `abundance`, `protein_assignment`, `fasta_accessions`
 
@@ -49,4 +50,4 @@ A rule document and the standard reader handle everything listed here. A prepara
 - Making rows that are not a hierarchy level, such as FlashLFQ peaks, parseable as one; combining their repeated cells stays a duplicate mode
 - Giving rows another table's identity through a vendor foreign key, such as MaxQuant evidence's protein group, so levels share one protein identity
 
-Prepared tables are read as text ([prepare_source.py](../src/apb2/parserV2/prepare_source.py)); when a rule uses `sum` or `max`, their text layer columns are read as numbers, as the direct reader does.
+Prepared tables are read as text ([prepare_source.py](../src/apb2/parserV2/prepare_source.py)); when a rule uses `sum`, `min` or `max`, their text layer columns are read as numbers, as the direct reader does.

@@ -23,7 +23,7 @@ from parserV2.fixtures import committed_sample
 
 _DOCUMENT = {
     "hierarchy": "lfq",
-    "schema_version": "0.8",
+    "schema_version": "0.9",
     "file_version": "1",
     "software_name": "CliTest",
     "software_version_pattern": "^1$",
@@ -74,7 +74,7 @@ def test_convert_diann_with_software_and_no_params(tmp_path: Path) -> None:
 
 _MULTILEVEL_DOCUMENT = {
     "hierarchy": "lfq",
-    "schema_version": "0.8",
+    "schema_version": "0.9",
     "file_version": "1",
     "software_name": "CliTest",
     "software_version_pattern": "^1$",

@@ -14,11 +14,14 @@ class ConversionEvidence:
     """What parsing one level found worth reporting.
 
     ``effectively_empty`` is ``None`` when no layer was populated enough to judge emptiness.
+    ``var_disagreements`` names the vendor columns whose repeated rows gave a feature
+    different values, where the rule kept the first.
     """
 
     unknown_mod_tokens: tuple[str, ...]
     unreadable_numeric: Mapping[str, JsonValue]
     effectively_empty: Mapping[str, JsonValue] | None
+    var_disagreements: Mapping[str, JsonValue]
 
     def record(self, provenance: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
         """Provenance, complete evidence and its summary, in the stored shape."""
@@ -30,6 +33,7 @@ class ConversionEvidence:
                     "unreadable_numeric": dict(self.unreadable_numeric),
                     "effectively_empty": dict(self.effectively_empty or {}),
                 },
+                "var_disagreements": dict(self.var_disagreements),
             },
             "summary": [
                 self._count(
@@ -52,6 +56,12 @@ class ConversionEvidence:
                     "Effectively empty layers",
                     None if self.effectively_empty is None else len(self.effectively_empty),
                     "layers",
+                ),
+                self._count(
+                    "var_disagreements",
+                    "Var columns whose repeated rows disagree",
+                    len(self.var_disagreements),
+                    "columns",
                 ),
             ],
         }

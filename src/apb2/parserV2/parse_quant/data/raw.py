@@ -12,9 +12,11 @@ discarded before ``ParsedLevel`` is returned.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import polars as pl
+
+from apb2.parserV2.parse_quant.data.parsed import JsonValue
 
 
 @dataclass(slots=True)
@@ -30,7 +32,11 @@ class ObsRaw:
 
 @dataclass(slots=True)
 class VarRaw:
-    """One stable-first row per complete raw var-key tuple, with its payload metadata."""
+    """One row per complete raw var-key tuple, with its payload metadata.
+
+    ``disagreements`` names each payload source whose repeated rows gave a feature
+    different values, with how many features and a few examples.
+    """
 
     frame: pl.DataFrame
     # pl.DataFrame({
@@ -43,6 +49,9 @@ class VarRaw:
 
     raw_key_columns: tuple[str, ...]
     # ("sequence", "mods", "mod_sites", "charge")
+
+    disagreements: dict[str, JsonValue] = field(default_factory=dict[str, JsonValue])
+    # {"genes": {"features": 1, "examples": [{"key": [...], "values": ["G1", "G2"]}]}}
 
 
 @dataclass(slots=True)

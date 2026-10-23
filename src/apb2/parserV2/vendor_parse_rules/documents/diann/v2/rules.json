@@ -1,6 +1,6 @@
 {
   "hierarchy": "lfq",
-  "schema_version": "0.8",
+  "schema_version": "0.9",
   "file_version": "5",
   "software_name": "DIA-NN",
   "software_version_pattern": "^2\\..*",

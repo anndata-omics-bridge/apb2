@@ -6,8 +6,9 @@ an encoder, or a writer — and every shape reduces to the same three values, so
 downstream is written once.
 
 Two invariants are easy to lose and are the reason this module exists at all. A raw axis holds
-exactly one stable-first row per complete raw-key tuple, keeping the first payload metadata it
-saw. And a raw layer *keeps* repeated cells: a repeated ``(var key, obs key)`` pair becomes a
+exactly one row per complete raw-key tuple: the obs axis keeps the first payload metadata it
+saw, and each var payload column applies the value policy the resolver configured for it,
+reporting features whose rows disagree. And a raw layer *keeps* repeated cells: a repeated ``(var key, obs key)`` pair becomes a
 repeated var row, because deciding what several values for one cell mean is the duplicate
 policy's question, and collapsing them here would destroy the evidence it needs.
 """
@@ -18,8 +19,13 @@ from dataclasses import dataclass
 
 import polars as pl
 
-from apb2.parserV2.parse_quant.contracts import FragmentTableSeparator, SourceDecomposer
+from apb2.parserV2.parse_quant.contracts import (
+    FeatureValuePolicy,
+    FragmentTableSeparator,
+    SourceDecomposer,
+)
 from apb2.parserV2.parse_quant.data.layer_columns import observation_labels
+from apb2.parserV2.parse_quant.data.parsed import JsonValue
 from apb2.parserV2.parse_quant.data.raw import (
     DecomposedDataRaw,
     LayersRaw,
@@ -28,9 +34,12 @@ from apb2.parserV2.parse_quant.data.raw import (
     VarRaw,
 )
 from apb2.parserV2.parse_quant.data.source import LevelSourceTable
+from apb2.parserV2.parse_quant.numeric_text import blank
 from apb2.parserV2.parse_quant.parameters.axis import AxisSourcePlan
 from apb2.parserV2.parse_quant.parameters.source import LongRawLayerSource, WideRawLayerPlan
 
+_EXAMPLE_LIMIT = 5
+_DISAGREES = "_disagrees_"
 _OCCURRENCE = "_occurrence"
 _OBS_SLOT = "_obs_slot"
 _PIVOT_SEPARATOR = "::"
@@ -58,6 +67,56 @@ def _axis_frame(frame: pl.DataFrame, plan: AxisSourcePlan) -> pl.DataFrame:
     )
 
 
+def _var_raw(
+    frame: pl.DataFrame, plan: AxisSourcePlan, values: tuple[FeatureValuePolicy, ...]
+) -> VarRaw:
+    """One row per complete raw var-key tuple, each payload column resolved by its policy.
+
+    A long report repeats a feature's payload in each of its rows. Each policy reduces those
+    values to one and says whether they disagreed; a disagreement is reported, never turned
+    into a second identity row. The policies are the payload: one per ``payload_sources``.
+    """
+    keys = plan.keys.raw_key_columns
+    flags = tuple(f"{_DISAGREES}{index}" for index in range(len(values)))
+    resolved = frame.group_by(keys, maintain_order=True).agg(
+        *(policy.value(frame.schema[policy.source]).alias(policy.source) for policy in values),
+        *(
+            policy.disagrees(frame.schema[policy.source]).alias(flag)
+            for policy, flag in zip(values, flags, strict=True)
+        ),
+    )
+    disagreements = {
+        policy.source: _disagreement(frame, resolved.filter(pl.col(flag)), keys, policy.source)
+        for policy, flag in zip(values, flags, strict=True)
+        if resolved.get_column(flag).any()
+    }
+    return VarRaw(frame=resolved.drop(flags), raw_key_columns=keys, disagreements=disagreements)
+
+
+def _disagreement(
+    frame: pl.DataFrame, flagged: pl.DataFrame, keys: tuple[str, ...], source: str
+) -> JsonValue:
+    """How many features one payload column disagrees on, with the values of a few."""
+    examples = (
+        frame.join(
+            flagged.head(_EXAMPLE_LIMIT).select(keys),
+            on=list(keys),
+            nulls_equal=True,
+            maintain_order="right",
+        )
+        .filter(~blank(pl.col(source), frame.schema[source]))
+        .group_by(keys, maintain_order=True)
+        .agg(pl.col(source).unique(maintain_order=True).head(_EXAMPLE_LIMIT))
+    )
+    return {
+        "features": flagged.height,
+        "examples": [
+            {"key": [row[key] for key in keys], "values": row[source]}
+            for row in examples.iter_rows(named=True)
+        ],
+    }
+
+
 @dataclass(frozen=True, slots=True)
 class LongSourceDecomposer:
     """One physical row per (observation, feature); every layer names an exact column."""
@@ -66,11 +125,13 @@ class LongSourceDecomposer:
     layer_sources: tuple[LongRawLayerSource, ...]
     obs: AxisSourcePlan
     var: AxisSourcePlan
+    var_values: tuple[FeatureValuePolicy, ...]
 
     def decompose(self, table: LevelSourceTable, /) -> DecomposedDataRaw:
         frame = table.frame
         obs_frame = _axis_frame(frame, self.obs)
-        var_frame = _axis_frame(frame, self.var)
+        var = _var_raw(frame, self.var, self.var_values)
+        var_frame = var.frame
         labels = observation_labels(obs_frame.height, reserved=var_frame.columns)
         source_columns = tuple(dict.fromkeys(source.source_column for source in self.layer_sources))
         source_aliases = dict(
@@ -89,7 +150,7 @@ class LongSourceDecomposer:
         )
         return DecomposedDataRaw(
             obs=ObsRaw(frame=obs_frame, raw_key_columns=self.obs.keys.raw_key_columns),
-            var=VarRaw(frame=var_frame, raw_key_columns=self.var.keys.raw_key_columns),
+            var=var,
             layers=LayersRaw(
                 primary_layer_name=self.primary_layer_name,
                 values=tuple(
@@ -199,16 +260,18 @@ class WideSourceDecomposer:
     layer_plans: tuple[WideRawLayerPlan, ...]
     obs: AxisSourcePlan
     var: AxisSourcePlan
+    var_values: tuple[FeatureValuePolicy, ...]
 
     def decompose(self, table: LevelSourceTable, /) -> DecomposedDataRaw:
         frame = table.frame
         samples = self._samples()
         obs_frame = pl.DataFrame({name: list(samples) for name in self.obs.keys.raw_key_columns})
-        var_frame = _axis_frame(frame, self.var)
+        var = _var_raw(frame, self.var, self.var_values)
+        var_frame = var.frame
         labels = observation_labels(len(samples), reserved=var_frame.columns)
         return DecomposedDataRaw(
             obs=ObsRaw(frame=obs_frame, raw_key_columns=self.obs.keys.raw_key_columns),
-            var=VarRaw(frame=var_frame, raw_key_columns=self.var.keys.raw_key_columns),
+            var=var,
             layers=LayersRaw(
                 primary_layer_name=self.primary_layer_name,
                 values=tuple(

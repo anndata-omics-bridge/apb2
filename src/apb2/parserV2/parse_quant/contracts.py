@@ -82,6 +82,21 @@ class DuplicatePolicy(Protocol):
     def resolve(self, layer: RawLayerTable, presence: RawValuePresence, /) -> RawLayerTable: ...
 
 
+class FeatureValuePolicy(Protocol):
+    """Resolve the values a feature's repeated rows give one var payload column.
+
+    Both expressions run inside one aggregation over the raw var keys, on the column as the
+    reader produced it, before any coercion.
+    """
+
+    @property
+    def source(self) -> str: ...
+
+    def value(self, dtype: pl.DataType, /) -> pl.Expr: ...
+
+    def disagrees(self, dtype: pl.DataType, /) -> pl.Expr: ...
+
+
 class LayerValueParser(Protocol):
     """One layer's settings for raw presence and final value parsing, in separate phases."""
 

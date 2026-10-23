@@ -20,6 +20,7 @@ from apb2.parserV2.vendor_parse_rules.schema.axis import (
     ProformaFragment,
     ProformaIon,
     ProformaSequence,
+    SourcedColumn,
     StrippedSequence,
     WideColumns,
     computed_columns,
@@ -181,7 +182,7 @@ def validate_rule(payload: object) -> LongRule | WideRule:
 
 
 def rule_json_schema() -> dict[str, object]:
-    """Return the JSON Schema for complete schema-0.8 effective rules."""
+    """Return the JSON Schema for complete schema-0.9 effective rules."""
     return _RULE_ADAPTER.json_schema()
 
 
@@ -207,6 +208,25 @@ def _check_column_group(keys: list[str], group: ColumnGroup, owner: RoleOwner) -
     _check_role_owners(owner, (role for role, _name in role_columns))
     if len(dict(role_columns)) != len(role_columns):
         raise ValueError(f"roles must be unique on columns.{owner}")
+    _check_duplicates(keys, group, owner)
+
+
+def _check_duplicates(keys: list[str], group: ColumnGroup, owner: RoleOwner) -> None:
+    """Only var payload columns resolve duplicates, and each vendor column one way."""
+    sourced = [entry for entry in group if isinstance(entry, SourcedColumn)]
+    declared = [entry.name for entry in sourced if entry.duplicates is not None]
+    if owner == "obs" and declared:
+        raise ValueError(f"duplicates apply to var columns only: {declared}")
+    keyed = [name for name in declared if name in keys]
+    if keyed:
+        raise ValueError(f"axis.var_keys identify a feature and resolve no duplicates: {keyed}")
+    modes: dict[str, str] = {}
+    for entry in sourced:
+        if modes.setdefault(entry.source, entry.duplicates_mode) != entry.duplicates_mode:
+            raise ValueError(
+                f"vendor source {entry.source!r} resolves duplicates both as "
+                f"{modes[entry.source]!r} and as {entry.duplicates_mode!r}"
+            )
 
 
 def _check_role_owners(owner: RoleOwner, roles: Iterable[SemanticRole]) -> None:

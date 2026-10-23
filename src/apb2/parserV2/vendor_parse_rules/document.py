@@ -47,7 +47,7 @@ class RuleNotApplicable(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class SearchParameterEvidence:
-    """The complete parameter vocabulary permitted in schema-0.8 conditions."""
+    """The complete parameter vocabulary permitted in schema-0.9 conditions."""
 
     acquisition_method: Literal["DDA", "DIA", "unknown"]
     combine_charge_states: bool | None

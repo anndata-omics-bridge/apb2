@@ -23,7 +23,7 @@ apb2 convert DATA [LEVEL] [OPTIONS]
 | `DATA` | Vendor result table or directory containing named result tables |
 | `LEVEL` | Optional quantification level; omit it to write every compatible level |
 | `--params PATH` | Vendor search-parameter file; omit only for an explicit rule or a parameter-free packaged rule |
-| `--rule-config PATH` | Explicit schema-0.8 rule document |
+| `--rule-config PATH` | Explicit schema-0.9 rule document |
 | `--software NAME` | Parameter-file grammar and result-rule hint; required without `--params` for parameter-free packaged rules such as `pb_custom` |
 | `--format FORMAT` | `hdf5`, `parquet`, or `duckdb`; default `hdf5` |
 | `--output BASENAME` | Output basename without the selected suffix |

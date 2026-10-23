@@ -2,6 +2,11 @@
 
 ## 2026-10-23
 
+- Rule schema 0.9: an optional `note` on every column and layer entry, which parsing ignores; a `duplicates` block on var columns; the duplicate mode `min`. Packaged rules and tests move to `0.9`; schema 0.8 documents are refused.
+  - **Var duplicates:** `keep_first` (default) keeps a feature's first nonblank value, where it kept the first row's value, blank or not; `min` and `max` keep the smallest or largest number as the vendor wrote it, for a tool that writes placeholders into some of a feature's rows. Obs payload keeps its first row
+  - **Record:** each level's `parse` record lists `result.var_disagreements` (per vendor column, the features whose rows disagree, with up to five examples) and a summary entry `var_disagreements`, `attention` above zero
+  - **Layers:** `min` mirrors `max`, read and reduced as numbers
+  - **Runtime:** the resolver builds one `FeatureValuePolicy` per var payload column; `LongSourceDecomposer` and `WideSourceDecomposer` take them as `var_values`
 - **Breaking:** the WOMBAT-P rule and parameter parser write `software_name` `WOMBAT-P`, as the tool's publication names it (doi 10.1021/acs.jproteome.3c00636), not `WOMBAT` and `Wombat`. The slug follows: `--software wombatp`; the parameter-parser registry takes `wombatp` and `wombat-p`. Names APB reads from ProteoBench keep ProteoBench's spelling; folder, file and `prepare.how` names stay `wombat`. WOMBAT results written before bind no apb-catalog entry; regenerate them.
 
 ## 2026-10-22

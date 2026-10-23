@@ -257,4 +257,4 @@ def test_the_provenance_of_a_parsed_level_names_the_rule_it_came_from() -> None:
     rule = json.loads(str(provenance["rule_json"]))
     assert rule["software_name"] == "AlphaPept"
     assert rule["quantification_level"] == "ion"
-    assert rule["schema_version"] == "0.8"
+    assert rule["schema_version"] == "0.9"

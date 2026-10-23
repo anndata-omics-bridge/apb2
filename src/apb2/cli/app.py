@@ -58,7 +58,7 @@ def convert(
     result-producer rule from file columns when the evidence is unambiguous.
     --software selects the parameter parser and limits result rules to that vendor and
     its declared quantification software. --rule-config selects an
-    explicit schema-0.8 document. --format selects hdf5, parquet, or duckdb. --output is a
+    explicit schema-0.9 document. --format selects hdf5, parquet, or duckdb. --output is a
     basename to which apb2 appends the selected suffix; the name may contain dots, it simply
     must not already carry that suffix. --strict promotes layer-contract warnings to errors.
     --timings-output writes a separate JSON file of internal conversion phase timings.

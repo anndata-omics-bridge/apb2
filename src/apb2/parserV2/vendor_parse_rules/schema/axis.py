@@ -6,7 +6,13 @@ from typing import Annotated, Literal
 
 from pydantic import Field, model_validator
 
-from apb2.parserV2.vendor_parse_rules.schema.base import AxisColumnType, ModelBase, UnknownPolicy
+from apb2.parserV2.vendor_parse_rules.schema.base import (
+    AxisColumnType,
+    ModelBase,
+    Note,
+    UnknownPolicy,
+    VarDuplicateMode,
+)
 from apb2.parserV2.vendor_parse_rules.schema.roles import SemanticRole
 
 
@@ -32,6 +38,7 @@ class ComputedColumnBase(ModelBase):
     type: AxisColumnType = "string"
     required: bool = True
     roles: list[SemanticRole] = Field(default_factory=list)
+    note: Note = None
 
 
 class Coalesce(ComputedColumnBase):
@@ -105,6 +112,7 @@ class _Flag(ModelBase):
     equals: str | None = Field(default=None, min_length=1)
     prefix: str | None = Field(default=None, min_length=1)
     separator: str | None = Field(default=None, min_length=1)
+    note: Note = None
 
     @model_validator(mode="after")
     def _one_marking(self) -> _Flag:
@@ -155,11 +163,24 @@ type ComputedColumn = Annotated[
 ]
 
 
+class ColumnDuplicates(ModelBase):
+    """How a var column resolves the values a feature's repeated rows give it.
+
+    A long report repeats a feature's values in every row of it, one per run. ``keep_first``
+    keeps the first nonblank value and reports features whose rows disagree. ``min`` and
+    ``max`` keep the smallest or largest number, for a tool that writes a placeholder into
+    some of a feature's rows, such as DIA-NN's protein-group q-value of 1.0.
+    """
+
+    mode: VarDuplicateMode = "keep_first"
+
+
 class SourcedColumn(ModelBase):
     """One logical axis column read from one physical vendor column.
 
     A protein-list column may declare the vendor's own further list ``separator``, such as
-    PEAKS's ``:``; ``;`` and ``,`` separate every protein list already.
+    PEAKS's ``:``; ``;`` and ``,`` separate every protein list already. Only a var column
+    declares ``duplicates``; without it, a feature keeps its first nonblank value.
     """
 
     name: str
@@ -168,6 +189,8 @@ class SourcedColumn(ModelBase):
     required: bool = True
     roles: list[SemanticRole] = Field(default_factory=list)
     separator: str | None = Field(default=None, min_length=1)
+    duplicates: ColumnDuplicates | None = None
+    note: Note = None
 
     @model_validator(mode="after")
     def _separator_lists_proteins(self) -> SourcedColumn:
@@ -176,6 +199,18 @@ class SourcedColumn(ModelBase):
         }:
             raise ValueError(f"{self.name}: only a protein-list column declares a separator")
         return self
+
+    @model_validator(mode="after")
+    def _extremes_are_numbers(self) -> SourcedColumn:
+        mode = self.duplicates_mode
+        if mode != "keep_first" and self.type not in {"number", "integer"}:
+            raise ValueError(f"{self.name}: duplicates mode {mode!r} needs a numeric column")
+        return self
+
+    @property
+    def duplicates_mode(self) -> VarDuplicateMode:
+        """The declared mode, ``keep_first`` without a ``duplicates`` block."""
+        return "keep_first" if self.duplicates is None else self.duplicates.mode
 
 
 type ColumnEntry = SourcedColumn | ComputedColumn

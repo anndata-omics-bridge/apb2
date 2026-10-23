@@ -202,7 +202,9 @@ class ParseStrategy:
         # The hierarchy is typed collection state; rule_json already carries the rest.
         for working in _WORKING_ONLY:
             provenance.pop(working, None)
-        evidence = ConversionEvidence(unknown_mod_tokens, unreadable_numeric, effectively_empty)
+        evidence = ConversionEvidence(
+            unknown_mod_tokens, unreadable_numeric, effectively_empty, raw.var.disagreements
+        )
 
         return ParsedLevel(
             obs=obs,

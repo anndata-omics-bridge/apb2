@@ -22,12 +22,13 @@ from apb2.parserV2.parse_quant.axis_columns import (
     MarkerColumn,
     ProformaIonColumn,
 )
+from apb2.parserV2.parse_quant.data.source import LevelSourceTable
 from apb2.parserV2.parse_quant.decomposition import (
     DelimitedFragmentSourceDecomposer,
     LongSourceDecomposer,
     WideSourceDecomposer,
 )
-from apb2.parserV2.parse_quant.duplicates import AggregateNumericDuplicates
+from apb2.parserV2.parse_quant.duplicates import AggregateNumericDuplicates, FirstFeatureValue
 from apb2.parserV2.parse_quant.errors import IncompatibleSourceError
 from apb2.parserV2.parse_quant.fragments import PositionalFragmentTableSeparator
 from apb2.parserV2.parse_quant.layer_validation import LayerContractValidator
@@ -237,9 +238,13 @@ def test_the_alphadia_wide_ion_level_resolves_exactly_as_specified() -> None:
         native_numeric_sources=frozenset(),
     )
     assert isinstance(resolved.decomposer, WideSourceDecomposer)
+    assert resolved.decomposer.var_values == tuple(
+        FirstFeatureValue(source) for source in resolved.decomposer.var.payload_sources
+    )
     assert resolved.decomposer == WideSourceDecomposer(
         obs=resolved.decomposer.obs,
         var=resolved.decomposer.var,
+        var_values=resolved.decomposer.var_values,
         primary_layer_name="Intensity",
         layer_plans=(
             WideRawLayerPlan(
@@ -1032,6 +1037,42 @@ def test_a_grouped_number_notation_leaves_every_value_as_text() -> None:
     assert read.text_sources == set(read.projected_columns)
 
 
+def test_a_var_column_resolves_a_features_repeated_rows_as_its_rule_declares() -> None:
+    """``min`` keeps DIA-NN's protein-group q-value over its 1.0 placeholder rows."""
+    document = synthetic.long_document(
+        obs_select={"sample": "Sample"},
+        var_select={"Feature": "Feature", "Global": "Global", "Gene": "Gene"},
+        var_types={"Global": "number"},
+        computed=[{"name": "Global", "duplicates": {"mode": "min"}}],
+        var_keys=["Feature"],
+    )
+    strategy = synthetic.facade(document).resolve_source(
+        delimited(("Sample", "Feature", "Global", "Gene", "Quantity"))
+    )
+    frame = pl.DataFrame(
+        {
+            "Sample": ["A", "B", "A"],
+            "Feature": ["P1", "P1", "P2"],
+            "Global": ["0.000651", "1.0", "0.002"],
+            "Gene": ["G1", "G2", "G3"],
+            "Quantity": ["1", "2", "3"],
+        }
+    )
+
+    parsed = strategy.parse(LevelSourceTable(frame=frame))
+
+    assert snapshot(strategy)["var_duplicates"] == {"Global": "min", "Gene": "keep_first"}
+    assert parsed.var.frame.select("Feature", "Global", "Gene").to_dicts() == [
+        {"Feature": "P1", "Global": 0.000651, "Gene": "G1"},
+        {"Feature": "P2", "Global": 0.002, "Gene": "G3"},
+    ]
+    result = parsed.uns["result"]
+    assert isinstance(result, dict)
+    assert result["var_disagreements"] == {
+        "Gene": {"features": 1, "examples": [{"key": ["P1"], "values": ["G1", "G2"]}]}
+    }
+
+
 # -------------------------------------------------------------------------- other evidence
 
 
@@ -1058,7 +1099,7 @@ def test_parquet_evidence_keeps_its_physical_schema() -> None:
     assert read.native_numeric_sources == frozenset()
 
 
-@pytest.mark.parametrize("mode", ["sum", "max"])
+@pytest.mark.parametrize("mode", ["sum", "min", "max"])
 def test_a_reducing_rule_needs_layer_values_this_source_delivers_as_numbers(mode: str) -> None:
     document = synthetic.long_document(
         obs_select={"sample": "Sample"},

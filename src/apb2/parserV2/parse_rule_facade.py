@@ -277,7 +277,7 @@ class ParseRuleFacade:
             )
             if offenders:
                 raise ValueError(
-                    f"{mode} duplicates sum only plain numeric layers without late decoding; "
+                    f"{mode} duplicates combine only plain numeric layers without late decoding; "
                     f"offending layers: {offenders}"
                 )
         if mode == "keep_best":
@@ -367,6 +367,9 @@ class ParseRuleFacade:
                 if PROTEIN_LIST_ROLES & {*column.roles}
                 else column.type,
                 separator=column.separator if isinstance(column, SourcedColumn) else None,
+                duplicates=column.duplicates_mode
+                if isinstance(column, SourcedColumn)
+                else "keep_first",
             )
             for column in group
             if column.source is not None and column.required is required
@@ -539,7 +542,7 @@ class ParseRuleFacade:
         """What the parse section records: who wrote it, the rule, and the facts steps read.
 
         The role maps are not decoration. Later APB steps must not have to validate a
-        schema-0.8 document to learn which columns and layers carry a meaning.
+        schema-0.9 document to learn which columns and layers carry a meaning.
         """
         provenance: dict[str, JsonValue] = {
             "rule_json": json.dumps(rule.model_dump(mode="json")),

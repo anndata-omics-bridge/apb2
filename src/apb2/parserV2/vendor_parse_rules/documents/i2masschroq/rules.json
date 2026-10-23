@@ -1,6 +1,6 @@
 {
   "hierarchy": "lfq",
-  "schema_version": "0.8",
+  "schema_version": "0.9",
   "file_version": "1",
   "software_name": "i2MassChroQ",
   "software_version_pattern": "^1\\..*",

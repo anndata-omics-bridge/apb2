@@ -17,6 +17,7 @@ from apb2.parserV2.parse_quant.axis_columns import (
 from apb2.parserV2.parse_quant.contracts import (
     AxisPhaseRuntimePlan,
     AxisRuntimePlan,
+    FeatureValuePolicy,
     FragmentTableSeparator,
     SelectedAxisColumn,
     SourceDecomposer,
@@ -44,6 +45,7 @@ from apb2.parserV2.parse_quant.operations import (
     WorkingAxisConfiguration,
     WorkingParseConfiguration,
     duplicate_policy,
+    feature_value_policy,
     make_axis_coercer,
     make_layer_parser,
 )
@@ -51,6 +53,7 @@ from apb2.parserV2.parse_quant.parameters.axis import (
     AxisColumnSelection,
     AxisKeyPlan,
     AxisSourcePlan,
+    FeatureDuplicateMode,
 )
 from apb2.parserV2.parse_quant.parameters.level import (
     JsonValue,
@@ -124,8 +127,12 @@ class SourcePlanResolver:
         )
         read = self._read_plan(evidence, obs_source, var_source, layers)
         self._require_aggregatable(evidence, read, layers)
+        var_modes = self._var_duplicates(working.var, var_source)
+        var_values = tuple(
+            feature_value_policy(source, mode, numbers) for source, mode in var_modes.items()
+        )
         decomposer, decomposition_json = self._decomposition(
-            layers, obs_source, var_source, present
+            layers, obs_source, var_source, var_values, present
         )
         validator = LayerContractValidator(
             primary_layer_name=working.measurements.primary_layer_name,
@@ -144,6 +151,7 @@ class SourcePlanResolver:
                 "var": var_json,
                 "duplicate_mode": working.measurements.duplicate_mode,
                 "duplicate_ranking": working.measurements.duplicate_ranking,
+                "var_duplicates": var_modes,
                 "layer_values": [
                     {"layer_name": layer.name, "value": layer.value} for layer in layers.retained
                 ],
@@ -183,6 +191,17 @@ class SourcePlanResolver:
         if isinstance(self._configuration.source_layout, WideSourceLayout):
             return self._configuration.obs.final_key_columns
         return ()
+
+    @staticmethod
+    def _var_duplicates(
+        declaration: WorkingAxisConfiguration, var: AxisSourcePlan
+    ) -> dict[str, FeatureDuplicateMode]:
+        """The duplicate mode of each var payload source, in payload order."""
+        modes: dict[str, FeatureDuplicateMode] = {
+            selection.source: selection.duplicates
+            for selection in (*declaration.optional_selections, *declaration.required_selections)
+        }
+        return {source: modes[source] for source in var.payload_sources}
 
     def _accounted(self, var: AxisSourcePlan) -> frozenset[str]:
         """Names a permissive wide layer pattern must not mistake for a sample column."""
@@ -470,18 +489,19 @@ class SourcePlanResolver:
         layers: _ResolvedLayers,
         obs: AxisSourcePlan,
         var: AxisSourcePlan,
+        var_values: tuple[FeatureValuePolicy, ...],
         present: frozenset[str],
     ) -> tuple[SourceDecomposer, dict[str, object]]:
         """Construct the physical-shape strategy and record its source decisions."""
         layout = self._configuration.source_layout
         primary = self._configuration.measurements.primary_layer_name
         if isinstance(layout, WideSourceLayout):
-            return WideSourceDecomposer(primary, layers.wide_plans, obs, var), {
+            return WideSourceDecomposer(primary, layers.wide_plans, obs, var, var_values), {
                 "kind": "wide",
                 "primary_layer_name": primary,
                 "layer_plans": layers.wide_plans,
             }
-        long = LongSourceDecomposer(primary, layers.long_sources, obs, var)
+        long = LongSourceDecomposer(primary, layers.long_sources, obs, var, var_values)
         long_json: dict[str, object] = {
             "kind": "long",
             "primary_layer_name": primary,
