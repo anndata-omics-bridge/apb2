@@ -11,7 +11,7 @@ import polars as pl
 import pytest
 
 from apb2.parserV2.parse_quant.data.layer_columns import observation_labels
-from apb2.parserV2.parse_quant.data.raw import DecomposedDataRaw
+from apb2.parserV2.parse_quant.data.raw import DISAGREEING_VALUES, DecomposedDataRaw
 from apb2.parserV2.parse_quant.data.source import LevelSourceTable
 from apb2.parserV2.parse_quant.decomposition import (
     DelimitedFragmentSourceDecomposer,
@@ -164,8 +164,8 @@ def test_a_raw_axis_keeps_the_first_payload_it_saw_for_one_key() -> None:
     ).decompose(table)
 
     assert raw.var.frame.to_dicts() == [{"Feature": "F1", "Gene": "first"}]
-    assert raw.var.disagreements == {
-        "Gene": {"features": 1, "examples": [{"key": ["F1"], "values": ["first", "second"]}]}
+    assert {source: frame.to_dicts() for source, frame in raw.var.disagreements.items()} == {
+        "Gene": [{"Feature": "F1", DISAGREEING_VALUES: ["first", "second"]}]
     }
 
 

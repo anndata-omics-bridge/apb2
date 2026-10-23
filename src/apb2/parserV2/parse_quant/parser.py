@@ -45,6 +45,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
     VarFinal,
 )
 from apb2.parserV2.parse_quant.data.raw import (
+    DISAGREEING_VALUES,
     LayersRaw,
     ObsRaw,
     RawLayerTable,
@@ -203,7 +204,10 @@ class ParseStrategy:
         for working in _WORKING_ONLY:
             provenance.pop(working, None)
         evidence = ConversionEvidence(
-            unknown_mod_tokens, unreadable_numeric, effectively_empty, raw.var.disagreements
+            unknown_mod_tokens,
+            unreadable_numeric,
+            effectively_empty,
+            self._var_disagreements(raw.var, var_map),
         )
 
         return ParsedLevel(
@@ -288,6 +292,24 @@ class ParseStrategy:
             result, tokens = computer.compute(result)
             unknown.update(dict.fromkeys(tokens))
         return result, tuple(unknown)
+
+    @staticmethod
+    def _var_disagreements(raw: VarRaw, mapping: RawToFinalKeyMap) -> dict[str, JsonValue]:
+        """Per vendor column, the features in the result whose rows disagree, with examples."""
+        kept = mapping.raw_keys.filter(ParseStrategy._valid_final_key_rows(mapping.final_keys))
+        keys = list(raw.raw_key_columns)
+        found: dict[str, JsonValue] = {}
+        for source, disagreeing in raw.disagreements.items():
+            remaining = disagreeing.join(kept, on=keys, how="semi", nulls_equal=True)
+            if remaining.height:
+                found[source] = {
+                    "features": remaining.height,
+                    "examples": [
+                        {"key": [row[key] for key in keys], "values": row[DISAGREEING_VALUES]}
+                        for row in remaining.head(_EXAMPLE_LIMIT).iter_rows(named=True)
+                    ],
+                }
+        return found
 
     @staticmethod
     def _valid_final_key_rows(final_keys: pl.DataFrame) -> pl.Series:

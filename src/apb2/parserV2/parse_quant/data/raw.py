@@ -16,7 +16,8 @@ from dataclasses import dataclass, field
 
 import polars as pl
 
-from apb2.parserV2.parse_quant.data.parsed import JsonValue
+DISAGREEING_VALUES = "_disagreeing_values"
+"""The column of a disagreement frame listing the distinct values one feature's rows gave."""
 
 
 @dataclass(slots=True)
@@ -34,8 +35,9 @@ class ObsRaw:
 class VarRaw:
     """One row per complete raw var-key tuple, with its payload metadata.
 
-    ``disagreements`` names each payload source whose repeated rows gave a feature
-    different values, with how many features and a few examples.
+    ``disagreements`` holds, per payload source whose repeated rows gave a feature different
+    values, each such feature's raw key and the values (``DISAGREEING_VALUES``). Axis
+    preparation may still drop a feature, so the parser counts only those that remain.
     """
 
     frame: pl.DataFrame
@@ -50,8 +52,8 @@ class VarRaw:
     raw_key_columns: tuple[str, ...]
     # ("sequence", "mods", "mod_sites", "charge")
 
-    disagreements: dict[str, JsonValue] = field(default_factory=dict[str, JsonValue])
-    # {"genes": {"features": 1, "examples": [{"key": [...], "values": ["G1", "G2"]}]}}
+    disagreements: dict[str, pl.DataFrame] = field(default_factory=dict[str, pl.DataFrame])
+    # {"genes": pl.DataFrame({"sequence": ["PEPMIDE"], ..., "_disagreeing_values": [["G1", "G2"]]})}
 
 
 @dataclass(slots=True)

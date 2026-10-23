@@ -1038,7 +1038,11 @@ def test_a_grouped_number_notation_leaves_every_value_as_text() -> None:
 
 
 def test_a_var_column_resolves_a_features_repeated_rows_as_its_rule_declares() -> None:
-    """``min`` keeps DIA-NN's protein-group q-value over its 1.0 placeholder rows."""
+    """``min`` keeps DIA-NN's protein-group q-value over its 1.0 placeholder rows.
+
+    Only features in the result count: a row without a feature key is dropped, and so is
+    what its rows disagree on.
+    """
     document = synthetic.long_document(
         obs_select={"sample": "Sample"},
         var_select={"Feature": "Feature", "Global": "Global", "Gene": "Gene"},
@@ -1051,11 +1055,11 @@ def test_a_var_column_resolves_a_features_repeated_rows_as_its_rule_declares() -
     )
     frame = pl.DataFrame(
         {
-            "Sample": ["A", "B", "A"],
-            "Feature": ["P1", "P1", "P2"],
-            "Global": ["0.000651", "1.0", "0.002"],
-            "Gene": ["G1", "G2", "G3"],
-            "Quantity": ["1", "2", "3"],
+            "Sample": ["A", "B", "A", "A", "B"],
+            "Feature": ["P1", "P1", "P2", None, None],
+            "Global": ["0.000651", "1.0", "0.002", "0.1", "0.1"],
+            "Gene": ["G1", "G2", "G3", "G4", "G5"],
+            "Quantity": ["1", "2", "3", "4", "5"],
         }
     )
 

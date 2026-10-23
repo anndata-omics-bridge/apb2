@@ -25,8 +25,8 @@ from apb2.parserV2.parse_quant.contracts import (
     SourceDecomposer,
 )
 from apb2.parserV2.parse_quant.data.layer_columns import observation_labels
-from apb2.parserV2.parse_quant.data.parsed import JsonValue
 from apb2.parserV2.parse_quant.data.raw import (
+    DISAGREEING_VALUES,
     DecomposedDataRaw,
     LayersRaw,
     ObsRaw,
@@ -38,7 +38,7 @@ from apb2.parserV2.parse_quant.numeric_text import blank
 from apb2.parserV2.parse_quant.parameters.axis import AxisSourcePlan
 from apb2.parserV2.parse_quant.parameters.source import LongRawLayerSource, WideRawLayerPlan
 
-_EXAMPLE_LIMIT = 5
+_VALUE_LIMIT = 5
 _DISAGREES = "_disagrees_"
 _OCCURRENCE = "_occurrence"
 _OBS_SLOT = "_obs_slot"
@@ -86,35 +86,25 @@ def _var_raw(
         ),
     )
     disagreements = {
-        policy.source: _disagreement(frame, resolved.filter(pl.col(flag)), keys, policy.source)
+        policy.source: _disagreeing(frame, resolved.filter(pl.col(flag)), keys, policy.source)
         for policy, flag in zip(values, flags, strict=True)
         if resolved.get_column(flag).any()
     }
     return VarRaw(frame=resolved.drop(flags), raw_key_columns=keys, disagreements=disagreements)
 
 
-def _disagreement(
+def _disagreeing(
     frame: pl.DataFrame, flagged: pl.DataFrame, keys: tuple[str, ...], source: str
-) -> JsonValue:
-    """How many features one payload column disagrees on, with the values of a few."""
-    examples = (
-        frame.join(
-            flagged.head(_EXAMPLE_LIMIT).select(keys),
-            on=list(keys),
-            nulls_equal=True,
-            maintain_order="right",
-        )
+) -> pl.DataFrame:
+    """Each disagreeing feature's raw key, with the first distinct values its rows give."""
+    return (
+        frame.join(flagged.select(keys), on=list(keys), nulls_equal=True, maintain_order="right")
         .filter(~blank(pl.col(source), frame.schema[source]))
         .group_by(keys, maintain_order=True)
-        .agg(pl.col(source).unique(maintain_order=True).head(_EXAMPLE_LIMIT))
+        .agg(
+            pl.col(source).unique(maintain_order=True).head(_VALUE_LIMIT).alias(DISAGREEING_VALUES)
+        )
     )
-    return {
-        "features": flagged.height,
-        "examples": [
-            {"key": [row[key] for key in keys], "values": row[source]}
-            for row in examples.iter_rows(named=True)
-        ],
-    }
 
 
 @dataclass(frozen=True, slots=True)
