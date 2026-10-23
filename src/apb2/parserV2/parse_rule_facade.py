@@ -38,6 +38,7 @@ from apb2.parserV2.parse_quant.axis_columns import (
     ProformaFragmentColumn,
     ProformaIonColumn,
 )
+from apb2.parserV2.parse_quant.data.parsed import LevelHierarchy
 from apb2.parserV2.parse_quant.modifications import (
     EmbeddedSiteListNormalizer,
     PlainSequenceStripper,
@@ -174,11 +175,14 @@ class ParseRuleFacade:
         obs_group = rule.columns.obs if isinstance(rule, LongRule) else None
         return WorkingParseConfiguration(
             level=rule.quantification_level,
+            software_name=rule.software_name,
+            hierarchy=LevelHierarchy(rule.hierarchy, HIERARCHIES[rule.hierarchy]),
             input=ParseRuleFacade._project_input(effective.input),
             source_layout=ParseRuleFacade._project_layout(rule),
             obs=ParseRuleFacade._project_axis(rule.axis.obs_keys, obs_group, rule),
             var=ParseRuleFacade._project_axis(rule.axis.var_keys, rule.columns.var, rule),
             measurements=ParseRuleFacade._project_measurements(rule),
+            column_roles={role: entry.name for entry in rule.columns.var for role in entry.roles},
             provenance=ParseRuleFacade._project_provenance(rule),
             retained=ParseRuleFacade._project_retained(rule, obs_group),
         )
@@ -576,25 +580,8 @@ class ParseRuleFacade:
 
     @staticmethod
     def _project_provenance(rule: LongRule | WideRule) -> Mapping[str, JsonValue]:
-        """What the parse section records: who wrote it, the rule, and the facts steps read.
-
-        The role maps are not decoration. Later APB steps must not have to validate a
-        schema-0.9 document to learn which columns and layers carry a meaning.
-        """
-        provenance: dict[str, JsonValue] = {
-            "rule_json": json.dumps(rule.model_dump(mode="json")),
-            "hierarchy": {
-                "name": rule.hierarchy,
-                "identities": [list(pair) for pair in HIERARCHIES[rule.hierarchy]],
-            },
-            "column_roles": {
-                role: entry.name for entry in rule.columns.var for role in entry.roles
-            },
-            "schema_version": rule.schema_version,
-            "software_name": rule.software_name,
-            "shape": rule.shape,
-            "quantification_level": rule.quantification_level,
-        }
+        """What the parse section records: the rule, and how samples match an annotation."""
+        provenance: dict[str, JsonValue] = {"rule_json": json.dumps(rule.model_dump(mode="json"))}
         if rule.sample_annotation is not None:
             provenance["sample_annotation_matching"] = rule.sample_annotation.matching.model_dump(
                 mode="json",

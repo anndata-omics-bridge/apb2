@@ -66,7 +66,6 @@ from apb2.parserV2.parse_quant.parameters.source import (
 )
 
 _EXAMPLE_LIMIT = 5
-_WORKING_ONLY = ("hierarchy", "schema_version", "software_name", "shape", "quantification_level")
 
 
 class CanonicalKeyCollisionError(ConversionError):
@@ -112,17 +111,10 @@ class ParserCollection:
         duplicates = sorted(level for level in set(levels) if levels.count(level) > 1)
         if duplicates:
             raise ValueError(f"duplicate parser levels: {duplicates}")
-        definitions = [parser.strategy.provenance.get("hierarchy") for parser in parsers]
-        if any(definition != definitions[0] for definition in definitions):
+        self._hierarchy = parsers[0].strategy.hierarchy
+        if any(parser.strategy.hierarchy != self._hierarchy for parser in parsers):
             raise ValueError("parser levels must declare one shared hierarchy")
-        self._hierarchy = (
-            None if definitions[0] is None else LevelHierarchy.from_json(definitions[0])
-        )
-        order = (
-            tuple(parser.level for parser in parsers)
-            if self._hierarchy is None
-            else self._hierarchy.level_names
-        )
+        order = self._hierarchy.level_names
         self._parsers = tuple(sorted(parsers, key=lambda parser: order.index(parser.level)))
 
     def parse(self) -> ParsedLevels:
@@ -181,6 +173,24 @@ class Parser:
 
 
 @dataclass(frozen=True, slots=True)
+class SemanticRoles:
+    """The var column each role names, and the layers each role names, as the rule declares."""
+
+    columns: Mapping[str, str]
+    layers: Mapping[str, tuple[str, ...]]
+
+    def assign(self, var: VarFinal, layers: Mapping[str, FinalLayerTable]) -> None:
+        """Give the surviving var columns and layers their roles."""
+        var.roles = {
+            role: column for role, column in self.columns.items() if column in var.frame.columns
+        }
+        for name, layer in layers.items():
+            layer.semantic_roles = tuple(
+                role for role, names in self.layers.items() if name in names
+            )
+
+
+@dataclass(frozen=True, slots=True)
 class ParseStrategy:
     """One executable graph, compiled directly from authored declarations and evidence."""
 
@@ -193,7 +203,9 @@ class ParseStrategy:
     layer_parsers: Mapping[str, LayerValueParser]
     layer_validator: LayerSetValidator
     pruner: FieldPruner
-    provenance: dict[str, JsonValue]
+    hierarchy: LevelHierarchy
+    roles: SemanticRoles
+    provenance: Mapping[str, JsonValue]
 
     def parse(self, source: LevelSourceTable) -> ParsedLevel:
         """Execute the shared parsing pipeline on an already-read source table."""
@@ -209,24 +221,7 @@ class ParseStrategy:
             effectively_empty = self.layer_validator.validate(layers)
             pruned = self.pruner.prune(obs, var, layers, effectively_empty or {})
         obs, var, layers = pruned.obs, pruned.var, pruned.layers
-        provenance = dict(self.provenance)
-        raw_columns = provenance.pop("column_roles", {})
-        raw_layers = provenance.pop("layer_roles", {})
-        assert isinstance(raw_columns, dict) and isinstance(raw_layers, dict)
-        var.roles = {
-            role: column
-            for role, column in raw_columns.items()
-            if isinstance(column, str) and column in var.frame.columns
-        }
-        for name, layer in layers.items():
-            layer.semantic_roles = tuple(
-                role
-                for role, names in raw_layers.items()
-                if isinstance(names, list) and name in names
-            )
-        # The hierarchy is typed collection state; rule_json already carries the rest.
-        for working in _WORKING_ONLY:
-            provenance.pop(working, None)
+        self.roles.assign(var, layers)
         evidence = ConversionEvidence(
             unknown_mod_tokens,
             unreadable_numeric,
@@ -239,7 +234,7 @@ class ParseStrategy:
             obs=obs,
             var=var,
             primary_layer_name=raw.layers.primary_layer_name,
-            uns=evidence.record(provenance),
+            uns=evidence.record(self.provenance),
             layers=layers,
             obsm={},
             varm={},

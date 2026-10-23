@@ -24,6 +24,7 @@ from apb2.parserV2.parse_quant.contracts import (
 )
 from apb2.parserV2.parse_quant.data.parsed import (
     FinalLayerTable,
+    LevelHierarchy,
     ObsFinal,
     ParsedLevel,
     VarFinal,
@@ -237,6 +238,8 @@ def test_a_working_configuration_derives_presence_and_canonical_values() -> None
     )
     working = WorkingParseConfiguration(
         level="ion",
+        software_name="AlphaDIA",
+        hierarchy=LevelHierarchy("lfq", (("ion", "feature"),)),
         input=InputContract(
             file_name=None,
             formats=(
@@ -272,7 +275,8 @@ def test_a_working_configuration_derives_presence_and_canonical_values() -> None
             layers=(layer,),
             required_names=frozenset({"Intensity"}),
         ),
-        provenance={"software_name": "AlphaDIA"},
+        column_roles={},
+        provenance={},
         retained=RetainedFields(
             obs=frozenset({"sample"}), var=frozenset({"ProForma_ion"}), layers=frozenset()
         ),

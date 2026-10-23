@@ -55,9 +55,6 @@ from apb2.parserV2.parse_quant.parameters.axis import (
     AxisSourcePlan,
     FeatureDuplicateMode,
 )
-from apb2.parserV2.parse_quant.parameters.level import (
-    JsonValue,
-)
 from apb2.parserV2.parse_quant.parameters.measurements import (
     WorkingMeasurementLayer,
 )
@@ -76,7 +73,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
     WideRawLayerSource,
     WideSourceLayout,
 )
-from apb2.parserV2.parse_quant.parser import ParseStrategy
+from apb2.parserV2.parse_quant.parser import ParseStrategy, SemanticRoles
 from apb2.parserV2.parse_quant.plan_json import PLAN_JSON_KEY, resolved_plan_json
 from apb2.parserV2.parse_quant.uninformative import UninformativeFields
 
@@ -181,11 +178,9 @@ class SourcePlanResolver:
                 retained_var=working.retained.var,
                 retained_layers=working.retained.layers,
             ),
-            provenance={
-                **working.provenance,
-                "layer_roles": self._layer_roles(layers.retained),
-                PLAN_JSON_KEY: snapshot,
-            },
+            hierarchy=working.hierarchy,
+            roles=SemanticRoles(working.column_roles, self._layer_roles(layers.retained)),
+            provenance={**working.provenance, PLAN_JSON_KEY: snapshot},
         )
 
     def _var_synthesized(self) -> tuple[str, ...]:
@@ -601,18 +596,14 @@ class SourcePlanResolver:
     def _label(self) -> str:
         """How this level names itself in an error message."""
         working = self._configuration
-        software = working.provenance.get("software_name", "rule")
-        return f"{software!r} level {working.level!r}"
+        return f"{working.software_name!r} level {working.level!r}"
 
     @staticmethod
-    def _layer_roles(
-        layers: Sequence[WorkingMeasurementLayer],
-    ) -> dict[str, JsonValue]:
+    def _layer_roles(layers: Sequence[WorkingMeasurementLayer]) -> dict[str, tuple[str, ...]]:
         roles = sorted({role for layer in layers for role in layer.roles})
-        projected: dict[str, JsonValue] = {
-            role: [layer.name for layer in layers if role in layer.roles] for role in roles
+        return {
+            role: tuple(layer.name for layer in layers if role in layer.roles) for role in roles
         }
-        return projected
 
     @staticmethod
     def _ordered_unique(values: Iterable[str]) -> tuple[str, ...]:

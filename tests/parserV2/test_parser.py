@@ -35,6 +35,7 @@ from apb2.parserV2.parse_quant.contracts import (
 from apb2.parserV2.parse_quant.data.parsed import (
     FinalLayerTable,
     JsonValue,
+    LevelHierarchy,
     ObsFinal,
     ParsedLevel,
     VarFinal,
@@ -72,10 +73,13 @@ from apb2.parserV2.parse_quant.parser import (
     CanonicalKeyCollisionError,
     Parser,
     ParseStrategy,
+    SemanticRoles,
 )
 
 DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
 DOT_NUMBERS = NumericTextFormat(decimal_mark=".", thousands_marks=())
+ION_HIERARCHY = LevelHierarchy("lfq", (("ion", "feature"),))
+NO_ROLES = SemanticRoles({}, {})
 
 
 def numeric_layer_parser(name: str) -> LayerValueParser:
@@ -173,11 +177,9 @@ def parser_for(
             layer_parsers={name: numeric_layer_parser(name) for name, _source in layers},
             layer_validator=layer_validator(layers[0][0]),
             pruner=KeepEveryField(),
-            provenance={
-                "hierarchy": "lfq",
-                "software_name": "Synthetic",
-                "quantification_level": "ion",
-            },
+            hierarchy=ION_HIERARCHY,
+            roles=NO_ROLES,
+            provenance={},
             read=LevelReadPlan((), frozenset(), frozenset()),
         ),
     )
@@ -274,6 +276,8 @@ def test_parse_runs_its_collaborators_in_the_documented_order() -> None:
             layer_parsers={"Intensity": Values()},
             layer_validator=layer_validator("Intensity"),
             pruner=KeepEveryField(),
+            hierarchy=ION_HIERARCHY,
+            roles=NO_ROLES,
             provenance={},
             read=LevelReadPlan((), frozenset(), frozenset()),
         ),
@@ -836,6 +840,8 @@ def test_the_parser_holds_only_configured_behaviour() -> None:
         "layer_parsers",
         "layer_validator",
         "pruner",
+        "hierarchy",
+        "roles",
         "provenance",
     }
     assert parser.level == "ion"
@@ -901,6 +907,8 @@ def test_a_computed_column_of_the_wrong_length_fails_at_the_boundary() -> None:
             layer_parsers={"Intensity": numeric_layer_parser("Intensity")},
             layer_validator=layer_validator("Intensity"),
             pruner=KeepEveryField(),
+            hierarchy=ION_HIERARCHY,
+            roles=NO_ROLES,
             provenance={},
             read=LevelReadPlan((), frozenset(), frozenset()),
         ),

@@ -935,7 +935,7 @@ def test_an_optional_long_layer_absent_from_the_header_is_omitted() -> None:
     assert [source.name for source in decomposition.layer_sources] == ["Quantity"]
     assert isinstance(resolved.layer_validator, LayerContractValidator)
     assert resolved.layer_validator.required_names == ("Quantity",)
-    assert resolved.provenance["layer_roles"] == {"abundance": ["Quantity"]}
+    assert resolved.roles.layers == {"abundance": ("Quantity",)}
 
 
 def test_a_required_long_layer_absent_from_the_header_is_incompatible() -> None:
@@ -1180,10 +1180,15 @@ def test_a_resolved_plan_carries_every_field_the_compiler_destructures() -> None
         "layer_parsers",
         "layer_validator",
         "pruner",
+        "hierarchy",
+        "roles",
         "provenance",
     }
     assert all(getattr(resolved, field) is not None for field in ("read", "decomposer"))
     assert isinstance(resolved.provenance["rule_json"], str)
+    # Provenance holds only what the result persists; the rest travels as typed fields.
+    assert sorted(resolved.provenance) == ["plan_json", "rule_json"]
+    assert resolved.hierarchy.name == "lfq"
 
 
 def test_a_proforma_ion_computer_reads_the_peptidoform_and_the_typed_charge() -> None:

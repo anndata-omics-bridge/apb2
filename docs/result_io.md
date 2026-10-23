@@ -80,7 +80,7 @@ An h5ad writer requires exactly one level. An h5mu writer accepts one or more le
 
 Schema `0.4` rules may assign semantic `roles` directly to var-column and measurement-layer entries. The packaged [role policy](../src/apb2/parserV2/vendor_parse_rules/schema/role_policy.json) owns both the vocabulary and its permitted declaration owners: `fasta_accessions` and `protein_assignment` belong to `var`, while `abundance` belongs to `layer`.
 
-Conversion projects these declarations into per-level parse provenance. `column_roles` maps each semantic role to one logical var-column name. `layer_roles` maps each semantic role to the ordered names of all retained layers carrying it; several raw, normalized, MS1, MS2, LFQ, iBAQ, or peak-based layers may therefore share `abundance`. Source resolution removes absent optional layers before publishing this map.
+Conversion assigns these declarations to each level's var columns and layers. `columns` maps each semantic role to one var-column name. `layers` maps each semantic role to the ordered names of all retained layers carrying it; several raw, normalized, MS1, MS2, LFQ, iBAQ, or peak-based layers may therefore share `abundance`. Absent optional layers and pruned columns carry no role.
 
 The compact sidecar exposes the maps under each level's `apb.roles`, and all result backends preserve them without duplicating them in parse provenance. Reformatting does not recalculate or reinterpret the semantic assignments.
 

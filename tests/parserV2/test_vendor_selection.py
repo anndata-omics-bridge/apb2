@@ -112,7 +112,7 @@ def test_hint_skips_global_recognition_and_unrelated_readers(
         source: InputSource,
         checks: Literal["standard", "strict"],
     ) -> Parser:
-        assert facade.working_parameters.provenance["software_name"] == "DIA-NN"
+        assert facade.working_parameters.software_name == "DIA-NN"
         parser = original_compile(facade, source, checks)
         compiled.append(parser.level)
         return parser

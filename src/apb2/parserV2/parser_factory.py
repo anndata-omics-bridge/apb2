@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Literal
 
-from apb2.parserV2.parse_quant.data.parsed import JsonValue
 from apb2.parserV2.parse_quant.parameters.source import (
     FrameSourceEvidence,
     InputSource,
@@ -23,7 +23,6 @@ def compile_level(
 ) -> Parser:
     """Resolve one selected level and bind its fully configured strategy."""
     working = facade.working_parameters
-    preparation: dict[str, JsonValue] = {}
     if isinstance(source, PreparedTable):
         evidence = FrameSourceEvidence(
             columns=tuple(source.frame.columns), dtypes=tuple(source.frame.schema.items())
@@ -43,16 +42,16 @@ def compile_level(
             source.input_tables,
         )
         preparation = {
-            "input_preparation": {
-                "how": source.how,
-                "duration_seconds": source.duration_seconds,
-                "estimated_size_bytes": source.frame.estimated_size(),
-            }
+            "how": source.how,
+            "duration_seconds": source.duration_seconds,
+            "estimated_size_bytes": source.frame.estimated_size(),
         }
+        strategy = replace(
+            strategy, provenance={**strategy.provenance, "input_preparation": preparation}
+        )
     else:
         bound = BoundTable(source, working.input)
         evidence = bound.evidence(working.accepts_header)
         strategy = facade.resolve_source(evidence, checks=checks)
         input_reader = bound.reader(evidence, strategy.read)
-    strategy.provenance.update(preparation)
     return Parser(input_reader, strategy)

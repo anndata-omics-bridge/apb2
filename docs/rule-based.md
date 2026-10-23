@@ -328,7 +328,7 @@ Numeric layers default to logical `"type": "number"`. Declare `"type": "integer"
 
 `missing_tokens` lists the text a vendor writes for "not measured" in a numeric column, such as PEAKS' `-` or WOMBAT-P's `NA`. A cell holding one, after trimming whitespace, is missing like a blank cell: it claims no duplicate cell and is not reported as an unreadable cell. Any other text that is not a number stays an unreadable cell, so an undeclared spelling still shows up in the conversion summary.
 
-Conversion provenance projects var roles as `column_roles`, mapping each role to one logical name. It projects layer roles as `layer_roles`, mapping each role to the ordered retained layer names. Optional layers absent from the bound source are omitted from `layer_roles`.
+A result records each level's roles under `apb.roles`: `columns` maps each role to one var-column name, `layers` maps each role to the ordered retained layer names. Optional layers absent from the bound source carry no role.
 
 Semantic rule roles are distinct from the result model's structural `MeasurementLayerRole` and `AuxiliaryLayerRole`. Structural roles control matrix-occupancy validation; semantic roles describe scientific meaning. See [Read and write parsed results](result_io.md#semantic-rule-roles).
 

@@ -34,6 +34,7 @@ from apb2.parserV2.parse_quant.contracts import (
     FeatureValuePolicy,
     LayerValueParser,
 )
+from apb2.parserV2.parse_quant.data.parsed import LevelHierarchy
 from apb2.parserV2.parse_quant.duplicates import (
     AggregateNumericDuplicates,
     ErrorOnDuplicates,
@@ -110,11 +111,14 @@ class WorkingParseConfiguration:
     """Pydantic-free source requirements and operations produced by the facade."""
 
     level: QuantificationLevel
+    software_name: str
+    hierarchy: LevelHierarchy
     input: InputContract
     source_layout: SourceLayoutDeclaration
     obs: WorkingAxisConfiguration
     var: WorkingAxisConfiguration
     measurements: WorkingMeasurements
+    column_roles: Mapping[str, str]
     provenance: Mapping[str, JsonValue]
     retained: RetainedFields
 

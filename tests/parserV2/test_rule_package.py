@@ -123,12 +123,11 @@ def test_entry_shaped_columns_project_roles_and_runtime_selections(tmp_path: Pat
     working = ParseRuleFacade(document, "ion", NO_EVIDENCE).working_parameters
 
     assert working.var.required_selections[0].logical_type == "protein_list"
-    assert working.provenance["column_roles"] == {
+    assert working.column_roles == {
         "protein_assignment": "feature",
         "fasta_accessions": "feature",
     }
     assert working.measurements.layers[0].roles == ("abundance",)
-    assert "layer_roles" not in working.provenance
 
 
 def test_role_configuration_owns_the_role_vocabulary() -> None:
@@ -492,9 +491,7 @@ def test_protein_assignment_names_the_group_not_its_accessions(
 ) -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == document_key)
     document = load_rule_document(pair.parser_v2_path)
-    roles = ParseRuleFacade(document, level, NO_EVIDENCE).working_parameters.provenance[
-        "column_roles"
-    ]
+    roles = ParseRuleFacade(document, level, NO_EVIDENCE).working_parameters.column_roles
 
     assert roles == {
         "protein_assignment": protein_assignment,
@@ -506,9 +503,7 @@ def test_alphadia_v1_10_genes_are_both_assignment_and_fasta_identifiers() -> Non
     # AlphaDIA 1.10 exports no accession column; ``genes`` holds UniProt entry names.
     pair = next(candidate for candidate in document_pairs() if candidate.key == "alphadia/v1_10")
     document = load_rule_document(pair.parser_v2_path)
-    roles = ParseRuleFacade(document, "ion", NO_EVIDENCE).working_parameters.provenance[
-        "column_roles"
-    ]
+    roles = ParseRuleFacade(document, "ion", NO_EVIDENCE).working_parameters.column_roles
 
     assert roles == {"protein_assignment": "Genes", "fasta_accessions": "Genes"}
 
