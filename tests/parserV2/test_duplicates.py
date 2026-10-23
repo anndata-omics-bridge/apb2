@@ -150,12 +150,6 @@ def test_an_at_or_below_bound_leaves_only_positive_final_values() -> None:
     assert parsed.values.get_column("obs_0").to_list() == [5.0, None, None]
 
 
-def test_blank_text_is_the_written_spelling_of_a_missing_number() -> None:
-    values = pl.Series("obs_0", ["12", "", "   ", None])
-
-    assert presence_mask(ZERO_SENTINEL, values).to_list() == [True, False, False, False]
-
-
 def test_a_nonblank_token_that_cannot_be_read_stays_present() -> None:
     values = pl.Series("obs_0", ["12", "not a number"])
 
@@ -184,7 +178,7 @@ def test_a_localized_sentinel_is_recognized_under_its_own_notation() -> None:
 
 
 def test_regex_presence_reads_the_number_inside_a_structured_token() -> None:
-    values = pl.Series("obs_0", ["site:1.5", "site:0", "", None, "unstructured"])
+    values = pl.Series("obs_0", ["site:1.5", "site:0", None, None, "unstructured"])
 
     assert presence_mask(ASCORE, values).to_list() == [True, False, False, False, True]
 

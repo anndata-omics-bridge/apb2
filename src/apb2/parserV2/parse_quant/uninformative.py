@@ -26,7 +26,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
     ObsFinal,
     VarFinal,
 )
-from apb2.parserV2.parse_quant.numeric_text import blank
+from apb2.parserV2.parse_quant.numeric_text import absent
 
 _SINGLE_FROM = 2
 """Filled cells from which one repeated value is a finding rather than a lone measurement."""
@@ -108,7 +108,7 @@ def _comparable(dtype: pl.DataType) -> bool:
 
 
 def _filled(name: str, dtype: pl.DataType) -> pl.Expr:
-    return ~blank(pl.col(name), dtype)
+    return ~absent(pl.col(name), dtype)
 
 
 def _column_values(frame: pl.DataFrame, retained: frozenset[str]) -> dict[str, _Values]:

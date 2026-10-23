@@ -270,14 +270,7 @@ class DelimitedInputReader:
         table = InputTable(
             InputFile(self.file.path, "table", file_format), self.evidence.columns, frame.height
         )
-        return LevelSourceTable(_without_empty_rows(frame), (table,))
+        return LevelSourceTable(frame, (table,))
 
 
 _FORMATS = {"\t": "tsv", ",": "csv"}
-
-
-def _without_empty_rows(frame: pl.DataFrame) -> pl.DataFrame:
-    """Discard physical spacer rows carrying no value in any projected column."""
-    if not frame.columns:
-        return frame
-    return frame.filter(pl.any_horizontal(pl.all().is_not_null()))

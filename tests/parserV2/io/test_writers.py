@@ -350,8 +350,8 @@ def test_numeric_diagnostics_count_all_cells_and_tokens_before_bounding_examples
     invalid = [f"bad{index}" for index in range(7)]
     values = pl.DataFrame(
         {
-            "obs_0": [*invalid, "bad0", "", None, "0", "1.5"],
-            "obs_1": [*invalid, "bad7", "   ", None, "0", "2.5"],
+            "obs_0": [*invalid, "bad0", None, None, "0", "1.5"],
+            "obs_1": [*invalid, "bad7", None, None, "0", "2.5"],
         }
     )
     parsed, evidence = parser.parse(FinalLayerTable(layer_name="Intensity", values=values))
@@ -385,7 +385,7 @@ def test_a_declared_missing_token_is_missing_and_not_reported_as_unreadable(
     assert evidence == {"cell_count": 1, "distinct_token_count": 1, "examples": ["n/a"]}
 
 
-def test_regex_numeric_diagnostics_count_nonblank_failed_captures() -> None:
+def test_regex_numeric_diagnostics_count_failed_captures() -> None:
     parser = make_layer_parser(
         "AScore",
         RegexNumericLayerDeclaration(
@@ -398,7 +398,7 @@ def test_regex_numeric_diagnostics_count_nonblank_failed_captures() -> None:
         FinalLayerTable(
             layer_name="AScore",
             values=block(
-                ["x:12.5", "x:0", "unstructured", "unstructured", "wrong", "", "  ", None]
+                ["x:12.5", "x:0", "unstructured", "unstructured", "wrong", None, None, None]
             ),
         )
     )

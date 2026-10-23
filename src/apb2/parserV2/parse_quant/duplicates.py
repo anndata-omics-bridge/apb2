@@ -1,13 +1,13 @@
 """Two questions about one raw measurement cell, deliberately kept apart.
 
-*Presence* asks whether a raw scalar claims its cell — is it null, is it blank text, is it the
-sentinel the vendor writes for "not measured"? It answers with a Boolean mask and nothing
+*Presence* asks whether a raw scalar claims its cell — is it missing, is it the sentinel the
+vendor writes for "not measured"? It answers with a Boolean mask and nothing
 else. It never converts a value, because converting is the storage boundary's job and doing it
 here would decide, silently, which value survived.
 
 *Resolution* asks how several claiming scalars become one. It groups by the raw var keys only,
 resolves each observation column independently, and copies the scalar it selected through
-unchanged. A nonblank token that cannot be read stays present on purpose: keep-first must not
+unchanged. A token that cannot be read stays present on purpose: keep-first must not
 be able to hide a value that will fail to encode later.
 
 What is *not* here: any comparison of final keys. Two different raw keys that canonicalize to
@@ -26,7 +26,7 @@ import polars.selectors as cs
 from apb2.parserV2.parse_quant.contracts import RawValuePresence
 from apb2.parserV2.parse_quant.data.errors import ConversionError
 from apb2.parserV2.parse_quant.data.raw import RawLayerTable
-from apb2.parserV2.parse_quant.numeric_text import as_numbers, blank
+from apb2.parserV2.parse_quant.numeric_text import absent, as_numbers
 from apb2.parserV2.parse_quant.parameters.source import NumericTextFormat
 
 _EXAMPLE_LIMIT = 5
@@ -214,19 +214,15 @@ class RankedDuplicates:
 
 @dataclass(frozen=True, slots=True)
 class FirstFeatureValue:
-    """A feature's first nonblank value; rows that give another value are a disagreement.
-
-    A feature whose rows are all blank keeps its first value as written, such as empty text.
-    """
+    """A feature's first present value; rows that give another value are a disagreement."""
 
     source: str
 
     def value(self, dtype: pl.DataType, /) -> pl.Expr:
-        nonblank = pl.col(self.source).filter(~blank(pl.col(self.source), dtype)).first()
-        return pl.coalesce(nonblank, pl.col(self.source).first())
+        return pl.col(self.source).filter(~absent(pl.col(self.source), dtype)).first()
 
     def disagrees(self, dtype: pl.DataType, /) -> pl.Expr:
-        return pl.col(self.source).filter(~blank(pl.col(self.source), dtype)).n_unique() > 1
+        return pl.col(self.source).filter(~absent(pl.col(self.source), dtype)).n_unique() > 1
 
 
 @dataclass(frozen=True, slots=True)

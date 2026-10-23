@@ -88,10 +88,9 @@ class ExcelInputReader:
             drop_empty_cols=False,
             raise_if_empty=False,
         )
-        # Calamine's previous Python reader exposed Excel numbers as floats and empty
-        # cells as empty strings. Preserve those axis semantics using whole-frame casts.
+        # Excel stores every number as a float; an integer-looking cell is one too.
         projected = projected.with_columns(cs.integer().cast(pl.Float64)).with_columns(
-            pl.col(self.plan.text_sources).cast(pl.String).fill_null(""),
+            pl.col(self.plan.text_sources).cast(pl.String),
             pl.col(self.plan.native_numeric_sources).cast(pl.Float64),
         )
         table = InputTable(

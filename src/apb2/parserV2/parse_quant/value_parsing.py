@@ -17,7 +17,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
     QuantitativeLayerSemantics,
 )
 from apb2.parserV2.parse_quant.errors import LayerValueError
-from apb2.parserV2.parse_quant.numeric_text import absent, as_numbers, blank
+from apb2.parserV2.parse_quant.numeric_text import absent, as_numbers
 from apb2.parserV2.parse_quant.parameters.source import NumericTextFormat
 
 UNKNOWN_CATEGORY_CODE = -1
@@ -36,7 +36,7 @@ class PlainNumericLayerParser:
     numeric_type: NumericLayerType
 
     def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr:
-        """Without sentinels blank text claims a cell; unreadable tokens always do."""
+        """Without sentinels every present value claims a cell; unreadable tokens always do."""
         if not self.missing_values and self.missing_at_or_below is None and not self.missing_tokens:
             return ~absent(values, dtype)
         numbers = as_numbers(values, dtype, self.number_format)
@@ -131,7 +131,7 @@ class FactorLayerParser:
     categories: tuple[tuple[str, int], ...]
 
     def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr:
-        """Every non-missing label claims a cell, including blank or unknown labels."""
+        """Every non-missing label claims a cell, including unknown labels."""
         return ~absent(values, dtype)
 
     def parse(self, layer: FinalLayerTable) -> tuple[FinalLayerTable, dict[str, JsonValue]]:
@@ -211,10 +211,10 @@ def _parsed_layer(
 
 
 def _missing_text(values: pl.Expr, dtype: pl.DataType, tokens: tuple[str, ...]) -> pl.Expr:
-    """Blank cells, and cells holding a declared missing-value token such as ``-``."""
+    """Absent cells, and cells holding a declared missing-value token such as ``-``."""
     if not tokens or dtype.is_numeric():
-        return blank(values, dtype)
-    return blank(values, dtype) | values.cast(pl.String, strict=False).str.strip_chars().is_in(
+        return absent(values, dtype)
+    return absent(values, dtype) | values.cast(pl.String, strict=False).str.strip_chars().is_in(
         tokens
     ).fill_null(False)
 

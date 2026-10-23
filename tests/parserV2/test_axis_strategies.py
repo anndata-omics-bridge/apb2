@@ -290,8 +290,8 @@ def test_coalesce_takes_the_first_non_null_in_declaration_order() -> None:
     assert tokens == ()
 
 
-def test_join_nonempty_skips_nulls_and_empty_strings_alike() -> None:
-    first = pl.Series("a", ["p", "", None, ""])
+def test_join_nonempty_skips_missing_inputs() -> None:
+    first = pl.Series("a", ["p", None, None, None])
     second = pl.Series("b", ["q", "q", "q", None])
 
     computed, _ = JoinNonemptyColumn(name="J", inputs=("a", "b"), separator=",").compute(

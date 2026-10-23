@@ -85,7 +85,7 @@ def test_one_filled_cell_is_a_measurement_not_a_single_value() -> None:
 def test_an_empty_column_or_layer_is_left_out_with_its_filled_count() -> None:
     pruned = PRUNER.prune(
         obs(),
-        var(Genes=[None, " "], Sites=[None, None]),
+        var(Genes=[None, None], Sites=[None, None]),
         {"Intensity": INTENSITY, "Channel_Q": layer("Channel_Q", [[None] * 3, [None] * 3])},
         {},
     )

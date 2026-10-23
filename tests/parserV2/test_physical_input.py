@@ -27,6 +27,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
     FrameSourceEvidence,
     InputContract,
     LevelReadPlan,
+    LevelSourceTable,
     NumericTextFormat,
     ParquetFormatContract,
     SingleFile,
@@ -491,7 +492,7 @@ def test_workbook_keeps_header_only_and_missing_trailing_cells(tmp_path: Path, r
     }
 
 
-def test_workbook_keeps_empty_rows_and_text_identifiers(tmp_path: Path) -> None:
+def test_workbook_drops_empty_rows_and_keeps_text_identifiers(tmp_path: Path) -> None:
     path = _workbook_sheet(
         tmp_path,
         _EXCEL_HEADER
@@ -503,12 +504,25 @@ def test_workbook_keeps_empty_rows_and_text_identifiers(tmp_path: Path) -> None:
     source = excel_input.ExcelInputReader(
         path, evidence, plan("ID", "Quantity", numeric=("Quantity",))
     ).read()
-    assert source.frame.to_dict(as_series=False) == {
-        "ID": ["001", "", ""],
-        "Quantity": [1.5, None, 2.0],
-    }
+    assert source.frame.to_dict(as_series=False) == {"ID": ["001", None], "Quantity": [1.5, 2.0]}
     (table,) = source.input_tables
     assert (table.file.format, table.columns, table.nrows) == ("xlsx", ("ID", "Quantity"), 3)
+
+
+def test_a_source_table_holds_blank_text_and_nan_as_missing_and_drops_empty_rows() -> None:
+    table = LevelSourceTable(
+        pl.DataFrame(
+            {
+                "text": ["12", "", "   ", None, " x "],
+                "number": [1.0, float("nan"), None, 3.0, 2.0],
+            }
+        )
+    )
+
+    assert table.frame.to_dict(as_series=False) == {
+        "text": ["12", None, " x "],
+        "number": [1.0, 3.0, 2.0],
+    }
 
 
 def test_workbook_invalid_numeric_tokens_are_not_silently_discarded(tmp_path: Path) -> None:

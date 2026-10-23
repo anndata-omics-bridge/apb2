@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Literal
 
 import polars as pl
+import polars.selectors as cs
 
 from apb2.parserV2.parse_quant.parameters.vendor_file import (
     GZIP_SUFFIX,
@@ -127,17 +128,30 @@ class InputTable:
         }
 
 
-@dataclass(slots=True)
 class LevelSourceTable:
     """One level's projected physical rows: what a reader returns and a decomposer accepts.
 
     The columns one level's read plan asked for, in that order, with no axis identity yet.
     Which columns are keys and which are measurements is the decomposer's decision.
+    ``input_tables`` are the physical tables read, for root ``input_files``; none for an
+    in-memory frame.
     """
 
-    frame: pl.DataFrame
-    input_tables: tuple[InputTable, ...] = ()
-    """The physical tables read, for root ``input_files``; none for an in-memory frame."""
+    __slots__ = ("frame", "input_tables")
+
+    def __init__(self, frame: pl.DataFrame, input_tables: tuple[InputTable, ...] = ()) -> None:
+        """Hold every absent cell as null and drop the rows without a value.
+
+        Absent is null, a float ``NaN``, or text without a non-whitespace character, whichever
+        reader or preparation produced the frame.
+        """
+        frame = frame.with_columns(
+            cs.float().fill_nan(None), pl.when(cs.string().str.contains(r"\S")).then(cs.string())
+        )
+        if frame.width:
+            frame = frame.filter(pl.any_horizontal(pl.all().is_not_null()))
+        self.frame = frame
+        self.input_tables = input_tables
 
 
 type InputSource = SingleFile | Folder

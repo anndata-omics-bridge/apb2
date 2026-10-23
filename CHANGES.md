@@ -2,6 +2,12 @@
 
 ## 2026-10-23
 
+- **Breaking:** one absence rule for every source: null, a float `NaN`, or text without a non-whitespace character is a missing cell, and a row with no value in any read column is dropped, whichever reader or preparation produced the table.
+  - **Parquet:** `""` is missing; DIA-NN 2 ion `Protein_Group` and `Protein_Names` of precursors without a protein group are missing, not `""`
+  - **Delimited:** a quoted `""` or whitespace-only cell is missing
+  - **Excel:** an empty text cell is missing, not `""`, and an empty row is dropped
+  - **Duplicates:** whitespace-only text no longer claims a cell
+  - **Routine corpus (13 datasets):** only null counts change: AlphaDIA 2 `Mods` and `Mod_Sites` (95,514 unmodified ions), DIA-NN 2 `Protein_Group` and `Protein_Names` (1,771 ions), PEAKS `Accession` (50 ions)
 - **Breaking:** a row without a sequence no longer becomes the ion `"/2"`. Sequence columns keep a missing sequence missing, and `ProForma_ion` raises on it as it does on a missing charge.
 - A gzipped table is selected by its unzipped name: `report.tsv.gz` binds the table a rule declares as `report.tsv`, where it was treated as a renamed file. A gzipped Parquet or Excel file is refused at binding with "decompress … first".
 - **Breaking:** every result records the files its conversion read, once each, in the root parse record's `provenance.input_files`, so a result names the bytes it came from.

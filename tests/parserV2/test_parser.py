@@ -599,7 +599,7 @@ class _BlankToNull:
         return pl.when(text.is_null() | (text == "")).then(None).otherwise(text).alias(name)
 
 
-def test_an_empty_text_key_is_as_absent_as_a_null_key_but_empty_payload_text_stays() -> None:
+def test_empty_text_is_missing_in_keys_and_payload_alike() -> None:
     frame = pl.DataFrame(
         {
             "run": ["A", "A", "B", "B"],
@@ -626,8 +626,8 @@ def test_an_empty_text_key_is_as_absent_as_a_null_key_but_empty_payload_text_sta
 
     assert parsed.var.frame.to_dicts() == [
         {"Feature": "F1", "Group": "G1"},
-        {"Feature": "F2", "Group": ""},
-    ], "the empty feature is no feature; an empty group on a real feature is kept verbatim"
+        {"Feature": "F2", "Group": None},
+    ], "the empty feature is no feature; an empty group on a real feature is missing"
     assert parsed.layers["Intensity"].values.to_dicts() == [
         {"obs_0": 1.0, "obs_1": 3.0},
         {"obs_0": None, "obs_1": 4.0},

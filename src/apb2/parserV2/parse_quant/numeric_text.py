@@ -47,19 +47,12 @@ def as_numbers(
     return text.cast(pl.Float64, strict=False)
 
 
-def blank(values: pl.Expr, dtype: pl.DataType) -> pl.Expr:
-    """Whether each value holds nothing: null, ``NaN``, or text that is only whitespace."""
-    if dtype.is_numeric():
-        return absent(values, dtype)
-    text = values.cast(pl.String, strict=False).str.strip_chars()
-    return text.is_null() | (text == "")
-
-
 def absent(values: pl.Expr, dtype: pl.DataType) -> pl.Expr:
     """Whether each value is missing, counting ``NaN`` as the float spelling of null.
 
-    A vendor writing ``NaN`` in a measurement column has written "not a number", and summing
-    it would poison the whole cell rather than reporting one absent contribution.
+    A source table already holds every absent cell as null; a ``NaN`` can still arise from
+    reading the text ``NaN`` as a number, and summing it would poison the whole cell rather
+    than reporting one absent contribution.
     """
     if dtype.is_float():
         return values.is_null() | values.is_nan().fill_null(value=True)

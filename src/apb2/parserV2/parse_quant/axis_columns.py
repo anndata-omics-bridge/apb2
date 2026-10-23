@@ -149,7 +149,7 @@ class JoinNonemptyColumn:
     protein_list: bool = False
 
     def compute(self, frame: pl.DataFrame, /) -> tuple[pl.DataFrame, tuple[str, ...]]:
-        present = pl.col(self.inputs).cast(pl.String).replace("", None)
+        present = pl.col(self.inputs).cast(pl.String)
         joined = pl.concat_str(present, separator=self.separator, ignore_nulls=True)
         expression = pl.when(pl.all_horizontal(present.is_null())).then(None).otherwise(joined)
         if self.protein_list:

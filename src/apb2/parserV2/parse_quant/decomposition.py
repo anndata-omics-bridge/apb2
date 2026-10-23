@@ -33,7 +33,7 @@ from apb2.parserV2.parse_quant.data.raw import (
     RawLayerTable,
     VarRaw,
 )
-from apb2.parserV2.parse_quant.numeric_text import blank
+from apb2.parserV2.parse_quant.numeric_text import absent
 from apb2.parserV2.parse_quant.parameters.axis import AxisSourcePlan
 from apb2.parserV2.parse_quant.parameters.source import (
     LevelSourceTable,
@@ -102,7 +102,7 @@ def _disagreeing(
     """Each disagreeing feature's raw key, with the first distinct values its rows give."""
     return (
         frame.join(flagged.select(keys), on=list(keys), nulls_equal=True, maintain_order="right")
-        .filter(~blank(pl.col(source), frame.schema[source]))
+        .filter(~absent(pl.col(source), frame.schema[source]))
         .group_by(keys, maintain_order=True)
         .agg(
             pl.col(source).unique(maintain_order=True).head(_VALUE_LIMIT).alias(DISAGREEING_VALUES)

@@ -522,12 +522,12 @@ def test_whitespace_is_trimmed_around_the_cell_and_around_each_token() -> None:
     assert separated.frame.get_column("Quant").to_list() == ["10", "20"]
 
 
-def test_an_interior_empty_token_stays_an_empty_scalar_at_its_position() -> None:
+def test_an_interior_empty_token_is_a_missing_scalar_at_its_position() -> None:
     table = LevelSourceTable(frame=pl.DataFrame({"Quant": ["10;;30"]}))
 
     separated = positional("Quant").separate(table)
 
-    assert separated.frame.get_column("Quant").to_list() == ["10", "", "30"]
+    assert separated.frame.get_column("Quant").to_list() == ["10", None, "30"]
     assert separated.frame.get_column("fragment_label").to_list() == [
         "frag_0",
         "frag_1",
