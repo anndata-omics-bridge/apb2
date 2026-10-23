@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from apb2.parserV2.parse_quant import delimited_input, excel_input, parquet_input
 from apb2.parserV2.parse_quant.errors import AmbiguousDialectError, IncompatibleSourceError
+from apb2.parserV2.parse_quant.operations import WorkingParseConfiguration
 from apb2.parserV2.parse_quant.parameters.source import (
     DelimitedFormatContract,
     ExcelFormatContract,
@@ -18,6 +21,8 @@ from apb2.parserV2.parse_quant.parameters.source import (
     SourceEvidence,
 )
 from apb2.parserV2.parse_quant.parameters.vendor_file import GzipFile, VendorFile
+from apb2.parserV2.parse_quant.parser import Parser
+from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 
 
 class BoundTable:
@@ -100,3 +105,27 @@ class BoundTable:
         if isinstance(evidence, ExcelSourceEvidence):
             return excel_input.ExcelInputReader(self._file.path, evidence, plan)
         return delimited_input.DelimitedInputReader(self._file, evidence, plan)
+
+
+@dataclass(frozen=True, slots=True)
+class PhysicalTable:
+    """One vendor table file, bound per level to that level's declared format."""
+
+    file: VendorFile
+
+    @property
+    def path(self) -> Path:
+        """The table file on disk."""
+        return self.file.path
+
+    def header(self, working: WorkingParseConfiguration) -> tuple[str, ...]:
+        """The header the level accepts, read without inspecting data rows."""
+        return BoundTable(self.file, working.input).header(working.accepts_header)
+
+    def parser(self, facade: ParseRuleFacade, checks: Literal["standard", "strict"]) -> Parser:
+        """Resolve one level against this file's evidence and bind the reader it needs."""
+        working = facade.working_parameters
+        bound = BoundTable(self.file, working.input)
+        evidence = bound.evidence(working.accepts_header)
+        strategy = facade.resolve_source(evidence, checks=checks)
+        return Parser(bound.reader(evidence, strategy.read), strategy)

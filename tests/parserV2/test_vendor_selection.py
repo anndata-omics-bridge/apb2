@@ -12,17 +12,12 @@ from apb2.api import ConversionError, ParseRuleCompiler
 from apb2.parserV2 import compile as compilation
 from apb2.parserV2 import detect_document as detection
 from apb2.parserV2.detect_document import AmbiguousRuleError, RuleUnavailableError
-from apb2.parserV2.parse_quant.parameters.source import (
-    Folder,
-    InputSource,
-    PreparedTable,
-    SingleFile,
-)
-from apb2.parserV2.parse_quant.parameters.vendor_file import VendorFile
+from apb2.parserV2.parse_quant.parameters.source import Folder, InputSource, SingleFile
 from apb2.parserV2.parse_quant.parser import Parser
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.prepare_source import PreparationInputs
 from apb2.parserV2.search_parameters.model import Parameters
+from apb2.parserV2.source_binding import PhysicalTable
 from apb2.parserV2.vendor_params.registry import parse_params
 from apb2.parserV2.vendor_parse_rules.document import RuleDocument
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
@@ -104,7 +99,7 @@ def test_hint_skips_global_recognition_and_unrelated_readers(
     parsed_with: list[str] = []
     compiled: list[str] = []
     original_parse = compilation.parse_params
-    original_compile = detection.compile_level
+    original_compile = PhysicalTable.parser
 
     def no_global_scan(_source: InputSource) -> Never:
         raise AssertionError("hinted conversion must not recognize unrelated vendors")
@@ -114,18 +109,16 @@ def test_hint_skips_global_recognition_and_unrelated_readers(
         return original_parse(path, software)
 
     def check_compile(
-        facade: ParseRuleFacade,
-        source: VendorFile | PreparedTable,
-        checks: Literal["standard", "strict"],
+        table: PhysicalTable, facade: ParseRuleFacade, checks: Literal["standard", "strict"]
     ) -> Parser:
         assert facade.working_parameters.software_name == "DIA-NN"
-        parser = original_compile(facade, source, checks)
+        parser = original_compile(table, facade, checks)
         compiled.append(parser.level)
         return parser
 
     monkeypatch.setattr(compilation, "guess_software", no_global_scan)
     monkeypatch.setattr(compilation, "parse_params", record_params)
-    monkeypatch.setattr(detection, "compile_level", check_compile)
+    monkeypatch.setattr(PhysicalTable, "parser", check_compile)
     compiler = ParseRuleCompiler.detect(renamed, parameters, software="DIA-NN")
     compiler.compile()
     compiler.compile()

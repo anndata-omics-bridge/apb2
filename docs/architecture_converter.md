@@ -884,7 +884,7 @@ Vendor numeric spellings and factor labels were interpreted during parsing, not 
 
 1. `RuleDocument` is the validated Pydantic document itself. It composes table-local base and level declarations and evaluates parameter gates and overrides; no private shell proxy or recognition model remains.
 2. `ParseRuleFacade` adapts one effective rule into Pydantic-free requirements and ready computed-column operations. Source resolution delegates to `SourcePlanResolver`.
-3. `ParseRuleCompiler` resolves parameters and compatible levels during construction. Detection uses `parser_factory.compile_level()` to bind candidates; accepted selections retain their parser. Public `compile()` only assembles those parsers into a collection.
+3. `ParseRuleCompiler` resolves parameters and compatible levels during construction. Detection asks each candidate table, a `PhysicalTable` file or a `PreparedTable` join, for a level's parser; accepted selections retain it. Public `compile()` only assembles those parsers into a collection.
 4. `SourcePlanResolver` binds observed columns, notation and dtypes into one `ParseStrategy`, including axis phases, decomposition, duplicate policy, layer parsers and validation.
 5. `Parser` binds a reader and a strategy. `ParseStrategy` executes the shared pipeline without physical I/O.
 6. `MuDataWriter` consumes a collection and reuses one stateless `AnnDataWriter`; `H5adWriter` uses the same projection for its one level.
@@ -1067,7 +1067,6 @@ flowchart TB
             DETECTION["detect_document.py<br/>recognition + candidate parser selection"]
             FACADE["parse_rule_facade.py<br/>schema adaptation + computed operations"]
             COMPILE["compile.py<br/>public compilers + collection assembly"]
-            FACTORY["parser_factory.py<br/>strategy + bound reader/writer"]
             BINDING["source_binding.py<br/>physical evidence + reader binding"]
             PREPARE["prepare_source.py<br/>declared multi-file preparation"]
         end
@@ -1128,17 +1127,15 @@ flowchart TB
     COMPILE --> PARAMETERS
     COMPILE --> RULES
     DETECTION --> FACADE
-    DETECTION --> FACTORY
     DETECTION --> BINDING
     DETECTION --> PREPARE
     DETECTION --> PARAM_FOUNDATION
     DETECTION --> RULES
-    FACTORY --> FACADE
-    FACTORY --> BINDING
-    FACTORY --> PREPARE
-    FACTORY --> PREPARED_INPUT
-    FACTORY --> PARSE
-    FACTORY --> RESULT_IO
+    BINDING --> FACADE
+    BINDING --> PARSE
+    PREPARE --> FACADE
+    PREPARE --> PREPARED_INPUT
+    PREPARE --> PARSE
     BINDING --> DELIMITED_INPUT
     BINDING --> PARQUET_INPUT
     BINDING --> EXCEL_INPUT
@@ -1206,7 +1203,7 @@ flowchart TB
 
 Every project-internal dependency either stays at one module level, descends into a child, or follows the single `parse_quant.io -> parse_quant.data` sibling edge. The facade may depend on the independent rule, parsing and vendor-parameter children because it is their parent-level adapter; neither child imports it or another sibling.
 
-Top-level `apb2/api.py` exposes public imports, including `ParseRuleCompiler`. The compiler resolves parameters and detection; `detect_document.py` retains accepted candidate parsers; `parser_factory.py` binds their I/O. Grouping, output naming, writing, summaries and CLI error translation belong to `apb2.command`, not parsing.
+Top-level `apb2/api.py` exposes public imports, including `ParseRuleCompiler`. The compiler resolves parameters and detection; `detect_document.py` retains accepted candidate parsers; `source_binding.py` and `prepare_source.py` bind their I/O. Grouping, output naming, writing, summaries and CLI error translation belong to `apb2.command`, not parsing.
 
 Source readers live directly in `parse_quant` because they consume both `data` and `parameters`. Result adapters live in `io` and depend only on `data`; they never import source parameters, raw state, rule models or computational strategies. Backend-specific pandas, array, AnnData/MuData, Arrow and DuckDB handling stays in result I/O.
 

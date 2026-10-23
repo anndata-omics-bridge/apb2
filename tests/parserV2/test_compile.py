@@ -68,11 +68,10 @@ from apb2.parserV2.parse_quant.parameters.measurements import (
 from apb2.parserV2.parse_quant.parameters.source import (
     DelimitedSourceEvidence,
     NumericTextFormat,
-    PreparedTable,
     SingleFile,
     SourceEvidence,
 )
-from apb2.parserV2.parse_quant.parameters.vendor_file import VendorFile, make_vendor_file
+from apb2.parserV2.parse_quant.parameters.vendor_file import make_vendor_file
 from apb2.parserV2.parse_quant.parser import Parser
 from apb2.parserV2.parse_quant.value_parsing import (
     FactorLayerParser,
@@ -80,7 +79,7 @@ from apb2.parserV2.parse_quant.value_parsing import (
     RegexNumericLayerParser,
 )
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
-from apb2.parserV2.parser_factory import compile_level
+from apb2.parserV2.source_binding import PhysicalTable
 from apb2.parserV2.vendor_parse_rules.document import make_rule_document
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.axis import (
@@ -468,7 +467,7 @@ def test_one_level_compiles_into_a_complete_parser(tmp_path: Path) -> None:
     path = written(tmp_path, ("Sample", "Feature", "Quantity"), ("A", "F1", "1.5"))
     facade = synthetic.facade(document)
 
-    parser = compile_level(facade, make_vendor_file(path), "standard")
+    parser = PhysicalTable(make_vendor_file(path)).parser(facade, "standard")
     parsed = parser.parse()
 
     assert isinstance(parser, Parser)
@@ -527,7 +526,7 @@ def test_compilation_injects_the_detected_number_notation_into_axis_coercers(
         ("A", "F1", "23,451117", "10,5"),
     )
 
-    parser = compile_level(synthetic.facade(document), make_vendor_file(path), "standard")
+    parser = PhysicalTable(make_vendor_file(path)).parser(synthetic.facade(document), "standard")
     parsed = parser.parse()
 
     assert parsed.var.frame.get_column("Score").to_list() == [23.451117]
@@ -554,7 +553,7 @@ def test_compilation_resolves_the_source_exactly_once(
     )
     path = written(tmp_path, ("Sample", "Feature", "Quantity"), ("A", "F1", "1.5"))
 
-    compile_level(synthetic.facade(document), make_vendor_file(path), "standard")
+    PhysicalTable(make_vendor_file(path)).parser(synthetic.facade(document), "standard")
 
     assert calls == ["resolve_source"]
 
@@ -567,7 +566,7 @@ def test_a_compiled_parser_holds_no_registry_and_no_output_declaration(
     )
     path = written(tmp_path, ("Sample", "Feature", "Quantity"), ("A", "F1", "1.5"))
 
-    parser = compile_level(synthetic.facade(document), make_vendor_file(path), "standard")
+    parser = PhysicalTable(make_vendor_file(path)).parser(synthetic.facade(document), "standard")
 
     held = {name: getattr(parser, name) for name in Parser.__slots__}
     assert not any(isinstance(value, dict) and "kind" in value for value in held.values())
@@ -603,19 +602,15 @@ def test_each_detection_selection_is_compiled_exactly_once(
     document = load_rule_document(pair.parser_v2_path)
     source = SingleFile(path=pair.required_data_path())
     compiled: list[str] = []
-    from apb2.parserV2 import detect_document as compilation
-
-    original_compile = compilation.compile_level
+    original_compile = PhysicalTable.parser
 
     def record_compile(
-        facade: ParseRuleFacade,
-        selected_source: VendorFile | PreparedTable,
-        checks: Literal["standard", "strict"],
+        table: PhysicalTable, facade: ParseRuleFacade, checks: Literal["standard", "strict"]
     ) -> Parser:
         compiled.append(facade.working_parameters.level)
-        return original_compile(facade, selected_source, checks)
+        return original_compile(table, facade, checks)
 
-    monkeypatch.setattr(compilation, "compile_level", record_compile)
+    monkeypatch.setattr(PhysicalTable, "parser", record_compile)
 
     compiler = ExplicitRuleCompiler(
         document,

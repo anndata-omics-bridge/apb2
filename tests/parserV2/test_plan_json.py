@@ -29,7 +29,7 @@ from apb2.parserV2.parse_quant.plan_json import (
     PLAN_JSON_KEY,
     as_json_value,
 )
-from apb2.parserV2.parser_factory import compile_level
+from apb2.parserV2.source_binding import PhysicalTable
 from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
 from parserV2 import synthetic
 from parserV2.fixtures import PackagedDocument, level_pairs, write_level
@@ -187,8 +187,8 @@ def test_a_compiled_parser_stores_the_plan_beside_the_rule_it_came_from(tmp_path
     document = synthetic.long_document(
         obs_select={"sample": "Sample"}, var_select={"Feature": "Feature"}
     )
-    parser = compile_level(
-        synthetic.facade(document), make_vendor_file(written(tmp_path)), "standard"
+    parser = PhysicalTable(make_vendor_file(written(tmp_path))).parser(
+        synthetic.facade(document), "standard"
     )
 
     parsed = parser.parse()
@@ -208,7 +208,7 @@ def test_a_max_rule_reads_numbers_keeps_the_largest_and_records_its_mode(tmp_pat
     document = synthetic.long_document(
         obs_select={"sample": "Sample"}, var_select={"Feature": "Feature"}, duplicates="max"
     )
-    parser = compile_level(synthetic.facade(document), make_vendor_file(path), "standard")
+    parser = PhysicalTable(make_vendor_file(path)).parser(synthetic.facade(document), "standard")
 
     parsed = parser.parse()
 
@@ -224,8 +224,8 @@ def test_the_plan_reaches_the_parse_namespace_of_a_written_h5ad(tmp_path: Path) 
     document = synthetic.long_document(
         obs_select={"sample": "Sample"}, var_select={"Feature": "Feature"}
     )
-    parser = compile_level(
-        synthetic.facade(document), make_vendor_file(written(tmp_path)), "standard"
+    parser = PhysicalTable(make_vendor_file(written(tmp_path))).parser(
+        synthetic.facade(document), "standard"
     )
     target = tmp_path / "ion.h5ad"
 
@@ -241,8 +241,8 @@ def test_the_plan_reaches_the_manifest_of_a_written_parquet_dataset(tmp_path: Pa
     document = synthetic.long_document(
         obs_select={"sample": "Sample"}, var_select={"Feature": "Feature"}
     )
-    parser = compile_level(
-        synthetic.facade(document), make_vendor_file(written(tmp_path)), "standard"
+    parser = PhysicalTable(make_vendor_file(written(tmp_path))).parser(
+        synthetic.facade(document), "standard"
     )
     target = tmp_path / "ion.parquet"
 
@@ -257,8 +257,8 @@ def test_reading_results_does_not_reinterpret_old_rule_or_plan_provenance(tmp_pa
     document = synthetic.long_document(
         obs_select={"sample": "Sample"}, var_select={"Feature": "Feature"}
     )
-    parser = compile_level(
-        synthetic.facade(document), make_vendor_file(written(tmp_path)), "standard"
+    parser = PhysicalTable(make_vendor_file(written(tmp_path))).parser(
+        synthetic.facade(document), "standard"
     )
     parsed = parser.parse()
     old_rule = (

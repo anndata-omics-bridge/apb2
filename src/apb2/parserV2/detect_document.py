@@ -6,23 +6,22 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Protocol
 
 from apb2.parserV2.parse_quant.data.errors import ConversionError
 from apb2.parserV2.parse_quant.errors import IncompatibleSourceError
+from apb2.parserV2.parse_quant.operations import WorkingParseConfiguration
 from apb2.parserV2.parse_quant.parameters.source import (
     Folder,
     InputSource,
-    PreparedTable,
     SingleFile,
 )
 from apb2.parserV2.parse_quant.parameters.vendor_file import VendorFile, make_vendor_file
 from apb2.parserV2.parse_quant.parser import Parser
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
-from apb2.parserV2.parser_factory import compile_level
 from apb2.parserV2.prepare_source import PreparationInputs
 from apb2.parserV2.search_parameters.model import Parameters
-from apb2.parserV2.source_binding import BoundTable
+from apb2.parserV2.source_binding import BoundTable, PhysicalTable
 from apb2.parserV2.vendor_parse_rules.document import (
     RuleDocument,
     RuleNotApplicable,
@@ -45,6 +44,17 @@ class AmbiguousRuleError(RuleDetectionError):
     """Several packaged rule documents accept the same evidence."""
 
 
+class TableSource(Protocol):
+    """One candidate table: a vendor file, or the joined frame of a preparation."""
+
+    @property
+    def path(self) -> Path: ...
+
+    def header(self, working: WorkingParseConfiguration) -> tuple[str, ...]: ...
+
+    def parser(self, facade: ParseRuleFacade, checks: Literal["standard", "strict"]) -> Parser: ...
+
+
 @dataclass(frozen=True, slots=True)
 class LevelSelection:
     """One resolved rule, level, and concrete source ready for compilation."""
@@ -52,7 +62,7 @@ class LevelSelection:
     level: QuantificationLevel
     document: RuleDocument
     source_path: Path
-    source: VendorFile | PreparedTable
+    source: TableSource
     parser: Parser = field(repr=False, compare=False)
 
 
@@ -226,16 +236,13 @@ def _software_only_selection(
         facade = ParseRuleFacade(document, selection.level, evidence)
     except RuleNotApplicable:
         return None
-    return replace(selection, parser=compile_level(facade, selection.source, checks))
+    return replace(selection, parser=selection.source.parser(facade, checks))
 
 
 def _selection_columns(selection: LevelSelection) -> tuple[str, ...]:
     """Read only the selected table's header for software-only evidence."""
-    if isinstance(selection.source, PreparedTable):
-        return tuple(selection.source.frame.columns)
     facade = ParseRuleFacade.from_declared_rule(selection.document, selection.level)
-    bound = BoundTable(selection.source, facade.working_parameters.input)
-    return bound.header(facade.working_parameters.accepts_header)
+    return selection.source.header(facade.working_parameters)
 
 
 def select_document_levels(
@@ -306,15 +313,13 @@ def _table_sources(
     document: RuleDocument,
     table: tuple[QuantificationLevel, ...],
     source: InputSource,
-) -> tuple[VendorFile | PreparedTable, ...]:
+) -> tuple[TableSource, ...]:
     """Bind one requested group; a prepared group reads its inputs here, once.
 
     A direct group binds its declared file, else every table file another group of the same
     document does not claim by name.
     """
     preparation = document.preparation(table[0])
-    if isinstance(source, PreparedTable):
-        return (source,) if source.how == preparation else ()
     if preparation is not None:
         inputs = PreparationInputs.identify(source, preparation)
         if not inputs.tables:
@@ -323,7 +328,7 @@ def _table_sources(
     filename = document.table_input(table[0]).file_name
     declared_names = {document.table_input(level).file_name for level in document.levels}
     return tuple(
-        candidate
+        PhysicalTable(candidate)
         for candidate in source.tables(filename)
         if candidate.name == filename or candidate.name not in declared_names
     )
@@ -363,7 +368,7 @@ def _detect_table_levels(
     document: RuleDocument,
     requested: tuple[QuantificationLevel, ...],
     evidence: SearchParameterEvidence | None,
-    source: VendorFile | PreparedTable,
+    source: TableSource,
     checks: Literal["standard", "strict"],
 ) -> _TableDetection:
     """Inspect requested levels that share one physical input."""
@@ -385,7 +390,7 @@ def _detect_table_levels(
         if declared_name is not None and make_vendor_file(source.path).name == declared_name:
             named_tables.add(source.path)
         try:
-            parser = compile_level(facade, source, checks)
+            parser = source.parser(facade, checks)
         except IncompatibleSourceError as error:
             incompatibilities.append(f"{level}: {error}")
             continue

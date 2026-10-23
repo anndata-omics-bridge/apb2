@@ -28,8 +28,8 @@ from apb2.parserV2.parse_quant.io.parquet_writer import MANIFEST_NAME
 from apb2.parserV2.parse_quant.parameters.source import SingleFile
 from apb2.parserV2.parse_quant.parameters.vendor_file import make_vendor_file
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
-from apb2.parserV2.parser_factory import compile_level
 from apb2.parserV2.search_parameters.model import Parameters
+from apb2.parserV2.source_binding import PhysicalTable
 from apb2.parserV2.vendor_params.registry import parse_params
 from apb2.parserV2.vendor_parse_rules.document import (
     SearchParameterEvidence,
@@ -93,7 +93,7 @@ def parser_v2_conversion(
     document = load_rule_document(pair.parser_v2_path)
     data = pair.required_data_path()
     facade = ParseRuleFacade(document, level, evidence_for(pair))
-    parser = compile_level(facade, make_vendor_file(data), "standard")
+    parser = PhysicalTable(make_vendor_file(data)).parser(facade, "standard")
     parsed = parser.parse()
     with tempfile.TemporaryDirectory() as folder:
         target = Path(folder) / "level.h5ad"
@@ -110,7 +110,7 @@ def test_the_packaged_fragment_level_parses_its_own_export() -> None:
         load_rule_document(pair.parser_v2_path), "fragment", evidence_for(pair)
     )
 
-    parsed = compile_level(facade, make_vendor_file(data), "standard").parse()
+    parsed = PhysicalTable(make_vendor_file(data)).parser(facade, "standard").parse()
 
     assert parsed.var.key_columns == ("ProForma_fragment",)
     assert parsed.var.frame.height > parsed.obs.frame.height
@@ -156,7 +156,7 @@ def test_one_parsed_level_writes_to_both_backends(tmp_path: Path) -> None:
     data = pair.required_data_path()
     document = load_rule_document(pair.parser_v2_path)
     facade = ParseRuleFacade(document, "protein", evidence_for(pair))
-    parser = compile_level(facade, make_vendor_file(data), "standard")
+    parser = PhysicalTable(make_vendor_file(data)).parser(facade, "standard")
 
     parsed = parser.parse()
     write_level(parsed, tmp_path / "protein.parquet")
@@ -250,7 +250,7 @@ def test_the_provenance_of_a_parsed_level_names_the_rule_it_came_from() -> None:
     data = pair.required_data_path()
     facade = ParseRuleFacade(load_rule_document(pair.parser_v2_path), "ion", evidence_for(pair))
 
-    parsed: ParsedLevel = compile_level(facade, make_vendor_file(data), "standard").parse()
+    parsed: ParsedLevel = PhysicalTable(make_vendor_file(data)).parser(facade, "standard").parse()
 
     provenance = parsed.uns["provenance"]
     assert isinstance(provenance, dict)

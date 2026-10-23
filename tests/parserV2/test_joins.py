@@ -20,7 +20,6 @@ from apb2.cli.conversion import (
     convert_from_rule_config,
 )
 from apb2.parserV2 import prepare_source as preparation_module
-from apb2.parserV2.compile import ExplicitRuleCompiler
 from apb2.parserV2.detect_document import (
     UNKNOWN_SEARCH_PARAMETERS,
     detect_rule_documents,
@@ -28,9 +27,11 @@ from apb2.parserV2.detect_document import (
 )
 from apb2.parserV2.joins import alphadia, maxquant, metamorpheus, wombat
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels
-from apb2.parserV2.parse_quant.parameters.source import Folder, PreparedTable
+from apb2.parserV2.parse_quant.parameters.source import Folder
 from apb2.parserV2.parse_quant.parameters.vendor_file import PlainFile
-from apb2.parserV2.prepare_source import InputPreparationError
+from apb2.parserV2.parse_quant.parser import ParserCollection
+from apb2.parserV2.parse_rule_facade import ParseRuleFacade
+from apb2.parserV2.prepare_source import InputPreparationError, PreparedTable
 from apb2.parserV2.search_parameters.model import Parameters
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
@@ -189,18 +190,11 @@ def test_maxquant_higher_join_fanout_preserves_original_cells(tmp_path: Path) ->
     assert not any(column.startswith("evidence.") for column in joined.columns)
     source = PreparedTable(tmp_path, joined, "maxquant_wide", (), 0.0)
     document = load_rule_document(RULES / "maxquant_wide/rules.json")
-    parsed = (
-        ExplicitRuleCompiler(
-            document,
-            source,
-            ("peptidoform", "peptide", "protein"),
-            UNKNOWN_SEARCH_PARAMETERS,
-            checks="standard",
-        )
-        .compile()
-        .parse()
-        .levels
+    parsers = tuple(
+        source.parser(ParseRuleFacade(document, level, UNKNOWN_SEARCH_PARAMETERS), "standard")
+        for level in ("peptidoform", "peptide", "protein")
     )
+    parsed = ParserCollection(parsers, {}).parse().levels
     assert set(parsed) == {"peptidoform", "peptide", "protein"}
     protein = parsed["protein"]
     assert protein.obs.frame["Experiment"].to_list() == ["A", "B"]

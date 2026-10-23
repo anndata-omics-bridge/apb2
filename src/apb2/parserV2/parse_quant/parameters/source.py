@@ -140,18 +140,7 @@ class LevelSourceTable:
     """The physical tables read, for root ``input_files``; none for an in-memory frame."""
 
 
-@dataclass(frozen=True, slots=True)
-class PreparedTable:
-    """One preparation result shared by detection and every requested level."""
-
-    path: Path
-    frame: pl.DataFrame
-    how: str
-    input_tables: tuple[InputTable, ...]
-    duration_seconds: float
-
-
-type InputSource = SingleFile | Folder | PreparedTable
+type InputSource = SingleFile | Folder
 
 
 # ------------------------------------------------------------------- rule-permitted formats

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import csv
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from time import perf_counter
-from typing import Self
+from typing import Literal, Self
 
 import polars as pl
 from loguru import logger
@@ -15,14 +15,18 @@ from loguru import logger
 from apb2.parserV2.joins import alphadia, maxquant, metamorpheus, wombat
 from apb2.parserV2.parse_quant.data.errors import ConversionError
 from apb2.parserV2.parse_quant.data.step_log import logged_step
+from apb2.parserV2.parse_quant.operations import WorkingParseConfiguration
 from apb2.parserV2.parse_quant.parameters.source import (
     Folder,
+    FrameSourceEvidence,
     InputFile,
     InputTable,
-    PreparedTable,
     SingleFile,
 )
 from apb2.parserV2.parse_quant.parameters.vendor_file import VendorFile, make_vendor_file
+from apb2.parserV2.parse_quant.parser import Parser
+from apb2.parserV2.parse_quant.prepared_input import PreparedInputReader
+from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 
 type Identify = Callable[[Mapping[str, tuple[str, ...]]], dict[str, str]]
 type Join = Callable[[Mapping[str, pl.DataFrame]], pl.DataFrame]
@@ -46,6 +50,44 @@ _PREPARATIONS: dict[str, tuple[Identify, Join, tuple[str, ...] | None]] = {
 
 class InputPreparationError(ConversionError):
     """Recognized vendor inputs could not produce a valid joined table."""
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedTable:
+    """One preparation result shared by detection and every requested level."""
+
+    path: Path
+    frame: pl.DataFrame
+    how: str
+    input_tables: tuple[InputTable, ...]
+    duration_seconds: float
+
+    def header(self, working: WorkingParseConfiguration) -> tuple[str, ...]:
+        """The joined columns; a level's own predicate decides whether it can use them."""
+        return tuple(self.frame.columns)
+
+    def parser(self, facade: ParseRuleFacade, checks: Literal["standard", "strict"]) -> Parser:
+        """Resolve one level against the joined schema and read it from the joined frame."""
+        evidence = FrameSourceEvidence(tuple(self.frame.columns), tuple(self.frame.schema.items()))
+        strategy = facade.resolve_source(evidence, checks=checks)
+        # A wide level's observation keys come from header captures, not prepared columns,
+        # so only key columns the level reads can mark a row as absent.
+        projected = set(strategy.read.projected_columns)
+        keys = tuple(
+            columns
+            for columns in (strategy.obs.keys.raw_key_columns, strategy.var.keys.raw_key_columns)
+            if set(columns) <= projected
+        )
+        preparation = {
+            "how": self.how,
+            "duration_seconds": self.duration_seconds,
+            "estimated_size_bytes": self.frame.estimated_size(),
+        }
+        strategy = replace(
+            strategy, provenance={**strategy.provenance, "input_preparation": preparation}
+        )
+        reader = PreparedInputReader(self.frame, strategy.read, keys, self.input_tables)
+        return Parser(reader, strategy)
 
 
 def _files(source: SingleFile | Folder) -> dict[str, VendorFile]:
