@@ -22,6 +22,7 @@ from apb2.cli.conversion import (
 from apb2.parserV2 import prepare_source as preparation_module
 from apb2.parserV2.detect_document import (
     UNKNOWN_SEARCH_PARAMETERS,
+    KnownParameters,
     detect_rule_documents,
     select_document_levels,
 )
@@ -254,7 +255,7 @@ def test_renamed_alphadia_companions_and_shared_preparation(tmp_path: Path) -> N
         frame.write_csv(tmp_path / f"renamed_{index}.tsv", separator="\t")
     document = load_rule_document(RULES / "alphadia/v1_12/rules.json")
     selected = select_document_levels(
-        document, Folder(tmp_path), document.levels, UNKNOWN_SEARCH_PARAMETERS
+        document, Folder(tmp_path), document.levels, KnownParameters(UNKNOWN_SEARCH_PARAMETERS)
     )
     assert len(selected) == 1
     prepared = selected[0].source
@@ -268,7 +269,7 @@ def test_conflicting_renamed_inputs_are_rejected(tmp_path: Path) -> None:
     document = load_rule_document(RULES / "maxquant_wide/rules.json")
     with pytest.raises(InputPreparationError, match="multiple evidence inputs"):
         select_document_levels(
-            document, Folder(tmp_path), document.levels, UNKNOWN_SEARCH_PARAMETERS
+            document, Folder(tmp_path), document.levels, KnownParameters(UNKNOWN_SEARCH_PARAMETERS)
         )
 
 
@@ -350,7 +351,7 @@ def test_maxquant_renamed_subsets_select_only_present_levels(
         tables[role].write_csv(tmp_path / f"input_{index}.txt", separator="\t")
     document = load_rule_document(RULES / "maxquant_wide/rules.json")
     selected = select_document_levels(
-        document, Folder(tmp_path), document.levels, UNKNOWN_SEARCH_PARAMETERS
+        document, Folder(tmp_path), document.levels, KnownParameters(UNKNOWN_SEARCH_PARAMETERS)
     )
     assert [item.level for item in selected] == [MAXQUANT_LEVELS[role] for role in roles]
     prepared = [item.source for item in selected if item.level != "ion"]
@@ -443,7 +444,7 @@ def test_ion_only_reads_evidence_and_protein_groups_but_no_peptide_table(
     monkeypatch.setattr(preparation_module.pl, "read_csv", counted_read)
     document = load_rule_document(RULES / "maxquant_wide/rules.json")
     selected = select_document_levels(
-        document, Folder(tmp_path), ("ion",), UNKNOWN_SEARCH_PARAMETERS
+        document, Folder(tmp_path), ("ion",), KnownParameters(UNKNOWN_SEARCH_PARAMETERS)
     )
     assert len(selected) == 1
     assert sorted(calls) == sorted(
@@ -465,7 +466,9 @@ def test_each_preparation_reads_each_of_its_inputs_once(
 
     monkeypatch.setattr(preparation_module.pl, "read_csv", counted_read)
     document = load_rule_document(RULES / "maxquant_wide/rules.json")
-    select_document_levels(document, Folder(tmp_path), document.levels, UNKNOWN_SEARCH_PARAMETERS)
+    select_document_levels(
+        document, Folder(tmp_path), document.levels, KnownParameters(UNKNOWN_SEARCH_PARAMETERS)
+    )
     # The evidence preparation reads proteinGroups for the group lookup, the higher join again.
     assert sorted(calls) == sorted(
         [tmp_path / filename for filename in MAXQUANT_FILES.values()]
@@ -487,7 +490,9 @@ def test_each_preparation_reads_each_folder_header_once(
 
     monkeypatch.setattr(PlainFile, "open_text", counted_open_text)
     document = load_rule_document(RULES / "maxquant_wide/rules.json")
-    select_document_levels(document, Folder(tmp_path), document.levels, UNKNOWN_SEARCH_PARAMETERS)
+    select_document_levels(
+        document, Folder(tmp_path), document.levels, KnownParameters(UNKNOWN_SEARCH_PARAMETERS)
+    )
     # Two preparations identify their inputs from the folder's headers; reading keeps them.
     assert sorted(calls) == sorted(2 * list(MAXQUANT_FILES.values()))
 

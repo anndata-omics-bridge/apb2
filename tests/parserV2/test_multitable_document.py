@@ -20,6 +20,7 @@ from apb2.cli.conversion import (
 from apb2.parserV2.detect_document import (
     UNKNOWN_SEARCH_PARAMETERS,
     AmbiguousRuleError,
+    KnownParameters,
     detect_rule_documents,
     select_document_levels,
 )
@@ -162,9 +163,16 @@ def test_old_single_input_document_shape_has_no_compatibility_alias(version: str
 def test_declared_filename_selects_only_its_table_despite_identical_headers(tmp_path: Path) -> None:
     document = load_rule_document(_rule_file(tmp_path))
     source = SingleFile(path=_source(tmp_path / "ions.tsv"))
-    selected = select_document_levels(document, source, LEVELS, UNKNOWN_SEARCH_PARAMETERS)
+    selected = select_document_levels(
+        document, source, LEVELS, KnownParameters(UNKNOWN_SEARCH_PARAMETERS)
+    )
     assert [item.level for item in selected] == ["ion"]
-    assert select_document_levels(document, source, ("protein",), UNKNOWN_SEARCH_PARAMETERS) == ()
+    assert (
+        select_document_levels(
+            document, source, ("protein",), KnownParameters(UNKNOWN_SEARCH_PARAMETERS)
+        )
+        == ()
+    )
 
 
 def test_a_gzipped_declared_filename_selects_its_table_by_its_unzipped_name(
@@ -175,7 +183,7 @@ def test_a_gzipped_declared_filename_selects_its_table_by_its_unzipped_name(
     path.write_bytes(gzip.compress(_source(tmp_path / "plain.tsv").read_bytes()))
 
     selected = select_document_levels(
-        document, SingleFile(path=path), LEVELS, UNKNOWN_SEARCH_PARAMETERS
+        document, SingleFile(path=path), LEVELS, KnownParameters(UNKNOWN_SEARCH_PARAMETERS)
     )
 
     assert [item.level for item in selected] == ["ion"]
@@ -185,8 +193,10 @@ def test_renamed_file_rejects_ambiguous_groups_but_explicit_level_resolves(tmp_p
     document = load_rule_document(_rule_file(tmp_path))
     source = SingleFile(path=_source(tmp_path / "input_file.txt"))
     with pytest.raises(AmbiguousRuleError, match="several table groups"):
-        select_document_levels(document, source, LEVELS, UNKNOWN_SEARCH_PARAMETERS)
-    selected = select_document_levels(document, source, ("protein",), UNKNOWN_SEARCH_PARAMETERS)
+        select_document_levels(document, source, LEVELS, KnownParameters(UNKNOWN_SEARCH_PARAMETERS))
+    selected = select_document_levels(
+        document, source, ("protein",), KnownParameters(UNKNOWN_SEARCH_PARAMETERS)
+    )
     assert [item.level for item in selected] == ["protein"]
 
 
@@ -312,6 +322,6 @@ def test_folder_skips_absent_tables_without_losing_the_available_one(tmp_path: P
     document = load_rule_document(_rule_file(tmp_path))
     _source(tmp_path / "ions.tsv")
     selected = select_document_levels(
-        document, Folder(path=tmp_path), LEVELS, UNKNOWN_SEARCH_PARAMETERS
+        document, Folder(path=tmp_path), LEVELS, KnownParameters(UNKNOWN_SEARCH_PARAMETERS)
     )
     assert [item.level for item in selected] == ["ion"]

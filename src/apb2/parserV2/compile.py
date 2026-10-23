@@ -15,6 +15,7 @@ from pydantic import ValidationError
 from apb2.parserV2.detect_document import (
     UNKNOWN_SEARCH_PARAMETERS,
     DetectedRuleSet,
+    KnownParameters,
     LevelSelection,
     RuleUnavailableError,
     detect_rule_documents,
@@ -245,7 +246,7 @@ class ExplicitRuleCompiler:
     ) -> None:
         levels = _validated_levels(requested_levels)
         selections = select_document_levels(
-            document, source, levels, parameter_evidence, checks=checks
+            document, source, levels, KnownParameters(parameter_evidence), checks=checks
         )
         if not selections:
             names = {

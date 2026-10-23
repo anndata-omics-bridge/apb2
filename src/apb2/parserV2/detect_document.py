@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, Protocol
 
@@ -53,6 +53,64 @@ class TableSource(Protocol):
     def header(self, working: WorkingParseConfiguration) -> tuple[str, ...]: ...
 
     def parser(self, facade: ParseRuleFacade, checks: Literal["standard", "strict"]) -> Parser: ...
+
+
+class LevelEvidence(Protocol):
+    """The search-parameter evidence one level of a document is compiled with, for one table."""
+
+    def for_level(
+        self, document: RuleDocument, level: QuantificationLevel, source: TableSource
+    ) -> SearchParameterEvidence: ...
+
+
+@dataclass(frozen=True, slots=True)
+class KnownParameters:
+    """Evidence from a parameter file, or the unknown evidence of a parameter-free rule."""
+
+    evidence: SearchParameterEvidence
+
+    def for_level(
+        self, document: RuleDocument, level: QuantificationLevel, source: TableSource
+    ) -> SearchParameterEvidence:
+        """The same evidence for every level and table."""
+        return self.evidence
+
+
+class ColumnSignature:
+    """Evidence a known producer's table columns imply when no parameter file exists."""
+
+    def for_level(
+        self, document: RuleDocument, level: QuantificationLevel, source: TableSource
+    ) -> SearchParameterEvidence:
+        """Apply the level's authored column signature to the table's header.
+
+        Raises ``RuleNotApplicable`` when the signature rejects the columns, and
+        ``RuleUnavailableError`` when the level needs search parameters columns cannot supply.
+        """
+        declared = document.declared(level)
+        working = ParseRuleFacade.from_declared_rule(document, level).working_parameters
+        columns = set(source.header(working))
+        acquisition: Literal["DDA", "DIA", "unknown"] = "unknown"
+        signature = declared.input.software_only
+        if signature is not None:
+            if not set(signature.required_columns) <= columns or (
+                set(signature.forbidden_columns) & columns
+            ):
+                raise RuleNotApplicable(f"{document.path}: columns do not match level {level!r}")
+            acquisition = signature.acquisition_method_otherwise
+            if any(column in columns for column in signature.acquisition_method_if_any):
+                acquisition = "DDA"
+        rule = declared.declaration
+        needed = set(rule.requires_search_parameters)
+        for override in rule.search_parameter_overrides:
+            needed.update(override.when_search_parameters)
+        unresolved = needed - ({"acquisition_method"} if acquisition != "unknown" else set())
+        if unresolved:
+            raise RuleUnavailableError(
+                f"{document.path}: level {level!r} requires search-parameter "
+                f"evidence for {sorted(unresolved)}; software and columns cannot resolve this rule"
+            )
+        return SearchParameterEvidence(acquisition_method=acquisition, combine_charge_states=None)
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,7 +213,7 @@ def detect_rule_documents(
                 if name is not None:
                     expected_names[level].add(name)
         for selection in select_document_levels(
-            document, source, requested, evidence, checks=checks
+            document, source, requested, KnownParameters(evidence), checks=checks
         ):
             matches[selection.level].append(selection)
 
@@ -191,10 +249,10 @@ def detect_software_rules(
     requested = _requested_levels(levels)
     matches: dict[QuantificationLevel, list[LevelSelection]] = {level: [] for level in requested}
     for document in _packaged_documents(frozenset({vendor})):
-        for selection in select_document_levels(document, source, requested, None, checks=checks):
-            resolved = _software_only_selection(selection, checks)
-            if resolved is not None:
-                matches[selection.level].append(resolved)
+        for selection in select_document_levels(
+            document, source, requested, ColumnSignature(), checks=checks
+        ):
+            matches[selection.level].append(selection)
     selected = _unique_level_matches(matches, requested)
     if not selected:
         raise RuleUnavailableError(
@@ -204,52 +262,11 @@ def detect_software_rules(
     return DetectedRuleSet(software=vendor, version=None, levels=tuple(selected))
 
 
-def _software_only_selection(
-    selection: LevelSelection, checks: Literal["standard", "strict"]
-) -> LevelSelection | None:
-    """Apply authored column signatures and any inferable search-parameter override."""
-    document = selection.document
-    declared = document.declared(selection.level)
-    columns = set(_selection_columns(selection))
-    software_only = declared.input.software_only
-    if software_only is not None and not set(software_only.required_columns) <= columns:
-        return None
-    if software_only is not None and set(software_only.forbidden_columns) & columns:
-        return None
-    acquisition: Literal["DDA", "DIA", "unknown"] = "unknown"
-    if software_only is not None:
-        acquisition = software_only.acquisition_method_otherwise
-        if any(column in columns for column in software_only.acquisition_method_if_any):
-            acquisition = "DDA"
-    evidence = SearchParameterEvidence(acquisition_method=acquisition, combine_charge_states=None)
-    rule = declared.declaration
-    needed = set(rule.requires_search_parameters)
-    for override in rule.search_parameter_overrides:
-        needed.update(override.when_search_parameters)
-    unresolved = needed - ({"acquisition_method"} if acquisition != "unknown" else set())
-    if unresolved:
-        raise RuleUnavailableError(
-            f"{document.path}: level {selection.level!r} requires search-parameter "
-            f"evidence for {sorted(unresolved)}; software and columns cannot resolve this rule"
-        )
-    try:
-        facade = ParseRuleFacade(document, selection.level, evidence)
-    except RuleNotApplicable:
-        return None
-    return replace(selection, parser=selection.source.parser(facade, checks))
-
-
-def _selection_columns(selection: LevelSelection) -> tuple[str, ...]:
-    """Read only the selected table's header for software-only evidence."""
-    facade = ParseRuleFacade.from_declared_rule(selection.document, selection.level)
-    return selection.source.header(facade.working_parameters)
-
-
 def select_document_levels(
     document: RuleDocument,
     source: InputSource,
     levels: Iterable[QuantificationLevel],
-    evidence: SearchParameterEvidence | None,
+    evidence: LevelEvidence,
     *,
     checks: Literal["standard", "strict"] = "standard",
 ) -> tuple[LevelSelection, ...]:
@@ -259,8 +276,6 @@ def select_document_levels(
     elsewhere. Renamed files must identify one table through header evidence. Within that
     table, unavailable optional levels remain skippable. Folder validity is checked per
     present table, so a successful sibling cannot conceal a malformed table.
-    ``None`` probes declared rules; the software-only caller must reject any matched
-    search-parameter dependency before returning those selections.
     """
     requested = _requested_levels(levels)
     tables = document.table_levels
@@ -367,7 +382,7 @@ class _RuleColumns:
 def _detect_table_levels(
     document: RuleDocument,
     requested: tuple[QuantificationLevel, ...],
-    evidence: SearchParameterEvidence | None,
+    evidence: LevelEvidence,
     source: TableSource,
     checks: Literal["standard", "strict"],
 ) -> _TableDetection:
@@ -378,19 +393,14 @@ def _detect_table_levels(
     for level in requested:
         if level not in document.levels:
             continue
-        try:
-            facade = (
-                ParseRuleFacade.from_declared_rule(document, level)
-                if evidence is None
-                else ParseRuleFacade(document, level, evidence)
-            )
-        except RuleNotApplicable:
-            continue
-        declared_name = facade.working_parameters.input.file_name
+        declared_name = document.table_input(level).file_name
         if declared_name is not None and make_vendor_file(source.path).name == declared_name:
             named_tables.add(source.path)
         try:
+            facade = ParseRuleFacade(document, level, evidence.for_level(document, level, source))
             parser = source.parser(facade, checks)
+        except RuleNotApplicable:
+            continue
         except IncompatibleSourceError as error:
             incompatibilities.append(f"{level}: {error}")
             continue

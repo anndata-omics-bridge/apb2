@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Literal
 
 import polars as pl
 import pytest
@@ -12,6 +13,9 @@ from polars.testing import assert_frame_equal
 from apb2.api import ParseRuleCompiler, QuantificationLevel
 from apb2.parserV2 import detect_document as detection
 from apb2.parserV2.detect_document import RuleUnavailableError
+from apb2.parserV2.parse_quant.parser import Parser
+from apb2.parserV2.parse_rule_facade import ParseRuleFacade
+from apb2.parserV2.source_binding import PhysicalTable
 from parserV2.fixtures import (
     committed_dir,
     committed_sample,
@@ -85,6 +89,27 @@ def test_diann_version_is_selected_by_declared_columns(version: str) -> None:
         _sample(f"diann/{version}"), software="diann", requested_levels=("ion",)
     )
     assert compiler.detection.levels[0].document.path.parent.name == version
+
+
+def test_software_only_detection_compiles_each_level_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    compiled: list[str] = []
+    original = PhysicalTable.parser
+
+    def record(
+        table: PhysicalTable, facade: ParseRuleFacade, checks: Literal["standard", "strict"]
+    ) -> Parser:
+        compiled.append(facade.working_parameters.level)
+        return original(table, facade, checks)
+
+    monkeypatch.setattr(PhysicalTable, "parser", record)
+    compiler = ParseRuleCompiler.from_software(
+        _sample("diann/v1_8"), software="diann", requested_levels=("ion", "protein")
+    )
+    compiler.compile()
+
+    assert sorted(compiled) == ["ion", "protein"]
 
 
 @pytest.mark.parametrize("level", ["ion", "peptidoform"])
