@@ -76,18 +76,45 @@
               "type": "integer"
             },
             {
+              "name": "Protein_Set_Score",
+              "source": "protein_set_score",
+              "type": "number",
+              "duplicates": {
+                "mode": "max"
+              },
+              "note": "Proline's score of the protein set a row lists the ion under; a shared peptide has one row per set, and the ion keeps its best set's score"
+            },
+            {
               "name": "Same_Set_Proteins",
-              "source": "samesets_accessions"
+              "source": "samesets_accessions",
+              "roles": [
+                "protein_assignment"
+              ],
+              "duplicates": {
+                "mode": "keep_best",
+                "by": "Protein_Set_Score"
+              },
+              "note": "The ion's protein set: of the sets a shared peptide is listed under, the one with the highest protein_set_score; the same string identifies the set on every sheet"
             },
             {
               "name": "Subset_Proteins",
               "source": "subsets_accessions",
-              "required": false
+              "required": false,
+              "duplicates": {
+                "mode": "keep_best",
+                "by": "Protein_Set_Score"
+              },
+              "note": "Subset proteins of the ion's protein set that contain this peptide, from the same row; differs between the peptides of one set"
             },
             {
               "name": "Quant_Is_Valid",
               "source": "quant_is_valid_for_protein_set",
-              "type": "boolean"
+              "type": "boolean",
+              "duplicates": {
+                "mode": "keep_best",
+                "by": "Protein_Set_Score"
+              },
+              "note": "Whether Proline quantifies the ion under its protein set, from that set's row; for some shared peptides it quantifies another set"
             },
             {
               "name": "Proteins",
@@ -98,9 +125,9 @@
               "separator": ";",
               "how": "join_nonempty",
               "roles": [
-                "protein_assignment",
                 "fasta_accessions"
-              ]
+              ],
+              "note": "Accessions of the ion's protein set that contain this peptide"
             },
             {
               "name": "ProForma_peptidoform",

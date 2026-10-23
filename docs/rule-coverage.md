@@ -45,7 +45,7 @@ A rule document and the standard reader handle everything listed here. A prepara
 
 ## Not covered: hook territory
 
-- Joining several files and resolving foreign keys between them
+- Joining several tables, files or sheets of one workbook, and resolving foreign keys between them
 - Dropping rows by a column value, such as FlashLFQ `Full Sequences Mapped` ≠ 1
 - Splitting or rejecting multi-valued identities such as `SEQA|SEQB`
 - Making rows that are not a hierarchy level, such as FlashLFQ peaks, parseable as one; combining their repeated cells stays a duplicate mode

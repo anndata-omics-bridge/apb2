@@ -13,6 +13,7 @@ import pytest
 from loguru import logger
 from polars.testing import assert_frame_equal
 
+from apb2.api import ParseRuleCompiler
 from apb2.cli.app import app
 from apb2.cli.conversion import (
     ConversionError,
@@ -26,9 +27,9 @@ from apb2.parserV2.detect_document import (
     detect_rule_documents,
     select_document_levels,
 )
-from apb2.parserV2.joins import alphadia, maxquant, metamorpheus, wombat
+from apb2.parserV2.joins import alphadia, maxquant, metamorpheus, msangel, wombat
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels
-from apb2.parserV2.parse_quant.parameters.source import Folder
+from apb2.parserV2.parse_quant.parameters.source import Folder, SingleFile
 from apb2.parserV2.parse_quant.parameters.vendor_file import PlainFile
 from apb2.parserV2.parse_quant.parser import ParserCollection
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
@@ -37,7 +38,12 @@ from apb2.parserV2.search_parameters.model import Parameters
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
 from parserV2.fixtures import committed_dir, committed_sample, input_files, parse_section
-from parserV2.join_fixtures import maxquant_tables
+from parserV2.join_fixtures import (
+    maxquant_tables,
+    msangel_sheets,
+    proline_workbook,
+    prolinestudio_ions,
+)
 
 RULES = Path("src/apb2/parserV2/vendor_parse_rules/documents")
 MAXQUANT_FILES = {
@@ -187,6 +193,113 @@ def test_wombat_drops_rows_naming_several_peptides_and_logs_them() -> None:
         logger.remove(sink)
     assert result["modified_peptide"].to_list() == ["PEPTIDEK", None]
     assert "wombat dropped 1 of 3 rows naming several peptides" in captured.getvalue()
+
+
+_ION_SHEET = "Quantified peptide ions"
+_PROTEIN_SHEET = "Protein sets"
+
+
+def test_msangel_binds_its_ion_sheet_and_the_protein_sets_it_can_join() -> None:
+    """Raw abundances mark MSAngel; both sheets need ``protein_set_id`` to join."""
+    ions = ("sequence", "protein_set_id", "raw_abundance_A")
+    sets = ("protein_set_id", "abundance_A")
+
+    assert msangel.identify({_ION_SHEET: ions, _PROTEIN_SHEET: sets}) == {
+        "ion": _ION_SHEET,
+        "protein": _PROTEIN_SHEET,
+    }
+    assert msangel.identify({_ION_SHEET: ions}) == {"ion": _ION_SHEET}
+    assert msangel.identify(
+        {_ION_SHEET: ("sequence", "raw_abundance_A"), _PROTEIN_SHEET: sets}
+    ) == {"ion": _ION_SHEET}
+    assert msangel.identify({_ION_SHEET: ("sequence", "quant_is_valid_for_protein_set")}) == {}
+
+
+def test_msangel_gives_each_ion_row_its_protein_sets_columns() -> None:
+    """A shared peptide keeps one row per protein set, each with that set's values."""
+    ions = pl.DataFrame(
+        {
+            "sequence": ["PEPTIDE", "PEPTIDE", "ACDMK"],
+            "protein_set_id": ["4", "2", "1"],
+            "raw_abundance_A": ["1", "1", "2"],
+        }
+    )
+    sets = pl.DataFrame({"protein_set_id": ["1", "2", "4"], "abundance_A": ["10", "20", "40"]})
+
+    joined = msangel.join({"ion": ions, "protein": sets})
+
+    assert joined.columns == [
+        "ion.sequence",
+        "ion.protein_set_id",
+        "ion.raw_abundance_A",
+        "protein.protein_set_id",
+        "protein.abundance_A",
+    ]
+    assert joined.get_column("protein.abundance_A").to_list() == ["40", "20", "10"]
+    assert msangel.join({"ion": ions}).columns == joined.columns[:3]
+
+
+@pytest.mark.parametrize(
+    ("sets", "match"),
+    [
+        (["1", "1", "2"], "missing or duplicate"),
+        (["1", None, "2"], "missing or duplicate"),
+        (["1", "3", "4"], "1 ion rows name a protein set"),
+    ],
+)
+def test_msangel_refuses_protein_sets_it_cannot_join(sets: list[str | None], match: str) -> None:
+    ions = pl.DataFrame({"protein_set_id": ["1", "2"]})
+
+    with pytest.raises(ValueError, match=match):
+        msangel.join({"ion": ions, "protein": pl.DataFrame({"protein_set_id": sets})})
+
+
+def test_a_workbook_offers_a_preparation_only_the_sheets_it_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """MSAngel reads its two sheets and nothing else; a text preparation opens no workbook."""
+    path = proline_workbook(tmp_path / "input_file.txt", *msangel_sheets())
+    read: list[str] = []
+    original_read = preparation_module.read_sheet
+
+    def counted_read(workbook: Path, sheet: str, columns: list[str] | None) -> pl.DataFrame:
+        read.append(sheet)
+        return original_read(workbook, sheet, columns)
+
+    monkeypatch.setattr(preparation_module, "read_sheet", counted_read)
+
+    inputs = PreparationInputs.identify(SingleFile(path), "msangel")
+    prepared = inputs.prepare(path)
+
+    assert {role: table.name for role, (table, _header) in inputs.tables.items()} == {
+        "ion": _ION_SHEET,
+        "protein": _PROTEIN_SHEET,
+    }
+    assert read == [_ION_SHEET, _PROTEIN_SHEET]
+    assert prepared.frame.height == 3, "one row per ion and protein set"
+    assert [(table.file.role, table.file.format) for table in prepared.input_tables] == [
+        ("ion", "xlsx"),
+        ("protein", "xlsx"),
+    ]
+    assert PreparationInputs.identify(SingleFile(path), "wombat").tables == {}
+    proline = proline_workbook(tmp_path / "proline.txt", prolinestudio_ions())
+    assert PreparationInputs.identify(SingleFile(proline), "msangel").tables == {}
+
+
+@pytest.mark.parametrize(("protein_sets", "levels"), [(True, ["ion", "protein"]), (False, ["ion"])])
+def test_an_msangel_workbook_converts_the_levels_its_sheets_carry(
+    tmp_path: Path, protein_sets: bool, levels: list[str]
+) -> None:
+    """One prepared table serves both levels; without protein sets only the ions convert."""
+    ions, sets = msangel_sheets()
+    path = proline_workbook(tmp_path / "input_file.txt", ions, sets if protein_sets else None)
+    folder = committed_dir("msangel")
+    assert folder is not None
+
+    detection = ParseRuleCompiler.detect(path, folder / "param_0..json").detection
+
+    assert detection.software == "msangel"
+    assert [selection.level for selection in detection.levels] == levels
 
 
 def test_maxquant_higher_join_fanout_preserves_original_cells(tmp_path: Path) -> None:

@@ -6,7 +6,7 @@ The current rule format is schema `0.9`. The generated [document schema](../src/
 
 ## One software, multiple input tables
 
-Software metadata belongs at the document root. Each `tables` entry contains `input`, `base`, `levels`, and optionally `prepare: {"how": "maxquant_wide"}`, `{"how": "maxquant_evidence"}`, `{"how": "alphadia"}` or `{"how": "metamorpheus"}`. Preparation is table-local: a direct-input group and a prepared group can coexist. Each rule describes one physical or prepared table; there is no separate join schema. Shared declarations merge only within a table, and each level belongs to one group.
+Software metadata belongs at the document root. Each `tables` entry contains `input`, `base`, `levels`, and optionally `prepare: {"how": "maxquant_wide"}`, `{"how": "maxquant_evidence"}`, `{"how": "alphadia"}`, `{"how": "metamorpheus"}`, `{"how": "msangel"}` or `{"how": "wombat"}`. Preparation is table-local: a direct-input group and a prepared group can coexist. Each rule describes one physical or prepared table; there is no separate join schema. Shared declarations merge only within a table, and each level belongs to one group.
 
 MaxQuant's [document](../src/apb2/parserV2/vendor_parse_rules/documents/maxquant_wide/rules.json) has two groups: evidence at run resolution, and joined exports at experiment resolution.
 
@@ -24,6 +24,8 @@ The function in [joins/alphadia.py](../src/apb2/parserV2/joins/alphadia.py) enri
 The function in [joins/metamorpheus.py](../src/apb2/parserV2/joins/metamorpheus.py) keeps FlashLFQ peaks mapped to exactly one peptidoform, dropping random-RT match-between-runs peaks, which carry their target's own identity, and casts `Peak intensity` to a number, so the rule can take the max of repeated peaks of one ion and run. Decoy peptides stay; the rule marks them `apb_Decoy`.
 
 The function in [joins/wombat.py](../src/apb2/parserV2/joins/wombat.py) drops WOMBAT-P rows whose `modified_peptide` names several peptides (`SEQA|SEQB`, FlashLFQ's ambiguous peak) and logs how many; such a row is no single ion. Prepared tables are read with a comma for a `.csv` file and a tab otherwise.
+
+The function in [joins/msangel.py](../src/apb2/parserV2/joins/msangel.py) joins MSAngel's "Protein sets" sheet onto its "Quantified peptide ions" sheet by `protein_set_id`. A preparation names the workbook sheets it reads, and the preparation reads only those, as text; it declares no `sheet_name`. The ion sheet lists a shared peptide once per protein set, so every joined row is one ion in one protein set: the ion level keeps the best-scoring set (`keep_best` by `Protein_Set_Score`), and the protein level, keyed by `samesets_accessions`, reads each set's own columns. Without a "Protein sets" sheet only the ions convert.
 
 ## Software-only column evidence
 

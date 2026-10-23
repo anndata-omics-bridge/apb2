@@ -7,11 +7,12 @@ original XLSX bytes.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from zipfile import is_zipfile
 
+import fastexcel
 import polars as pl
 import polars.selectors as cs
 from fastexcel import FastExcelError
@@ -49,6 +50,32 @@ def sheet_header(path: Path, sheet_name: str) -> tuple[str, ...]:
     if not frame.width:
         raise IncompatibleSourceError(f"{path}: workbook sheet {sheet_name!r} is empty")
     return tuple(frame.columns)
+
+
+def sheet_names(path: Path) -> tuple[str, ...]:
+    """The sheets of a ZIP-based workbook in file order; none for any other file."""
+    if not is_zipfile(path):
+        return ()
+    try:
+        return tuple(fastexcel.read_excel(path).sheet_names)
+    except (FastExcelError, OSError) as error:
+        raise IncompatibleSourceError(f"{path}: cannot read workbook: {error}") from error
+
+
+def read_sheet(path: Path, sheet_name: str, columns: Sequence[str] | None) -> pl.DataFrame:
+    """Read one sheet's cells as text, as a preparation reads every table it joins.
+
+    ``columns`` limits the read to the named columns; ``None`` reads all of them.
+    """
+    return pl.read_excel(
+        path,
+        sheet_name=sheet_name,
+        columns=columns,
+        infer_schema_length=0,
+        drop_empty_rows=False,
+        drop_empty_cols=False,
+        raise_if_empty=False,
+    )
 
 
 def schema_evidence(

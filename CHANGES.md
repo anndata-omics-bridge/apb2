@@ -2,6 +2,11 @@
 
 ## 2026-10-23
 
+- **Breaking:** MSAngel converts a protein level, and the ion `protein_assignment` of MSAngel and ProlineStudio is `Same_Set_Proteins`, not `Proteins`. Proline's ion sheet lists a shared peptide once per protein set; each protein column now comes from the set with the highest `protein_set_score` (`keep_best`), not from whichever row came first, and these ions are no longer `var_disagreements` (2,435 in MSAngel 2a5ef619, 2,202 in ProlineStudio 6ed9da37).
+  - **Why `Same_Set_Proteins`:** `subsets_accessions` lists only the subset proteins holding that peptide, so `Proteins` split one protein set into several groups (8,112 groups for 7,510 assigned sets in 2a5ef619). `samesets_accessions` identifies a set one-to-one; `Proteins`, the set's accessions holding the peptide, keeps `fasta_accessions`
+  - **MSAngel protein level:** the new preparation `msangel` joins the workbook's "Protein sets" sheet onto the ion rows by `protein_set_id`; the level is keyed by `Same_Set_Proteins`, with Proline's protein abundances `Abundance`, `Raw_Abundance`, `PSM_Count` and `Peptides_Count`. A workbook without that sheet converts the ion level only. Sources are namespaced `ion.` and `protein.`, as MaxQuant's are
+  - **Hooks read workbook sheets:** a preparation names the sheets it reads, and `prepare_source.py` reads only those, as text; such a table declares no `sheet_name`. The input record lists the workbook once, under the ion sheet's header
+  - **ProlineStudio:** `protein_set_score` becomes required; `Quant_Is_Valid` comes from the assigned set's row too (false for 260 ions of 6ed9da37, which Proline quantifies under another set)
 - Rule schema 0.9: a var column may declare `"duplicates": {"mode": "keep_best", "by": <column>, "best": "highest"|"lowest"}`. It takes the value of the feature's row whose `by` column ranks best, even an absent value, so the columns ranked by one score describe the same row; ties keep file order, and no disagreement is reported. `by` names a required numeric var column of the same level, neither a key nor the column itself.
   - **Runtime:** `RankedFeatureValue`; `FeatureValuePolicy.value` and `.disagrees` take the frame schema, since a ranking reads a second column
   - **Fix:** `min` and `max` rank a `NaN` as absent; a `NaN` row won `max` before

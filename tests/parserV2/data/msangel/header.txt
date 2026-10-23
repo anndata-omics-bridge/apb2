@@ -1,8 +1,11 @@
 sequence
 modifications
 master_quant_peptide_ion_charge
+protein_set_id
+accession
 samesets_accessions
 subsets_accessions
+protein_set_score
 best_score_sample_A
 best_score_sample_B
 psm_count_sample_A

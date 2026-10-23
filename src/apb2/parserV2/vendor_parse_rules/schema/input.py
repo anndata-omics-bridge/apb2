@@ -43,8 +43,6 @@ class Input(ModelBase):
             value is not None for value in (self.delimiter, self.numbers, self.encoding)
         ):
             raise ValueError("workbook input cannot declare text-format detection")
-        if ".xlsx" in self.extensions and self.sheet_name is None:
-            raise ValueError(".xlsx input requires sheet_name")
         if self.sheet_name is not None and ".parquet" in self.extensions:
             raise ValueError("workbook input cannot declare Parquet extensions")
         return self

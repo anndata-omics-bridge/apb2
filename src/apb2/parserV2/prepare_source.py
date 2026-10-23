@@ -12,9 +12,11 @@ from typing import Literal, Self
 import polars as pl
 from loguru import logger
 
-from apb2.parserV2.joins import alphadia, maxquant, metamorpheus, wombat
+from apb2.parserV2.joins import alphadia, maxquant, metamorpheus, msangel, wombat
 from apb2.parserV2.parse_quant.data.errors import ConversionError
 from apb2.parserV2.parse_quant.data.step_log import logged_step
+from apb2.parserV2.parse_quant.errors import IncompatibleSourceError
+from apb2.parserV2.parse_quant.excel_input import read_sheet, sheet_header, sheet_names
 from apb2.parserV2.parse_quant.operations import WorkingParseConfiguration
 from apb2.parserV2.parse_quant.parameters.source import (
     Folder,
@@ -33,18 +35,31 @@ type Join = Callable[[Mapping[str, pl.DataFrame]], pl.DataFrame]
 type Wanted = Callable[[str], bool]
 """Whether a rule can read one namespaced prepared column, such as ``peptide.Sequence``."""
 
-# The third entry names the columns a join reads itself. A join that declares them reads only
-# those plus the columns its rules can use; ``None`` reads every column.
-_PREPARATIONS: dict[str, tuple[Identify, Join, tuple[str, ...] | None]] = {
-    "alphadia": (alphadia.identify, alphadia.join, None),
-    "maxquant_wide": (maxquant.identify, maxquant.join_wide, maxquant.KEY_COLUMNS),
-    "maxquant_evidence": (
-        maxquant.identify_evidence,
-        maxquant.join_evidence,
-        maxquant.EVIDENCE_KEY_COLUMNS,
+
+@dataclass(frozen=True, slots=True)
+class _Preparation:
+    """One tool's join: how it binds its inputs, how it joins them, and what it reads."""
+
+    identify: Identify
+    join: Join
+    keys: tuple[str, ...] | None = None
+    """Columns the join reads itself; with them, only those and the rules' columns are read.
+
+    ``None`` reads every column.
+    """
+    sheets: tuple[str, ...] = ()
+    """The workbook sheets the join reads; a join naming none reads delimited text files."""
+
+
+_PREPARATIONS: dict[str, _Preparation] = {
+    "alphadia": _Preparation(alphadia.identify, alphadia.join),
+    "maxquant_wide": _Preparation(maxquant.identify, maxquant.join_wide, maxquant.KEY_COLUMNS),
+    "maxquant_evidence": _Preparation(
+        maxquant.identify_evidence, maxquant.join_evidence, maxquant.EVIDENCE_KEY_COLUMNS
     ),
-    "metamorpheus": (metamorpheus.identify, metamorpheus.join, None),
-    "wombat": (wombat.identify, wombat.join, None),
+    "metamorpheus": _Preparation(metamorpheus.identify, metamorpheus.join),
+    "msangel": _Preparation(msangel.identify, msangel.join, msangel.KEY_COLUMNS, msangel.SHEETS),
+    "wombat": _Preparation(wombat.identify, wombat.join),
 }
 
 
@@ -90,22 +105,83 @@ class PreparedTable:
         return Parser(reader, strategy)
 
 
-def _files(source: SingleFile | Folder) -> dict[str, VendorFile]:
-    """Each delimited table keyed by the name its tool wrote, plain or gzipped."""
-    return {file.name: file for file in source.tables(None) if file.suffix in _DELIMITED}
+@dataclass(frozen=True, slots=True)
+class _DelimitedTable:
+    """One delimited vendor table, plain or gzipped, named as its tool wrote it."""
+
+    file: VendorFile
+
+    @property
+    def name(self) -> str:
+        return self.file.name
+
+    @property
+    def path(self) -> Path:
+        return self.file.path
+
+    @property
+    def format(self) -> str:
+        return "csv" if self._separator == "," else "tsv"
+
+    @property
+    def _separator(self) -> str:
+        """Vendor tables are tab-separated, except a ``.csv`` such as WOMBAT-P's peptides."""
+        return "," if self.file.suffix == ".csv" else "\t"
+
+    def header(self) -> tuple[str, ...]:
+        with self.file.open_text("utf-8-sig") as handle:
+            return tuple(next(csv.reader(handle, delimiter=self._separator), ()))
+
+    def read(self, columns: list[str] | None) -> pl.DataFrame:
+        return pl.read_csv(
+            self.file.path,
+            separator=self._separator,
+            infer_schema=False,
+            null_values=[""],
+            columns=columns,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class _WorkbookSheet:
+    """One named sheet of an Excel workbook, read as text like a delimited table."""
+
+    path: Path
+    name: str
+
+    @property
+    def format(self) -> str:
+        return "xlsx"
+
+    def header(self) -> tuple[str, ...]:
+        return sheet_header(self.path, self.name)
+
+    def read(self, columns: list[str] | None) -> pl.DataFrame:
+        return read_sheet(self.path, self.name, columns)
+
+
+type _Table = _DelimitedTable | _WorkbookSheet
+
+
+def _tables(source: SingleFile | Folder, sheets: tuple[str, ...]) -> dict[str, _Table]:
+    """Each candidate table keyed by its name: a delimited file, or a named workbook sheet.
+
+    A preparation that names sheets reads only workbooks, and only those sheets; every other
+    preparation reads delimited text.
+    """
+    files = source.tables(None)
+    if not sheets:
+        return {file.name: _DelimitedTable(file) for file in files if file.suffix in _DELIMITED}
+    tables: dict[str, _Table] = {}
+    for file in files:
+        present = sheet_names(file.path)
+        tables.update(
+            {sheet: _WorkbookSheet(file.path, sheet) for sheet in sheets if sheet in present}
+        )
+    return tables
 
 
 _DELIMITED = frozenset({".tsv", ".txt", ".csv"})
-
-
-def _separator(file: VendorFile) -> str:
-    """Vendor tables are tab-separated, except a ``.csv`` such as WOMBAT-P's peptide table."""
-    return "," if file.suffix == ".csv" else "\t"
-
-
-def _header(file: VendorFile) -> tuple[str, ...]:
-    with file.open_text("utf-8-sig") as handle:
-        return tuple(next(csv.reader(handle, delimiter=_separator(file)), ()))
 
 
 def _projection(
@@ -122,22 +198,22 @@ class PreparationInputs:
     """One preparation's physical tables, each identified once from its header."""
 
     how: str
-    tables: Mapping[str, tuple[VendorFile, tuple[str, ...]]]
-    """Each role's file and the header that identified it; empty when no input matches."""
+    tables: Mapping[str, tuple[_Table, tuple[str, ...]]]
+    """Each role's table and the header that identified it; empty when no input matches."""
 
     @classmethod
     def identify(cls, source: SingleFile | Folder, how: str) -> Self:
         """Bind this preparation's tables from bounded headers, without reading quantities."""
-        identify, _join, _keys = _PREPARATIONS[how]
+        preparation = _PREPARATIONS[how]
         try:
-            files = _files(source)
-            headers = {name: _header(file) for name, file in files.items()}
-            roles = identify(headers)
-        except (UnicodeError, csv.Error):
+            tables = _tables(source, preparation.sheets)
+            headers = {name: table.header() for name, table in tables.items()}
+            roles = preparation.identify(headers)
+        except (UnicodeError, csv.Error, IncompatibleSourceError):
             return cls(how, {})
         except ValueError as error:
             raise InputPreparationError(f"{how} preparation: {error}") from error
-        return cls(how, {role: (files[name], headers[name]) for role, name in roles.items()})
+        return cls(how, {role: (tables[name], headers[name]) for role, name in roles.items()})
 
     def prepare(self, path: Path, wanted: Wanted | None = None) -> PreparedTable:
         """Read and join the bound tables once, for every level the preparation serves.
@@ -146,32 +222,27 @@ class PreparationInputs:
         own key columns.
         """
         started = perf_counter()
-        _identify, join, keys = _PREPARATIONS[self.how]
+        preparation = _PREPARATIONS[self.how]
         frames: dict[str, pl.DataFrame] = {}
         tables: list[InputTable] = []
         try:
-            for role, (file, header) in self.tables.items():
-                columns = _projection(header, role, keys, wanted)
-                with logged_step("prepare.read", how=self.how, table=file.name):
-                    frames[role] = pl.read_csv(
-                        file.path,
-                        separator=_separator(file),
-                        infer_schema=False,
-                        null_values=[""],
-                        columns=columns,
-                    )
+            for role, (table, header) in self.tables.items():
+                columns = _projection(header, role, preparation.keys, wanted)
+                with logged_step("prepare.read", how=self.how, table=table.name):
+                    frames[role] = table.read(columns)
                 logger.info(
                     "prepare.read table={} rows={} columns={}",
-                    file.name,
+                    table.name,
                     frames[role].height,
                     frames[role].width,
                 )
-                file_format = "csv" if _separator(file) == "," else "tsv"
                 tables.append(
-                    InputTable(InputFile(file.path, role, file_format), header, frames[role].height)
+                    InputTable(
+                        InputFile(table.path, role, table.format), header, frames[role].height
+                    )
                 )
             with logged_step("prepare.join", how=self.how, tables=",".join(sorted(frames))):
-                frame = join(frames)
+                frame = preparation.join(frames)
             logger.info(
                 "prepare.join how={} rows={} columns={}", self.how, frame.height, frame.width
             )

@@ -67,6 +67,7 @@ _NON_PRIMARY_ABUNDANCE: dict[tuple[str, QuantificationLevel], tuple[str, ...]] =
     ("maxquant_wide", "peptide"): ("LFQ_Intensity",),
     ("maxquant_wide", "protein"): ("LFQ_Intensity", "iBAQ"),
     ("msangel", "ion"): ("Raw_Abundance",),
+    ("msangel", "protein"): ("Raw_Abundance",),
     ("spectronaut", "ion"): (
         "EG_ReferenceQuantity_Settings",
         "EG_TargetQuantity_Settings",
@@ -325,6 +326,8 @@ def test_packaged_integer_measurements_are_exactly_the_declared_counts() -> None
         ("fragpipe", "ion", "Spectral_Count"),
         ("maxquant_wide", "ion", "MS_MS_Count"),
         ("msangel", "ion", "PSM_Count"),
+        ("msangel", "protein", "PSM_Count"),
+        ("msangel", "protein", "Peptides_Count"),
         ("prolinestudio", "ion", "PSM_Count"),
         ("spectronaut", "protein", "PG_RunEvidenceCount"),
         ("spectronaut/v21", "protein", "PG_RunEvidenceCount"),
@@ -427,17 +430,20 @@ def test_file_backed_run_names_declare_exact_basename_matching(key: str) -> None
     }
 
 
-def test_msangel_measurements_canonicalize_the_dda_run_prefix() -> None:
+@pytest.mark.parametrize("level", ["ion", "protein"])
+def test_msangel_measurements_canonicalize_the_dda_run_prefix(level: QuantificationLevel) -> None:
+    """Sources carry the preparation's sheet prefix, ``ion.`` or ``protein.``."""
     pair = next(candidate for candidate in document_pairs() if candidate.key == "msangel")
-    rule = load_rule_document(pair.parser_v2_path).declared("ion").declaration
+    rule = load_rule_document(pair.parser_v2_path).declared(level).declaration
     assert isinstance(rule, WideRule)
 
     for layer in rule.measurements.layers:
-        column = layer.source.replace("^", "").replace("$", "")
+        column = layer.source.replace("^", "").replace("$", "").replace("\\.", ".")
         prefix = column.split("(?P<sample>", maxsplit=1)[0]
         name = prefix.replace("(?:DDA_)?", "DDA_") + "Condition_A_Sample_Alpha_01"
         match = re.fullmatch(layer.source, name)
         assert match is not None
+        assert name.startswith(f"{level}.")
         assert match.group("sample") == "Condition_A_Sample_Alpha_01"
 
 
@@ -480,6 +486,11 @@ def test_msangel_measurements_canonicalize_the_dda_run_prefix() -> None:
         pytest.param("maxquant_wide", "ion", "Protein_IDs", "Proteins", id="maxquant-wide-ion"),
         pytest.param(
             "maxquant_wide", "protein", "Protein_IDs", "Protein_IDs", id="maxquant-wide-protein"
+        ),
+        pytest.param("msangel", "ion", "Same_Set_Proteins", "Proteins", id="msangel-ion"),
+        pytest.param("msangel", "protein", "Same_Set_Proteins", "Proteins", id="msangel-protein"),
+        pytest.param(
+            "prolinestudio", "ion", "Same_Set_Proteins", "Proteins", id="prolinestudio-ion"
         ),
     ],
 )
@@ -1062,10 +1073,10 @@ def test_both_rule_shapes_are_represented_by_the_packaged_generation() -> None:
     ]
 
     assert sum(isinstance(rule, LongRule) for rule in shapes) == 25
-    assert sum(isinstance(rule, WideRule) for rule in shapes) == 13
+    assert sum(isinstance(rule, WideRule) for rule in shapes) == 14
     modes = [rule.measurements.duplicates.mode for rule in shapes]
     assert modes.count("error") == 19
-    assert modes.count("keep_first") == 16
+    assert modes.count("keep_first") == 17
     assert modes.count("keep_best") == 2
     assert modes.count("sum") == 0
     assert modes.count("max") == 1

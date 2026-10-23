@@ -1068,10 +1068,10 @@ flowchart TB
             FACADE["parse_rule_facade.py<br/>schema adaptation + computed operations"]
             COMPILE["compile.py<br/>public compilers + collection assembly"]
             BINDING["source_binding.py<br/>physical evidence + reader binding"]
-            PREPARE["prepare_source.py<br/>declared multi-file preparation"]
+            PREPARE["prepare_source.py<br/>declared multi-table preparation"]
         end
 
-        JOINS["joins/<br/>independent AlphaDIA and MaxQuant functions"]
+        JOINS["joins/<br/>independent per-tool join functions"]
 
         subgraph PARAM_PACKAGE["vendor_params/ — never imports up or sideways"]
             PARAM_REGISTRY["registry.py<br/>software-name dispatch"]
@@ -2737,11 +2737,14 @@ apb2/src/apb2/parserV2/
 ├── compile.py                  # stateful public compiler objects
 ├── parser_factory.py           # executable strategy -> bound reader/writer
 ├── source_binding.py           # physical table binding and source evidence
-├── prepare_source.py           # multi-file preparation and joins
+├── prepare_source.py           # reads files or workbook sheets, then joins them
 ├── joins/
 │   ├── __init__.py             # empty marker; no re-exports
 │   ├── alphadia.py             # authoritative matrix plus precursor metadata
-│   └── maxquant.py             # long/wide normalization and foreign-key joins
+│   ├── maxquant.py             # long/wide normalization and foreign-key joins
+│   ├── metamorpheus.py         # FlashLFQ peaks mapped to one peptidoform
+│   ├── msangel.py              # protein-set sheet joined onto the peptide-ion sheet
+│   └── wombat.py               # rows naming one peptide
 ├── vendor_params/
 │   ├── __init__.py             # package marker; no broad re-exports
 │   ├── registry.py             # software-name dispatch
@@ -2878,7 +2881,7 @@ The parent and public composition modules have distinct responsibilities:
 
 - `parse_rule_facade.py`: schema adaptation and ready computations
 - `source_binding.py`: concrete table binding and evidence
-- `prepare_source.py`: declared multi-file preparation
+- `prepare_source.py`: declared multi-table preparation
 - `parser_factory.py`: strategy resolution and I/O binding
 - `detect_document.py`: recognition, candidate binding and accepted selections
 - `compile.py`: public compiler inputs and collection assembly

@@ -259,5 +259,5 @@ Routine corpus: existing vendors still convert. Committed sample: the new format
 ## Boundaries
 
 - Single table: declarative; [What a rule document covers](rule-coverage.md) stays in `rules.json`
-- `prepare`: only for several physical files (MaxQuant, AlphaDIA 1.12) or rows that are no hierarchy level; needs Python in `joins/` and a new `prepare.how`, so plan first
+- `prepare`: only for several physical tables, files or sheets of one workbook (MaxQuant, AlphaDIA 1.12, MSAngel), or rows that are no hierarchy level; needs Python in `joins/` and a new `prepare.how`, so plan first
 - Python for duplicate repair, column normalization, or other single-table quirks: never

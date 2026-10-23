@@ -1,7 +1,7 @@
 {
   "hierarchy": "lfq",
   "schema_version": "0.9",
-  "file_version": "1",
+  "file_version": "2",
   "software_name": "MSAngel",
   "software_version_pattern": "^2\\..*",
   "tables": [
@@ -11,8 +11,10 @@
         "extensions": [
           ".txt",
           ".xlsx"
-        ],
-        "sheet_name": "Quantified peptide ions"
+        ]
+      },
+      "prepare": {
+        "how": "msangel"
       },
       "base": {
         "axis": {
@@ -23,122 +25,7 @@
         "measurements": {
           "duplicates": {
             "mode": "keep_first"
-          },
-          "layers": [
-            {
-              "name": "Abundance",
-              "source": "^abundance_(?:DDA_)?(?P<sample>.+)$",
-              "roles": [
-                "abundance"
-              ],
-              "missing_values": [
-                "<=0"
-              ]
-            },
-            {
-              "name": "Raw_Abundance",
-              "source": "^raw_abundance_(?:DDA_)?(?P<sample>.+)$",
-              "required": true,
-              "roles": [
-                "abundance"
-              ],
-              "missing_values": [
-                "<=0"
-              ]
-            },
-            {
-              "name": "Best_Score",
-              "source": "^best_score_(?:DDA_)?(?P<sample>.+)$"
-            },
-            {
-              "name": "PSM_Count",
-              "source": "^psm_count_(?:DDA_)?(?P<sample>.+)$",
-              "type": "integer"
-            },
-            {
-              "name": "Elution_Time",
-              "source": "^elution_time_(?:DDA_)?(?P<sample>.+)$"
-            },
-            {
-              "name": "Corrected_Time",
-              "source": "^corrected_time_(?:DDA_)?(?P<sample>.+)$"
-            }
-          ]
-        },
-        "columns": {
-          "var": [
-            {
-              "name": "Sequence",
-              "source": "sequence"
-            },
-            {
-              "name": "Modifications",
-              "source": "modifications"
-            },
-            {
-              "name": "Charge",
-              "source": "master_quant_peptide_ion_charge",
-              "type": "integer"
-            },
-            {
-              "name": "Same_Set_Proteins",
-              "source": "samesets_accessions"
-            },
-            {
-              "name": "Subset_Proteins",
-              "source": "subsets_accessions",
-              "required": false
-            },
-            {
-              "name": "Proteins",
-              "inputs": [
-                "Same_Set_Proteins",
-                "Subset_Proteins"
-              ],
-              "separator": ";",
-              "how": "join_nonempty",
-              "roles": [
-                "protein_assignment",
-                "fasta_accessions"
-              ]
-            },
-            {
-              "name": "ProForma_peptidoform",
-              "inputs": [
-                "Sequence",
-                "Modifications"
-              ],
-              "how": "proforma_sequence",
-              "syntax": "vendor_sequence",
-              "modification_map": "basic_modification_map",
-              "case_sensitive": false,
-              "unknown_policy": "preserve"
-            },
-            {
-              "name": "ProForma_peptide",
-              "inputs": [
-                "Sequence"
-              ],
-              "how": "stripped_sequence",
-              "syntax": "plain_sequence"
-            },
-            {
-              "name": "ProForma_ion",
-              "inputs": [
-                "ProForma_peptidoform",
-                "Charge"
-              ],
-              "how": "proforma_ion"
-            },
-            {
-              "name": "apb_Decoy",
-              "how": "decoy"
-            },
-            {
-              "name": "apb_Contaminant",
-              "how": "contaminant"
-            }
-          ]
+          }
         },
         "sequence_syntax": {
           "vendor_sequence": {
@@ -176,7 +63,248 @@
             ]
           },
           "measurements": {
-            "primary_layer": "Abundance"
+            "primary_layer": "Abundance",
+            "layers": [
+              {
+                "name": "Abundance",
+                "source": "^ion\\.abundance_(?:DDA_)?(?P<sample>.+)$",
+                "roles": [
+                  "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
+                ]
+              },
+              {
+                "name": "Raw_Abundance",
+                "source": "^ion\\.raw_abundance_(?:DDA_)?(?P<sample>.+)$",
+                "required": true,
+                "roles": [
+                  "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
+                ]
+              },
+              {
+                "name": "Best_Score",
+                "source": "^ion\\.best_score_(?:DDA_)?(?P<sample>.+)$"
+              },
+              {
+                "name": "PSM_Count",
+                "source": "^ion\\.psm_count_(?:DDA_)?(?P<sample>.+)$",
+                "type": "integer"
+              },
+              {
+                "name": "Elution_Time",
+                "source": "^ion\\.elution_time_(?:DDA_)?(?P<sample>.+)$"
+              },
+              {
+                "name": "Corrected_Time",
+                "source": "^ion\\.corrected_time_(?:DDA_)?(?P<sample>.+)$"
+              }
+            ]
+          },
+          "columns": {
+            "var": [
+              {
+                "name": "Sequence",
+                "source": "ion.sequence"
+              },
+              {
+                "name": "Modifications",
+                "source": "ion.modifications"
+              },
+              {
+                "name": "Charge",
+                "source": "ion.master_quant_peptide_ion_charge",
+                "type": "integer"
+              },
+              {
+                "name": "Protein_Set_Score",
+                "source": "ion.protein_set_score",
+                "type": "number",
+                "duplicates": {
+                  "mode": "max"
+                },
+                "note": "Proline's score of the protein set a row lists the ion under; a shared peptide has one row per set, and the ion keeps its best set's score"
+              },
+              {
+                "name": "Same_Set_Proteins",
+                "source": "ion.samesets_accessions",
+                "roles": [
+                  "protein_assignment"
+                ],
+                "duplicates": {
+                  "mode": "keep_best",
+                  "by": "Protein_Set_Score"
+                },
+                "note": "The ion's protein set: of the sets a shared peptide is listed under, the one with the highest protein_set_score; the same string identifies the set on every sheet"
+              },
+              {
+                "name": "Subset_Proteins",
+                "source": "ion.subsets_accessions",
+                "required": false,
+                "duplicates": {
+                  "mode": "keep_best",
+                  "by": "Protein_Set_Score"
+                },
+                "note": "Subset proteins of the ion's protein set that contain this peptide, from the same row; differs between the peptides of one set"
+              },
+              {
+                "name": "Proteins",
+                "inputs": [
+                  "Same_Set_Proteins",
+                  "Subset_Proteins"
+                ],
+                "separator": ";",
+                "how": "join_nonempty",
+                "roles": [
+                  "fasta_accessions"
+                ],
+                "note": "Accessions of the ion's protein set that contain this peptide"
+              },
+              {
+                "name": "ProForma_peptidoform",
+                "inputs": [
+                  "Sequence",
+                  "Modifications"
+                ],
+                "how": "proforma_sequence",
+                "syntax": "vendor_sequence",
+                "modification_map": "basic_modification_map",
+                "case_sensitive": false,
+                "unknown_policy": "preserve"
+              },
+              {
+                "name": "ProForma_peptide",
+                "inputs": [
+                  "Sequence"
+                ],
+                "how": "stripped_sequence",
+                "syntax": "plain_sequence"
+              },
+              {
+                "name": "ProForma_ion",
+                "inputs": [
+                  "ProForma_peptidoform",
+                  "Charge"
+                ],
+                "how": "proforma_ion"
+              },
+              {
+                "name": "apb_Decoy",
+                "how": "decoy"
+              },
+              {
+                "name": "apb_Contaminant",
+                "how": "contaminant"
+              }
+            ]
+          }
+        },
+        "protein": {
+          "axis": {
+            "var_keys": [
+              "Same_Set_Proteins"
+            ]
+          },
+          "measurements": {
+            "primary_layer": "Abundance",
+            "layers": [
+              {
+                "name": "Abundance",
+                "source": "^protein\\.abundance_(?:DDA_)?(?P<sample>.+)$",
+                "roles": [
+                  "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
+                ]
+              },
+              {
+                "name": "Raw_Abundance",
+                "source": "^protein\\.raw_abundance_(?:DDA_)?(?P<sample>.+)$",
+                "roles": [
+                  "abundance"
+                ],
+                "missing_values": [
+                  "<=0"
+                ]
+              },
+              {
+                "name": "PSM_Count",
+                "source": "^protein\\.psm_count_(?:DDA_)?(?P<sample>.+)$",
+                "type": "integer"
+              },
+              {
+                "name": "Peptides_Count",
+                "source": "^protein\\.peptides_count_(?:DDA_)?(?P<sample>.+)$",
+                "type": "integer"
+              }
+            ]
+          },
+          "columns": {
+            "var": [
+              {
+                "name": "Same_Set_Proteins",
+                "source": "protein.samesets_accessions",
+                "roles": [
+                  "protein_assignment"
+                ],
+                "note": "Identifies the protein set one-to-one; the ion level assigns each ion this string"
+              },
+              {
+                "name": "Subset_Proteins",
+                "source": "protein.subsets_accessions",
+                "required": false
+              },
+              {
+                "name": "Proteins",
+                "inputs": [
+                  "Same_Set_Proteins",
+                  "Subset_Proteins"
+                ],
+                "separator": ";",
+                "how": "join_nonempty",
+                "roles": [
+                  "fasta_accessions"
+                ],
+                "note": "Every member of the protein set: its same-set and subset proteins"
+              },
+              {
+                "name": "Protein_Set_Id",
+                "source": "protein.protein_set_id",
+                "type": "integer"
+              },
+              {
+                "name": "Accession",
+                "source": "protein.accession"
+              },
+              {
+                "name": "Gene_Name",
+                "source": "protein.gene_name",
+                "required": false
+              },
+              {
+                "name": "Description",
+                "source": "protein.description",
+                "required": false
+              },
+              {
+                "name": "Protein_Set_Score",
+                "source": "protein.protein_set_score",
+                "type": "number"
+              },
+              {
+                "name": "apb_Decoy",
+                "how": "decoy"
+              },
+              {
+                "name": "apb_Contaminant",
+                "how": "contaminant"
+              }
+            ]
           }
         }
       }

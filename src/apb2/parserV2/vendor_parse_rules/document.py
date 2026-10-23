@@ -78,7 +78,9 @@ class EffectiveRule:
 class _PreparationSchema(ModelBase):
     """Select a registered function; the level rules describe its output."""
 
-    how: Literal["alphadia", "maxquant_wide", "maxquant_evidence", "metamorpheus", "wombat"]
+    how: Literal[
+        "alphadia", "maxquant_wide", "maxquant_evidence", "metamorpheus", "msangel", "wombat"
+    ]
 
 
 class _RuleTableSchema(ModelBase):
@@ -95,6 +97,16 @@ class _RuleTableSchema(ModelBase):
         declared = (self.input.delimiter, self.input.numbers, self.input.encoding)
         if self.prepare is not None and any(value is not None for value in declared):
             raise ValueError("a prepared table reads its files by extension; declare no detection")
+        return self
+
+    @model_validator(mode="after")
+    def _workbook_sheets_are_named_once(self) -> _RuleTableSchema:
+        """A direct workbook table names its sheet; a preparation's join names its own."""
+        sheet = self.input.sheet_name
+        if self.prepare is None and ".xlsx" in self.input.extensions and sheet is None:
+            raise ValueError(".xlsx input requires sheet_name")
+        if self.prepare is not None and sheet is not None:
+            raise ValueError("a prepared table's join names the sheets it reads; declare none")
         return self
 
 

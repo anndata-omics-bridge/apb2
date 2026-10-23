@@ -228,11 +228,19 @@ class ParseRuleFacade:
 
     @staticmethod
     def _project_input(declared: Input) -> InputContract:
+        """The formats a direct read accepts.
+
+        A workbook without a declared sheet belongs to a preparation, which names the sheets
+        it reads, so it adds no format a direct read could use.
+        """
         return InputContract(
             file_name=declared.file_name,
             formats=tuple(
                 ParseRuleFacade._project_format(extension, declared)
                 for extension in dict.fromkeys(declared.extensions)
+                if declared.sheet_name is not None
+                or extension in DELIMITED_BASE_FORMATS
+                or extension in PARQUET_EXTENSIONS
             ),
         )
 

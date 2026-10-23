@@ -19,7 +19,7 @@ This table has one row per packaged rule document.
 | [i2MassChroQ](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/i2masschroq/rules.json) | 1.x | `.tsv`, `.txt` | long | i2MassChroQ parameter TSV |
 | [MaxQuant](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant_wide/rules.json) | 1.5.x, 1.6.x, or 2.x | `evidence.txt`, `modificationSpecificPeptides.txt`, `peptides.txt`, `proteinGroups.txt` | long / wide | `mqpar.xml` |
 | [MetaMorpheus](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/metamorpheus/rules.json) | 1.x | `AllQuantifiedPeaks.tsv` (`.tsv`) | long | one TOML settings file plus one version-text file |
-| [MSAngel](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/msangel/rules.json) | 2.x | `Quantified peptide ions` sheet in an XLSX workbook (`.txt` or `.xlsx`) | wide | MSAngel workflow JSON |
+| [MSAngel](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/msangel/rules.json) | 2.x | `Quantified peptide ions` and, for the protein level, `Protein sets` sheets of an XLSX workbook (`.txt` or `.xlsx`) | wide | MSAngel workflow JSON |
 | [PEAKS](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/peaks/rules.json) | 13.x | `.csv` | wide | PEAKS settings text report |
 | [ProteoBench Custom](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/pb_custom/rules.json) | version-free | `.txt`, `.tsv` | wide | none; `--software pb_custom` required |
 | [ProlineStudio](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/prolinestudio/rules.json) | 2.x | `Quantified peptide ions` sheet in an XLSX workbook (`.txt` or `.xlsx`) | wide | parameter sheets in the result workbook |
@@ -51,7 +51,7 @@ A check mark means that the linked rule document can convert that level. APB2 re
 | [i2MassChroQ](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/i2masschroq/rules.json) | ✓ | — | — | — | — |
 | [MaxQuant](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/maxquant_wide/rules.json) | ✓ | ✓ | ✓ | ✓ | — |
 | [MetaMorpheus](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/metamorpheus/rules.json) | ✓ | — | — | — | — |
-| [MSAngel](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/msangel/rules.json) | ✓ | — | — | — | — |
+| [MSAngel](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/msangel/rules.json) | ✓ | — | — | ✓ | — |
 | [PEAKS](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/peaks/rules.json) | ✓ | — | — | — | — |
 | [ProteoBench Custom](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/pb_custom/rules.json) | ✓ | — | — | — | — |
 | [ProlineStudio](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/prolinestudio/rules.json) | ✓ | — | — | — | — |
