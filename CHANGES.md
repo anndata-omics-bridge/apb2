@@ -2,6 +2,9 @@
 
 ## 2026-10-23
 
+- Rule schema 0.9: a var column may declare `"duplicates": {"mode": "keep_best", "by": <column>, "best": "highest"|"lowest"}`. It takes the value of the feature's row whose `by` column ranks best, even an absent value, so the columns ranked by one score describe the same row; ties keep file order, and no disagreement is reported. `by` names a required numeric var column of the same level, neither a key nor the column itself.
+  - **Runtime:** `RankedFeatureValue`; `FeatureValuePolicy.value` and `.disagrees` take the frame schema, since a ranking reads a second column
+  - **Fix:** `min` and `max` rank a `NaN` as absent; a `NaN` row won `max` before
 - Levels that read one file with the same evidence share one read of the union of their columns; each projects its own. Spectronaut LargeFC (fragment, ion, protein): 275 to 99 s, peak memory 33.6 to 25.5 GB; DIA-NN Charité: 69 to 65 s, peak memory 16.2 to 19.0 GB.
 - **Breaking:** an annotation's `provenance.annotation.source` is the annotation file's input-file record (`role` `sample_annotation`, `file_name`, `size_bytes`, `sha256`, `compression`, `format`), not its absolute `path`; annotation `schema_version` 4. Producers record base names, so the sidecar no longer rewrites `*_path` fields.
 - A preparation finds `.csv` tables in a folder, such as WOMBAT-P's peptide table, where it listed only `.tsv` and `.txt`. A prepared table may not declare delimiter, number or encoding detection: a preparation reads its files by extension and would ignore it.

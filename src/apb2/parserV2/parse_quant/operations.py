@@ -42,6 +42,7 @@ from apb2.parserV2.parse_quant.duplicates import (
     FirstFeatureValue,
     KeepBestDuplicate,
     KeepFirstDuplicate,
+    RankedFeatureValue,
 )
 from apb2.parserV2.parse_quant.modifications import (
     PlainSequenceStripper,
@@ -51,7 +52,8 @@ from apb2.parserV2.parse_quant.modifications import (
 from apb2.parserV2.parse_quant.parameters.axis import (
     AxisColumnSelection,
     AxisLogicalType,
-    FeatureDuplicateMode,
+    FeatureDuplicates,
+    FeatureRanking,
 )
 from apb2.parserV2.parse_quant.parameters.level import JsonValue, QuantificationLevel
 from apb2.parserV2.parse_quant.parameters.measurements import (
@@ -183,9 +185,11 @@ def duplicate_policy(measurements: WorkingMeasurements) -> DuplicatePolicy | Kee
 
 
 def feature_value_policy(
-    source: str, mode: FeatureDuplicateMode, numbers: NumericTextFormat
+    source: str, mode: FeatureDuplicates, numbers: NumericTextFormat
 ) -> FeatureValuePolicy:
     """Construct the resolution one var column's duplicate mode names."""
+    if isinstance(mode, FeatureRanking):
+        return RankedFeatureValue(source, mode.by, highest=mode.highest, notation=numbers)
     if mode == "keep_first":
         return FirstFeatureValue(source)
     return ExtremeFeatureValue(source, largest=mode == "max", notation=numbers)

@@ -169,10 +169,26 @@ class ColumnDuplicates(ModelBase):
     A long report repeats a feature's values in every row of it, one per run. ``keep_first``
     keeps the first nonblank value and reports features whose rows disagree. ``min`` and
     ``max`` keep the smallest or largest number, for a tool that writes a placeholder into
-    some of a feature's rows, such as DIA-NN's protein-group q-value of 1.0.
+    some of a feature's rows, such as DIA-NN's protein-group q-value of 1.0. ``keep_best``
+    takes the value of the row whose ``by`` column is ``best``, so the columns ranked by one
+    score describe the same row, such as the protein set a shared peptide is assigned to.
     """
 
     mode: VarDuplicateMode = "keep_first"
+    by: str | None = Field(
+        default=None, description="keep_best: the numeric var column that ranks repeated rows"
+    )
+    best: Literal["highest", "lowest"] = Field(
+        default="highest", description="keep_best: which value of the 'by' column wins"
+    )
+
+    @model_validator(mode="after")
+    def _ranking_only_for_keep_best(self) -> ColumnDuplicates:
+        if (self.mode == "keep_best") != (self.by is not None):
+            raise ValueError("'by' names the ranking column exactly when mode is keep_best")
+        if self.mode != "keep_best" and self.best != "highest":
+            raise ValueError("'best' applies only to keep_best")
+        return self
 
 
 class SourcedColumn(ModelBase):
@@ -203,7 +219,7 @@ class SourcedColumn(ModelBase):
     @model_validator(mode="after")
     def _extremes_are_numbers(self) -> SourcedColumn:
         mode = self.duplicates_mode
-        if mode != "keep_first" and self.type not in {"number", "integer"}:
+        if mode in {"min", "max"} and self.type not in {"number", "integer"}:
             raise ValueError(f"{self.name}: duplicates mode {mode!r} needs a numeric column")
         return self
 

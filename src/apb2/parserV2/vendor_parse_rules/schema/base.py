@@ -13,7 +13,7 @@ type SchemaVersion = Literal["0.9"]
 type QuantificationLevel = str
 type AxisColumnType = Literal["string", "integer", "number", "boolean"]
 type DuplicateMode = Literal["error", "sum", "min", "max", "keep_first", "keep_best"]
-type VarDuplicateMode = Literal["keep_first", "min", "max"]
+type VarDuplicateMode = Literal["keep_first", "min", "max", "keep_best"]
 type TokenPosition = Literal[
     "before_residue", "after_residue", "n_term", "c_term", "embedded", "unknown"
 ]

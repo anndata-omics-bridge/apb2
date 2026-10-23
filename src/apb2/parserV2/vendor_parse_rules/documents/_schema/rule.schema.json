@@ -101,11 +101,34 @@
     },
     "ColumnDuplicates": {
       "additionalProperties": false,
-      "description": "How a var column resolves the values a feature's repeated rows give it.\n\nA long report repeats a feature's values in every row of it, one per run. ``keep_first``\nkeeps the first nonblank value and reports features whose rows disagree. ``min`` and\n``max`` keep the smallest or largest number, for a tool that writes a placeholder into\nsome of a feature's rows, such as DIA-NN's protein-group q-value of 1.0.",
+      "description": "How a var column resolves the values a feature's repeated rows give it.\n\nA long report repeats a feature's values in every row of it, one per run. ``keep_first``\nkeeps the first nonblank value and reports features whose rows disagree. ``min`` and\n``max`` keep the smallest or largest number, for a tool that writes a placeholder into\nsome of a feature's rows, such as DIA-NN's protein-group q-value of 1.0. ``keep_best``\ntakes the value of the row whose ``by`` column is ``best``, so the columns ranked by one\nscore describe the same row, such as the protein set a shared peptide is assigned to.",
       "properties": {
         "mode": {
           "$ref": "#/$defs/VarDuplicateMode",
           "default": "keep_first"
+        },
+        "by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "keep_best: the numeric var column that ranks repeated rows",
+          "title": "By"
+        },
+        "best": {
+          "default": "highest",
+          "description": "keep_best: which value of the 'by' column wins",
+          "enum": [
+            "highest",
+            "lowest"
+          ],
+          "title": "Best",
+          "type": "string"
         }
       },
       "title": "ColumnDuplicates",
@@ -1664,7 +1687,8 @@
       "enum": [
         "keep_first",
         "min",
-        "max"
+        "max",
+        "keep_best"
       ],
       "type": "string"
     },

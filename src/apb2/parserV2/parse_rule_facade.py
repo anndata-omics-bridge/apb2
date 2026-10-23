@@ -58,6 +58,8 @@ from apb2.parserV2.parse_quant.operations import (
 from apb2.parserV2.parse_quant.parameters.axis import (
     PROTEIN_LIST_ROLES,
     AxisColumnSelection,
+    FeatureDuplicates,
+    FeatureRanking,
     ModificationMapEntry,
 )
 from apb2.parserV2.parse_quant.parameters.level import (
@@ -97,6 +99,7 @@ from apb2.parserV2.vendor_parse_rules.document import (
 )
 from apb2.parserV2.vendor_parse_rules.schema.axis import (
     Coalesce,
+    ColumnEntry,
     ColumnGroup,
     ComputedColumn,
     ContaminantFlag,
@@ -400,6 +403,7 @@ class ParseRuleFacade:
     def _project_selections(
         group: ColumnGroup, *, required: bool
     ) -> tuple[AxisColumnSelection, ...]:
+        sources = {column.name: column.source for column in group if column.source is not None}
         return tuple(
             AxisColumnSelection(
                 name=column.name,
@@ -408,13 +412,22 @@ class ParseRuleFacade:
                 if PROTEIN_LIST_ROLES & {*column.roles}
                 else column.type,
                 separator=column.separator if isinstance(column, SourcedColumn) else None,
-                duplicates=column.duplicates_mode
-                if isinstance(column, SourcedColumn)
-                else "keep_first",
+                duplicates=ParseRuleFacade._feature_duplicates(column, sources),
             )
             for column in group
             if column.source is not None and column.required is required
         )
+
+    @staticmethod
+    def _feature_duplicates(column: ColumnEntry, sources: Mapping[str, str]) -> FeatureDuplicates:
+        """A var column's resolution; ``keep_best`` ranks by the physical source of ``by``."""
+        if not isinstance(column, SourcedColumn) or column.duplicates is None:
+            return "keep_first"
+        declared = column.duplicates
+        if declared.mode != "keep_best":
+            return declared.mode
+        assert declared.by is not None, "the schema pairs keep_best with by"
+        return FeatureRanking(by=sources[declared.by], highest=declared.best == "highest")
 
     @staticmethod
     def _project_computed(column: ComputedColumn, rule: LongRule | WideRule) -> ComputedOperation:

@@ -82,9 +82,9 @@ def _var_raw(
     keys = plan.keys.raw_key_columns
     flags = tuple(f"{_DISAGREES}{index}" for index in range(len(values)))
     resolved = frame.group_by(keys, maintain_order=True).agg(
-        *(policy.value(frame.schema[policy.source]).alias(policy.source) for policy in values),
+        *(policy.value(frame.schema).alias(policy.source) for policy in values),
         *(
-            policy.disagrees(frame.schema[policy.source]).alias(flag)
+            policy.disagrees(frame.schema).alias(flag)
             for policy, flag in zip(values, flags, strict=True)
         ),
     )

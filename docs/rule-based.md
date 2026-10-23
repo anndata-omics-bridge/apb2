@@ -199,7 +199,7 @@ By default the primary layer's captures are the sample names, and every other la
 - `type`: `string`, `integer`, `number`, or `boolean`; defaults to `string`
 - `roles`: semantic meanings owned by this entry
 - `note`: why the entry is placed or read as it is; parsing ignores it. Layers and computed entries take one too
-- `duplicates` (var only): how a feature's repeated rows become one value. `keep_first` (default) keeps the first nonblank value and reports features whose rows disagree as `var_disagreements`; `min` and `max` keep the smallest or largest number, for a tool that writes a placeholder into some rows
+- `duplicates` (var only): how a feature's repeated rows become one value. `keep_first` (default) keeps the first nonblank value and reports features whose rows disagree as `var_disagreements`; `min` and `max` keep the smallest or largest number, for a tool that writes a placeholder into some rows; `keep_best` with `by` (a required numeric var column) and `best` (`highest` or `lowest`) takes the value of the row that column ranks best, so columns ranked by one score describe the same row, such as the protein set a shared peptide is assigned to
 
 A long report repeats a feature's values in every row of it, so a value per feature belongs in `columns.var` even where every run row carries it; a value per run and feature is a layer. DIA-NN's experiment-wide protein-group q-value is one such column, with a 1.0 placeholder on precursors without a global q-value:
 

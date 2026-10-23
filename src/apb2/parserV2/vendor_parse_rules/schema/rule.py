@@ -13,6 +13,7 @@ from apb2.parserV2.vendor_parse_rules.schema.axis import (
     FLAG_COLUMNS,
     Axis,
     Coalesce,
+    ColumnDuplicates,
     ColumnGroup,
     ComputedColumn,
     JoinNonempty,
@@ -220,13 +221,34 @@ def _check_duplicates(keys: list[str], group: ColumnGroup, owner: RoleOwner) -> 
     keyed = [name for name in declared if name in keys]
     if keyed:
         raise ValueError(f"axis.var_keys identify a feature and resolve no duplicates: {keyed}")
-    modes: dict[str, str] = {}
+    resolutions: dict[str, ColumnDuplicates] = {}
     for entry in sourced:
-        if modes.setdefault(entry.source, entry.duplicates_mode) != entry.duplicates_mode:
+        resolution = entry.duplicates or ColumnDuplicates()
+        if resolutions.setdefault(entry.source, resolution) != resolution:
             raise ValueError(
                 f"vendor source {entry.source!r} resolves duplicates both as "
-                f"{modes[entry.source]!r} and as {entry.duplicates_mode!r}"
+                f"{_described(resolutions[entry.source])} and as {_described(resolution)}"
             )
+    columns = {entry.name: entry for entry in sourced}
+    for entry in sourced:
+        by = None if entry.duplicates is None else entry.duplicates.by
+        if by is None:
+            continue
+        ranking = columns.get(by)
+        if ranking is None or by in keys or by == entry.name:
+            raise ValueError(
+                f"{entry.name}: keep_best ranks by {by!r}, which must be another sourced var "
+                "column, not a key"
+            )
+        if ranking.type not in {"number", "integer"} or not ranking.required:
+            raise ValueError(
+                f"{entry.name}: keep_best ranks by {by!r}, which must be a required numeric column"
+            )
+
+
+def _described(resolution: ColumnDuplicates) -> str:
+    ranking = "" if resolution.by is None else f" by {resolution.by!r}, {resolution.best}"
+    return f"{resolution.mode!r}{ranking}"
 
 
 def _check_role_owners(owner: RoleOwner, roles: Iterable[SemanticRole]) -> None:

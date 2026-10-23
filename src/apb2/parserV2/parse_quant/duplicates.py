@@ -17,7 +17,7 @@ before any of this runs.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 
 import polars as pl
@@ -218,11 +218,13 @@ class FirstFeatureValue:
 
     source: str
 
-    def value(self, dtype: pl.DataType, /) -> pl.Expr:
-        return pl.col(self.source).filter(~absent(pl.col(self.source), dtype)).first()
+    def value(self, schema: Mapping[str, pl.DataType], /) -> pl.Expr:
+        present = ~absent(pl.col(self.source), schema[self.source])
+        return pl.col(self.source).filter(present).first()
 
-    def disagrees(self, dtype: pl.DataType, /) -> pl.Expr:
-        return pl.col(self.source).filter(~absent(pl.col(self.source), dtype)).n_unique() > 1
+    def disagrees(self, schema: Mapping[str, pl.DataType], /) -> pl.Expr:
+        present = ~absent(pl.col(self.source), schema[self.source])
+        return pl.col(self.source).filter(present).n_unique() > 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -237,13 +239,44 @@ class ExtremeFeatureValue:
     largest: bool
     notation: NumericTextFormat
 
-    def value(self, dtype: pl.DataType, /) -> pl.Expr:
-        number = as_numbers(pl.col(self.source), dtype, self.notation)
+    def value(self, schema: Mapping[str, pl.DataType], /) -> pl.Expr:
+        number = _rank(self.source, schema, self.notation)
         return (
             pl.col(self.source)
             .sort_by(number, descending=self.largest, nulls_last=True, maintain_order=True)
             .first()
         )
 
-    def disagrees(self, dtype: pl.DataType, /) -> pl.Expr:
+    def disagrees(self, schema: Mapping[str, pl.DataType], /) -> pl.Expr:
         return pl.lit(value=False)
+
+
+@dataclass(frozen=True, slots=True)
+class RankedFeatureValue:
+    """The value of the feature's row whose ``by`` number ranks best, as the vendor wrote it.
+
+    For columns that describe one of several rows a feature repeats, such as the protein set
+    a shared peptide is listed under: every column ranked by the same score takes its value
+    from the same row, even an absent one. Ties and rows without a rank keep file order.
+    """
+
+    source: str
+    by: str
+    highest: bool
+    notation: NumericTextFormat
+
+    def value(self, schema: Mapping[str, pl.DataType], /) -> pl.Expr:
+        rank = _rank(self.by, schema, self.notation)
+        return (
+            pl.col(self.source)
+            .sort_by(rank, descending=self.highest, nulls_last=True, maintain_order=True)
+            .first()
+        )
+
+    def disagrees(self, schema: Mapping[str, pl.DataType], /) -> pl.Expr:
+        return pl.lit(value=False)
+
+
+def _rank(source: str, schema: Mapping[str, pl.DataType], notation: NumericTextFormat) -> pl.Expr:
+    """One column's values as numbers; ``NaN`` ranks as absent, not above every number."""
+    return as_numbers(pl.col(source), schema[source], notation).fill_nan(None)

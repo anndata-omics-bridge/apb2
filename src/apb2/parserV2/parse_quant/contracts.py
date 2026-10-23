@@ -85,16 +85,16 @@ class DuplicatePolicy(Protocol):
 class FeatureValuePolicy(Protocol):
     """Resolve the values a feature's repeated rows give one var payload column.
 
-    Both expressions run inside one aggregation over the raw var keys, on the column as the
-    reader produced it, before any coercion.
+    Both expressions run inside one aggregation over the raw var keys, on the columns as the
+    reader produced them, before any coercion; ``schema`` gives their dtypes.
     """
 
     @property
     def source(self) -> str: ...
 
-    def value(self, dtype: pl.DataType, /) -> pl.Expr: ...
+    def value(self, schema: Mapping[str, pl.DataType], /) -> pl.Expr: ...
 
-    def disagrees(self, dtype: pl.DataType, /) -> pl.Expr: ...
+    def disagrees(self, schema: Mapping[str, pl.DataType], /) -> pl.Expr: ...
 
 
 class LayerValueParser(Protocol):

@@ -23,7 +23,7 @@ invariant or test explicitly adopts them.
 
 The [APB metadata specification](metadata_specification.md) is authoritative for persisted namespace ownership, tool integration, composition and result-format versions. Converter examples below do not define a separate metadata contract.
 
-The current rule storage version is schema `0.9`; [How rules-driven conversion works](rule-based.md) is the authoring guide. Earlier schema migrations remain historical context. Schema `0.9` adds an optional `note` to every column and layer entry, a `duplicates` block on var columns, and the duplicate mode `min`. Schema `0.8` adds explicit, independent sequence computations and named syntax/modification-map references; axis, measurement, physical-input, role, and preparation declarations retain their existing shapes.
+The current rule storage version is schema `0.9`; [How rules-driven conversion works](rule-based.md) is the authoring guide. Earlier schema migrations remain historical context. Schema `0.9` adds an optional `note` to every column and layer entry, a `duplicates` block on var columns with the mode `keep_best` by another column, and the duplicate mode `min`. Schema `0.8` adds explicit, independent sequence computations and named syntax/modification-map references; axis, measurement, physical-input, role, and preparation declarations retain their existing shapes.
 
 ## Current source-compilation boundary
 
@@ -1914,7 +1914,8 @@ Ownership is then literal:
 
 There is no obs-only duplicate policy: obs payload keeps its stable first row. A var column may
 declare its own `duplicates`: `keep_first` (default, first nonblank value, disagreements recorded
-as `var_disagreements`), `min` or `max`. Canonical final-key collision is a fixed error.
+as `var_disagreements`), `min`, `max`, or `keep_best` (the value of the row a numeric `by`
+column ranks best). Canonical final-key collision is a fixed error.
 
 The identity and measurement portion of the storage model remains:
 

@@ -602,6 +602,14 @@ def _declared(payload: dict[str, Any], tmp_path: Path) -> None:
     document.declared("ion")
 
 
+def _ranked_by(by: str, ranking: list[dict[str, Any]]) -> MutatePayload:
+    """Declare ``ranking`` and a var column taking its value from the row ``by`` ranks best."""
+    column = {"name": "set", "source": "Set", "duplicates": {"mode": "keep_best", "by": by}}
+    return lambda payload: payload["tables"][0]["levels"]["ion"]["columns"]["var"].extend(
+        [*ranking, column]
+    )
+
+
 def test_the_reference_payload_is_valid_so_every_rejection_below_is_the_change(
     tmp_path: Path,
 ) -> None:
@@ -768,6 +776,67 @@ def test_factor_layers_do_not_acquire_a_numeric_type() -> None:
             ),
             "resolves duplicates both",
             id="one-source-two-modes",
+        ),
+        pytest.param(
+            lambda payload: payload["tables"][0]["levels"]["ion"]["columns"]["var"].append(
+                {"name": "set", "source": "Set", "duplicates": {"mode": "keep_best"}}
+            ),
+            "'by' names the ranking column",
+            id="keep-best-without-by",
+        ),
+        pytest.param(
+            lambda payload: payload["tables"][0]["levels"]["ion"]["columns"]["var"].append(
+                {"name": "set", "source": "Set", "duplicates": {"by": "score"}}
+            ),
+            "'by' names the ranking column",
+            id="by-without-keep-best",
+        ),
+        pytest.param(
+            lambda payload: payload["tables"][0]["levels"]["ion"]["columns"]["var"].append(
+                {
+                    "name": "q",
+                    "source": "Q",
+                    "type": "number",
+                    "duplicates": {"mode": "min", "best": "lowest"},
+                }
+            ),
+            "'best' applies only to keep_best",
+            id="best-without-keep-best",
+        ),
+        *(
+            pytest.param(_ranked_by(by, ranking), match, id=f"keep-best-by-{label}")
+            for label, by, ranking, match in [
+                ("unknown", "score", [], "another sourced var column"),
+                ("key", "feature", [], "another sourced var column"),
+                ("itself", "set", [], "another sourced var column"),
+                ("text", "score", [{"name": "score", "source": "Score"}], "required numeric"),
+                (
+                    "optional",
+                    "score",
+                    [{"name": "score", "source": "Score", "type": "number", "required": False}],
+                    "required numeric",
+                ),
+            ]
+        ),
+        pytest.param(
+            lambda payload: payload["tables"][0]["levels"]["ion"]["columns"]["var"].extend(
+                [
+                    {"name": "score", "source": "Score", "type": "number"},
+                    {"name": "rank", "source": "Rank", "type": "number"},
+                    {
+                        "name": "set",
+                        "source": "Set",
+                        "duplicates": {"mode": "keep_best", "by": "score"},
+                    },
+                    {
+                        "name": "set_copy",
+                        "source": "Set",
+                        "duplicates": {"mode": "keep_best", "by": "rank"},
+                    },
+                ]
+            ),
+            "resolves duplicates both",
+            id="one-source-two-rankings",
         ),
         pytest.param(
             lambda payload: payload["tables"][0]["base"]["measurements"]["layers"][0].update(

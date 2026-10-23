@@ -17,6 +17,19 @@ type AxisLogicalType = Literal["string", "integer", "number", "boolean", "protei
 type FeatureDuplicateMode = Literal["keep_first", "min", "max"]
 """How a var column resolves the values a feature's repeated rows give it."""
 
+
+@dataclass(frozen=True, slots=True)
+class FeatureRanking:
+    """A var column takes the value of the feature's row whose ``by`` source ranks best."""
+
+    by: str
+    """The physical source of the numeric column that ranks a feature's repeated rows."""
+    highest: bool
+
+
+type FeatureDuplicates = FeatureDuplicateMode | FeatureRanking
+"""A var column's duplicate resolution: a mode of its own values, or a ranking by another."""
+
 PROTEIN_LIST_ROLES = frozenset({"fasta_accessions", "protein_assignment"})
 """Roles whose column is a protein list, which every APB result writes ``;``-separated."""
 
@@ -34,7 +47,7 @@ class AxisColumnSelection:
     source: str
     logical_type: AxisLogicalType
     separator: str | None = None
-    duplicates: FeatureDuplicateMode = "keep_first"
+    duplicates: FeatureDuplicates = "keep_first"
     """On the var axis, how a feature's repeated rows become one value; obs keeps the first."""
 
 

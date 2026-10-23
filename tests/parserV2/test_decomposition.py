@@ -21,6 +21,7 @@ from apb2.parserV2.parse_quant.duplicates import (
     ExtremeFeatureValue,
     FirstFeatureValue,
     KeepFirstDuplicate,
+    RankedFeatureValue,
 )
 from apb2.parserV2.parse_quant.fragments import (
     ColumnLabeledFragmentTableSeparator,
@@ -224,6 +225,45 @@ def test_an_extreme_value_keeps_the_vendor_text_of_the_smallest_or_largest_numbe
 
     assert raw.var.frame.get_column("Global").to_list() == kept
     assert raw.var.disagreements == {}, "the rule expects the rows to disagree"
+
+
+def test_ranked_columns_come_from_the_best_scoring_row_whatever_the_row_order() -> None:
+    """Proline lists a shared peptide once per protein set; the set's columns stay together.
+
+    The best row's absent subset stays absent, a tie keeps file order, and a ``NaN`` score
+    ranks as absent, for ``max`` too.
+    """
+    table = LevelSourceTable(
+        frame=pl.DataFrame(
+            {
+                "run": ["A", "A", "A", "A", "A"],
+                "Ion": ["I1", "I1", "I1", "I2", "I2"],
+                "Sameset": ["FLNB", "FLNA", "FLNC", "P2", "P4"],
+                "Subset": ["FLNB2", None, "FLNC2", "P3", None],
+                "Score": ["4894,2", "6585,4", "NaN", "10", "10"],
+                "intensity": [1.0, 1.0, 1.0, 2.0, 2.0],
+            }
+        )
+    )
+    comma = NumericTextFormat(decimal_mark=",", thousands_marks=())
+
+    raw = LongSourceDecomposer(
+        obs=axis(("run",)),
+        var=axis(("Ion",), ("Sameset", "Subset", "Score")),
+        var_values=(
+            RankedFeatureValue("Sameset", "Score", highest=True, notation=comma),
+            RankedFeatureValue("Subset", "Score", highest=True, notation=comma),
+            ExtremeFeatureValue("Score", largest=True, notation=comma),
+        ),
+        primary_layer_name="Intensity",
+        layer_sources=(LongRawLayerSource(name="Intensity", source_column="intensity"),),
+    ).decompose(table)
+
+    assert raw.var.frame.to_dicts() == [
+        {"Ion": "I1", "Sameset": "FLNA", "Subset": None, "Score": "6585,4"},
+        {"Ion": "I2", "Sameset": "P2", "Subset": "P3", "Score": "10"},
+    ]
+    assert raw.var.disagreements == {}, "a declared ranking is no disagreement"
 
 
 def test_a_missing_raw_key_component_is_an_identity_of_its_own() -> None:

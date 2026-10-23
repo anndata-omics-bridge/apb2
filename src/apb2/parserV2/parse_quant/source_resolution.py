@@ -53,7 +53,7 @@ from apb2.parserV2.parse_quant.parameters.axis import (
     AxisColumnSelection,
     AxisKeyPlan,
     AxisSourcePlan,
-    FeatureDuplicateMode,
+    FeatureDuplicates,
 )
 from apb2.parserV2.parse_quant.parameters.measurements import (
     WorkingMeasurementLayer,
@@ -194,9 +194,9 @@ class SourcePlanResolver:
     @staticmethod
     def _var_duplicates(
         declaration: WorkingAxisConfiguration, var: AxisSourcePlan
-    ) -> dict[str, FeatureDuplicateMode]:
+    ) -> dict[str, FeatureDuplicates]:
         """The duplicate mode of each var payload source, in payload order."""
-        modes: dict[str, FeatureDuplicateMode] = {
+        modes: dict[str, FeatureDuplicates] = {
             selection.source: selection.duplicates
             for selection in (*declaration.optional_selections, *declaration.required_selections)
         }

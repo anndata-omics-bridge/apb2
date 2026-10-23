@@ -1077,6 +1077,47 @@ def test_a_var_column_resolves_a_features_repeated_rows_as_its_rule_declares() -
     }
 
 
+def test_keep_best_takes_a_column_from_the_row_another_column_ranks_best() -> None:
+    """A shared peptide keeps its best-scoring protein set; ``by`` is resolved to its source."""
+    document = synthetic.long_document(
+        obs_select={"sample": "Sample"},
+        var_select={"Feature": "Feature", "Sameset": "samesets", "Set_Score": "score"},
+        var_types={"Set_Score": "number"},
+        computed=[
+            {"name": "Sameset", "duplicates": {"mode": "keep_best", "by": "Set_Score"}},
+            {"name": "Set_Score", "duplicates": {"mode": "max"}},
+        ],
+        var_keys=["Feature"],
+        duplicates="keep_first",
+    )
+    strategy = synthetic.facade(document).resolve_source(
+        delimited(("Sample", "Feature", "samesets", "score", "Quantity"))
+    )
+    frame = pl.DataFrame(
+        {
+            "Sample": ["A", "A", "A"],
+            "Feature": ["P1", "P1", "P2"],
+            "samesets": ["FLNB", "FLNA", "TAGL2"],
+            "score": ["4894.2", "6585.4", "120"],
+            "Quantity": ["1", "1", "3"],
+        }
+    )
+
+    parsed = strategy.parse(LevelSourceTable(frame=frame))
+
+    assert snapshot(strategy)["var_duplicates"] == {
+        "samesets": {"by": "score", "highest": True},
+        "score": "max",
+    }
+    assert parsed.var.frame.select("Feature", "Sameset", "Set_Score").to_dicts() == [
+        {"Feature": "P1", "Sameset": "FLNA", "Set_Score": 6585.4},
+        {"Feature": "P2", "Sameset": "TAGL2", "Set_Score": 120.0},
+    ]
+    result = parsed.uns["result"]
+    assert isinstance(result, dict)
+    assert result["var_disagreements"] == {}
+
+
 # -------------------------------------------------------------------------- other evidence
 
 
