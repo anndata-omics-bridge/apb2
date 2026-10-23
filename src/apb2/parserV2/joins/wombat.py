@@ -17,7 +17,7 @@ def identify(headers: Mapping[str, tuple[str, ...]]) -> dict[str, str]:
     """Identify the WOMBAT-P table by its peptide and protein-group columns."""
     selected = [name for name, columns in headers.items() if set(_SIGNATURE) <= set(columns)]
     if len(selected) > 1:
-        raise ValueError(f"WOMBAT has multiple peptide inputs: {', '.join(selected)}")
+        raise ValueError(f"WOMBAT-P has multiple peptide inputs: {', '.join(selected)}")
     return {"peptides": selected[0]} if selected else {}
 
 

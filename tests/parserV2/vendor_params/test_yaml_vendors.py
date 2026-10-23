@@ -1,4 +1,4 @@
-"""Equivalence tests for YAML-based parameter parsers (AlphaPept, WOMBAT)."""
+"""Equivalence tests for YAML-based parameter parsers (AlphaPept, WOMBAT-P)."""
 
 from __future__ import annotations
 

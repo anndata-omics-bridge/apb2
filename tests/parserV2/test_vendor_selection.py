@@ -34,7 +34,7 @@ def inputs(key: str) -> tuple[Path, Path]:
 
 
 def test_wombat_peptidoform_without_optional_psm_counts(tmp_path: Path) -> None:
-    """ProteoBench WOMBAT exports can contain abundances but no PSM-count columns."""
+    """ProteoBench WOMBAT-P exports can contain abundances but no PSM-count columns."""
     source = tmp_path / "wombat.csv"
     source.write_text(
         "modified_peptide,protein_group,abundance_A_1,abundance_B_1\nPEPTIDEK,P12345,10,20\n",

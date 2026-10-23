@@ -92,7 +92,7 @@ The identity model uses explicit columns rather than temporary integer IDs:
   quantitative duplicate.
 
 This algorithm is derived from each effective rule. AlphaDIA, DIA-NN, FragPipe, MaxQuant,
-Spectronaut, WOMBAT, and the other packaged documents exercise the same code. Vendor- or
+Spectronaut, WOMBAT-P, and the other packaged documents exercise the same code. Vendor- or
 level-specific key algorithms are forbidden.
 
 ### 1.1 Why Polars is part of the design
@@ -2619,7 +2619,7 @@ Every effective level must compile both axis plans. Tests assert:
 - no result depends on a vendor-name or level-name branch.
 
 Representative fixtures include AlphaDIA ion, DIA-NN protein, DIA-NN fragment, Spectronaut
-fragment, WOMBAT or Sage peptidoform, an injective `coalesce`, and a colliding `coalesce`.
+fragment, WOMBAT-P or Sage peptidoform, an injective `coalesce`, and a colliding `coalesce`.
 
 #### G.4 Decomposition and duplicate tests
 

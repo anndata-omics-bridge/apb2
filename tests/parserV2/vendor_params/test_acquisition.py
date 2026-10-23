@@ -45,7 +45,7 @@ CASES: list[tuple[str, Parser, tuple[Path, ...]]] = [
         spectronaut.extract_params,
         (PROTEOBENCH_PARAMS / "Spectronaut_static.txt",),
     ),
-    ("WOMBAT", wombat.extract_params, (PROTEOBENCH_PARAMS / "wombat_params.yaml",)),
+    ("WOMBAT-P", wombat.extract_params, (PROTEOBENCH_PARAMS / "wombat_params.yaml",)),
 ]
 
 
