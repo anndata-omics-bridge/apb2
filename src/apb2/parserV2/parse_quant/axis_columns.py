@@ -193,9 +193,13 @@ class ProformaIonColumn:
 
     def compute(self, frame: pl.DataFrame, /) -> tuple[pl.DataFrame, tuple[str, ...]]:
         sequences, charges = (pl.col(name) for name in self.inputs)
-        for label, column in (("sequence", sequences), ("charge", charges)):
-            if frame.select(column.is_null().any()).item():
-                raise ColumnComputationError(f"cannot derive {self.name!r} from a missing {label}")
+        for label, name in zip(("sequence", "charge"), self.inputs, strict=True):
+            missing = frame.filter(pl.col(name).is_null())
+            if missing.height:
+                raise ColumnComputationError(
+                    f"cannot derive {self.name!r}: {missing.height} feature(s) have a missing "
+                    f"{label} in {name!r}; examples={missing.head(_EXAMPLE_LIMIT).to_dicts()}"
+                )
         nonpositive = charges <= 0
         examples = frame.select(
             charges.filter(nonpositive).unique(maintain_order=True).head(_EXAMPLE_LIMIT)

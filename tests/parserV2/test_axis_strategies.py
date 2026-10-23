@@ -344,7 +344,9 @@ def test_a_proforma_ion_needs_a_present_sequence_and_positive_charge() -> None:
         ProformaIonColumn(name="ProForma_ion", inputs=("s", "c")).compute(
             pl.DataFrame([sequences, pl.Series("c", [2, None], dtype=pl.Int64)])
         )
-    with pytest.raises(ColumnComputationError, match="missing sequence"):
+    with pytest.raises(
+        ColumnComputationError, match=r"1 feature\(s\) have a missing sequence in 's'"
+    ):
         ProformaIonColumn(name="ProForma_ion", inputs=("s", "c")).compute(
             pl.DataFrame([pl.Series("s", ["PEPTIDE", None]), charges])
         )
