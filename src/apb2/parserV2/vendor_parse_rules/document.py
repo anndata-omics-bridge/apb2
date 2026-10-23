@@ -89,6 +89,14 @@ class _RuleTableSchema(ModelBase):
     levels: dict[QuantificationLevel, JsonDict] = Field(min_length=1)
     prepare: _PreparationSchema | None = None
 
+    @model_validator(mode="after")
+    def _prepared_input_declares_no_detection(self) -> _RuleTableSchema:
+        """A preparation reads its files by extension, so declared detection would go unread."""
+        declared = (self.input.delimiter, self.input.numbers, self.input.encoding)
+        if self.prepare is not None and any(value is not None for value in declared):
+            raise ValueError("a prepared table reads its files by extension; declare no detection")
+        return self
+
 
 class RuleDocument(ModelBase):
     """One rules.json, with raw fragments validated after base/level composition.

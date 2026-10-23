@@ -23,7 +23,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
     InputTable,
     SingleFile,
 )
-from apb2.parserV2.parse_quant.parameters.vendor_file import VendorFile, make_vendor_file
+from apb2.parserV2.parse_quant.parameters.vendor_file import VendorFile
 from apb2.parserV2.parse_quant.parser import Parser
 from apb2.parserV2.parse_quant.prepared_input import PreparedInputReader
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
@@ -91,12 +91,11 @@ class PreparedTable:
 
 
 def _files(source: SingleFile | Folder) -> dict[str, VendorFile]:
-    """Each candidate table keyed by the name its tool wrote, plain or gzipped."""
-    if isinstance(source, Folder):
-        files = (make_vendor_file(path) for path in sorted(source.path.iterdir()) if path.is_file())
-        return {file.name: file for file in files if file.suffix in {".tsv", ".txt"}}
-    file = make_vendor_file(source.path)
-    return {file.name: file}
+    """Each delimited table keyed by the name its tool wrote, plain or gzipped."""
+    return {file.name: file for file in source.tables(None) if file.suffix in _DELIMITED}
+
+
+_DELIMITED = frozenset({".tsv", ".txt", ".csv"})
 
 
 def _separator(file: VendorFile) -> str:

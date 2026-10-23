@@ -134,6 +134,14 @@ def test_empty_or_incomplete_tables_are_rejected(invalid: list[dict[str, Any]]) 
         make_rule_document(Path("rules.json"), payload)
 
 
+def test_a_prepared_table_declaring_detection_is_rejected() -> None:
+    payload = _payload()
+    payload["tables"][0]["prepare"] = {"how": "wombat"}
+    payload["tables"][0]["input"]["delimiter"] = {"mode": "detect", "candidates": [",", ";"]}
+    with pytest.raises(ValidationError, match="declare no detection"):
+        make_rule_document(Path("rules.json"), payload)
+
+
 def test_duplicate_level_ownership_is_rejected() -> None:
     payload = _payload()
     payload["tables"].append(copy.deepcopy(payload["tables"][0]))

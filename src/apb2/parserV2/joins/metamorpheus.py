@@ -19,20 +19,11 @@ def identify(headers: Mapping[str, tuple[str, ...]]) -> dict[str, str]:
 
 
 def join(tables: Mapping[str, pl.DataFrame]) -> pl.DataFrame:
-    """Keep peaks mapped to exactly one peptidoform, with numeric intensities.
+    """Keep peaks mapped to exactly one peptidoform.
 
     FlashLFQ writes an ambiguous peak as ``SEQA|SEQB``; sequence parsing would otherwise
     concatenate it into a peptide that does not exist. A random-RT match-between-runs peak
     carries its target's own identity, so it would merge into the target's value rather than
-    stand beside it. Decoy peptides stay; the rule marks them ``apb_Decoy``. Prepared tables are
-    read as text, and the rule takes the max of repeated peaks of one ion and run, which needs
-    native numbers.
+    stand beside it. Decoy peptides stay; the rule marks them ``apb_Decoy``.
     """
-    return (
-        tables["peaks"]
-        .filter(
-            pl.col(_MAPPED) == "1",
-            pl.col("Random RT") == "False",
-        )
-        .with_columns(pl.col("Peak intensity").cast(pl.Float64, strict=True))
-    )
+    return tables["peaks"].filter(pl.col(_MAPPED) == "1", pl.col("Random RT") == "False")

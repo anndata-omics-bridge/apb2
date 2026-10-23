@@ -32,7 +32,7 @@ from apb2.parserV2.parse_quant.parameters.source import Folder
 from apb2.parserV2.parse_quant.parameters.vendor_file import PlainFile
 from apb2.parserV2.parse_quant.parser import ParserCollection
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
-from apb2.parserV2.prepare_source import InputPreparationError, PreparedTable
+from apb2.parserV2.prepare_source import InputPreparationError, PreparationInputs, PreparedTable
 from apb2.parserV2.search_parameters.model import Parameters
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
@@ -136,7 +136,7 @@ def test_alphadia_precursors_without_matrix_are_rejected(tmp_path: Path) -> None
     assert not (tmp_path / "converted.h5mu").exists()
 
 
-def test_metamorpheus_drops_ambiguous_and_random_rt_peaks_and_types_intensity() -> None:
+def test_metamorpheus_drops_ambiguous_and_random_rt_peaks() -> None:
     columns = ("Full Sequence", "Full Sequences Mapped", "Peak intensity")
     assert metamorpheus.identify({"renamed.tsv": columns, "other.tsv": ("x",)}) == {
         "peaks": "renamed.tsv"
@@ -154,9 +154,17 @@ def test_metamorpheus_drops_ambiguous_and_random_rt_peaks_and_types_intensity() 
     result = metamorpheus.join({"peaks": peaks})
     assert result["Full Sequence"].to_list() == ["PEPTIDEK", "KEDITPEP"]
     assert result["Decoy Peptide"].to_list() == ["False", "True"]
-    assert result["Peak intensity"].to_list() == [10.5, 3.0]
-    with pytest.raises(pl.exceptions.InvalidOperationError):
-        metamorpheus.join({"peaks": peaks.with_columns(pl.lit("n/a").alias("Peak intensity"))})
+    assert result["Peak intensity"].to_list() == ["10.5", "3"]
+
+
+def test_a_wombat_csv_in_a_folder_is_a_preparation_input(tmp_path: Path) -> None:
+    (tmp_path / "peptides.csv").write_text("modified_peptide,protein_group\nPEPTIDEK,P1\n")
+    (tmp_path / "notes.txt").write_text("unrelated\n")
+
+    inputs = PreparationInputs.identify(Folder(tmp_path), "wombat")
+
+    assert list(inputs.tables) == ["peptides"]
+    assert inputs.prepare(tmp_path).frame.columns == ["modified_peptide", "protein_group"]
 
 
 def test_wombat_drops_rows_naming_several_peptides_and_logs_them() -> None:
