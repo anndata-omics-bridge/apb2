@@ -2,6 +2,7 @@
 
 ## 2026-10-23
 
+- `LayerContractError` is a `ConversionError`: `apb2 convert --strict` on an effectively empty layer, or an empty primary layer, logs the error and exits 1 instead of ending in a traceback.
 - **Breaking:** DIA-NN's protein level has no `Protein_Ids` column; `Protein_Group` carries `fasta_accessions` beside `protein_assignment`, as at the fragment level and in the AlphaDIA 2 and MaxQuant protein rules. `Protein.Ids` lists the proteins of each precursor's peptide and differs between the rows of one protein group (71 groups in submission 4cc229a7, 440 in 300beac4), so the protein level kept whichever row came first. apb-fasta now annotates each group by its own members. The ion level keeps `Protein_Ids`.
 - **Breaking:** a column or layer that carries no information is not created; each level's `parse` record lists it under `result.uninformative_fields`, by location `obs`, `var` or `layers`, with summary entries `single_valued_fields` and `effectively_empty_fields`. They replace `effectively_empty_layers` and `result.layer_diagnostics.effectively_empty`.
   - **Single-valued:** every filled cell holds one value, judged from two filled cells on; the finding keeps the value. DIA-NN's ion-mobility layers on Astral runs (0) and `Lib_Peptidoform_Q_Value` without peptidoform scoring (0) are such fields

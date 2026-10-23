@@ -17,6 +17,7 @@ import polars as pl
 import pytest
 
 from apb2.parserV2.parse_quant.contracts import LayerValueParser
+from apb2.parserV2.parse_quant.data.errors import ConversionError
 from apb2.parserV2.parse_quant.data.parsed import (
     AuxiliaryLayerRole,
     CategoricalLayerSemantics,
@@ -534,7 +535,8 @@ def validate_layers(
 
 
 def test_layer_contract_errors_belong_to_the_parse_error_hierarchy() -> None:
-    assert issubclass(LayerContractError, ValueError)
+    """The CLI reports a conversion error as a message and exit code, not a traceback."""
+    assert issubclass(LayerContractError, ConversionError)
 
 
 def test_a_missing_required_auxiliary_layer_is_still_a_contract_error() -> None:

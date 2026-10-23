@@ -29,7 +29,7 @@ class LayerValueError(ValueError):
     """A parsed layer cannot satisfy its declared canonical value semantics."""
 
 
-class LayerContractError(ValueError):
+class LayerContractError(ConversionError):
     """Canonical measurement layers violate their required occupancy contract."""
 
 

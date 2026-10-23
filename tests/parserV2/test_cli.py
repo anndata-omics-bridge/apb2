@@ -49,6 +49,33 @@ _DOCUMENT = {
 _TSV = "Run\tPrecursor\tIntensity\ns1\tp1\t1.5\ns1\tp2\t2.5\ns2\tp1\t3.5\n"
 
 
+@pytest.mark.parametrize("strict", [False, True])
+def test_strict_makes_an_effectively_empty_layer_a_conversion_error(
+    tmp_path: Path, strict: bool
+) -> None:
+    report = tmp_path / "report.tsv"
+    report.write_text(
+        "Run\tPrecursor\tIntensity\tScore\ns1\tp1\t1.5\t\ns1\tp2\t2.5\t\ns2\tp1\t3.5\t\n",
+        encoding="utf-8",
+    )
+    document = json.loads(json.dumps(_DOCUMENT))
+    document["tables"][0]["base"]["measurements"]["layers"].append(
+        {"name": "Score", "source": "Score"}
+    )
+    rule_config = tmp_path / "rules.json"
+    rule_config.write_text(json.dumps(document), encoding="utf-8")
+
+    exit_code = convert(
+        report,
+        "ion",
+        ConvertCliOptions(rule_config=rule_config, output=tmp_path / "out", strict=strict),
+    )
+
+    assert exit_code == (1 if strict else 0)
+    if not strict:
+        assert "Score" not in anndata.read_h5ad(tmp_path / "out.h5ad").layers
+
+
 def test_convert_help_exposes_one_software_hint(capsys: pytest.CaptureFixture[str]) -> None:
     app(["convert", "--help"], exit_on_error=False, result_action="return_value")
     help_text = capsys.readouterr().out
