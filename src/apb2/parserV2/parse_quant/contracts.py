@@ -46,9 +46,21 @@ class SourceDecomposer(Protocol):
 
 
 class FragmentTableSeparator(Protocol):
-    """Turn one packed-fragment table into scalar-long rows."""
+    """Turn one packed-fragment table into scalar-long rows, in two steps.
 
-    def separate(self, table: LevelSourceTable, /) -> LevelSourceTable: ...
+    ``listed`` splits the packed columns and drops the rows that hold no scalar; ``exploded``
+    gives each scalar its row and the ``label_output`` column, keeping every other column.
+    """
+
+    @property
+    def label_output(self) -> str: ...
+
+    @property
+    def packed_sources(self) -> tuple[str, ...]: ...
+
+    def listed(self, frame: pl.DataFrame, /) -> pl.DataFrame: ...
+
+    def exploded(self, frame: pl.DataFrame, /) -> pl.DataFrame: ...
 
 
 class AxisValueCoercer(Protocol):

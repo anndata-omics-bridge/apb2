@@ -1,15 +1,18 @@
-"""Packed fragment lists become scalar rows, before anything else looks at the table.
+"""Packed fragment lists become scalar rows, in two steps the fragment decomposer runs.
 
 DIA-NN-style reports pack per-fragment values as delimiter-joined lists inside each precursor
 row, aligned by index and often terminated by a trailing delimiter. Separating them is a
-physical operation on one table: it produces more rows of the same shape and one synthesized
-label column, and then the ordinary long decomposer takes over. Nothing here builds an axis,
-normalizes a modification, resolves a duplicate, or converts a number.
+physical operation on one table: ``listed`` splits the packed cells into lists and drops the
+rows that hold none, and ``exploded`` turns each list position into a row with one synthesized
+label column. Between the two, the decomposer replaces the key text by row numbers, so the
+explode multiplies integers rather than strings. Nothing here builds an axis, normalizes a
+modification, resolves a duplicate, or converts a number.
 
 The scalar split keeps the vendor semantics exactly: a null or whitespace-only cell holds zero
 tokens; outer whitespace and each token's surrounding whitespace are removed; trailing
 delimiter terminators go before the split; and an interior empty token stays an empty scalar
-at its aligned position. A row with zero tokens contributes no scalar row.
+at its aligned position, where it is a missing scalar. A row with zero tokens contributes no
+scalar row.
 """
 
 from __future__ import annotations
@@ -19,7 +22,6 @@ from dataclasses import dataclass
 import polars as pl
 
 from apb2.parserV2.parse_quant.data.errors import ConversionError
-from apb2.parserV2.parse_quant.parameters.source import LevelSourceTable
 
 _LENGTH = "_packed_length"
 _POSITION = "_packed_position"
@@ -56,16 +58,29 @@ def _require_aligned(frame: pl.DataFrame, packed: tuple[str, ...]) -> None:
         )
 
 
-def _separated(frame: pl.DataFrame, packed: tuple[str, ...], delimiter: str) -> pl.DataFrame:
-    """Split every packed column, drop the rows that hold nothing, and explode the rest."""
+def _listed(frame: pl.DataFrame, packed: tuple[str, ...], delimiter: str) -> pl.DataFrame:
+    """Split every packed column into its scalars and drop the rows that hold none.
+
+    Rows holding nothing are removed before the explode, so no scalar row is ever invented
+    for a precursor with no fragments.
+    """
     listed = frame.with_columns([_tokens(name, delimiter) for name in packed])
     _require_aligned(listed, packed)
-    # Rows holding nothing are removed before the explode, so no scalar row is ever
-    # invented for a precursor with no fragments.
-    populated = listed.filter(pl.col(packed[0]).list.len() > 0)
-    return populated.with_columns(
-        pl.int_ranges(0, pl.col(packed[0]).list.len()).alias(_POSITION)
-    ).explode([*packed, _POSITION], empty_as_null=True)
+    return listed.filter(pl.col(packed[0]).list.len() > 0)
+
+
+def _exploded(frame: pl.DataFrame, packed: tuple[str, ...]) -> pl.DataFrame:
+    """One row per list position, the position kept; an empty scalar is a missing one."""
+    return (
+        frame.with_columns(pl.int_ranges(0, pl.col(packed[0]).list.len()).alias(_POSITION))
+        .explode([*packed, _POSITION], empty_as_null=True)
+        .with_columns(_blank_is_missing(name) for name in packed)
+    )
+
+
+def _blank_is_missing(name: str) -> pl.Expr:
+    """A scalar without a non-whitespace character is missing, as the reader treats a cell."""
+    return pl.when(pl.col(name).str.contains(r"\S")).then(pl.col(name)).alias(name)
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,12 +91,20 @@ class PositionalFragmentTableSeparator:
     delimiter: str
     packed_value_sources: tuple[str, ...]
 
-    def separate(self, table: LevelSourceTable, /) -> LevelSourceTable:
-        separated = _separated(table.frame, self.packed_value_sources, self.delimiter)
-        labelled = separated.with_columns(
+    @property
+    def packed_sources(self) -> tuple[str, ...]:
+        """The packed columns split in parallel."""
+        return self.packed_value_sources
+
+    def listed(self, frame: pl.DataFrame, /) -> pl.DataFrame:
+        return _listed(frame, self.packed_value_sources, self.delimiter)
+
+    def exploded(self, frame: pl.DataFrame, /) -> pl.DataFrame:
+        exploded = _exploded(frame, self.packed_value_sources)
+        labelled = exploded.with_columns(
             (pl.lit("frag_") + pl.col(_POSITION).cast(pl.String)).alias(self.label_output)
         )
-        return LevelSourceTable(frame=labelled.drop(_POSITION))
+        return labelled.drop(_POSITION)
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,12 +116,19 @@ class ColumnLabeledFragmentTableSeparator:
     delimiter: str
     packed_value_sources: tuple[str, ...]
 
-    def separate(self, table: LevelSourceTable, /) -> LevelSourceTable:
-        packed = (self.label_source, *self.packed_value_sources)
-        separated = _separated(table.frame, packed, self.delimiter)
-        labelled = separated.with_columns(
+    @property
+    def packed_sources(self) -> tuple[str, ...]:
+        """The label column and the value columns, split in parallel."""
+        return (self.label_source, *self.packed_value_sources)
+
+    def listed(self, frame: pl.DataFrame, /) -> pl.DataFrame:
+        return _listed(frame, self.packed_sources, self.delimiter)
+
+    def exploded(self, frame: pl.DataFrame, /) -> pl.DataFrame:
+        exploded = _exploded(frame, self.packed_sources)
+        labelled = exploded.with_columns(
             pl.col(self.label_source).str.split("/").list.first().alias(self.label_output)
-        )
+        ).with_columns(_blank_is_missing(self.label_output))
         # The packed label column has done its work; carrying it would make every scalar row
         # hold a redundant long string.
-        return LevelSourceTable(frame=labelled.drop(_POSITION, self.label_source))
+        return labelled.drop(_POSITION, self.label_source)

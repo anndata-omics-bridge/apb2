@@ -16,14 +16,13 @@ destroy the evidence it needs. Layer rows carry no key text, only the two row nu
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import polars as pl
 
 from apb2.parserV2.parse_quant.contracts import (
     FeatureValuePolicy,
     FragmentTableSeparator,
-    SourceDecomposer,
 )
 from apb2.parserV2.parse_quant.data.raw import (
     DISAGREEING_VALUES,
@@ -144,8 +143,24 @@ class LongSourceDecomposer:
         frame = table.frame
         obs_frame = _axis_frame(frame, self.obs)
         var = _var_raw(frame, self.var, self.var_values)
-        var_row = _row_numbers(frame, var.frame, self.var.keys.raw_key_columns).alias(VAR_ROW)
-        obs_row = _row_numbers(frame, obs_frame, self.obs.keys.raw_key_columns).alias(OBS_ROW)
+        return self.raw_level(
+            frame,
+            obs_frame,
+            var,
+            _row_numbers(frame, var.frame, self.var.keys.raw_key_columns),
+            _row_numbers(frame, obs_frame, self.obs.keys.raw_key_columns),
+        )
+
+    def raw_level(
+        self,
+        frame: pl.DataFrame,
+        obs_frame: pl.DataFrame,
+        var: VarRaw,
+        var_row: pl.Series,
+        obs_row: pl.Series,
+    ) -> RawLevel:
+        """The level whose layers are ``frame``'s source columns at the given row numbers."""
+        var_row, obs_row = var_row.alias(VAR_ROW), obs_row.alias(OBS_ROW)
         return RawLevel(
             obs=ObsRaw(frame=obs_frame, raw_key_columns=self.obs.keys.raw_key_columns),
             var=var,
@@ -221,14 +236,73 @@ class WideSourceDecomposer:
 
 @dataclass(frozen=True, slots=True)
 class DelimitedFragmentSourceDecomposer:
-    """Separate the packed fragments, then decompose the scalar rows as ordinary long input.
+    """Precursor rows packing fragment lists: row numbers first, then the explode.
 
-    Composition, not a third algorithm: the long decomposer injected here is the same
-    implementation direct long input uses, so a fragment level cannot drift from it.
+    The run and precursor keys are joined to their axes on the precursor rows, so the explode
+    multiplies two integers instead of the key text; only the var payload, which a fragment's
+    own rows resolve, travels through it as text. The fragment axis is one row per (precursor,
+    label), and its precursor key columns are restored afterwards. Everything else is the long
+    decomposer's: its plans, its value policies and its layers.
     """
 
     separator: FragmentTableSeparator
-    long_decomposer: SourceDecomposer
+    long_decomposer: LongSourceDecomposer
 
     def decompose(self, table: LevelSourceTable, /) -> RawLevel:
-        return self.long_decomposer.decompose(self.separator.separate(table))
+        long = self.long_decomposer
+        label = self.separator.label_output
+        listed = self.separator.listed(table.frame)
+        obs_frame = _axis_frame(listed, long.obs)
+        precursor_keys = tuple(key for key in long.var.keys.raw_key_columns if key != label)
+        precursors = listed.select(precursor_keys).unique(maintain_order=True)
+        carried = (*long.var.payload_sources, *self.separator.packed_sources, label)
+        precursor, obs_row = _free("_precursor_row", carried), _free("_obs_row", carried)
+        exploded = self.separator.exploded(
+            listed.select(
+                _row_numbers(listed, precursors, precursor_keys).alias(precursor),
+                _row_numbers(listed, obs_frame, long.obs.keys.raw_key_columns).alias(obs_row),
+                *long.var.payload_sources,
+                *self.separator.packed_sources,
+            )
+        )
+        fragment_keys = (precursor, label)
+        var = _var_raw(
+            exploded,
+            AxisSourcePlan(
+                keys=replace(long.var.keys, raw_key_columns=fragment_keys),
+                payload_sources=long.var.payload_sources,
+            ),
+            long.var_values,
+        )
+        var_row = _row_numbers(exploded, var.frame, fragment_keys)
+        named = precursors.with_row_index(precursor)
+        keys = long.var.keys.raw_key_columns
+        return long.raw_level(
+            exploded,
+            obs_frame,
+            VarRaw(
+                frame=_with_precursor_keys(var.frame, named, precursor, keys),
+                raw_key_columns=keys,
+                disagreements={
+                    source: _with_precursor_keys(frame, named, precursor, keys)
+                    for source, frame in var.disagreements.items()
+                },
+            ),
+            var_row,
+            exploded.get_column(obs_row),
+        )
+
+
+def _free(name: str, taken: tuple[str, ...]) -> str:
+    """``name``, lengthened until no carried vendor column holds it."""
+    while name in taken:
+        name += "_"
+    return name
+
+
+def _with_precursor_keys(
+    frame: pl.DataFrame, precursors: pl.DataFrame, precursor: str, keys: tuple[str, ...]
+) -> pl.DataFrame:
+    """A frame keyed by precursor row number, with the precursor's raw key columns instead."""
+    restored = frame.join(precursors, on=precursor, how="left", maintain_order="left")
+    return restored.select(*keys, pl.exclude(precursor, *keys))

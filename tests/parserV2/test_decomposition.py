@@ -525,14 +525,22 @@ def positional(*packed: str, delimiter: str = ";") -> PositionalFragmentTableSep
     )
 
 
+def separated(
+    separator: PositionalFragmentTableSeparator | ColumnLabeledFragmentTableSeparator,
+    table: LevelSourceTable,
+) -> pl.DataFrame:
+    """Both separation steps, with nothing between them."""
+    return separator.exploded(separator.listed(table.frame))
+
+
 def test_positional_separation_labels_each_scalar_by_its_index() -> None:
     table = LevelSourceTable(
         frame=pl.DataFrame({"Seq": ["P"], "Quant": ["1200;900;450"], "Corr": ["0.9;0.8;0.7"]})
     )
 
-    separated = positional("Quant", "Corr").separate(table)
+    rows = separated(positional("Quant", "Corr"), table)
 
-    assert separated.frame.to_dicts() == [
+    assert rows.to_dicts() == [
         {"Seq": "P", "Quant": "1200", "Corr": "0.9", "fragment_label": "frag_0"},
         {"Seq": "P", "Quant": "900", "Corr": "0.8", "fragment_label": "frag_1"},
         {"Seq": "P", "Quant": "450", "Corr": "0.7", "fragment_label": "frag_2"},
@@ -542,26 +550,26 @@ def test_positional_separation_labels_each_scalar_by_its_index() -> None:
 def test_a_trailing_terminator_is_not_an_extra_fragment() -> None:
     table = LevelSourceTable(frame=pl.DataFrame({"Quant": ["10;20;"]}))
 
-    separated = positional("Quant").separate(table)
+    rows = separated(positional("Quant"), table)
 
-    assert separated.frame.get_column("Quant").to_list() == ["10", "20"]
+    assert rows.get_column("Quant").to_list() == ["10", "20"]
 
 
 def test_whitespace_is_trimmed_around_the_cell_and_around_each_token() -> None:
     table = LevelSourceTable(frame=pl.DataFrame({"Quant": ["  10 ; 20  "]}))
 
-    separated = positional("Quant").separate(table)
+    rows = separated(positional("Quant"), table)
 
-    assert separated.frame.get_column("Quant").to_list() == ["10", "20"]
+    assert rows.get_column("Quant").to_list() == ["10", "20"]
 
 
 def test_an_interior_empty_token_is_a_missing_scalar_at_its_position() -> None:
     table = LevelSourceTable(frame=pl.DataFrame({"Quant": ["10;;30"]}))
 
-    separated = positional("Quant").separate(table)
+    rows = separated(positional("Quant"), table)
 
-    assert separated.frame.get_column("Quant").to_list() == ["10", None, "30"]
-    assert separated.frame.get_column("fragment_label").to_list() == [
+    assert rows.get_column("Quant").to_list() == ["10", None, "30"]
+    assert rows.get_column("fragment_label").to_list() == [
         "frag_0",
         "frag_1",
         "frag_2",
@@ -572,16 +580,16 @@ def test_an_interior_empty_token_is_a_missing_scalar_at_its_position() -> None:
 def test_a_row_with_no_tokens_contributes_no_scalar_row(cell: str | None) -> None:
     table = LevelSourceTable(frame=pl.DataFrame({"Quant": [cell, "5"]}, strict=False))
 
-    separated = positional("Quant").separate(table)
+    rows = separated(positional("Quant"), table)
 
-    assert separated.frame.get_column("Quant").to_list() == ["5"]
+    assert rows.get_column("Quant").to_list() == ["5"]
 
 
 def test_parallel_packed_cells_of_different_length_are_a_vendor_defect() -> None:
     table = LevelSourceTable(frame=pl.DataFrame({"Quant": ["1;2"], "Corr": ["1;2;3"]}))
 
     with pytest.raises(PackedLengthError, match="different numbers"):
-        positional("Quant", "Corr").separate(table)
+        positional("Quant", "Corr").listed(table.frame)
 
 
 def test_column_labelled_separation_takes_the_token_before_the_first_slash() -> None:
@@ -597,31 +605,49 @@ def test_column_labelled_separation_takes_the_token_before_the_first_slash() -> 
         )
     )
 
-    separated = config.separate(table)
+    rows = separated(config, table)
 
-    assert separated.frame.columns == ["Seq", "Quant", "fragment_label"]
-    assert separated.frame.get_column("fragment_label").to_list() == ["b4-unknown^1", "y3^1"]
+    assert rows.columns == ["Seq", "Quant", "fragment_label"]
+    assert rows.get_column("fragment_label").to_list() == ["b4-unknown^1", "y3^1"]
 
 
-def test_the_fragment_path_separates_first_and_then_delegates_once() -> None:
-    calls: list[str] = []
+def test_fragments_get_their_row_numbers_before_the_explode() -> None:
+    """The explode multiplies integers, the payload and the packed values, never key text."""
+    exploded_columns: list[str] = []
+    inner = positional("Quant")
 
-    class Separator:
-        def separate(self, table: LevelSourceTable, /) -> LevelSourceTable:
-            calls.append("separate")
-            return table
+    class Recording:
+        label_output = inner.label_output
+        packed_sources = inner.packed_sources
 
-    class Long:
-        def decompose(self, table: LevelSourceTable, /) -> RawLevel:
-            calls.append("decompose")
-            raise NotImplementedError
+        def listed(self, frame: pl.DataFrame, /) -> pl.DataFrame:
+            return inner.listed(frame)
 
-    composed = DelimitedFragmentSourceDecomposer(separator=Separator(), long_decomposer=Long())
+        def exploded(self, frame: pl.DataFrame, /) -> pl.DataFrame:
+            exploded_columns.extend(frame.columns)
+            return inner.exploded(frame)
 
-    with pytest.raises(NotImplementedError):
-        composed.decompose(LevelSourceTable(frame=pl.DataFrame({"a": [1]})))
+    obs, var = axis(("Run",)), axis(("Seq", "fragment_label"), ("Gene",))
+    composed = DelimitedFragmentSourceDecomposer(
+        separator=Recording(),
+        long_decomposer=long_decomposer(
+            ("Fragment_Quant", "Quant"), primary="Fragment_Quant", obs=obs, var=var
+        ),
+    )
+    table = LevelSourceTable(
+        frame=pl.DataFrame(
+            {"Run": ["A", "B"], "Seq": ["P", "P"], "Gene": ["G", "G"], "Quant": ["1;2", "3;4"]}
+        )
+    )
 
-    assert calls == ["separate", "decompose"]
+    raw = composed.decompose(table)
+
+    assert not {"Run", "Seq"} & set(exploded_columns)
+    assert {"Gene", "Quant"} <= set(exploded_columns)
+    assert raw.var.frame.to_dicts() == [
+        {"Seq": "P", "fragment_label": "frag_0", "Gene": "G"},
+        {"Seq": "P", "fragment_label": "frag_1", "Gene": "G"},
+    ]
 
 
 def test_the_fragment_decomposer_reuses_the_ordinary_long_implementation() -> None:

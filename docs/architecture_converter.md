@@ -27,7 +27,7 @@ The current rule storage version is schema `0.9`; [How rules-driven conversion w
 
 ## Current source-compilation boundary
 
-Source compilation now returns an executable `ParseStrategy`, not a `ResolvedLevelPlan` configuration graph. The descriptions and sketches below reflect the implementation at `b6ef79b`, checked on 2026-09-21; the duplicate, pruning, preparation, protocol and module-layout passages were rechecked against `c9bfc32` on 2026-10-24; explicitly historical migration sections describe earlier decisions.
+Source compilation now returns an executable `ParseStrategy`, not a `ResolvedLevelPlan` configuration graph. The descriptions and sketches below reflect the implementation at `b6ef79b`, checked on 2026-09-21; the duplicate, pruning, preparation, protocol and module-layout passages were rechecked against `c9bfc32` on 2026-10-24, and the layer pipeline (decomposition, placement, duplicates, value parsing, widening) again after the long-layer change the same day; explicitly historical migration sections describe earlier decisions.
 
 `Pydantic RuleDocument → facade → WorkingParseConfiguration → source evidence + SourcePlanResolver → ParseStrategy → bound Parser`
 
@@ -37,7 +37,7 @@ Vendor guessing checks only headers and source metadata; it never compiles a str
 
 The executable strategy owns its collaborators once. `Parser.parse()` reads once and invokes `strategy.parse(source)`; it never writes. Prepared input receives the read projection and both axes' raw key tuples, not the strategy graph. `plan_json` preserves the previous serialized decisions, including skipped declarations and both axis phases, but runtime never consumes it.
 
-Each retained layer now has one configured value parser exposing both `present()` and `parse()`. Duplicate policies consume only its narrow `RawValuePresence` capability to identify populated raw cells before duplicate reduction; value parsing follows alignment, and measurement occupancy validation follows value parsing. No parallel presence-object mapping remains. Sequence normalizers record localized rendering labels directly and return `SequenceValue`, without intermediate occurrence records or a second result wrapper; independently declared stripping remains a separate computation.
+Each retained layer now has one configured value parser exposing both `present()` and `parse()`. The parser applies `present()` to each placed layer and nulls the scalars that claim no cell before any duplicate policy runs; `parse()` reads the resolved cells and widens them, and measurement occupancy validation follows value parsing. No parallel presence-object mapping remains. Sequence normalizers record localized rendering labels directly and return `SequenceValue`, without intermediate occurrence records or a second result wrapper; independently declared stripping remains a separate computation.
 
 Normalizers own their immutable settings and scalar algorithms directly, without separate modification-configuration records or forwarding functions. Locations answer residue matching directly rather than allocating adjacent-residue wrappers. Source resolution constructs layer parsers from the retained declarations without `LayerValueConfig` repacking and is the sole producer of resolved layer-role metadata. `NumericTextFormat` is shared unchanged by source evidence and value/axis parsing; the numeric helper lives directly in `parse_quant`, preserving the independent `data` and `parameters` leaves. The saved-plan serializer preserves the existing JSON shape without retaining those deleted runtime wrappers.
 
@@ -66,14 +66,15 @@ ParsedLevel(
 )
 ```
 
-The parser keeps measurements as wide Polars DataFrames until parsing is finished:
+The parser keeps each measurement layer as long rows until its values are parsed, and widens it into a wide Polars DataFrame last:
 
 ```text
-variable-key columns | observation value columns
+decomposed:  var_row, obs_row, value    one row per physical value; integer rows of the raw axes
+placed:      var_pos, obs_pos, value    final positions; rows of dropped axis rows removed
+widened:     obs_0, obs_1, ...          one row per VarFinal row, one column per ObsFinal row
 ```
 
-It does not create pandas indexes, NumPy/SciPy matrices, or AnnData objects.
-`ParseStrategy` parses aligned layers into canonical numeric values or category codes and validates their occupancy before returning. `ParquetLevelsWriter` writes those frames directly; `AnnDataWriter` performs only structural projection, orientation change, array allocation, pandas-index construction, validation and AnnData I/O. When the CLI omits `LEVEL`, `ParserCollection` collects ordinary per-level results into `ParsedLevels`; `MuDataWriter` reuses one stateless `AnnDataWriter` to assemble `MuData(axis=0)`. MuData is storage composition, not a multi-level parsing algorithm. The same `ParsedLevels` value is the result-I/O boundary:
+It does not create pandas indexes, NumPy/SciPy matrices, or AnnData objects. `ParseStrategy` resolves repeated cells and parses each layer's cells into canonical numeric values or category codes on the long rows, widens one layer at a time, and validates their occupancy before returning. `ParquetLevelsWriter` writes those frames directly; `AnnDataWriter` performs only structural projection, orientation change, array allocation, pandas-index construction, validation and AnnData I/O. When the CLI omits `LEVEL`, `ParserCollection` collects ordinary per-level results into `ParsedLevels`; `MuDataWriter` reuses one stateless `AnnDataWriter` to assemble `MuData(axis=0)`. MuData is storage composition, not a multi-level parsing algorithm. The same `ParsedLevels` value is the result-I/O boundary:
 
 ```python
 parsed = reader_for(input_format).read(source)
@@ -82,14 +83,22 @@ writer_for(output_format).write(parsed, target)
 
 Parquet and DuckDB preserve the Polars result exactly. AnnData and MuData project the already-canonical values into physical matrices and persist their semantics for readback. No format crossing bypasses `ParsedLevels`.
 
-The identity model uses explicit columns rather than temporary integer IDs:
+The identity model keeps identity in explicit key columns; layer rows reach axis rows through integer row numbers:
 
-- raw source-key columns connect decomposed layers to the small raw axes;
+- raw source-key columns define the small raw axes, `ObsRaw` and `VarRaw`, one row per complete raw-key tuple;
 - authored final-key columns define the public obs and var identity;
-- a temporary `RawToFinalKeyMap` relates the two during preparation and layer alignment;
-- equal raw keys define quantitative duplicate cells;
-- different raw keys that materialize to one valid final key are a canonicalization error, not a
-  quantitative duplicate.
+- decomposition gives every layer row the row it points at in each raw axis (`var_row`, `obs_row`), by one join per axis on the raw key columns alone;
+- axis preparation gives every raw axis row its final position, or null when its final key is incomplete; `FinalPositions` places each layer row at (`var_pos`, `obs_pos`) and drops the rows whose axis row left;
+- equal raw keys share one placed cell, so several rows at one (`var_pos`, `obs_pos`) are a quantitative duplicate;
+- different raw keys that materialize to one valid final key are a canonicalization error, not a quantitative duplicate.
+
+**Decision, 24 Oct 2026: layers stay long until they are widened, last.** It replaces the earlier decision that "the identity model uses explicit columns rather than temporary integer IDs", under which every layer was a wide raw table keyed by raw var-key columns from decomposition until alignment. Measured on a 150-run subset of a 1,236-run DIA-NN report, the ion level peaked at a 41.3 GB memory footprint for 7.4 GB of final layers. Three things multiplied the footprint:
+
+- every layer was read as text and pivoted wide as text: 16 B per dense cell, while 89% of the cells are empty at full size;
+- a reorder join copied each wide layer again;
+- duplicate rows were widened before they collapsed: one protein had 2,671 rows in one run.
+
+Now each layer stays long rows of integer positions. Presence, duplicate resolution and value parsing run on those rows, and only the parsed values are widened, one layer at a time. Raw and final key columns still define identity on the small axis frames; integer row numbers are only how layer rows point at axis rows. Parsed results are unchanged: `ParsedLevel` and `FinalLayerTable` hold wide layers and no row numbers, until a planned later iteration.
 
 This algorithm is derived from each effective rule. AlphaDIA, DIA-NN, FragPipe, MaxQuant,
 Spectronaut, WOMBAT-P, and the other packaged documents exercise the same code. Vendor- or
@@ -114,9 +123,7 @@ engine switch. Explicit key fields and stable-order contracts keep the model und
 make a later dataframe migration possible without redesigning identity, but pandas compatibility
 is not an active runtime abstraction.
 
-The benchmark's dense-scatter row compares the legacy end-to-end workload; it is decision
-evidence, not a Parser V2 stage. Parser V2 keeps wide frames and allocates arrays only in
-`AnnDataWriter`.
+The benchmark's dense-scatter row compares the legacy end-to-end workload; it is decision evidence, not a Parser V2 stage. Parser V2 widens each parsed layer with one Polars scatter (`ObservationGrid.widen()`) and allocates arrays only in `AnnDataWriter`.
 
 ### 1.2 Explicit deviations from V5
 
@@ -136,11 +143,12 @@ The specification stays close to V5. These are the only intentional changes:
 | Parquet output is a directory dataset with an explicit manifest | V5 referred to one `.parquet` target although `ParsedLevel` contains several axes, layers, and metadata values | Define a lossless backend contract without flattening unrelated tables into one file |
 | `ParsedLevel.uns` and `ParsedLevel.layers` are concrete ordered `dict` values | V5 returned abstract `Mapping` fields even though parsing constructs and writers rely on deterministic authored order | Accept abstractions at inputs, but return the exact concrete result and make ordering explicit |
 | Numeric aggregate compatibility is checked during compilation | V5 allowed aggregate construction and specified a runtime rejection for string/factor values | Reject a rule/read-plan combination that cannot satisfy the strategy before parsing a large source; retain a runtime guard for malformed data |
-| Numeric aggregate leaves a cell null when it has no semantically present scalar | V5 retained pandas' `0.0` result for a physically present but all-missing group while also requiring a no-contribution cell to stay missing | A wide `RawLayerTable` deliberately carries values, not a physical-cell ledger; null versus absent contribution cannot be recovered after pivot. The null result is information-honest and avoids reintroducing provenance solely to manufacture zero |
+| Numeric aggregate leaves a cell null when it has no semantically present scalar | V5 retained pandas' `0.0` result for a physically present but all-missing group while also requiring a no-contribution cell to stay missing | A cell whose every scalar is absent measured nothing, exactly like a cell without rows; a layer row carries a value, not a physical-cell ledger. The null result is information-honest and avoids reintroducing provenance solely to manufacture zero |
 | Schema 0.3 removes `keep_all_as_raw_table` from `DuplicateMode` | V5 retained the legacy declaration but required compilation to fail because no final result contract existed | A clean schema must not validate an unexecutable mode; removing it deletes a dead registry path and keeps `ParsedLevel` singular |
 | Sequence computations select their declared inputs with Polars and return a frame plus diagnostics | An implicit normalizer produced both stripped and normalized intermediate columns | Honor authored dependencies, allow independent execution, and carry diagnostics outside the column namespace |
 | `ColumnComputer` applies named Polars expressions to the axis frame; source resolution prunes unavailable optional inputs and computations | V5 passed a `skipped` set into every computed-column strategy | Consume optionality once and let Polars own table execution without runtime absence branches |
-| Duplicate policies consume the layer parser's narrow `RawValuePresence` capability | V5 deferred missing-sentinel interpretation to the writer, so `keep_first` could retain a sentinel and discard a real value | Determine raw occupancy before reduction; parse retained values after alignment, identically for every backend |
+| The parser nulls the scalars the layer parser's `present()` rejects before any duplicate policy runs | V5 deferred missing-sentinel interpretation to the writer, so `keep_first` could retain a sentinel and discard a real value | Determine raw occupancy before reduction; parse the resolved values after it, identically for every backend |
+| Layers are long rows that point at axis rows by integer row numbers; duplicates and value parsing run on them, and widening is last (decision, 24 Oct 2026) | The first implementation, following V5's explicit-column identity, kept each layer a wide raw table keyed by raw var-key columns, resolved duplicates column-wise and aligned the table to the final axes by key joins | Peak memory: the wide path peaked at 41.3 GB for 7.4 GB of final layers on a 150-run DIA-NN subset (§1). Identity stays in the axes' key columns |
 | `ParseRuleFacade.resolve_source(SourceEvidence)` replaces `resolve_header(header)` | V5 expected a column-name sequence to produce numeric formats, read dtypes, and Parquet compatibility decisions | Pass the exact physical evidence required for one atomic resolved plan and remove hidden compiler side channels |
 | Vendor-parameter parsing retains the `vendor_params` name and lives in the independent `parserV2/vendor_params/` child; `detect_document.search_parameter_evidence()` translates its complete `Parameters` record to rule-owned `SearchParameterEvidence` | The first specification placed `vendor_params` beside `parserV2` and required a second outer composition layer | Give applications one public in-memory boundary without renaming the established parameter model, and keep both `parse_quant` and `vendor_parse_rules` independent of it |
 | Parser V2 owns its boundary errors: rule applicability in `vendor_parse_rules/document.py`, shared parse/source errors in `parse_quant/errors.py`, and strategy-local errors beside their raiser | V5 named error categories but did not assign them to the folder dependency graph; importing the existing top-level `apb2.errors` would be an upward dependency | Keep catchable errors at the boundary that defines their meaning without creating a generic cross-package error module |
@@ -151,15 +159,11 @@ The specification stays close to V5. These are the only intentional changes:
 | `ParsedLevel` includes axis-aligned and sparse pairwise Polars frames | V5 stopped at axes, layers, and `uns` | Carry the AnnData/MuData slots later tools need without importing their containers into computation |
 | Final layers distinguish measurement and auxiliary roles | V5 treated every retained numeric layer as an occupancy peer | Let downstream tools persist diagnostic matrices without allowing their density or sparsity to alter quantitative matrix-occupancy checks |
 
-No other architectural novelty is introduced. In particular, this specification does not restore
-the V4 reverse path, temporary IDs, parser-side arrays, a Builder, a generic dataframe facade, or a
-broad transformation object.
+No other architectural novelty is introduced. In particular, this specification does not restore the V4 reverse path, parser-side arrays, a Builder, a generic dataframe facade, or a broad transformation object. The one exception is integer row numbers, recorded in §1: they point layer rows at axis rows and are never identity.
 
 ## 2. Controlling architecture
 
-Rectangles name data values. Rounded boxes name functions or injected behavior. Dashed arrows are
-temporary alignment evidence, not ownership. Exactly one physical-shape path is constructed for a
-parser.
+Rectangles name data values. Rounded boxes name functions or injected behavior. Dashed arrows carry final positions, not ownership. Exactly one physical-shape path is constructed for a parser.
 
 ```mermaid
 flowchart TB
@@ -168,25 +172,25 @@ flowchart TB
     SOURCE["LevelSourceTable<br/>projected physical columns<br/>eager Polars DataFrame"]
     LONG(["LongSourceDecomposer.decompose()"])
     WIDE(["WideSourceDecomposer.decompose()"])
-    SEP(["FragmentTableSeparator.separate()"])
-    SCALAR["LevelSourceTable<br/>scalar-long fragment rows"]
-    REUSE(["LongSourceDecomposer.decompose()<br/>same implementation as direct long"])
-    RAW["DecomposedDataRaw<br/>ObsRaw + VarRaw + wide RawLayerTables"]
+    SEP(["FragmentTableSeparator.listed()<br/>packed cells become lists"])
+    SCALAR(["row numbers on the precursor rows,<br/>then FragmentTableSeparator.exploded()"])
+    REUSE(["LongSourceDecomposer.raw_level()<br/>same layers as direct long"])
+    RAW["RawLevel<br/>ObsRaw + VarRaw + LongLayers"]
     PREPO(["ParseStrategy._prepare_obs()"])
     PREPV(["ParseStrategy._prepare_var()"])
     OBS["ObsFinal<br/>final obs frame + authored key columns"]
     VAR["VarFinal<br/>final var frame + authored key columns"]
-    OMAP["RawToFinalKeyMap<br/>temporary obs relation"]
-    VMAP["RawToFinalKeyMap<br/>temporary var relation"]
-    RAWL["RawLayerTable<br/>raw var keys + obs value columns"]
-    FILTER(["ParseStrategy._retain_mappable_layer()"])
-    MAPL["RawLayerTable<br/>unmappable rows and columns removed"]
-    DEDUPOP(["DuplicatePolicy.resolve(layer, presence)"])
-    DEDUP["RawLayerTable<br/>one value per raw cell"]
-    ALIGN(["ParseStrategy._align_layer_keys()"])
-    ALIGNED["FinalLayerTable<br/>aligned raw values"]
-    VALUES(["LayerValueParser.parse(aligned)"])
-    LFINAL["FinalLayerTable<br/>canonical values + roles + semantics"]
+    POS["FinalPositions<br/>final position per raw axis row<br/>+ ObservationGrid"]
+    RAWL["LongLayer<br/>var_row, obs_row, value"]
+    CLAIM(["ParseStrategy._claimed()<br/>FinalPositions.place() + present()"])
+    PLACED["LongLayer<br/>var_pos, obs_pos, value<br/>absent values null"]
+    SPLIT(["LongLayer.split()"])
+    ONCE["LongLayer<br/>rows alone in their cell"]
+    REPEATED["LongLayer<br/>rows that repeat a cell"]
+    DEDUPOP(["DuplicatePolicy.resolve(repeated)"])
+    CELLS["LongLayer<br/>one row per measured cell"]
+    VALUES(["LayerValueParser.parse(cells, grid)<br/>parse long, then ObservationGrid.widen()"])
+    LFINAL["FinalLayerTable<br/>wide canonical values + roles + semantics"]
     VALIDATE(["LayerContractValidator.validate(layers)"])
     PRUNE(["FieldPruner.prune(obs, var, layers, effectively_empty)"])
     RESULT["ParsedLevel<br/>final axes + final layer tables + primary name + uns"]
@@ -201,17 +205,16 @@ flowchart TB
     SOURCE -->|"direct wide"| WIDE --> RAW
     SOURCE -->|"delimiter-packed"| SEP --> SCALAR --> REUSE --> RAW
     RAW -->|"raw.obs"| PREPO --> OBS
-    PREPO --> OMAP
+    PREPO --> POS
     RAW -->|"raw.var"| PREPV --> VAR
-    PREPV --> VMAP
-    RAW -->|"for each raw.layers.values"| RAWL
-    RAWL --> FILTER --> MAPL
-    OMAP -.->|"valid obs rows and order"| MAPL
-    VMAP -.->|"valid var rows"| MAPL
-    MAPL --> DEDUPOP --> DEDUP
-    DEDUP --> ALIGN --> ALIGNED --> VALUES --> LFINAL
-    OMAP -.->|"final obs order"| LFINAL
-    VMAP -.->|"final var keys and order"| LFINAL
+    PREPV --> POS
+    RAW -->|"for each raw.layers"| RAWL
+    RAWL --> CLAIM --> PLACED --> SPLIT
+    POS -.->|"final positions, null for dropped axis rows"| CLAIM
+    SPLIT --> ONCE --> CELLS
+    SPLIT --> REPEATED --> DEDUPOP --> CELLS
+    CELLS --> VALUES --> LFINAL
+    POS -.->|"grid: VarFinal height + obs labels"| VALUES
     OBS --> PRUNE
     VAR --> PRUNE
     LFINAL --> VALIDATE --> PRUNE -->|"compose"| RESULT
@@ -245,18 +248,24 @@ select one effective rule and one physical source
     -> read only the level's transitive physical source closure
     -> decompose long, wide, or delimiter-packed physical shape
     -> construct distinct small ObsRaw and VarRaw tables with explicit raw_key_columns
-    -> preserve each layer as a wide RawLayerTable
+    -> give every layer row the raw axis rows it points at (var_row, obs_row): one join per
+       axis on the raw key columns, or the sample's header position for a wide obs axis
+    -> keep each layer as long rows (LongLayer), repeated cells included
     -> normalize and materialize final axis keys on the small axis tables
     -> reject distinct raw keys that collapse to one valid final key
-    -> remove layer rows or columns that cannot map to valid final keys
-    -> resolve repeated raw measurement cells column-wise
-    -> align raw var keys and obs column order to the validated final axes
-    -> parse aligned layers into canonical numbers or category codes
+    -> give every raw axis row its final position, or null when its final key is incomplete
+    -> keep_best only: place and claim the ranking layer once and rank its repeated rows
+    -> for each layer, in authored order:
+         place its rows at final positions, dropping rows whose axis row has no position
+         null the scalars the layer parser's present() says claim no cell
+         split off the rows that repeat a (var_pos, obs_pos) cell
+         resolve those repeated cells with the duplicate policy
+         parse the single and resolved cells into canonical numbers or category codes
+         widen them into the layer's wide frame
     -> validate canonical layer names and measurement occupancy
     -> leave out single-valued, empty and effectively empty columns and layers, recording each
     -> assign semantic roles to the retained var columns and layers
-    -> discard temporary raw-to-final maps
-    -> return ParsedLevel
+    -> return ParsedLevel, which holds wide layers and no row numbers or positions
     -> serialize only when the caller supplies the ParsedLevels to write_parsed_levels()
 ```
 
@@ -370,9 +379,9 @@ The three sets mean:
 
 | Field | Meaning | Lifetime |
 | --- | --- | --- |
-| `raw_key_columns` | Physical reader columns, resolved wide-header captures, or separator outputs whose complete tuple distinguishes raw source identity before logical coercion and key computation | `ObsRaw`, `VarRaw`, raw layers, temporary key map |
+| `raw_key_columns` | Physical reader columns, resolved wide-header captures, or separator outputs whose complete tuple distinguishes raw source identity before logical coercion and key computation | `ObsRaw`, `VarRaw`, the join that gives layer rows their row numbers, collision and duplicate-error examples |
 | `key_input_columns` | Direct logical inputs of the authored final key after key-phase materialization, or the selected key itself | Recorded in the plan snapshot; values remain local to axis preparation |
-| `final_key_columns` | Authored `axis.obs_keys` or `axis.var_keys` | `ObsFinal`, `VarFinal`, final layers, output adapters |
+| `final_key_columns` | Authored `axis.obs_keys` or `axis.var_keys` | `ObsFinal`, `VarFinal`, output adapters; final layers align with them by position |
 
 The dependency walk obeys these rules:
 
@@ -420,32 +429,46 @@ These are test cases for one algorithm. They are not registry keys or branches.
 
 ### 3.3 Raw duplicates and canonicalization collisions
 
-A raw wide layer may contain repeated var rows:
+A long report may measure one cell twice. Here `PEPMIDE` has two rows for run `A`:
 
 ```text
-sequence  mods         mod_sites  charge  A      B      C
-PEPMIDE   Oxidation@M  4          2       10.0   12.0   null
-PEPMIDE   Oxidation@M  4          2       11.0   null   9.0
-OTHER     null         null       3        5.0    6.0   7.0
+sequence  mods         mod_sites  charge  run  intensity
+PEPMIDE   Oxidation@M  4          2       A    10.0
+PEPMIDE   Oxidation@M  4          2       B    12.0
+PEPMIDE   Oxidation@M  4          2       A    11.0
+PEPMIDE   Oxidation@M  4          2       C    9.0
+OTHER     null         null       3       A    5.0
+OTHER     null         null       3       B    6.0
+OTHER     null         null       3       C    7.0
 ```
 
-`DuplicatePolicy.resolve()` groups by `RawLayerTable.raw_var_key_columns`, asks the injected
-layer-specific `RawValuePresence` which raw scalars claim a cell, and applies its policy
-independently to each observation value column. The policy answers only:
+Decomposition builds `VarRaw` with rows `PEPMIDE…` (0) and `OTHER…` (1) and `ObsRaw` with runs `A`, `B`, `C` (0, 1, 2). The layer keeps every physical value as one long row, so the repeat stays two rows naming one cell:
 
-> How do several raw scalar values claiming one `(raw var key, raw obs key, layer)` cell become
-> one scalar value?
+```text
+var_row  obs_row  value
+0        0        10.0
+0        1        12.0
+0        0        11.0
+0        2        9.0
+1        0        5.0
+1        1        6.0
+1        2        7.0
+```
+
+A wide input gives the same rows when two physical columns claim one sample, or two file rows repeat one raw var key.
+
+The parser places the layer at final positions (`var_pos`, `obs_pos`), nulls every scalar the layer parser's `present()` says claims no cell, and splits off the rows that repeat a placed cell. `DuplicatePolicy.resolve()` receives only those repeated rows, groups them by (`var_pos`, `obs_pos`) in first-appearance order, and returns one row per cell. The policy answers only:
+
+> How do several raw scalar values claiming one `(var_pos, obs_pos, layer)` cell become one scalar value?
 
 The supported answers are:
 
 - `ErrorOnDuplicates`: reject a cell with more than one present value;
 - `KeepFirstDuplicate`: select the first present value in stable physical order;
 - `AggregateNumericDuplicates`: sum, or take the smallest or largest of, already-numeric scalar values (`sum`, `min`, `max`) and reject strings or factors;
-- `KeepBestDuplicate` (`keep_best`): rank the repeated rows once by a declared numeric layer, then take every layer's value from the winning row, so one cell's layers describe one source row; a row without a ranking value loses, and ties keep stable physical order. Layers the rule lists in `sum` add up over the repeated rows instead, as MaxQuant's intensities and MS/MS counts do while its PEP, score and retention time come from the lowest-PEP evidence row.
+- `KeepBestDuplicate` (`keep_best`): rank the repeated rows once by a declared numeric layer, every claimed value of which must be a plain number, then take every layer's value from the winning row, so one cell's layers describe one source row; a row without a ranking value loses, and ties keep stable physical order. Layers the rule lists in `sum` add up over the repeated rows instead, as MaxQuant's intensities and MS/MS counts do while its PEP, score and retention time come from the lowest-PEP evidence row.
 
-`RawValuePresence` may recognize null, a declared numeric sentinel, or a sentinel extracted from a
-structured numeric token. It returns a Boolean mask and never changes a scalar value. Layer
-encoding is not part of duplicate resolution.
+Presence is the layer parser's question, decided before any policy runs. `present()` may recognize null, a declared numeric sentinel, a declared missing token, or a sentinel extracted from a structured numeric token. It returns a Boolean mask; the parser nulls the scalars it rejects and changes no other value. Layer encoding is not part of duplicate resolution.
 
 Axis preparation checks a different invariant:
 
@@ -463,7 +486,7 @@ duplicate policy is never allowed to hide that information loss.
 | repeated quantitative cell | equal | equal | configured `DuplicatePolicy` |
 | distinct valid cells | different | different | normal flow |
 | canonicalization collision | different | same valid key | fixed `CanonicalKeyCollisionError` |
-| unusable identity | any | at least one missing component | fixed filtering before duplicate resolution |
+| unusable identity | any | at least one missing component | fixed filtering by `FinalPositions.place()` before duplicate resolution |
 
 This distinction catches lossy modification normalization, logical coercion, or computed-key
 rules without inventing another policy family.
@@ -472,12 +495,14 @@ rules without inventing another policy family.
 
 ```python
 class SourceDecomposer(Protocol):
-    def decompose(self, table: LevelSourceTable, /) -> DecomposedDataRaw: ...
+    def decompose(self, table: LevelSourceTable, /) -> RawLevel: ...
 ```
 
 A decomposer performs physical shape conversion only. It receives source-resolved columns and
 configured key sets. It receives no rule model, vendor name, level name, unresolved regex,
 duplicate mode, encoder, or writer.
+
+Every shape returns the same `RawLevel`: two small raw axes and one `LongLayer` per layer. A layer row names its cell by the row it points at in each raw axis (`var_row`, `obs_row`) and carries the value as the reader produced it; it never repeats key text. Repeated cells stay repeated rows, because deciding what they mean is the duplicate policy's question.
 
 ### 4.1 Long input
 
@@ -488,56 +513,60 @@ duplicate mode, encoder, or writer.
    resolved by the `FeatureValuePolicy` the resolver configured for it, and records the columns
    whose repeated rows disagree;
 3. retains raw-key columns as ordinary Polars columns and retains stable-first obs payload metadata;
-4. creates one wide `RawLayerTable` per resolved layer source;
-5. puts raw var-key columns first and observation value columns in exactly `ObsRaw.frame` order;
-6. preserves repeated raw cells as repeated var rows for the duplicate policy.
+4. gives every physical row its `var_row` and `obs_row`: one left join per axis of the physical rows' raw key columns, and only those, against that axis frame with a row index (`nulls_equal=True`, `maintain_order="left"`); every physical row's key tuple is in the axis it built, so no row number is null;
+5. creates one `LongLayer` per resolved layer source: the two shared row-number Series beside the read column itself, with no copy and no pivot;
+6. keeps repeated raw cells as repeated rows for the duplicate policy.
 
-The pivot may use a local occurrence counter to prevent repeated cells from being collapsed by
-the dataframe operation. That counter is an implementation detail inside `decompose()` and is
-never returned as identity.
+Row numbers are pointers, not identity: equal raw keys get equal row numbers because each axis holds one row per raw-key tuple, and the key columns stay on the axis.
 
 ### 4.2 Wide input
 
 `WideSourceDecomposer` receives concrete `source_column -> sample` mappings produced during source
 resolution. It:
 
-1. derives `ObsRaw` from primary-layer sample captures in stable header order;
-2. derives `VarRaw` with one row per complete raw var-key tuple in stable source-row order, each payload column resolved by its `FeatureValuePolicy` as for long input;
+1. derives `ObsRaw` from primary-layer sample captures in stable header order; a sample's position in that order is its `obs_row`;
+2. derives `VarRaw` with one row per complete raw var-key tuple in stable source-row order, each payload column resolved by its `FeatureValuePolicy` as for long input, and gives every file row its `var_row` by the same join as long input;
 3. consumes mappings already resolved with selected and computed var-column names excluded from permissive layer patterns;
-4. selects each layer's resolved physical columns and places their sample-aligned values after the
-   raw var-key columns;
-5. represents several physical columns claiming one sample as repeated rows so the same
-   `DuplicatePolicy` handles long and wide inputs;
-6. omits an optional layer with no primary-axis-aligned source;
-7. retains a required layer that physically matched only non-primary sample tokens as an empty
-   aligned layer: raw var-key rows plus the complete primary observation columns filled with null,
-   preserving current contract-check behavior.
+4. emits each layer's long rows directly, one block per resolved physical column: every file row's `var_row`, the column's sample position as `obs_row`, and the column itself as `value`;
+5. orders the blocks by each column's occurrence within its sample, then by sample, and keeps file-row order inside a block; several physical columns claiming one sample therefore become repeated cells whose repeats keep header order, then row order, and the same `DuplicatePolicy` handles long and wide inputs;
+6. lets a sample the layer lacks contribute no rows, and omits an optional layer with no primary-axis-aligned source, which source resolution already left out;
+7. retains a required layer that physically matched only non-primary sample tokens as a layer without rows, which widens into the complete primary observation columns filled with null, preserving current contract-check behavior.
 
 Zero physical matches for a required layer make the source incompatible. Header regexes never
 reach the decomposer.
 
 ### 4.3 Delimiter-packed fragments
 
-Packed fragments are separated before ordinary long decomposition:
+Packed fragments are separated in two steps, and the key text is replaced by row numbers between them, so the explode multiplies integers rather than strings:
 
 ```python
 class FragmentTableSeparator(Protocol):
-    def separate(self, table: LevelSourceTable, /) -> LevelSourceTable: ...
+    @property
+    def label_output(self) -> str: ...
+    @property
+    def packed_sources(self) -> tuple[str, ...]: ...
+    def listed(self, frame: pl.DataFrame, /) -> pl.DataFrame: ...
+    def exploded(self, frame: pl.DataFrame, /) -> pl.DataFrame: ...
 
 
+@dataclass(frozen=True, slots=True)
 class DelimitedFragmentSourceDecomposer:
-    def __init__(
-        self,
-        separator: FragmentTableSeparator,
-        long_decomposer: SourceDecomposer,
-    ) -> None:
-        self._separator = separator
-        self._long_decomposer = long_decomposer
+    separator: FragmentTableSeparator
+    long_decomposer: LongSourceDecomposer
 
-    def decompose(self, table: LevelSourceTable, /) -> DecomposedDataRaw:
-        scalar_long = self._separator.separate(table)
-        return self._long_decomposer.decompose(scalar_long)
+    def decompose(self, table: LevelSourceTable, /) -> RawLevel:
+        listed = self.separator.listed(table.frame)
+        # obs axis and obs_row, and the precursor (var keys without the label) and its row,
+        # both joined on the listed precursor rows
+        exploded = self.separator.exploded(
+            listed.select(precursor_row, obs_row, *var_payload, *packed_sources)
+        )
+        # fragment axis: one row per (precursor_row, label) with the var payload policies,
+        # var_row joined on those two columns, precursor key columns restored afterwards
+        return self.long_decomposer.raw_level(exploded, obs_frame, var, var_row, obs_row)
 ```
+
+`listed()` splits the packed columns and drops the rows that hold no scalar; `exploded()` gives each scalar its row and the `label_output` column, nulls empty scalars and drops the packed label column. Only the var payload travels through the explode as text, because each fragment resolves it over its own rows. The fragment axis keeps the order of first appearance in the exploded rows, as before, and its frame and disagreement frames carry the raw var key columns in their declared order.
 
 The two separator implementations are:
 
@@ -568,7 +597,7 @@ packed_value_sources = (
 ```
 
 For a cell `Fragment.Quant.Raw = "1200;900;450"`, positional separation emits three scalar rows
-labelled `frag_0`, `frag_1`, and `frag_2`.
+labelled `frag_0`, `frag_1`, and `frag_2`. Measured on a 50-run subset of a DIA-NN 1.8 report (3.4 M precursor rows, 20.3 M fragment rows), moving the row numbers before the explode lowered the fragment level's peak footprint from 11.1 GB to 8.7 GB.
 
 ## 5. Parser algorithm
 
@@ -605,9 +634,20 @@ class ParseStrategy:
 
     def parse(self, source: LevelSourceTable) -> ParsedLevel:
         raw = self.decomposer.decompose(source)
-        obs, obs_map = self._prepare_obs(raw.obs)
-        var, var_map, unknown_mod_tokens = self._prepare_var(raw.var)
-        layers, unreadable_numeric = self._prepare_layers(raw.layers, obs_map, var_map)
+        obs, obs_positions, _obs_keys = self._prepare_obs(raw.obs)
+        var, var_positions, var_keys, unknown_mod_tokens = self._prepare_var(raw.var)
+        positions = FinalPositions(
+            var=var_positions,
+            obs=obs_positions,
+            var_keys=var_keys,
+            grid=ObservationGrid(
+                height=var.frame.height,
+                labels=observation_labels(
+                    obs.frame.height, reserved=self.var.keys.final_key_columns
+                ),
+            ),
+        )
+        layers, unreadable_numeric = self._prepare_layers(raw.layers, positions)
         effectively_empty = self.layer_validator.validate(layers)
         pruned = self.pruner.prune(obs, var, layers, effectively_empty or {})
         obs, var, layers = pruned.obs, pruned.var, pruned.layers
@@ -617,12 +657,12 @@ class ParseStrategy:
             unreadable_numeric,
             pruned.single_valued,
             pruned.effectively_empty,
-            self._var_disagreements(raw.var, var_map),
+            self._var_disagreements(raw.var, var_keys),
         )
         return ParsedLevel(
             obs=obs,
             var=var,
-            primary_layer_name=raw.layers.primary_layer_name,
+            primary_layer_name=raw.primary_layer_name,
             uns=evidence.record(self.provenance),  # provenance, result and summary, as stored
             layers=layers,
             obsm={},
@@ -632,24 +672,28 @@ class ParseStrategy:
         )
 
     def _prepare_layers(
-        self, raw: LayersRaw, obs_map: RawToFinalKeyMap, var_map: RawToFinalKeyMap
+        self, raw: tuple[LongLayer, ...], positions: FinalPositions
     ) -> tuple[dict[str, FinalLayerTable], dict[str, JsonValue]]:
         layers: dict[str, FinalLayerTable] = {}
         diagnostics: dict[str, JsonValue] = {}
-        duplicates = self._ranked_duplicates(raw, obs_map, var_map)  # keep_best ranks once
-        for layer in raw.values:
-            parser = self.layer_parsers[layer.layer_name]
-            mappable = self._retain_mappable_layer(layer, obs_map, var_map)
-            resolved = duplicates.resolve(mappable, parser)
-            aligned = self._align_layer_keys(resolved, obs_map, var_map)
-            parsed, evidence = parser.parse(aligned)
+        duplicates = self._ranked_duplicates(raw, positions)  # keep_best ranks once
+        for layer in raw:
+            values = self.layer_parsers[layer.layer_name]
+            once, repeated = self._claimed(layer, positions, values).split()
+            resolved = duplicates.resolve(repeated)  # always runs; 0 rows when nothing repeats
+            cells = (
+                replace(once, rows=pl.concat([once.rows, resolved.rows], how="vertical_relaxed"))
+                if resolved.rows.height
+                else once
+            )
+            parsed, evidence = values.parse(cells, positions.grid)  # parse long, then widen
             layers[layer.layer_name] = parsed
             if evidence:
                 diagnostics[layer.layer_name] = evidence
         return layers, diagnostics
 ```
 
-Parsing never writes. `_prepare_obs()` and `_prepare_var()` apply the same axis routine using `self.obs` and `self.var`, returning the final axis and temporary map; var preparation also returns modification diagnostics.
+Parsing never writes. `_prepare_obs()` and `_prepare_var()` apply the same axis routine using `self.obs` and `self.var`, returning the final axis, each raw row's final position and the raw keys of the rows that stayed; var preparation also returns modification diagnostics. `FinalPositions` holds both axes' positions, the kept raw var keys for error examples, and the `ObservationGrid` every layer widens onto.
 
 ### 5.1 Axis preparation
 
@@ -662,39 +706,40 @@ class ParseStrategy:
         raw: pl.DataFrame,
         raw_key_columns: tuple[str, ...],
         plan: AxisRuntimePlan,
-    ) -> tuple[pl.DataFrame, RawToFinalKeyMap, tuple[str, ...]]:
+    ) -> tuple[pl.DataFrame, pl.Series, pl.DataFrame, tuple[str, ...]]:
         """One staged algorithm for both axes: identity first, then public metadata.
 
         The raw axis already holds one stable-first row per raw key, so nothing here calls
         ``unique`` on the final keys: a repeated valid final key means two raw identities
         collapsed, which is an error rather than a deduplication.
+
+        Returns the final axis, each raw row's final position (null where the row's final key
+        is incomplete), and the raw keys of the rows that stayed, in final order.
         """
         working, early_tokens = ParseStrategy._materialize_axis_columns(raw, raw, plan.key_phase)
 
-        mapping = RawToFinalKeyMap(
-            # Read from the frame as it arrived: a declared column may carry the name of the
-            # physical column it was selected from, and materializing it would then replace
-            # the raw values this map exists to hold.
-            raw_keys=raw.select(list(raw_key_columns)),
-            final_keys=working.select(list(plan.keys.final_key_columns)).fill_nan(None),
-        )
-        ParseStrategy._require_injective_key_mapping(mapping)
+        # Read from the frame as it arrived: a declared column may carry the name of the
+        # physical column it was selected from, and materializing it would then replace the
+        # raw values the identity check reports.
+        raw_keys = raw.select(list(raw_key_columns))
+        # A number coerced from text such as ``nan`` is as absent as null.
+        final_keys = working.select(list(plan.keys.final_key_columns)).fill_nan(None)
+        ParseStrategy._require_injective_keys(raw_keys, final_keys)
 
-        valid = ParseStrategy._valid_final_key_rows(mapping.final_keys)
+        valid = ParseStrategy._valid_final_key_rows(final_keys)
         final_rows, output_tokens = ParseStrategy._materialize_axis_columns(
             working.filter(valid), raw.filter(valid), plan.output_phase
         )
+        positions = valid.cast(pl.UInt32).cum_sum() - 1
         return (
             final_rows.select(list(plan.outputs)),
-            mapping,
+            pl.select(pl.when(valid).then(positions)).to_series(),
+            raw_keys.filter(valid),
             tuple(dict.fromkeys((*early_tokens, *output_tokens))),
         )
 ```
 
-The raw axes already contain one stable-first row per complete raw-key tuple. Preparation therefore
-does not silently call `unique()` on the final keys. A repeated valid final key from different raw
-keys is an error. Rows with missing final-key components stay only in the temporary mapping so the
-corresponding raw layer rows or obs value columns can be removed.
+The raw axes already contain one stable-first row per complete raw-key tuple. Preparation therefore does not silently call `unique()` on the final keys. A repeated valid final key from different raw keys is an error. A row with a missing final-key component gets a null final position; every other row's position is its rank among the valid rows, so final order follows raw axis order. The raw and final key frames stay local to this method, except the raw keys of the kept rows, which duplicate errors and `var_disagreements` quote.
 
 The runtime plan is fully configured. `ParseStrategy._materialize_axis_columns()` iterates concrete
 selections and computers; it does not inspect a `how`, logical type, vendor, layout, level, or
@@ -702,30 +747,27 @@ optional-source flag. The private calls in this algorithm are static methods bec
 their explicit arguments and have one class client. Supplement H states the complete placement
 rule; a helper is not made public merely to shorten this class.
 
-### 5.2 Layer filtering, resolution, and alignment
+### 5.2 Placing, resolving, parsing and widening layers
 
-`ParseStrategy._retain_mappable_layer()` removes:
+`FinalPositions.place()` gathers each layer row's final positions by its row numbers (`var_row` to `var_pos`, `obs_row` to `obs_pos`) and drops the rows whose axis row has no final position:
 
-- raw var rows whose map row has a missing final-var-key component;
-- raw obs value columns whose map row has a missing final-obs-key component.
+- rows of a raw var row with a missing final-var-key component;
+- rows of a raw obs row with a missing final-obs-key component.
 
-This is fixed validity filtering, not a policy. The duplicate policy then sees only cells that can
-enter the result while still grouping by raw keys.
+This is fixed validity filtering, not a policy. `ParseStrategy._claimed()` then nulls every scalar the layer parser's `present()` rejects, keeping the dtype and every claiming scalar unconverted. The duplicate policy therefore sees only cells that can enter the result, with absent values already null.
 
-`ParseStrategy._align_layer_keys()` constructs the aligned layer, still carrying raw scalars; the selected layer parser then returns its canonical replacement. Alignment:
+Per layer, in authored order, the parser then:
 
-1. uses the valid variable map in `VarFinal` order as the left spine and joins raw layer rows to it,
-   inserting null value rows for final variables absent from that layer;
-2. replaces them with the authored final var-key columns;
-3. orders rows exactly like `VarFinal.frame`;
-4. keeps the complete valid observation-column order established by decomposition and validity filtering; missing measurements already have null columns;
-5. assigns unique storage column names where a multi-column obs identity cannot itself be a Polars
-   column name;
-6. copies raw layer scalar values without interpreting them; `LayerValueParser.parse()` runs next and attaches canonical values, role and semantics.
+1. splits the claimed rows with `LongLayer.split()` into rows alone in their cell and rows that repeat a cell, by one `is_duplicated()` on the two position columns;
+2. resolves only the repeated rows with the duplicate policy, which always runs, on a layer without rows when nothing repeats;
+3. concatenates the single rows and the resolved rows (`vertical_relaxed`, because `sum` may promote a small integer dtype);
+4. hands those cells and the grid to `LayerValueParser.parse()`, which parses the one long value column into canonical numbers or category codes, reports unreadable tokens on these cells, and widens them through `ObservationGrid.widen()`.
 
-The generated storage column names are positional labels only. They are unique and disjoint from
-the var-key column namespace, but they are not observation identity. `ObsFinal.frame` and
-`ObsFinal.key_columns` remain the sole semantic identity.
+`keep_best` adds one step before the loop: `_ranked_duplicates()` places and claims the ranking layer once and builds `RankedDuplicates` from it.
+
+`ObservationGrid.widen()` is the only place a layer becomes wide. It fills one buffer of the layer's size (`VarFinal` height times observation count) with the fill value, scatters each value to `obs_pos × height + var_pos`, and returns the columns as slices of that buffer. The result is complete by construction: every final var row and observation column exists, and a cell no row names holds the fill, null for numbers and −1 for factor layers. A null stays null and a NaN stays NaN, in the parsed dtype. Only one layer's wide frame is built at a time.
+
+The generated storage column names are positional labels only. They are unique and disjoint from the final var-key column names, but they are not observation identity. `ObsFinal.frame` and `ObsFinal.key_columns` remain the sole semantic identity, and a wide layer aligns with both axes by position alone.
 
 ## 6. Serialization boundary
 
@@ -734,12 +776,7 @@ class ParsedLevelsWriter(Protocol):
     def write(self, parsed: ParsedLevels, target: Path, /) -> None: ...
 ```
 
-The writer receives the complete parsed result. It treats that result as read-only and creates its
-own backend values. Before any backend allocation or staging, `io/validation.py` verifies that final
-axis keys are complete and unique, every layer declares the same var-key tuple as `VarFinal`, the
-key columns lead the layer in that order, and their values equal `VarFinal` row-for-row. A writer
-must never infer alignment from matching dimensions alone. It also requires the primary layer to
-have `MeasurementLayerRole`; an `AuxiliaryLayerRole` cannot define the primary quantitative matrix.
+The writer receives the complete parsed result. It treats that result as read-only and creates its own backend values. Before any backend allocation or staging, `io/validation.py` verifies that final axis keys are complete and unique and that every layer has one row per `VarFinal` row and one value column per `ObsFinal` row; a layer carries no key columns and aligns with its axes by position. It also requires the primary layer to have `MeasurementLayerRole`; an `AuxiliaryLayerRole` cannot define the primary quantitative matrix.
 
 Downstream APB tools import only `apb2.api`. They build levels with `ParsedLevel.build()` and read values with `FinalLayerTable.quantitative_values()`, so the positional observation labels stay an APB2 convention.
 
@@ -749,7 +786,7 @@ The result-I/O `ParquetLevelsWriter` persists:
 
 - `parsed.obs.frame` plus `parsed.obs.key_columns` metadata;
 - `parsed.var.frame` plus `parsed.var.key_columns` metadata;
-- every `FinalLayerTable.values` plus `var_key_columns` and layer-role metadata;
+- every `FinalLayerTable.values` plus layer-role and semantics metadata;
 - `primary_layer_name`, per-level `uns`, and shared `ParsedLevels.uns`;
 - every `obsm`/`varm` aligned frame; and
 - every `obsp`/`varp` sparse-coordinate frame.
@@ -773,7 +810,7 @@ target.parquet/
             ...
 ```
 
-`manifest.json` version 9 records level and table order, axis keys, each layer's var keys and role,
+`manifest.json` version 9 records level and table order, axis keys, each layer's role and semantics,
 primary layers, both provenance scopes, every table's ordered logical Polars schema, and explicit
 logical-to-physical names. A user-authored name is never interpolated into a path without that
 mapping. `ParquetReader` accepts this APB2 dataset only; a vendor `.parquet` file is not a result.
@@ -784,10 +821,7 @@ mapping. `ParquetReader` accepts this APB2 dataset only; a vendor `.parquet` fil
 
 ```python
 validate_parsed_level(level_name, parsed)
-arrays = {
-    name: layer.values.select(pl.exclude(layer.var_key_columns)).to_numpy().T
-    for name, layer in parsed.layers.items()
-}
+arrays = {name: layer.values.to_numpy().T for name, layer in parsed.layers.items()}
 layer_names = safe_names(parsed.layers, prefix="layer", suffix="")
 adata = AnnData(
     X=arrays[parsed.primary_layer_name],
@@ -935,10 +969,10 @@ classDiagram
         +parse(source) ParsedLevel
         -_prepare_obs(raw) tuple
         -_prepare_var(raw) tuple
-        -_prepare_layers(raw, obs_map, var_map) dict
+        -_prepare_layers(raw, positions) dict
+        -_ranked_duplicates(raw, positions) DuplicatePolicy
         -_prepare_axis(raw, keys, plan)$ tuple
-        -_retain_mappable_layer(layer, obs_map, var_map)$ RawLayerTable
-        -_align_layer_keys(layer, obs_map, var_map)$ FinalLayerTable
+        -_claimed(layer, positions, values)$ LongLayer
     }
 
     class BoundInputReader {
@@ -947,7 +981,7 @@ classDiagram
     }
     class SourceDecomposer {
         <<protocol>>
-        +decompose(table) DecomposedDataRaw
+        +decompose(table) RawLevel
     }
     class FragmentTableSeparator {
         <<protocol>>
@@ -955,11 +989,7 @@ classDiagram
     }
     class DuplicatePolicy {
         <<protocol>>
-        +resolve(layer, presence) RawLayerTable
-    }
-    class RawValuePresence {
-        <<protocol>>
-        +present(values, dtype) pl.Expr
+        +resolve(layer) LongLayer
     }
     class ParsedLevelsReader {
         <<protocol>>
@@ -972,7 +1002,7 @@ classDiagram
     class LayerValueParser {
         <<protocol>>
         +present(values, dtype) pl.Expr
-        +parse(layer) tuple
+        +parse(layer, grid) tuple
     }
     class LayerSetValidator {
         <<protocol>>
@@ -1010,15 +1040,15 @@ classDiagram
     class DuckDBWriter
     class ParsedLevels
     class ParsedLevel
-    class DecomposedDataRaw
+    class RawLevel
     class ObsRaw
     class VarRaw
-    class LayersRaw
-    class RawLayerTable
+    class LongLayer
+    class FinalPositions
+    class ObservationGrid
     class ObsFinal
     class VarFinal
     class FinalLayerTable
-    class RawToFinalKeyMap
 
     ParseRuleFacade ..> RuleDocument : consumes during projection
     ParseRuleFacade ..> SearchParameterEvidence : consumes
@@ -1037,7 +1067,7 @@ classDiagram
     ParseStrategy *-- LayerSetValidator
     ParseStrategy *-- FieldPruner
     SourceDecomposer ..> FeatureValuePolicy : one per var payload column
-    DuplicatePolicy ..> RawValuePresence : consumes only presence
+    ParseStrategy ..> FinalPositions : builds once per parse
     ParseStrategy --> ParsedLevel : returns
     SourceDecomposer <|.. LongSourceDecomposer
     SourceDecomposer <|.. WideSourceDecomposer
@@ -1054,20 +1084,17 @@ classDiagram
     LayerValueParser <|.. PlainNumericLayerParser
     LayerValueParser <|.. RegexNumericLayerParser
     LayerValueParser <|.. FactorLayerParser
-    RawValuePresence <|.. PlainNumericLayerParser
-    RawValuePresence <|.. RegexNumericLayerParser
-    RawValuePresence <|.. FactorLayerParser
     LayerSetValidator <|.. LayerContractValidator
     MuDataWriter ..> AnnDataWriter : reuses one stateless instance
     H5muWriter ..> MuDataWriter
     MuDataWriter --> ParsedLevels : writes
     ParsedLevels *-- ParsedLevel : one or more
-    DecomposedDataRaw *-- ObsRaw
-    DecomposedDataRaw *-- VarRaw
-    DecomposedDataRaw *-- LayersRaw
-    LayersRaw *-- RawLayerTable
-    RawLayerTable ..> FinalLayerTable : align through key maps
-    RawToFinalKeyMap ..> FinalLayerTable : temporary alignment evidence
+    RawLevel *-- ObsRaw
+    RawLevel *-- VarRaw
+    RawLevel *-- LongLayer : one per layer
+    FinalPositions *-- ObservationGrid
+    FinalPositions ..> LongLayer : places at final positions
+    LongLayer ..> FinalLayerTable : parsed, then widened through ObservationGrid
     ParsedLevel *-- ObsFinal
     ParsedLevel *-- VarFinal
     ParsedLevel *-- FinalLayerTable
@@ -1127,7 +1154,7 @@ flowchart TB
             end
             ERRORS["errors.py<br/>shared parse/source boundary errors"]
             SOURCE_DATA["parameters/source.py<br/>LevelSourceTable"]
-            RAW_DATA["data/raw.py<br/>raw axes, layers, key map"]
+            RAW_DATA["data/raw.py<br/>raw axes, long layers, final positions"]
             PARSED_DATA["data/parsed.py<br/>final axes, slots, ParsedLevel(s)"]
             NUMERIC_TEXT["numeric_text.py<br/>shared numeric expressions"]
             PARAMETERS["parameters/<br/>independent declarations + evidence + source plans"]
@@ -1276,17 +1303,16 @@ The implementation must preserve these invariants:
 - one generic key-plan derivation compiles every axis of every effective rule;
 - level-specific physical projection occurs during reading and before decomposition;
 - delimiter-packed fragments are separated before and then reuse ordinary long decomposition;
-- raw and final axis identity is explicit in columns and tuple fields, never in a hidden dataframe
-  index or temporary integer code;
+- raw and final axis identity is explicit in the axes' key columns and tuple fields, never in a hidden dataframe index; layer rows point at axis rows by integer row numbers and final positions, which are never identity;
 - `ObsRaw` contains one stable-first row per complete raw-key tuple; `VarRaw` contains one row per tuple, each payload column resolved by its `FeatureValuePolicy` (`keep_first`, `min`, `max` or `keep_best`);
-- raw layers are wide DataFrames with raw var-key columns first and obs values in raw obs order;
-- duplicate policies consume the layer parser's Boolean presence expression; selected raw scalars remain uninterpreted until alignment, then the same parser produces canonical values;
-- raw duplicates are resolved before final-key alignment and only by equal raw keys;
+- a layer is long rows (`var_row`, `obs_row`, `value`) in physical order until it is widened, last; repeated cells stay repeated rows until the duplicate policy resolves them;
+- the parser nulls the scalars the layer parser's `present()` rejects before any duplicate policy runs; selected raw scalars remain uninterpreted until the same parser parses the resolved cells;
+- raw duplicates are resolved per placed (`var_pos`, `obs_pos`) cell, which equal raw keys and only equal raw keys share;
 - different raw keys that collapse to one valid final key raise `CanonicalKeyCollisionError`;
-- `ObsFinal`, `VarFinal`, and `FinalLayerTable` retain authored final keys as ordinary columns;
-- temporary key maps are discarded before `ParsedLevel` is returned;
+- `ObsFinal` and `VarFinal` retain authored final keys as ordinary columns; a `FinalLayerTable` holds values only, aligned with both axes by position;
+- row numbers and final positions are discarded before `ParsedLevel` is returned, so a parsed result holds wide layers and no row numbers;
 - a column or layer that holds one value, or none, is left out and its finding recorded in the parse record; keys, role, computed and flag-input columns and the primary and sample layers are kept;
-- parsing converts aligned raw values into backend-neutral numeric/category values, but never creates a matrix, pandas index or backend object;
+- parsing converts resolved raw values into backend-neutral numeric/category values and widens them into Polars frames, but never creates a matrix, pandas index or backend object;
 - Parquet and DuckDB preserve canonical Polars values; AnnData/MuData alone own matrix projection and array allocation;
 - result adapters operate on `ParsedLevels`; every crossing goes through that value and never
   through a backend-to-backend shortcut;
@@ -1319,20 +1345,27 @@ keys explicitly:
 | `LevelSourceTable` | physical source rows; no axis identity yet |
 | `ObsRaw` | `raw_key_columns` names columns in `frame` |
 | `VarRaw` | `raw_key_columns` names columns in `frame` |
-| `RawLayerTable` | `raw_var_key_columns` names leading columns; remaining columns align by order with `ObsRaw.frame` |
-| `RawToFinalKeyMap` | equal-length `raw_keys` and `final_keys` frames define one temporary row relation |
+| `LongLayer` | no key columns; each row names its cell by integer rows of `VarRaw.frame` and `ObsRaw.frame` (`var_row`, `obs_row`), then, once placed, by final positions (`var_pos`, `obs_pos`) |
+| `RawLevel` | composes the two raw axes and the long layers; introduces no identity |
+| `FinalPositions` | each raw axis row's final position, or null when the row left its axis; introduces no identity |
 | `ObsFinal` | `key_columns` is authored `axis.obs_keys` |
 | `VarFinal` | `key_columns` is authored `axis.var_keys` |
-| `FinalLayerTable` | `var_key_columns` names leading columns; remaining columns align by order with `ObsFinal.frame` |
+| `FinalLayerTable` | no key columns; rows align by position with `VarFinal.frame`, value columns with `ObsFinal.frame` |
 | `ParsedLevel` | introduces no new identity; directly composes final values |
 
 The inline comments below are literal examples of field values. Their names come from one
 AlphaDIA-like ion rule only to make the values readable; compiled rules supply the actual names.
 
 ```python
-@dataclass(slots=True)
 class LevelSourceTable:
-    frame: pl.DataFrame
+    __slots__ = ("frame", "input_tables")
+
+    def __init__(self, frame: pl.DataFrame, input_tables: tuple[InputTable, ...] = ()) -> None:
+        # Holds every absent cell as null: a float NaN and text without a non-whitespace
+        # character become null, and rows without any value are dropped.
+        ...
+
+    # frame:
     # pl.DataFrame({
     #     "sequence": ["PEPMIDE", "OTHER"],
     #     "mods": ["Oxidation@M", None],
@@ -1341,6 +1374,9 @@ class LevelSourceTable:
     #     "run_A": [100.0, 50.0],
     #     "run_B": [120.0, 60.0],
     # })
+
+    # input_tables:
+    # the physical tables read, for root ``input_files``; () for an in-memory frame
 
 
 @dataclass(slots=True)
@@ -1366,38 +1402,37 @@ class VarRaw:
     raw_key_columns: tuple[str, ...]
     # ("sequence", "mods", "mod_sites", "charge")
 
+    disagreements: dict[str, pl.DataFrame] = field(default_factory=dict)
+    # {"genes": pl.DataFrame({"sequence": ["PEPMIDE"], ..., "_disagreeing_values": [["G1", "G2"]]})}
+
+
+VAR_ROW, OBS_ROW, VAR_POS, OBS_POS, VALUE = "var_row", "obs_row", "var_pos", "obs_pos", "value"
+
 
 @dataclass(slots=True)
-class RawLayerTable:
+class LongLayer:
     layer_name: str
     # "Intensity"
 
-    raw_var_key_columns: tuple[str, ...]
-    # ("sequence", "mods", "mod_sites", "charge")
+    rows: pl.DataFrame
+    # decomposed, in physical order; the value as the reader produced it:
+    # pl.DataFrame({"var_row": [0, 0, 0, 1], "obs_row": [0, 1, 0, 0],
+    #               "value": ["10.0", "12.0", "11.0", "5.0"]})
+    # placed: the same columns as var_pos, obs_pos, value
 
-    values: pl.DataFrame
-    # pl.DataFrame({
-    #     "sequence": ["PEPMIDE", "PEPMIDE", "OTHER"],
-    #     "mods": ["Oxidation@M", "Oxidation@M", None],
-    #     "mod_sites": ["4", "4", None],
-    #     "charge": ["2", "2", "3"],
-    #     "A": [100.0, 110.0, 50.0],
-    #     "B": [120.0, None, 60.0],
-    #     "C": [None, 90.0, 70.0],
-    # })
+    var_keys: pl.DataFrame = field(default_factory=pl.DataFrame)
+    # once placed, the raw var keys of the final var rows, for error examples only:
+    # pl.DataFrame({"sequence": ["PEPMIDE", "OTHER"], "mods": ["Oxidation@M", None], ...})
 
+    def repeats(self) -> pl.Series: ...
+    # which placed rows share their cell with another row
 
-@dataclass(slots=True)
-class LayersRaw:
-    primary_layer_name: str
-    # "Intensity"
-
-    values: tuple[RawLayerTable, ...]
-    # (intensity_raw, q_value_raw)
+    def split(self) -> tuple[LongLayer, LongLayer]: ...
+    # (the rows alone in their cell, the rows that repeat a cell)
 
 
 @dataclass(slots=True)
-class DecomposedDataRaw:
+class RawLevel:
     obs: ObsRaw
     # ObsRaw(frame=obs_frame, raw_key_columns=("sample",))
 
@@ -1407,27 +1442,43 @@ class DecomposedDataRaw:
     #     raw_key_columns=("sequence", "mods", "mod_sites", "charge"),
     # )
 
-    layers: LayersRaw
-    # LayersRaw(
-    #     primary_layer_name="Intensity",
-    #     values=(intensity_raw, q_value_raw),
-    # )
+    primary_layer_name: str
+    # "Intensity"
+
+    layers: tuple[LongLayer, ...]
+    # (intensity_long, q_value_long), in authored order
 
 
-@dataclass(slots=True)
-class RawToFinalKeyMap:
-    raw_keys: pl.DataFrame
-    # pl.DataFrame({
-    #     "sequence": ["PEPMIDE", "OTHER"],
-    #     "mods": ["Oxidation@M", None],
-    #     "mod_sites": ["4", None],
-    #     "charge": ["2", "3"],
-    # })
+@dataclass(frozen=True, slots=True)
+class FinalPositions:
+    var: pl.Series
+    # pl.Series("var_pos", [0, None, 1], dtype=pl.UInt32): raw var row 1 left the axis
 
-    final_keys: pl.DataFrame
-    # pl.DataFrame({
-    #     "ProForma_ion": ["PEPM[UNIMOD:35]IDE/2", "OTHER/3"],
-    # })
+    obs: pl.Series
+    # pl.Series("obs_pos", [0, 1, 2], dtype=pl.UInt32)
+
+    var_keys: pl.DataFrame
+    # the raw var keys of the final var rows, in final order
+
+    grid: ObservationGrid
+    # ObservationGrid(height=2, labels=("obs_0", "obs_1", "obs_2"))
+
+    def place(self, layer: LongLayer) -> LongLayer: ...
+    # var_pos and obs_pos gathered by var_row and obs_row; rows with a null position dropped
+
+
+@dataclass(frozen=True, slots=True)
+class ObservationGrid:  # data/layer_columns.py
+    height: int
+    # 2: the VarFinal row count
+
+    labels: tuple[str, ...]
+    # ("obs_0", "obs_1", "obs_2"): one positional label per ObsFinal row
+
+    def widen(
+        self, var_pos: pl.Series, obs_pos: pl.Series, values: pl.Series, fill: int | None
+    ) -> pl.DataFrame: ...
+    # one buffer of height × len(labels) cells holding fill; one scatter; columns are slices
 
 
 @dataclass(slots=True)
@@ -1496,19 +1547,19 @@ class FinalLayerTable:
     layer_name: str
     # "Intensity"
 
-    var_key_columns: tuple[str, ...]
-    # ("ProForma_ion",)
-
     values: pl.DataFrame
+    # one row per VarFinal row and one column per ObsFinal row, by position:
     # pl.DataFrame({
-    #     "ProForma_ion": ["PEPM[UNIMOD:35]IDE/2", "OTHER/3"],
-    #     "A": [100.0, 50.0],
-    #     "B": [120.0, 60.0],
-    #     "C": [90.0, 70.0],
+    #     "obs_0": [100.0, 50.0],
+    #     "obs_1": [120.0, 60.0],
+    #     "obs_2": [90.0, 70.0],
     # })
 
     role: FinalLayerRole = field(default_factory=MeasurementLayerRole)
     # MeasurementLayerRole()
+
+    semantic_roles: tuple[str, ...] = ()
+    # ("abundance",)
 
     semantics: FinalLayerSemantics = field(default_factory=QuantitativeLayerSemantics)
     # QuantitativeLayerSemantics(logical_type="number")
@@ -1565,49 +1616,32 @@ Every `obsm` frame has the same row count and order as `obs.frame`; every `varm`
 `var.frame`. Pairwise frames use zero-based final-axis positions, contain unique coordinates, and
 must stay within the corresponding axis shape. Writers validate these laws before staging.
 
-The `RawToFinalKeyMap` frames have equal row count and order. `raw_keys` is unique by construction.
-`require_injective_key_mapping()` proves that valid `final_keys` rows are unique. Key-input columns
-used during computation remain in a local working frame and are not alignment state.
+Axis preparation reads the raw keys and the final keys of one raw axis as two local frames of equal row count and order. The raw keys are unique by construction; `_require_injective_keys()` proves that valid final-key rows are unique. Key-input columns used during computation remain in a local working frame. What leaves the method is `FinalPositions` data: each raw row's final position and the raw keys of the kept rows.
 
-`RawLayerTable` and `FinalLayerTable` are two pipeline states, not a tagged union. Different
-signatures consume them:
+`LongLayer` and `FinalLayerTable` are two pipeline states, not a tagged union. Different signatures consume them:
 
 ```python
 class ParseStrategy:
     @staticmethod
-    def _retain_mappable_layer(
-        layer: RawLayerTable,
-        obs: RawToFinalKeyMap,
-        var: RawToFinalKeyMap,
-        /,
-    ) -> RawLayerTable: ...
-
-    @staticmethod
-    def _align_layer_keys(
-        layer: RawLayerTable,
-        obs: RawToFinalKeyMap,
-        var: RawToFinalKeyMap,
-        /,
-    ) -> FinalLayerTable: ...
+    def _claimed(
+        layer: LongLayer, positions: FinalPositions, values: LayerValueParser, /
+    ) -> LongLayer: ...
 
 
 class DuplicatePolicy(Protocol):
-    def resolve(
-        self,
-        layer: RawLayerTable,
-        presence: RawValuePresence,
-        /,
-    ) -> RawLayerTable: ...
+    def resolve(self, layer: LongLayer, /) -> LongLayer: ...
+
+
+class LayerValueParser(Protocol):
+    def parse(
+        self, layer: LongLayer, grid: ObservationGrid, /
+    ) -> tuple[FinalLayerTable, dict[str, JsonValue]]: ...
 ```
 
 No consumer asks whether a layer is raw or final. There is no `kind`, `is_final`, shared base
 class, or `isinstance` branch.
 
-In both layer-table states, value-column names are collision-free storage labels. Their ordered
-position aligns them with rows of the corresponding obs frame; the labels themselves are not obs
-identity. A decomposer may therefore use positional labels when a raw obs key is composite,
-duplicated as text, or collides with a var-key column name. Semantic identity remains solely in
-`ObsRaw.frame` or `ObsFinal.frame` plus its explicit key tuple.
+A long layer has no value-column names: its rows name observations by integer row or position. Only the wide `FinalLayerTable` has value columns, and their names are collision-free positional labels from `ObservationGrid`. Their order aligns them with rows of `ObsFinal.frame`; the labels themselves are not obs identity, so a raw obs key that is composite, duplicated as text, or collides with a var-key column name never becomes a column name. Semantic identity remains solely in `ObsRaw.frame` or `ObsFinal.frame` plus its explicit key tuple.
 
 ### B. Runtime Protocols and plans
 
@@ -1619,7 +1653,7 @@ class BoundInputReader(Protocol):
 
 
 class SourceDecomposer(Protocol):
-    def decompose(self, table: LevelSourceTable, /) -> DecomposedDataRaw: ...
+    def decompose(self, table: LevelSourceTable, /) -> RawLevel: ...
 
 
 class FragmentTableSeparator(Protocol):
@@ -1647,17 +1681,9 @@ class ColumnComputer(Protocol):
     ) -> tuple[pl.DataFrame, tuple[str, ...]]: ...
 
 
-class RawValuePresence(Protocol):
-    def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr: ...
-
-
 class DuplicatePolicy(Protocol):
-    def resolve(
-        self,
-        layer: RawLayerTable,
-        presence: RawValuePresence,
-        /,
-    ) -> RawLayerTable: ...
+    # receives a layer's repeated cells, absent values already null; returns one row per cell
+    def resolve(self, layer: LongLayer, /) -> LongLayer: ...
 
 
 class FeatureValuePolicy(Protocol):
@@ -1680,7 +1706,9 @@ class ParsedLevelsWriter(Protocol):
 class LayerValueParser(Protocol):
     def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr: ...
 
-    def parse(self, layer: FinalLayerTable) -> tuple[FinalLayerTable, dict[str, JsonValue]]: ...
+    def parse(
+        self, layer: LongLayer, grid: ObservationGrid, /
+    ) -> tuple[FinalLayerTable, dict[str, JsonValue]]: ...
 
 
 class LayerSetValidator(Protocol):
@@ -1702,22 +1730,21 @@ class FieldPruner(Protocol):
 
 Computations return `(frame, unknown_mod_tokens)`; the Series-based `ColumnComputation` envelope is removed. Under `unknown_policy="preserve"`, unresolved tokens remain in ProForma and are collected once in first-observed order into `ParsedLevel.uns["result"]["unknown_mod_tokens"]` and counted in the record's summary; no diagnostic column is injected into the final axis. Normalization and its dependencies run before invalid-key filtering even when the normalized column is metadata, preserving diagnostics and errors from discarded rows. Writers retain their existing parser-namespace persistence.
 
-`RawValuePresence.present()` returns a non-null Boolean expression identifying raw cell occupancy, never converted measurements. Axis coercers validate and return named expressions evaluated together against the immutable physical frame. Computations apply native frame operations in authored dependency order; Polars enforces expression shape. The parser no longer extracts Series, assigns them back individually, or implements a separate axis-length checker.
+`LayerValueParser.present()` returns a non-null Boolean expression identifying raw cell occupancy, never converted measurements; the parser applies it to each placed layer and nulls the scalars it rejects. Axis coercers validate and return named expressions evaluated together against the immutable physical frame. Computations apply native frame operations in authored dependency order; Polars enforces expression shape. The parser no longer extracts Series, assigns them back individually, or implements a separate axis-length checker.
 
 | Protocol | Exact question it answers | Implementations |
 | --- | --- | --- |
 | `BoundInputReader` | Read one already bound source using one resolved level projection | delimited, Parquet, Excel and prepared-frame readers |
-| `SourceDecomposer` | Convert one physical table shape to common raw axes and wide raw layers | long, wide, delimiter-fragment composition |
+| `SourceDecomposer` | Convert one physical table shape to common raw axes and long layers | long, wide, delimiter-fragment composition |
 | `FragmentTableSeparator` | Turn one packed fragment table into scalar-long rows | positional labels, column-derived labels |
 | `SequenceOperation` | Transform one explicitly supplied sequence tuple | token-regex stripping; token-regex/site-list/embedded-site normalization |
 | `AxisValueCoercer` | Validate and build one named selection expression | string, integer, number, boolean |
 | `ColumnComputer` | Materialize one declared computed column | coalesce, join-nonempty, stripped sequence, ProForma sequence, ProForma ion, ProForma fragment |
-| `RawValuePresence` | Mark raw layer scalars that semantically claim a cell without converting them | factor, plain numeric and regex numeric layer parsers |
-| `DuplicatePolicy` | Resolve repeated values of each raw wide cell | error, keep first, numeric sum, min or max; `RankedDuplicates`, which `KeepBestDuplicate` builds once per parse from its ranking layer |
+| `DuplicatePolicy` | Resolve the repeated values of each placed cell into one value | error, keep first, numeric sum, min or max; `RankedDuplicates`, which `KeepBestDuplicate` builds once per parse from its ranking layer |
 | `FeatureValuePolicy` | Resolve the values a feature's repeated rows give one var payload column, and flag disagreement | `FirstFeatureValue`, `ExtremeFeatureValue` (min, max), `RankedFeatureValue` (keep_best) |
 | `ParsedLevelsReader` | Read one APB2 result | h5ad, h5mu, Parquet dataset, DuckDB |
 | `ParsedLevelsWriter` | Persist one APB2 result collection | h5ad, h5mu, Parquet dataset, DuckDB |
-| `LayerValueParser` | Interpret aligned values and attach semantics | plain numeric, regex numeric, factor |
+| `LayerValueParser` | Mark raw scalars that claim a cell without converting them; parse resolved cells, widen them and attach semantics | plain numeric, regex numeric, factor |
 | `LayerSetValidator` | Check canonical required names and occupancy; return the effectively empty layers | `LayerContractValidator`, with standard/strict settings |
 | `FieldPruner` | Leave out single-valued, empty and effectively empty columns and layers, with their findings | `UninformativeFields` |
 
@@ -1827,7 +1854,7 @@ The facade consumes Pydantic variants with local type matches. Source resolution
 
 | Type family | Why it exists | Why it is not something else |
 | --- | --- | --- |
-| `LevelSourceTable`, raw/final axes, raw/final layers, maps, `ParsedLevel` | name one pipeline invariant and carry concrete boundary data | DTOs intentionally have no invented behavior; functions consume the exact state they require |
+| `LevelSourceTable`, raw/final axes, long/final layers, `RawLevel`, `FinalPositions`, `ParsedLevel` | name one pipeline invariant and carry concrete boundary data | values carry only behavior on their own data, such as `LongLayer.split()`, `FinalPositions.place()` and `ObservationGrid.widen()`; functions consume the exact state they require |
 | `AxisKeyPlan`, runtime phase plans | keep mutually dependent ordered configuration together | immutable values, not services or strategies |
 | storage and working configuration unions | describe authored or resolved alternatives at the composition boundary | tags are legal here; behavior is constructed and the tags do not cross into computation |
 | runtime Protocols | name capabilities used at execution and I/O boundaries | structural implementation contracts, not additional configuration records |
@@ -2057,7 +2084,7 @@ The override patches `measurements.primary_layer` before effective-rule validati
 | root `layers` | `measurements.layers` |
 | override `x_layer` | override `primary_layer` |
 
-#### C.3 Layer values remain raw until alignment
+#### C.3 Layer values remain raw until value parsing
 
 The nested layer declarations remain under `measurements.layers`:
 
@@ -2066,7 +2093,7 @@ The nested layer declarations remain under `measurements.layers`:
 - Numeric layers declare `encoding_mode: "numeric"`, logical `type`, missing values and nested `value_pattern`
 - Factor layers declare `encoding_mode: "factor"` and a category-to-code map
 
-The facade projects each into one `LayerValueDeclaration`; source resolution constructs one `LayerValueParser` per retained layer. Its `present()` supplies duplicate occupancy without converting claiming scalars. After duplicate reduction and final-axis alignment, `parse()` produces canonical numbers or category codes. Every output backend receives the same interpreted result.
+The facade projects each into one `LayerValueDeclaration`; source resolution constructs one `LayerValueParser` per retained layer. Its `present()` supplies duplicate occupancy without converting claiming scalars. After duplicate reduction, `parse()` produces canonical numbers or category codes from the resolved long cells and widens them. Every output backend receives the same interpreted result.
 
 Axis types belong inline on sourced entries, for example:
 
@@ -2482,20 +2509,19 @@ Parquet uses `scan_parquet(...).select(...).collect()` and retains its physical 
 
 #### E.4 Polars invariants
 
-- column order is part of `LevelReadPlan`, raw/final layer tables, and writer contracts;
+- column order is part of `LevelReadPlan`, axis frames, final layer tables, and writer contracts; long layer rows keep physical order;
 - every projected delimited column has an explicit text or native-numeric read dtype;
 - stable distinct and `group_by` operations use `maintain_order=True` when output order matters;
-- joins use `nulls_equal=True` and `maintain_order="left"` when joining through key maps;
+- the row-number joins use `nulls_equal=True` and `maintain_order="left"` and read only the raw key columns;
 - key columns normalize `NaN` versus null according to the declared logical type before equality
   and collision checks;
-- raw layer values are not normalized merely to simplify grouping;
+- duplicate policies group long rows by their two integer positions; raw layer values are not normalized to simplify grouping;
 - value-column storage names are unique and disjoint from key columns;
 - all transformations return new frames or otherwise preserve input values from the caller's
   perspective;
 - pandas and NumPy imports are forbidden outside the AnnData adapter and tests of that adapter.
 
-Polars has no hidden row index. The explicit key fields plus stable frame order are the complete
-identity and alignment contract.
+Polars has no hidden row index, and the parser leaves none in a result. Identity is the explicit key fields of the axis frames. Between decomposition and widening, a layer row reaches its axis rows through explicit integer columns: `var_row` and `obs_row`, assigned once by joining on the raw key columns, then `var_pos` and `obs_pos`. A wide final layer aligns with its axes by row and column order alone.
 
 The parameter names above follow the stable Polars APIs for
 [`scan_csv`](https://docs.pola.rs/api/python/stable/reference/api/polars.scan_csv.html),
@@ -2517,35 +2543,28 @@ Key-affecting sources are in the complete raw-key tuple. Conflicting var payload
 key is resolved by the column's duplicate mode and, under `keep_first`, reported in the parse
 record's `var_disagreements`; payload conflict never creates a second identity row.
 
-#### F.2 Long-to-wide occurrence handling
+#### F.2 Row numbers and final positions
 
-Long decomposition must preserve repeated cells without returning coordinate DTOs. One valid
-vectorized implementation is:
+Decomposition gives layer rows their axis rows once; nothing joins layer rows on key text afterwards:
 
-1. compute a local zero-based occurrence within each `(raw var key, raw obs key)` group in physical
-   row order;
-2. pivot by `(raw var key, occurrence)` and obs storage column;
-3. retain the raw var-key columns and observation value columns;
-4. drop the occurrence column before constructing `RawLayerTable`.
+1. build each raw axis frame (F.1);
+2. join the physical rows' raw key columns, and only those, against the axis frame with a row index: left, `nulls_equal=True`, `maintain_order="left"`; the index is each row's `var_row` or `obs_row`, and its column name steps aside for a raw key column of the same name;
+3. for wide input, `obs_row` is the sample's position in header order, so the obs axis needs no join;
+4. after axis preparation, each raw axis row's final position is its rank among the valid rows, or null when its final key is incomplete;
+5. `FinalPositions.place()` gathers those positions by row number and drops the rows with a null position.
 
-The counter is allowed only as local pivot mechanics. No caller receives it and no subsequent join
-uses it as identity.
+Row numbers and positions point into the axis frames and are never identity: equal raw keys get equal row numbers because each axis holds one row per raw-key tuple, and the key columns stay on the axis. No parsed result holds them.
 
 #### F.3 Duplicate policies
 
-Before reduction, the layer parser's `present()` expressions null-mask absent cells while retaining the dtype and every claiming scalar. Factor presence and plain numeric presence without sentinels reject null/NaN but retain blank text. Plain numeric presence with sentinels or a `<=` threshold, and regex presence, also reject blank text, matching numeric sentinels and numbers at or below a declared threshold; they return only Boolean presence. An unreadable or unmatched nonblank token remains present so duplicate resolution cannot skip it in favor of a later readable value; canonical value parsing determines its diagnostic or missing result. Presence never returns parsed values or
-mutates `RawLayerTable`.
+Before reduction, the parser applies the layer parser's `present()` to each placed layer and nulls the absent scalars, retaining the dtype and every claiming scalar. Factor presence and plain numeric presence without sentinels reject null/NaN but retain blank text. Plain numeric presence with sentinels or a `<=` threshold, and regex presence, also reject blank text, matching numeric sentinels and numbers at or below a declared threshold; they return only Boolean presence. An unreadable or unmatched nonblank token remains present so duplicate resolution cannot skip it in favor of a later readable value; canonical value parsing determines its diagnostic or missing result. Presence never returns parsed values; the parser's nulling changes no other value.
 
-All policies preserve raw var-key columns and input group order. Error and keep-first copy the
-selected scalar unchanged. `sum` is the only policy that creates a new scalar, and only by addition; `min` and `max` select the smallest or largest present scalar.
+All policies receive only the rows that repeat a cell, group them by (`var_pos`, `obs_pos`) in first-appearance order, and return one row per cell with both position columns kept. Error and keep-first copy the selected scalar unchanged. `sum` is the only policy that creates a new scalar, and only by addition; `min` and `max` select the smallest or largest present scalar.
 
-- `ErrorOnDuplicates` counts semantically present values per raw wide cell and raises when the
-  count exceeds one.
-- `KeepFirstDuplicate` selects the first semantically present raw value per observation column,
-  independently. A missing sentinel is skipped, but a selected value is not encoded.
-- `AggregateNumericDuplicates` accepts only numeric Polars dtypes and reduces present values per observation column with its configured Polars reduction, `pl.Expr.sum`, `pl.Expr.min` or `pl.Expr.max`. Each layer and column reduces separately, so with several layers one feature's cells can come from different repeated rows. When no scalar is semantically present, the result stays null; it never
-  manufactures `0.0` from missing data.
-- `RankedDuplicates` (`keep_best`) is built once per parse by `KeepBestDuplicate.ranked()` from the `by` layer; every layer then takes each cell from the row that layer ranks best, ties in file order, except the layers listed in `sum`, which add up.
+- `ErrorOnDuplicates` counts the non-null values per placed cell and raises when the count exceeds one; the message counts the offending final var rows and quotes their raw var keys from `LongLayer.var_keys`.
+- `KeepFirstDuplicate` selects the first non-null value per cell in physical order, which for wide input is header order, then row order. A missing sentinel, already null, is skipped, but a selected value is not encoded.
+- `AggregateNumericDuplicates` accepts only numeric (or all-null) Polars dtypes and reduces the non-null values per cell with its configured Polars reduction, `pl.Expr.sum`, `pl.Expr.min` or `pl.Expr.max`. Each layer reduces separately, so with several layers one feature's cells can come from different repeated rows. When no scalar is semantically present, the result stays null; it never manufactures `0.0` from missing data.
+- `KeepBestDuplicate.ranked()` (`keep_best`) reads every claimed value of the `by` layer as a number, by a strict `Float64` cast with `NaN` as absent, so a bad ranking value fails even in a cell of its own; it keeps the ranks of the repeated rows. The resulting `RankedDuplicates` resolves every layer from the same winning row, ties and unranked rows in file order, and copies the winner's value even when it is absent; a layer listed in `sum` adds up instead. A layer whose repeated positions differ from the ranking layer's is an error ("does not repeat the rows").
 
 Var payload columns resolve repeated rows during decomposition, not here, through one `FeatureValuePolicy` each: `FirstFeatureValue` keeps the first nonblank value and flags disagreeing features for `var_disagreements`; `ExtremeFeatureValue` keeps the smallest or largest number, a `NaN` ranking as absent; `RankedFeatureValue` takes the value of the row whose `by` column ranks best, ties in file order, and never reports disagreement.
 
@@ -2555,7 +2574,7 @@ still reaches the runtime as strings, aggregation is undefined and fails at its 
 
 #### F.4 Canonicalization and validity
 
-`ParseStrategy._require_injective_key_mapping()` filters valid final-key rows and uses `is_duplicated()` directly: decomposition already made raw identities unique. Nested raw/final structs provide bounded diagnostic evidence, reporting:
+`ParseStrategy._require_injective_keys()` filters valid final-key rows and uses `is_duplicated()` directly: decomposition already made raw identities unique. Nested raw/final structs provide bounded diagnostic evidence, reporting:
 
 - final-key column names and values;
 - representative distinct raw-key tuples that produced collisions;
@@ -2620,7 +2639,7 @@ The architecture covers that set through declarations, not vendor-specific parse
 | packed fragments | separator followed by reused long decomposer |
 | optional selections | atomic source resolution, recorded `skipped` evidence, and pruned runtime operations |
 | typed axis metadata | axis coercers on small raw axes |
-| raw repeated cells | one `DuplicatePolicy` over wide raw layers |
+| raw repeated cells | one `DuplicatePolicy` over the long rows that repeat a placed cell |
 | canonical identity loss | fixed injectivity validation |
 | raw string/factor/localized layer values | preserved through duplicate resolution, then interpreted by layer parsers |
 | canonical numeric/category layers | `value_parsing.py`, with explicit final-layer semantics |
@@ -2682,26 +2701,29 @@ fragment, WOMBAT-P or Sage peptidoform, an injective `coalesce`, and a colliding
 
 Tests must cover:
 
-- long and wide inputs producing the same `RawLayerTable` invariant;
-- repeated long cells and repeated wide columns;
-- stable primary sample order and required/optional wide layer behavior;
+- long and wide inputs producing the same `RawLevel` invariant;
+- a layer carrying only its two row numbers and the value; long layers sharing their row-number Series and keeping each read column unchanged;
+- a repeated long cell becoming a second row naming the same cell; two wide columns claiming one sample repeating its cells in header order, then row order;
+- stable primary sample order and required/optional wide layer behavior, including a required layer without an aligned column kept without rows;
 - positional and column-labelled packed separation;
 - aligned packed-length rejection, zero-token rows, whitespace trimming, trailing terminators,
   interior empty tokens, and column labels with `/` suffixes;
 - stable-first raw axis payload behavior;
+- `FinalPositions.place()` dropping the rows of axis rows that did not survive, and `LongLayer.split()` setting apart the rows that repeat a cell;
+- presence decided before duplicates are resolved: a sentinel beside a real value claims no cell, so the error policy sees one value;
 - AlphaDIA-style `keep_first` with `0` followed by a real value, proving the presence mask skips
   the sentinel while the retained scalar remains unencoded;
 - invalid non-null regex tokens and unknown factor labels remaining present—so `keep_first`
   cannot hide them—without producing encoded layer values;
-- error, keep-first, numeric sum, min and max policies over nullable values;
-- `keep_best` taking every layer from the best-ranked row, summing its `sum` layers, preferring a ranked row and keeping file order on ties;
+- error, keep-first, numeric sum, min and max policies over nullable values, each returning one row per cell in first-appearance order;
+- `keep_best` taking every layer from the best-ranked row, summing its `sum` layers, preferring a ranked row, keeping file order on ties, copying the winner's absent value, reading every ranking value even in a cell of its own, and refusing a layer that does not repeat the ranking rows;
 - var payload columns under `keep_first` (first nonblank, disagreement recorded), `min`/`max` (vendor text of the extreme number) and `keep_best` (the best-ranked row's value whatever the row order);
 - numeric aggregate leaving an all-missing cell null rather than manufacturing zero;
 - strings and factors rejected by numeric aggregate;
 - canonical collisions under every duplicate policy;
 - invalid final keys removed before duplicate resolution;
-- final layers reindexed to the complete `VarFinal` row set and `ObsFinal` column set, with nulls
-  where a retained layer has no value;
+- widened layers complete: every `VarFinal` row and `ObsFinal` column exists, null where a retained layer has no value and −1 in a factor layer; `NaN` text stays NaN and a blank cell null; a level without valid observations or features gives empty layers of the right shape;
+- unreadable-token counts on the cells the duplicate policy kept, and integer-layer error examples in observation, then var order;
 - multi-column obs and var keys without string-concatenated parse identity;
 - no ndarray or pandas index created during any parse test.
 
@@ -2729,16 +2751,17 @@ run `lint-imports`. The current `.importlinter` includes:
 - an exhaustive `layers` contract for the `parse_quant` container, with modules directly in
   `parse_quant` above `io`, and with the single declared child edge `io -> data` while
   `parameters` remains independent;
-- a `forbidden` contract preventing computation modules from importing physical I/O modules; and
+- a `forbidden` contract keeping Pydantic and the storage backends out of `data`, `parameters`, `contracts` and `errors`; and
 - `forbidden` contracts limiting readers to source data, source parameters, and shared parse errors,
   and writers to parsed data.
 
-Import Linter checks real modules and proves direction/isolation; focused Grimp tests additionally check the maximum-one direct sibling target and restricted computation imports. Together the configured checks cover:
+No contract keeps the computation modules (`parser.py`, `decomposition.py`, `duplicates.py` and their peers) from importing the physical readers or `io/`: the `parse_quant` layers contract places them above both, and the rule that they do not import those I/O modules is prose in the repository's `AGENTS.md` ("Architecture and import direction").
+
+Import Linter checks real modules and proves direction/isolation; focused tests additionally check the maximum-one direct sibling target (Grimp) and the storage backends each module may import. Together the configured checks cover:
 
 - every parsing and I/O module is under `parserV2/parse_quant` and imports neither
   `vendor_parse_rules` nor any parent module;
-- computation modules in `parse_quant` import neither the I/O modules, Pydantic, pandas, NumPy,
-  AnnData, nor PyArrow storage objects;
+- computation modules in `parse_quant` import no pandas, NumPy, AnnData, MuData, SciPy or DuckDB, and `data`, `parameters`, `contracts` and `errors` also no Pydantic or PyArrow;
 - no module under `parse_quant/`, `vendor_params/`, `vendor_parse_rules/`, or `joins/` imports a module directly in `parserV2/`, and none of the four child packages imports another;
 - the complete child graph inside `parse_quant/` is exactly `io -> data`; every child has at most
   one direct sibling target, and no child imports upward;
@@ -2762,8 +2785,9 @@ Import Linter checks real modules and proves direction/isolation; focused Grimp 
   output discriminator literals;
 - registries are confined to the composition-root area;
 - helpers and construction functions are reviewed for actual responsibility and redundant forwarding; they are not multiplied merely to improve a diagnostic count;
-- `RawLayerTable` and `FinalLayerTable` do not acquire a shared mode-bearing base class;
-- no parser result contains `X`, a matrix, a coordinate code, or a temporary key map.
+- `LongLayer` and `FinalLayerTable` do not acquire a shared mode-bearing base class;
+- no pipeline value holds `X`, a matrix, an index or a join map, and no parsed result (`ObsFinal`, `VarFinal`, `FinalLayerTable`, `ParsedLevel`) holds row numbers or positions;
+- the removed names `RawLayerTable`, `LayersRaw`, `DecomposedDataRaw`, `RawToFinalKeyMap` and `RawValuePresence` do not reappear under `parserV2/`.
 
 The polymorphism detector and complexity diagnostics remain gauges. Their counts are reviewed, not
 optimized by adding wrappers or modules.
@@ -2775,11 +2799,12 @@ They verify scaling rather than enforce machine-independent CI thresholds:
 
 - modification normalization scales with distinct `VarRaw` rows, not measurement row count;
 - other axis computation scales with small axis rows;
-- duplicate resolution null-masks absent values in wide Polars frames, then uses native first/count/sum aggregations; error mode counts and selects in one grouping, without per-cell presence structs;
+- the parser null-masks absent values on long rows; duplicate resolution groups only the rows that repeat a cell, found by one `is_duplicated()` per layer on the two position columns, with native first/count/sum aggregations; error mode counts and selects in one grouping, without per-cell presence structs;
+- layer memory before widening scales with physical values, not features × observations: long input shares one pair of row-number Series across its layers and keeps each read column without a copy, and only one layer's wide frame is built at a time;
 - layer summaries reduce columns natively and gather a bounded deterministic finite-cell sample without flattening the full matrix; AnnData conversion uses one Arrow table conversion, preserving nullable and categorical representations;
 - Parquet allocates no numeric layer matrix;
 - `AnnDataWriter` allocates final `n_obs × n_var` arrays from canonical layers; h5 readers likewise allocate backend arrays at the I/O boundary;
-- peak memory across raw, resolved, and final layer frames is measured explicitly.
+- peak memory across long, resolved, and final layer frames is measured explicitly.
 
 ### H. Implementation boundary and handoff
 
@@ -2833,8 +2858,8 @@ apb2/src/apb2/parserV2/
 │   ├── data/
 │   │   ├── __init__.py         # data package marker; no broad re-exports
 │   │   ├── errors.py           # ConversionError, the base of every expected conversion failure
-│   │   ├── layer_columns.py    # positional layer-column naming invariant
-│   │   ├── raw.py              # raw axes/layers, decomposition result, key map
+│   │   ├── layer_columns.py    # positional observation labels; ObservationGrid widens a layer
+│   │   ├── raw.py              # raw axes, LongLayer, RawLevel and FinalPositions
 │   │   ├── parsed.py           # final axes/layers, ParsedLevel, and ParsedLevels with observation groups
 │   │   └── step_log.py         # per-step start/done log lines with duration and peak memory
 │   ├── io/
@@ -2861,18 +2886,18 @@ apb2/src/apb2/parserV2/
 │   │   ├── measurements.py     # authored layer values and required/duplicate settings
 │   │   └── level.py            # scalar aliases for levels and provenance
 │   ├── contracts.py            # every Protocol consumed by Parser + runtime plans
-│   ├── parser.py               # bound Parser, ParserCollection and executable ParseStrategy
+│   ├── parser.py               # bound Parser, ParserCollection, ParseStrategy and its layer flow
 │   ├── operations.py           # working contracts, coercer/layer factories, duplicate registry
 │   ├── plan_json.py            # snapshot serialization; not runtime reconstruction
-│   ├── value_parsing.py        # canonical layer interpretation and raw presence
+│   ├── value_parsing.py        # raw presence; parses resolved long cells, then widens them
 │   ├── layer_validation.py     # parse-time canonical-layer occupancy checks
 │   ├── uninformative.py        # leaves out single-valued and empty columns and layers
 │   ├── conversion_record.py    # the parse record a level carries in uns
 │   ├── source_resolution.py    # SourcePlanResolver; header/dtype-dependent decisions
 │   ├── axis_columns.py         # concrete coercers and computed-column strategies
-│   ├── decomposition.py        # long, wide, and composed delimiter decomposers
+│   ├── decomposition.py        # long, wide, and composed delimiter decomposers; row numbers
 │   ├── fragments.py            # positional and column-labelled separators
-│   ├── duplicates.py           # raw-presence masking, layer duplicate policies, var payload policies
+│   ├── duplicates.py           # layer duplicate policies on repeated long rows, var payload policies
 │   └── modifications.py        # independent stripping and normalization computations
 └── vendor_parse_rules/
     ├── __init__.py             # package marker; no broad re-exports
@@ -2908,9 +2933,7 @@ The boundary ownership behind that tree is:
 | parsed result -> format-neutral persistence | `ParsedLevels` in `parse_quant/data/parsed.py` | `ParsedLevelsReader` and `ParsedLevelsWriter` in `parse_quant/io/formats.py` | h5ad/h5mu, Parquet, and DuckDB result adapters |
 | validated rule -> compilation | `WorkingParseConfiguration` in `parse_quant/operations.py` | no Protocol: one Pydantic-free semantic compiler contract | parent-level `parse_rule_facade.py` |
 
-`BoundInputReader`, `SourceDecomposer`, `FragmentTableSeparator`,
-`AxisValueCoercer`, `ColumnComputer`, `RawValuePresence`, and
-`DuplicatePolicy`, `FeatureValuePolicy`, `LayerValueParser`, `LayerSetValidator` and `FieldPruner` live in `parse_quant/contracts.py`. `Parser` consumes the input capability; `ParseStrategy` consumes the computational capabilities; duplicate policies consume only raw presence.
+`BoundInputReader`, `SourceDecomposer`, `FragmentTableSeparator`, `AxisValueCoercer`, `ColumnComputer`, `DuplicatePolicy`, `FeatureValuePolicy`, `LayerValueParser`, `LayerSetValidator` and `FieldPruner` live in `parse_quant/contracts.py`. `Parser` consumes the input capability; `ParseStrategy` consumes the computational capabilities; duplicate policies receive repeated cells with absent values already null and never ask about presence.
 
 Concrete readers and writers do not import those Protocols. The delimited reader annotates its
 `read()` result with `parse_quant.parameters.source.LevelSourceTable`; a writer annotates its `write()`
@@ -2922,12 +2945,10 @@ contracts where the candidate tables and source resolver perform the wiring. Rem
 Data placement follows pipeline state and boundary:
 
 - `parse_quant/parameters/source.py` owns the one value returned by input adapters and accepted by source decomposers: `LevelSourceTable`.
-- `parse_quant/data/raw.py` owns `ObsRaw`, `VarRaw`, `RawLayerTable`, `LayersRaw`,
-  `DecomposedDataRaw`, and `RawToFinalKeyMap`. No adapter imports these parse-internal states.
+- `parse_quant/data/raw.py` owns `ObsRaw`, `VarRaw`, `LongLayer`, `RawLevel` and `FinalPositions`, with the long-row column names `var_row`, `obs_row`, `var_pos`, `obs_pos` and `value`. No adapter imports these parse-internal states.
 - `parse_quant/data/parsed.py` owns `ObsFinal`, `VarFinal`, `FinalLayerTable`, and their composition
   `ParsedLevel`. Parsing returns these values and output adapters consume them.
-- `parse_quant/data/layer_columns.py` owns the collision-free positional naming convention shared
-  by raw and final layer tables. It is part of their tabular representation, not a generic helper.
+- `parse_quant/data/layer_columns.py` owns the collision-free positional observation labels and `ObservationGrid`, the one place a layer becomes wide. It is part of the final layer's tabular representation, not a generic helper.
 - `parse_quant/numeric_text.py` owns shared numeric expressions for raw presence and canonical value parsing; both consume the existing `NumericTextFormat` from `parameters/source.py` without a second notation record.
 - `parse_quant/parameters` owns independent selections, key/source plans, layer declarations, input contracts, evidence and read plans. `operations.py` owns working contracts that also contain behavior; `contracts.py` owns executable axis phases, and `parser.py` owns `ParseStrategy`. `plan_json.py` serializes decisions without retaining a resolved configuration graph.
 
@@ -3004,8 +3025,7 @@ Implementation follows these placement rules:
 
 Concrete consequences in this specification are:
 
-- `_prepare_axis`, `_materialize_axis_columns`,
-  `_retain_mappable_layer`, and `_align_layer_keys` are private `ParseStrategy` methods; those using only explicit inputs are static;
+- `_prepare_axis`, `_materialize_axis_columns` and `_claimed` are private static `ParseStrategy` methods, and `_prepare_layers` and `_ranked_duplicates` private instance methods;
 - rule-projection helpers remain private methods on `ParseRuleFacade`; physical-source resolution and its helpers belong to parsing-owned `SourcePlanResolver`;
 - AnnData projection has private methods plus shared I/O functions for axis frames, namespaces and atomic publication;
 - `make_axis_coercer()`, `make_layer_parser()`, `duplicate_policy()`, `duplicate_policy_for()` and `feature_value_policy()` live in `operations.py`; the facade and source resolver directly construct their other collaborators;
@@ -3024,9 +3044,9 @@ Protocols, FASTA integration, or compatibility aliases for schema 0.2. Further s
 The implementation does not contain:
 
 - source composers, packers, reconstruction traces, or round-trip laws;
-- temporary integer axis identities or temporary-to-final coordinate maps;
+- integer axis identities or temporary-to-final key maps; layer row numbers and final positions only point at axis rows (§1);
 - physical cell ledgers or lexical reconstruction envelopes;
-- parser-side layer matrices, contributions, resolved-cell DTOs, or scatter assembly;
+- parser-side layer matrices, contributions, resolved-cell DTOs, or scatter assembly into arrays; `ObservationGrid.widen()` scatters each parsed layer into one Polars buffer, last;
 - pre-decomposition final-key materialization on the full source table;
 - long/wide-specific duplicate-policy methods;
 - string-concatenated intermediate parse identity;
@@ -3058,3 +3078,5 @@ Implementation began after the following statements were accepted together:
 10. omitting CLI `LEVEL` collects compatible single-level results in `ParsedLevels` and lets the selected result writer persist H5MU, Parquet, or DuckDB;
 11. result readers and writers operate on `ParsedLevels`, with exact Parquet/DuckDB fidelity and
     explicit canonical h5ad/h5mu projection.
+
+Statement 3 was revised on 24 Oct 2026: between decomposition and widening, layers are long rows of integer positions, and parsed results keep wide layers (§1).

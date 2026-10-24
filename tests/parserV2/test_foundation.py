@@ -500,8 +500,14 @@ class _Decomposer:
 
 
 class _Separator:
-    def separate(self, table: LevelSourceTable, /) -> LevelSourceTable:
-        return table
+    label_output = "fragment_label"
+    packed_sources: tuple[str, ...] = ("a",)
+
+    def listed(self, frame: pl.DataFrame, /) -> pl.DataFrame:
+        return frame
+
+    def exploded(self, frame: pl.DataFrame, /) -> pl.DataFrame:
+        return frame
 
 
 class _Coercer:
@@ -538,7 +544,7 @@ def test_the_intended_collaborators_satisfy_their_client_owned_contracts() -> No
     policy: DuplicatePolicy = _Policy()
 
     assert reader.read().frame.height == 1
-    assert separator.separate(LevelSourceTable(frame=pl.DataFrame({"a": [1]}))).frame.height == 1
+    assert separator.exploded(separator.listed(pl.DataFrame({"a": [1]}))).height == 1
     frame = pl.DataFrame({"x": [1]})
     assert frame.select(coercer.coerce(frame, name="x", source="x")).to_series().to_list() == [1]
     assert computer.inputs == ("ProForma_peptidoform", "Charge")
