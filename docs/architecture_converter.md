@@ -2513,6 +2513,7 @@ Parquet uses `scan_parquet(...).select(...).collect()` and retains its physical 
 - every projected delimited column has an explicit text or native-numeric read dtype;
 - stable distinct and `group_by` operations use `maintain_order=True` when output order matters;
 - the row-number joins use `nulls_equal=True` and `maintain_order="left"` and read only the raw key columns;
+- an aggregation or join over the whole read touches only the columns it needs, lazily or after a `select`: the read arrives in thousands of chunks, and an eager `group_by` rechunks every column first, layers included (2.3 GB at 150 runs of the TPCPA ion level);
 - key columns normalize `NaN` versus null according to the declared logical type before equality
   and collision checks;
 - duplicate policies group long rows by their two integer positions; raw layer values are not normalized to simplify grouping;

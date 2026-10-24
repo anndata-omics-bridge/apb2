@@ -75,12 +75,19 @@ def _var_raw(
     """
     keys = plan.keys.raw_key_columns
     flags = tuple(f"{_DISAGREES}{index}" for index in range(len(values)))
-    resolved = frame.group_by(keys, maintain_order=True).agg(
-        *(policy.value(frame.schema).alias(policy.source) for policy in values),
-        *(
-            policy.disagrees(frame.schema).alias(flag)
-            for policy, flag in zip(values, flags, strict=True)
-        ),
+    # Lazily, so only the columns the policies name are touched: an eager group_by first
+    # rechunks every column of the read, layers included.
+    resolved = (
+        frame.lazy()
+        .group_by(keys, maintain_order=True)
+        .agg(
+            *(policy.value(frame.schema).alias(policy.source) for policy in values),
+            *(
+                policy.disagrees(frame.schema).alias(flag)
+                for policy, flag in zip(values, flags, strict=True)
+            ),
+        )
+        .collect()
     )
     disagreements = {
         policy.source: _disagreeing(frame, resolved.filter(pl.col(flag)), keys, policy.source)
@@ -95,7 +102,8 @@ def _disagreeing(
 ) -> pl.DataFrame:
     """Each disagreeing feature's raw key, with the first distinct values its rows give."""
     return (
-        frame.join(flagged.select(keys), on=list(keys), nulls_equal=True, maintain_order="right")
+        frame.select(*keys, source)
+        .join(flagged.select(keys), on=list(keys), nulls_equal=True, maintain_order="right")
         .filter(~absent(pl.col(source), frame.schema[source]))
         .group_by(keys, maintain_order=True)
         .agg(
