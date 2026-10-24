@@ -179,6 +179,7 @@ def test_a_delimited_plan_decides_every_projected_column_dtype(
 
     assert read.text_sources.isdisjoint(read.native_numeric_sources)
     assert read.text_sources | read.native_numeric_sources == set(read.projected_columns)
+    assert read.converted_sources <= read.text_sources - read.categorical_sources
     assert len(read.projected_columns) == len(set(read.projected_columns))
 
 
@@ -229,17 +230,18 @@ def test_the_alphadia_wide_ion_level_resolves_exactly_as_specified() -> None:
         key_input_columns=("ProForma_peptidoform", "Charge"),
         final_key_columns=("ProForma_ion",),
     )
-    # The specification's example reads the two measurement columns natively. Real exports
-    # write "-", "NA", and "False" in a column a rule calls numeric, which an eager numeric
+    # Real exports write "-" or "NA" in a column a rule calls numeric, which an eager numeric
     # read cannot survive, so a measurement is read natively only where the rule sums it.
+    # The intensity columns are text converted to numbers while reading instead.
     assert resolved.read == LevelReadPlan(
         projected_columns=header,
         text_sources=frozenset(header),
         native_numeric_sources=frozenset(),
-        # Keys and feature metadata are read as Categorical; the intensity columns stay text.
+        # Keys and feature metadata are read as Categorical.
         categorical_sources=frozenset(
             {"sequence", "mods", "mod_sites", "charge", "genes", "decoy"}
         ),
+        converted_sources=frozenset({"run_A", "run_B"}),
     )
     assert isinstance(resolved.decomposer, WideSourceDecomposer)
     assert resolved.decomposer.var_values == tuple(
@@ -311,14 +313,15 @@ def test_the_diann_fragment_level_separates_packed_values_before_decomposing() -
     assert decomposition.long_decomposer.primary_layer_name == "Fragment_Quant_Raw"
     # The label the separator synthesizes is identity, so its tokens must survive as text.
     assert "Fragment.Quant.Raw" in resolved.read.text_sources
+    assert resolved.read.converted_sources == frozenset()
     # Keys and payload are read as Categorical; packed columns stay text to be split.
     assert resolved.read.categorical_sources == frozenset(
         {"Run", "Modified.Sequence", "Precursor.Charge", "Protein.Group"}
     )
 
 
-def test_a_var_column_resolved_by_number_and_every_layer_stay_text() -> None:
-    """``min`` and the layers cast every row, so they keep text; the keys become Categorical."""
+def test_a_var_column_resolved_by_number_stays_text_and_plain_layers_are_converted() -> None:
+    """``min`` casts every row, so it keeps text; the keys become Categorical."""
     path = Path("src/apb2/parserV2/vendor_parse_rules/documents/diann/v1_7/rules.json")
     facade = ParseRuleFacade(load_rule_document(path), "protein", _EVIDENCES[0])
     header = (
@@ -337,6 +340,7 @@ def test_a_var_column_resolved_by_number_and_every_layer_stay_text() -> None:
         {"File.Name", "Protein.Group", "Protein.Names", "Genes"}
     )
     assert {"Global.PG.Q.Value", "PG.Normalised", "PG.Quantity"} <= read.text_sources
+    assert read.converted_sources == frozenset({"PG.Normalised", "PG.Quantity"})
 
 
 # ------------------------------------------------------- what the generic walk must find
@@ -1025,12 +1029,13 @@ def test_resolution_reuses_each_retained_layer_declaration_without_copying_it() 
                 "encoding_mode": "factor",
                 "categories": {"a": 0, "b": 1},
             },
+            {"name": "Dashed", "source": "Dashed", "missing_tokens": ["-"]},
         ],
     )
     facade = synthetic.facade(document)
 
     resolved = facade.resolve_source(
-        delimited(("Sample", "Feature", "Quantity", "Plain", "Structured", "Kind"))
+        delimited(("Sample", "Feature", "Quantity", "Plain", "Structured", "Kind", "Dashed"))
     )
     values = {
         config["layer_name"]: config["value"] for config in snapshot(resolved)["layer_values"]
@@ -1043,9 +1048,12 @@ def test_resolution_reuses_each_retained_layer_declaration_without_copying_it() 
         RegexNumericLayerDeclaration(missing_values=(), pattern=r":(-?\d+(?:\.\d+)?)")
     )
     assert values["Kind"] == as_json_value(FactorLayerDeclaration(categories=(("a", 0), ("b", 1))))
-    # Every measurement keeps its tokens; only an aggregating rule reads them as numbers.
-    assert {"Kind", "Structured", "Plain", "Quantity"} <= resolved.read.text_sources
+    # Every measurement is read as text; only an aggregating rule reads them as numbers. Plain
+    # layers, sentinels included, are converted while reading; a pattern, a category map or a
+    # missing token needs the text.
+    assert {"Kind", "Structured", "Plain", "Quantity", "Dashed"} <= resolved.read.text_sources
     assert resolved.read.native_numeric_sources == frozenset()
+    assert resolved.read.converted_sources == frozenset({"Plain", "Quantity"})
 
 
 def test_a_grouped_number_notation_leaves_every_value_as_text() -> None:

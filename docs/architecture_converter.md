@@ -2409,9 +2409,11 @@ For delimited text, `text_sources` includes:
 - packed label and value sources that must be split as text;
 - factor labels and regex/localized-number layer sources whose raw presence or canonical value parsing needs original tokens.
 
-A physical source used by several roles is text when any role requires lexical preservation. A layer source is read as a native number only when the rule reduces it (`sum`, `min`, `max`, or a `keep_best` summed layer); every other layer stays text for its value parser. Parquet keeps its physical schema and bypasses text-dialect parsing.
+A physical source used by several roles is text when any role requires lexical preservation. A layer source is read as a native number only when the rule reduces it (`sum`, `min`, `max`, or a `keep_best` summed layer); every other layer is text for its value parser. Parquet keeps its physical schema and bypasses text-dialect parsing.
 
 `categorical_sources` is the subset of text read as `pl.Categorical`: the obs and var raw keys and payload, minus packed columns, layer sources, and the sources of var columns resolved by number (`min`, `max`, `keep_best`) together with their ranking column, which cast every row. A run path repeated on every row then costs four bytes instead of its text: on a 150-run DIA-NN report (9 M rows) the ion level's read fell from 7.2 GB to 3.7 GB footprint. Every consumer of these columns casts to text first or compares codes (axis coercers and computers, `unique`, `group_by`, joins within one read), so no Categorical reaches a parsed result. `LevelReadPlan.union` keeps a column categorical only where every level reading it says so. `LevelSourceTable` nulls a blank category the way it nulls blank text, finding the blank texts among the column's distinct values rather than casting the column.
+
+`converted_sources` is the subset of text a delimited reader turns into numbers while reading: the sources of plain numeric layers without `missing_tokens`, minus lexical sources. The streaming scan reads them as text and applies `as_numbers`, the parser's own conversion, in the same plan, so a column's text exists one chunk at a time; a flag per column marks a value with text but no number, or the text `NaN`. A flagged column is read again as text, so the parser counts its unreadable tokens and keeps its `NaN` exactly as for any text layer; every converted column holds only numbers and nulls, which the value parsers, duplicate policies and diagnostics already accept, as for summed layers. On the 150-run DIA-NN ion level the read of Categorical keys and the 17 layers fell from 3.4 GB to 2.0 GB footprint. `LevelReadPlan.union` keeps a column converted only where every level reading it says so. Polars has no record of failed conversions (a strict read stops at the first, `ignore_errors` hides them), which is why the reader converts rather than reading numbers directly.
 
 For delimited input, `text_sources` and `native_numeric_sources` are disjoint and their union is
 exactly `projected_columns`. A plain numeric source is native only when its resolved number format
@@ -2499,9 +2501,13 @@ frame = (
         },
         decimal_comma=resolved_number_format.decimal_mark == ",",
     )
-    .select(list(plan.projected_columns))
-    .collect()
+    .select(
+        *(converted(name) if name in plan.converted_sources else name for name in plan.projected_columns),
+        *(needs_text_flag(name) for name in plan.converted_sources),
+    )
+    .collect(engine="streaming")
 )
+# a flagged converted column is read again as text before the table is built
 return LevelSourceTable(frame=frame)
 ```
 
@@ -2510,10 +2516,11 @@ Parquet uses `scan_parquet(...).select(...).collect()` and retains its physical 
 #### E.4 Polars invariants
 
 - column order is part of `LevelReadPlan`, axis frames, final layer tables, and writer contracts; long layer rows keep physical order;
-- every projected delimited column has an explicit text or native-numeric read dtype;
+- every projected delimited column has an explicit text or native-numeric read dtype, and converted text becomes numbers inside the scan;
 - stable distinct and `group_by` operations use `maintain_order=True` when output order matters;
 - the row-number joins use `nulls_equal=True` and `maintain_order="left"` and read only the raw key columns;
 - an aggregation or join over the whole read touches only the columns it needs, lazily or after a `select`: the read arrives in thousands of chunks, and an eager `group_by` rechunks every column first, layers included (2.3 GB at 150 runs of the TPCPA ion level);
+- a per-row value mapping on a long column uses elementwise `is_in` and `when`, not `replace` with a mapping, which joins the column against it: `as_numbers` with `replace` read the 150-run TPCPA ion layers in 7.7 GB, elementwise in 2.7 GB;
 - key columns normalize `NaN` versus null according to the declared logical type before equality
   and collision checks;
 - duplicate policies group long rows by their two integer positions; raw layer values are not normalized to simplify grouping;

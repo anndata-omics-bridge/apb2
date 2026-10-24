@@ -57,10 +57,12 @@ from apb2.parserV2.parse_quant.parameters.axis import (
     FeatureRanking,
 )
 from apb2.parserV2.parse_quant.parameters.measurements import (
+    PlainNumericLayerDeclaration,
     WorkingMeasurementLayer,
 )
 from apb2.parserV2.parse_quant.parameters.source import (
     ColumnLabeledFragmentLayout,
+    DelimitedSourceEvidence,
     FrameSourceEvidence,
     LevelReadPlan,
     LongRawLayerSource,
@@ -98,6 +100,19 @@ class _ResolvedLayers:
     long_sources: tuple[LongRawLayerSource, ...]
     wide_plans: tuple[WideRawLayerPlan, ...]
     source_columns: frozenset[str]
+
+    def sources_of(self, names: Iterable[str]) -> frozenset[str]:
+        """The physical columns holding the named layers' values."""
+        named = frozenset(names)
+        return frozenset(
+            {source.source_column for source in self.long_sources if source.name in named}
+            | {
+                source.source_column
+                for plan in self.wide_plans
+                if plan.name in named
+                for source in plan.sources
+            }
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -448,9 +463,10 @@ class SourcePlanResolver:
 
         A measurement column is read natively only when the rule sums its values, because
         summing needs numbers and the schema already checked that those layers are plain. Every
-        other measurement stays text: parsing it as a float is a semantic transformation owned
-        by the parser, and real exports write ``-``, ``NA``, or ``False`` in a column a rule
-        calls numeric — which an eager numeric read cannot survive.
+        other measurement is text: real exports write ``-`` or ``NA`` in a column a rule calls
+        numeric, which an eager numeric read cannot survive. A delimited file still converts
+        the text of plain numeric layers while reading it (``converted_sources``), and keeps a
+        column as text where a value needs it, so the parser sees what text would have given.
 
         Key and payload text is read as ``pl.Categorical``: a run path repeated on every row
         costs four bytes there. Packed and layer columns stay text, and so do the sources of
@@ -498,11 +514,23 @@ class SourcePlanResolver:
             else reduced - lexical
         )
         text = frozenset(projected) - native
+        plain = (
+            layer.name
+            for layer in layers.retained
+            if isinstance(layer.value, PlainNumericLayerDeclaration)
+            and not layer.value.missing_tokens
+        )
+        converted = (
+            layers.sources_of(plain) & (text - lexical)
+            if isinstance(evidence, DelimitedSourceEvidence)
+            else frozenset[str]()
+        )
         return LevelReadPlan(
             projected_columns=projected,
             text_sources=text,
             native_numeric_sources=native,
             categorical_sources=keyed & text,
+            converted_sources=converted,
         )
 
     def _decomposition(
@@ -602,16 +630,7 @@ class SourcePlanResolver:
         if measurements.duplicate_mode in NUMERIC_DUPLICATE_MODES:
             return layers.source_columns
         ranking = measurements.duplicate_ranking
-        summed = ranking.summed if ranking is not None else frozenset()
-        return frozenset(
-            {source.source_column for source in layers.long_sources if source.name in summed}
-            | {
-                source.source_column
-                for plan in layers.wide_plans
-                if plan.name in summed
-                for source in plan.sources
-            }
-        )
+        return layers.sources_of(ranking.summed if ranking is not None else ())
 
     def _label(self) -> str:
         """How this level names itself in an error message."""

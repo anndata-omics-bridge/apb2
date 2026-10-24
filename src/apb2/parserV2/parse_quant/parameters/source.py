@@ -378,28 +378,30 @@ class LevelReadPlan:
     their union is ``projected_columns``: no column is left to inference.
     ``categorical_sources`` are text sources that only name keys and feature or run metadata;
     they are read as ``pl.Categorical``, which holds each distinct text once.
+    ``converted_sources`` are text sources of plain numeric layers; a delimited reader turns
+    them into numbers while reading, and keeps a column as text when any of its values needs
+    the text.
     """
 
     projected_columns: tuple[str, ...]
     text_sources: frozenset[str]
     native_numeric_sources: frozenset[str]
     categorical_sources: frozenset[str] = frozenset()
+    converted_sources: frozenset[str] = frozenset()
 
     @classmethod
     def union(cls, plans: Sequence[LevelReadPlan]) -> LevelReadPlan:
         """One plan reading every column of several, each with the dtype they agree on.
 
-        A column is categorical only when every plan reading it says so; otherwise it is
-        text, which every consumer of a categorical column also accepts.
+        A column is categorical, or converted, only when every plan reading it says so;
+        otherwise it is text, which every consumer of either also accepts.
         """
-        categorical = frozenset[str]().union(*(plan.categorical_sources for plan in plans))
-        for plan in plans:
-            categorical -= frozenset(plan.projected_columns) - plan.categorical_sources
         return cls(
             tuple(dict.fromkeys(name for plan in plans for name in plan.projected_columns)),
             frozenset[str]().union(*(plan.text_sources for plan in plans)),
             frozenset[str]().union(*(plan.native_numeric_sources for plan in plans)),
-            categorical,
+            _agreed(plans, [plan.categorical_sources for plan in plans]),
+            _agreed(plans, [plan.converted_sources for plan in plans]),
         )
 
     def casts(self) -> tuple[pl.Expr, ...]:
@@ -418,6 +420,14 @@ class LevelReadPlan:
         mine = frozenset(self.projected_columns) - self.native_numeric_sources
         theirs = frozenset(other.projected_columns) - other.native_numeric_sources
         return bool(self.native_numeric_sources & theirs or other.native_numeric_sources & mine)
+
+
+def _agreed(plans: Sequence[LevelReadPlan], chosen: Sequence[frozenset[str]]) -> frozenset[str]:
+    """The columns each plan projecting them chose, of the sets ``chosen`` lists per plan."""
+    agreed = frozenset[str]().union(*chosen)
+    for plan, columns in zip(plans, chosen, strict=True):
+        agreed -= frozenset(plan.projected_columns) - columns
+    return agreed
 
 
 @dataclass(frozen=True, slots=True)

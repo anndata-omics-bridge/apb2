@@ -591,6 +591,18 @@ def test_a_shared_read_keeps_a_column_categorical_only_where_every_level_does() 
     assert union.text_sources == frozenset({"run", "seq", "q"})
 
 
+def test_a_shared_read_converts_a_column_only_where_every_level_does() -> None:
+    ion = LevelReadPlan(
+        ("q", "pg"), frozenset({"q", "pg"}), frozenset(), converted_sources=frozenset({"q", "pg"})
+    )
+    protein = LevelReadPlan(("pg",), frozenset({"pg"}), frozenset())
+
+    union = LevelReadPlan.union([ion, protein])
+
+    assert union.converted_sources == frozenset({"q"})
+    assert union.text_sources == frozenset({"q", "pg"})
+
+
 def test_a_blank_category_is_as_absent_as_blank_text() -> None:
     frame = pl.DataFrame(
         {

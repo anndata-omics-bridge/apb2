@@ -6,8 +6,9 @@ enter here — as a predicate over headers, never as a rule. Several viable cand
 ambiguous and reported as such; none is chosen silently.
 
 Reading happens once, with every projected column's dtype already decided: lexical sources
-stay text so a token like ``01`` cannot collapse before the canonicalization check, and plain
-numeric layers are parsed natively. Nothing is left to inference.
+stay text so a token like ``01`` cannot collapse before the canonicalization check, summed
+layers are read as numbers, and plain numeric layers are converted from their text inside the
+same scan. Nothing is left to inference.
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from typing import Literal
 import polars as pl
 
 from apb2.parserV2.parse_quant.errors import AmbiguousDialectError, IncompatibleSourceError
+from apb2.parserV2.parse_quant.numeric_text import as_numbers
 from apb2.parserV2.parse_quant.parameters.source import (
     DelimitedFormatContract,
     DelimitedSourceEvidence,
@@ -234,6 +236,47 @@ class DelimitedInputReader:
     def read(self) -> LevelSourceTable:
         """Read the projected columns, each with the dtype resolution already decided.
 
+        Converted columns are read as text and turned into numbers in the same streaming
+        plan, so their text exists one chunk at a time. A converted column holding a value
+        that needs its text — a token no number reads, or the text ``NaN`` — is read again as
+        text, so it reaches the parser exactly as an unconverted layer does.
+        """
+        columns = self.plan.projected_columns
+        converted = tuple(name for name in columns if name in self.plan.converted_sources)
+        flags = _flag_names(len(converted), self.evidence.columns)
+        notation = self.evidence.number_format
+        numbers = {name: as_numbers(pl.col(name), pl.String(), notation) for name in converted}
+        frame = (
+            self._scan(columns)
+            .select(
+                *(numbers[name].alias(name) if name in numbers else name for name in columns),
+                *(
+                    (
+                        pl.col(name).str.contains(r"\S")
+                        & (numbers[name].is_null() | numbers[name].is_nan())
+                    ).alias(flag)
+                    for name, flag in zip(converted, flags, strict=True)
+                ),
+            )
+            .collect(engine="streaming")
+        )
+        needs_text = tuple(
+            name
+            for name, flag in zip(converted, flags, strict=True)
+            if frame.get_column(flag).any()
+        )
+        frame = frame.drop(flags)
+        if needs_text:
+            frame = frame.with_columns(self._scan(needs_text).collect().get_columns())
+        file_format = _FORMATS.get(self.evidence.delimiter, "delimited")
+        table = InputTable(
+            InputFile(self.file.path, "table", file_format), self.evidence.columns, frame.height
+        )
+        return LevelSourceTable(frame, (table,))
+
+    def _scan(self, columns: tuple[str, ...]) -> pl.LazyFrame:
+        """The given columns, each with its read dtype, converted columns as text.
+
         A UTF-8 source streams through ``scan_csv``. Any other resolved encoding goes through
         the eager reader, which transcodes the file before parsing — the only path polars
         offers for it — so a non-UTF-8 file costs one extra pass, and a UTF-8 file costs
@@ -242,36 +285,39 @@ class DelimitedInputReader:
         overrides: dict[str, pl.DataType] = {name: pl.String() for name in self.plan.text_sources}
         overrides.update({name: pl.Categorical() for name in self.plan.categorical_sources})
         overrides.update({name: pl.Float64() for name in self.plan.native_numeric_sources})
+        decimal_comma = self.evidence.number_format.decimal_mark == ","
         encoding = self.evidence.encoding
-        if encoding not in ("utf8", "utf8-lossy"):
-            with self.file.open() as stream:
-                frame = pl.read_csv(
+        if encoding in ("utf8", "utf8-lossy"):
+            return pl.scan_csv(
+                self.file.path,
+                separator=self.evidence.delimiter,
+                quote_char=self.evidence.quote_char,
+                encoding=encoding,
+                schema_overrides=overrides,
+                decimal_comma=decimal_comma,
+            ).select(columns)
+        with self.file.open() as stream:
+            return (
+                pl.read_csv(
                     stream.read(),
                     separator=self.evidence.delimiter,
                     quote_char=self.evidence.quote_char,
                     encoding=encoding,
-                    columns=list(self.plan.projected_columns),
+                    columns=list(columns),
                     schema_overrides=overrides,
-                    decimal_comma=self.evidence.number_format.decimal_mark == ",",
-                ).select(list(self.plan.projected_columns))
-        else:
-            frame = (
-                pl.scan_csv(
-                    self.file.path,
-                    separator=self.evidence.delimiter,
-                    quote_char=self.evidence.quote_char,
-                    encoding=encoding,
-                    schema_overrides=overrides,
-                    decimal_comma=self.evidence.number_format.decimal_mark == ",",
+                    decimal_comma=decimal_comma,
                 )
-                .select(list(self.plan.projected_columns))
-                .collect()
+                .select(columns)
+                .lazy()
             )
-        file_format = _FORMATS.get(self.evidence.delimiter, "delimited")
-        table = InputTable(
-            InputFile(self.file.path, "table", file_format), self.evidence.columns, frame.height
-        )
-        return LevelSourceTable(frame, (table,))
+
+
+def _flag_names(count: int, header: tuple[str, ...]) -> tuple[str, ...]:
+    """Names for the per-column conversion flags that no header column holds."""
+    prefix = "_needs_text_"
+    while any(name.startswith(prefix) for name in header):
+        prefix = f"_{prefix}"
+    return tuple(f"{prefix}{index}" for index in range(count))
 
 
 _FORMATS = {"\t": "tsv", ",": "csv"}

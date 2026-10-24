@@ -70,11 +70,14 @@ def write(path: Path, text: str, *, bom: bool = False) -> Path:
     return path
 
 
-def plan(*columns: str, numeric: tuple[str, ...] = ()) -> LevelReadPlan:
+def plan(
+    *columns: str, numeric: tuple[str, ...] = (), converted: tuple[str, ...] = ()
+) -> LevelReadPlan:
     return LevelReadPlan(
         projected_columns=columns,
         text_sources=frozenset(name for name in columns if name not in numeric),
         native_numeric_sources=frozenset(numeric),
+        converted_sources=frozenset(converted),
     )
 
 
@@ -332,6 +335,76 @@ def test_no_projected_column_is_left_to_inference(tmp_path: Path) -> None:
     assert frame.frame.get_column("Charge").to_list() == ["01", "1"]
     assert frame.frame.schema["Charge"] == pl.String
     assert frame.frame.schema["Quantity"] == pl.Float64
+
+
+def read_converted(
+    tmp_path: Path, values: str, contract: DelimitedFormatContract = TSV
+) -> pl.DataFrame:
+    """One converted Quantity column, read from a file holding the given value rows."""
+    path = write(tmp_path / "layer.tsv", "Sample\tFeature\tQuantity\n" + values)
+    evidence = delimited_input.detected_evidence(
+        make_vendor_file(path), contract, accepts_sample_and_feature
+    )
+    return (
+        delimited_input.DelimitedInputReader(
+            make_vendor_file(path),
+            evidence,
+            plan("Sample", "Feature", "Quantity", converted=("Quantity",)),
+        )
+        .read()
+        .frame
+    )
+
+
+def test_a_converted_layer_is_read_as_numbers(tmp_path: Path) -> None:
+    frame = read_converted(tmp_path, "A\tF\t1.5\nB\tG\t\nC\tH\tTrue\nD\tI\t2e3\n")
+
+    assert frame.schema["Quantity"] == pl.Float64
+    assert frame.get_column("Quantity").to_list() == [1.5, None, 1.0, 2000.0]
+
+
+@pytest.mark.parametrize("token", ["-", "NaN", "n/a"])
+def test_a_converted_layer_holding_a_value_no_number_reads_stays_text(
+    tmp_path: Path, token: str
+) -> None:
+    """The parser then counts the token, or keeps the NaN, exactly as for any text layer."""
+    frame = read_converted(tmp_path, f"A\tF\t1.5\nB\tG\t{token}\n")
+
+    assert frame.schema["Quantity"] == pl.String
+    assert frame.get_column("Quantity").to_list() == ["1.5", token]
+
+
+def test_a_converted_layer_reads_the_files_own_notation(tmp_path: Path) -> None:
+    grouped = replace(TSV, number_format_candidates=(GROUPED,))
+
+    comma = read_converted(tmp_path, "A\tF\t1,5\nB\tG\t2,25\n", TEXT)
+    dots = read_converted(tmp_path, "A\tF\t1.234,5\n", grouped)
+
+    assert comma.get_column("Quantity").to_list() == [1.5, 2.25]
+    assert dots.get_column("Quantity").to_list() == [1234.5]
+
+
+def test_a_converted_layer_of_a_transcoded_file_is_read_as_numbers(tmp_path: Path) -> None:
+    path = tmp_path / "legacy.tsv"
+    path.write_bytes("Sample\tFeature\tLabel\tQuantity\nA\tF\tx — y\t2.5\n".encode("cp1252"))
+    legacy = replace(TSV, encoding_candidates=("utf8", "windows-1252"))
+    evidence = delimited_input.detected_evidence(
+        make_vendor_file(path), legacy, accepts_sample_and_feature
+    )
+
+    frame = (
+        delimited_input.DelimitedInputReader(
+            make_vendor_file(path),
+            evidence,
+            plan("Sample", "Feature", "Label", "Quantity", converted=("Quantity",)),
+        )
+        .read()
+        .frame
+    )
+
+    assert evidence.encoding == "windows-1252"
+    assert frame.get_column("Label").to_list() == ["x — y"]
+    assert frame.get_column("Quantity").to_list() == [2.5]
 
 
 def test_a_read_returns_the_projection_in_plan_order(tmp_path: Path) -> None:

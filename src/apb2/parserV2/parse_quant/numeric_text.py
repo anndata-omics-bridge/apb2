@@ -16,14 +16,7 @@ import polars as pl
 
 from apb2.parserV2.parse_quant.parameters.source import NumericTextFormat
 
-_BOOLEAN_SPELLINGS = {
-    "true": "1",
-    "false": "0",
-    "TRUE": "1",
-    "FALSE": "0",
-    "True": "1",
-    "False": "0",
-}
+_BOOLEAN_SPELLINGS = (["true", "TRUE", "True"], ["false", "FALSE", "False"])
 """A vendor writing ``True``/``False`` in a column its own rule calls numeric means 1 and 0.
 
 Which is what an inferring reader produced from the same file, so reading it any other way
@@ -36,15 +29,25 @@ def as_numbers(
     dtype: pl.DataType,
     notation: NumericTextFormat,
 ) -> pl.Expr:
-    """Read one column expression as numbers under its declared physical dtype and notation."""
+    """Read one column expression as numbers under its declared physical dtype and notation.
+
+    The boolean spellings are matched elementwise after the cast: ``replace`` would join the
+    whole column against its mapping, which costs more than the column itself.
+    """
     if dtype.is_numeric():
         return values.cast(pl.Float64, strict=False)
-    text = values.cast(pl.String, strict=False).replace(_BOOLEAN_SPELLINGS)
+    text = values.cast(pl.String, strict=False)
+    written = text
     for mark in notation.thousands_marks:
-        text = text.str.replace_all(mark, "", literal=True)
+        written = written.str.replace_all(mark, "", literal=True)
     if notation.decimal_mark != ".":
-        text = text.str.replace_all(notation.decimal_mark, ".", literal=True)
-    return text.cast(pl.Float64, strict=False)
+        written = written.str.replace_all(notation.decimal_mark, ".", literal=True)
+    true, false = _BOOLEAN_SPELLINGS
+    return (
+        pl.when(text.is_in([*true, *false]))
+        .then(text.is_in(true).cast(pl.Float64))
+        .otherwise(written.cast(pl.Float64, strict=False))
+    )
 
 
 def absent(values: pl.Expr, dtype: pl.DataType) -> pl.Expr:
