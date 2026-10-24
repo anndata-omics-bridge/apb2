@@ -9,6 +9,7 @@ mistaken for another.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from dataclasses import replace
 from typing import get_args
@@ -29,9 +30,9 @@ from apb2.parserV2.parse_quant.contracts import (
     LayerSetValidator,
     LayerValueParser,
     PrunedFields,
-    RawValuePresence,
     SelectedAxisColumn,
 )
+from apb2.parserV2.parse_quant.data.layer_columns import ObservationGrid
 from apb2.parserV2.parse_quant.data.parsed import (
     FinalLayerTable,
     JsonValue,
@@ -41,18 +42,21 @@ from apb2.parserV2.parse_quant.data.parsed import (
     VarFinal,
 )
 from apb2.parserV2.parse_quant.data.raw import (
-    DecomposedDataRaw,
-    LayersRaw,
+    OBS_ROW,
+    VALUE,
+    VAR_ROW,
+    LongLayer,
     ObsRaw,
-    RawLayerTable,
+    RawLevel,
     VarRaw,
 )
-from apb2.parserV2.parse_quant.decomposition import LongSourceDecomposer
+from apb2.parserV2.parse_quant.decomposition import LongSourceDecomposer, WideSourceDecomposer
 from apb2.parserV2.parse_quant.duplicates import (
     DuplicateCellError,
     FirstFeatureValue,
     KeepBestDuplicate,
 )
+from apb2.parserV2.parse_quant.errors import LayerValueError
 from apb2.parserV2.parse_quant.layer_validation import LayerContractValidator
 from apb2.parserV2.parse_quant.operations import (
     duplicate_policy_for,
@@ -61,6 +65,7 @@ from apb2.parserV2.parse_quant.operations import (
 from apb2.parserV2.parse_quant.parameters.axis import AxisKeyPlan, AxisSourcePlan
 from apb2.parserV2.parse_quant.parameters.measurements import (
     DuplicateMode,
+    FactorLayerDeclaration,
     PlainNumericLayerDeclaration,
 )
 from apb2.parserV2.parse_quant.parameters.source import (
@@ -68,6 +73,8 @@ from apb2.parserV2.parse_quant.parameters.source import (
     LevelSourceTable,
     LongRawLayerSource,
     NumericTextFormat,
+    WideRawLayerPlan,
+    WideRawLayerSource,
 )
 from apb2.parserV2.parse_quant.parser import (
     CanonicalKeyCollisionError,
@@ -213,16 +220,16 @@ SIMPLE_FRAME = pl.DataFrame(
 
 def test_parse_runs_its_collaborators_in_the_documented_order() -> None:
     calls: list[str] = []
-    raw = DecomposedDataRaw(
+    raw = RawLevel(
         obs=ObsRaw(frame=pl.DataFrame({"run": ["A"]}), raw_key_columns=("run",)),
         var=VarRaw(frame=pl.DataFrame({"feature": ["F1"]}), raw_key_columns=("feature",)),
-        layers=LayersRaw(
-            primary_layer_name="Intensity",
-            values=(
-                RawLayerTable(
-                    layer_name="Intensity",
-                    raw_var_key_columns=("feature",),
-                    values=pl.DataFrame({"feature": ["F1"], "obs_0": [1.0]}),
+        primary_layer_name="Intensity",
+        layers=(
+            LongLayer(
+                "Intensity",
+                pl.DataFrame(
+                    {VAR_ROW: [0], OBS_ROW: [0], VALUE: [1.0]},
+                    schema={VAR_ROW: pl.UInt32, OBS_ROW: pl.UInt32, VALUE: pl.Float64},
                 ),
             ),
         ),
@@ -234,7 +241,7 @@ def test_parse_runs_its_collaborators_in_the_documented_order() -> None:
             return LevelSourceTable(frame=pl.DataFrame({"a": [1]}))
 
     class Decomposer:
-        def decompose(self, table: LevelSourceTable, /) -> DecomposedDataRaw:
+        def decompose(self, table: LevelSourceTable, /) -> RawLevel:
             calls.append("decompose")
             return raw
 
@@ -252,14 +259,15 @@ def test_parse_runs_its_collaborators_in_the_documented_order() -> None:
             calls.append("present")
             return values.is_not_null()
 
-        def parse(self, layer: FinalLayerTable) -> tuple[FinalLayerTable, dict[str, JsonValue]]:
+        def parse(
+            self, layer: LongLayer, grid: ObservationGrid, /
+        ) -> tuple[FinalLayerTable, dict[str, JsonValue]]:
             calls.append("parse_values")
-            return numeric_layer_parser("Intensity").parse(layer)
+            return numeric_layer_parser("Intensity").parse(layer, grid)
 
     class Policy:
-        def resolve(self, layer: RawLayerTable, presence: RawValuePresence, /) -> RawLayerTable:
+        def resolve(self, layer: LongLayer, /) -> LongLayer:
             calls.append("resolve")
-            presence.present(pl.col("obs_0"), layer.values.schema["obs_0"])
             return layer
 
     parser = Parser(
@@ -289,8 +297,8 @@ def test_parse_runs_its_collaborators_in_the_documented_order() -> None:
         "read",
         "decompose",
         "normalize",
-        "resolve",
         "present",
+        "resolve",
         "parse_values",
     ]
     assert parsed.primary_layer_name == "Intensity"
@@ -924,3 +932,251 @@ class _ReaderOf:
 
     def read(self) -> LevelSourceTable:
         return LevelSourceTable(frame=self._frame)
+
+
+# --------------------------------------------------------- layer results that must not move
+#
+# These pin what the parser returns today for cases a change of the layer pipeline could move:
+# cell order among repeats, fill values, null against NaN, labels and empty shapes.
+
+
+def _strategy(
+    decomposer: LongSourceDecomposer | WideSourceDecomposer,
+    layer_parsers: Mapping[str, LayerValueParser],
+    duplicates: DuplicateMode = "error",
+    *,
+    obs_plan: AxisRuntimePlan = SIMPLE_OBS_PLAN,
+    var_plan: AxisRuntimePlan = SIMPLE_VAR_PLAN,
+) -> ParseStrategy:
+    return ParseStrategy(
+        level="ion",
+        decomposer=decomposer,
+        obs=obs_plan,
+        var=var_plan,
+        duplicates=duplicate_policy_for(duplicates),
+        layer_parsers=layer_parsers,
+        layer_validator=layer_validator("Intensity"),
+        pruner=KeepEveryField(),
+        hierarchy=ION_HIERARCHY,
+        roles=NO_ROLES,
+        provenance={},
+        read=LevelReadPlan((), frozenset(), frozenset()),
+    )
+
+
+def _long(
+    layers: tuple[tuple[str, str], ...], var: AxisSourcePlan = SIMPLE_VAR
+) -> LongSourceDecomposer:
+    return LongSourceDecomposer(
+        primary_layer_name=layers[0][0],
+        layer_sources=tuple(LongRawLayerSource(name, source) for name, source in layers),
+        obs=SIMPLE_OBS,
+        var=var,
+        var_values=(),
+    )
+
+
+def _numbers(name: str, *, integer: bool = False) -> LayerValueParser:
+    return make_layer_parser(
+        name,
+        PlainNumericLayerDeclaration(missing_values=(), type="integer" if integer else "number"),
+        DOT,
+    )
+
+
+def test_wide_repeats_keep_the_first_value_in_header_then_row_order() -> None:
+    samples = AxisSourcePlan(
+        keys=AxisKeyPlan(("sample",), ("sample",), ("sample",)), payload_sources=()
+    )
+    decomposer = WideSourceDecomposer(
+        primary_layer_name="Intensity",
+        layer_plans=(
+            WideRawLayerPlan(
+                "Intensity", (WideRawLayerSource("A_1", "A"), WideRawLayerSource("A_2", "A"))
+            ),
+        ),
+        obs=samples,
+        var=SIMPLE_VAR,
+        var_values=(),
+    )
+    frame = pl.DataFrame(
+        {"feature": ["F1", "F1", "F2"], "A_1": [None, 7.0, 1.0], "A_2": [5.0, None, None]}
+    )
+
+    parsed = _strategy(
+        decomposer,
+        {"Intensity": _numbers("Intensity")},
+        "keep_first",
+        obs_plan=AxisRuntimePlan(
+            keys=samples.keys, key_phase=phase(), output_phase=phase(), outputs=("sample",)
+        ),
+    ).parse(LevelSourceTable(frame))
+
+    assert parsed.layers["Intensity"].values.to_dicts() == [{"obs_0": 7.0}, {"obs_0": 1.0}], (
+        "the first header's column is read down every row before the second header's"
+    )
+
+
+def test_a_factor_cell_without_a_known_label_is_the_missing_code() -> None:
+    frame = pl.DataFrame(
+        {
+            "run": ["A", "A", "B"],
+            "feature": ["F1", "F2", "F1"],
+            "intensity": [1.0, 2.0, 3.0],
+            "status": ["ok", "weird", None],
+        }
+    )
+    status = make_layer_parser(
+        "Status", FactorLayerDeclaration(categories=(("ok", 1), ("bad", 2))), DOT
+    )
+
+    parsed = _strategy(
+        _long((("Intensity", "intensity"), ("Status", "status"))),
+        {"Intensity": _numbers("Intensity"), "Status": status},
+    ).parse(LevelSourceTable(frame))
+
+    values = parsed.layers["Status"].values
+    assert values.to_dicts() == [{"obs_0": 1, "obs_1": -1}, {"obs_0": -1, "obs_1": -1}]
+    assert values.dtypes == [pl.Int64, pl.Int64]
+
+
+def test_nan_text_stays_nan_and_a_blank_cell_stays_null() -> None:
+    frame = pl.DataFrame(
+        {
+            "run": ["A", "A", "B", "B"],
+            "feature": ["F1", "F2", "F1", "F2"],
+            "intensity": ["NaN", " ", "1.5", "2"],
+        }
+    )
+
+    parsed = _strategy(
+        _long((("Intensity", "intensity"),)), {"Intensity": _numbers("Intensity")}
+    ).parse(LevelSourceTable(frame))
+
+    first, second = parsed.layers["Intensity"].values.rows()
+    assert first[0] is not None and math.isnan(first[0])
+    assert first[1] == 1.5
+    assert second == (None, 2.0)
+
+
+def test_integer_layer_errors_list_examples_observation_by_observation() -> None:
+    frame = pl.DataFrame(
+        {
+            "run": ["A", "B", "A", "B"],
+            "feature": ["F1", "F1", "F2", "F2"],
+            "intensity": [1.0, 2.0, 3.0, 4.0],
+            "count": ["1.5", "3.5", "2.5", "4"],
+        }
+    )
+    strategy = _strategy(
+        _long((("Intensity", "intensity"), ("Count", "count"))),
+        {"Intensity": _numbers("Intensity"), "Count": _numbers("Count", integer=True)},
+    )
+
+    with pytest.raises(LayerValueError, match=r"examples=\[1\.5, 2\.5, 3\.5\]"):
+        strategy.parse(LevelSourceTable(frame))
+
+
+def test_keep_best_copies_the_winning_rows_absent_value() -> None:
+    frame = pl.DataFrame(
+        {
+            "run": ["A", "A", "B"],
+            "feature": ["F1", "F1", "F1"],
+            "intensity": [None, 5.0, 3.0],
+            "score": [9.0, 1.0, 2.0],
+        }
+    )
+
+    parsed = parser_for(
+        frame,
+        obs_plan=SIMPLE_OBS_PLAN,
+        var_plan=SIMPLE_VAR_PLAN,
+        obs=SIMPLE_OBS,
+        var=SIMPLE_VAR,
+        layers=(("Intensity", "intensity"), ("Score", "score")),
+        duplicates="keep_best",
+        rank_by="Score",
+    ).parse()
+
+    assert parsed.layers["Intensity"].values.to_dicts() == [{"obs_0": None, "obs_1": 3.0}]
+    assert parsed.layers["Score"].values.to_dicts() == [{"obs_0": 9.0, "obs_1": 2.0}]
+
+
+def test_observation_labels_step_aside_for_a_var_key_named_like_them() -> None:
+    var = axis_source(("feature",), ("obs_0",), ("obs_0",))
+    var_plan = AxisRuntimePlan(
+        keys=var.keys,
+        key_phase=phase((selected("obs_0", "feature"),)),
+        output_phase=phase(),
+        outputs=("obs_0",),
+    )
+    frame = pl.DataFrame({"run": ["A", "B"], "feature": ["F1", "F1"], "intensity": [1.0, 2.0]})
+
+    parsed = _strategy(
+        _long((("Intensity", "intensity"),), var),
+        {"Intensity": _numbers("Intensity")},
+        var_plan=var_plan,
+    ).parse(LevelSourceTable(frame))
+
+    assert parsed.layers["Intensity"].values.columns == ["obs__0", "obs__1"]
+
+
+def test_a_level_without_valid_observations_or_features_has_empty_layers() -> None:
+    no_runs = pl.DataFrame(
+        {"run": [None, None], "feature": ["F1", "F2"], "intensity": [1.0, 2.0]},
+        schema_overrides={"run": pl.String},
+    )
+    no_features = pl.DataFrame(
+        {"run": ["A", "B"], "feature": [None, None], "intensity": [1.0, 2.0]},
+        schema_overrides={"feature": pl.String},
+    )
+    strategy = _strategy(_long((("Intensity", "intensity"),)), {"Intensity": _numbers("Intensity")})
+
+    without_runs = strategy.parse(LevelSourceTable(no_runs)).layers["Intensity"].values
+    without_features = strategy.parse(LevelSourceTable(no_features)).layers["Intensity"].values
+
+    assert without_runs.shape == (0, 0)
+    assert without_features.shape == (0, 2)
+    assert without_features.dtypes == [pl.Float64, pl.Float64]
+
+
+def test_unreadable_tokens_are_counted_on_the_cells_keep_first_kept() -> None:
+    frame = pl.DataFrame(
+        {
+            "run": ["A", "A", "B", "A", "B"],
+            "feature": ["F1", "F1", "F1", "F2", "F2"],
+            "intensity": ["broken", "2.0", "x", "1", "2"],
+        }
+    )
+
+    parsed = _strategy(
+        _long((("Intensity", "intensity"),)), {"Intensity": _numbers("Intensity")}, "keep_first"
+    ).parse(LevelSourceTable(frame))
+
+    assert parsed.layers["Intensity"].values.to_dicts() == [
+        {"obs_0": None, "obs_1": None},
+        {"obs_0": 1.0, "obs_1": 2.0},
+    ]
+    result = parsed.uns["result"]
+    assert isinstance(result, dict)
+    assert result["layer_diagnostics"] == {
+        "unreadable_numeric": {
+            "Intensity": {"cell_count": 2, "distinct_token_count": 2, "examples": ["broken", "x"]}
+        }
+    }
+
+
+def test_presence_is_decided_before_duplicates_are_resolved() -> None:
+    """A sentinel beside a real value claims no cell, so the error policy sees one value."""
+    frame = pl.DataFrame(
+        {"run": ["A", "A", "B"], "feature": ["F1", "F1", "F1"], "intensity": ["0", "2", "3"]}
+    )
+    sentinel = make_layer_parser(
+        "Intensity", PlainNumericLayerDeclaration(missing_values=(0.0,)), DOT
+    )
+
+    parsed = _strategy(_long((("Intensity", "intensity"),)), {"Intensity": sentinel}).parse(
+        LevelSourceTable(frame)
+    )
+
+    assert parsed.layers["Intensity"].values.to_dicts() == [{"obs_0": 2.0, "obs_1": 3.0}]

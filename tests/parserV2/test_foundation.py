@@ -18,10 +18,10 @@ from apb2.parserV2.parse_quant.contracts import (
     ColumnComputer,
     DuplicatePolicy,
     FragmentTableSeparator,
-    RawValuePresence,
     SelectedAxisColumn,
     SourceDecomposer,
 )
+from apb2.parserV2.parse_quant.data.layer_columns import ObservationGrid
 from apb2.parserV2.parse_quant.data.parsed import (
     FinalLayerTable,
     LevelHierarchy,
@@ -30,11 +30,15 @@ from apb2.parserV2.parse_quant.data.parsed import (
     VarFinal,
 )
 from apb2.parserV2.parse_quant.data.raw import (
-    DecomposedDataRaw,
-    LayersRaw,
+    OBS_POS,
+    OBS_ROW,
+    VALUE,
+    VAR_POS,
+    VAR_ROW,
+    FinalPositions,
+    LongLayer,
     ObsRaw,
-    RawLayerTable,
-    RawToFinalKeyMap,
+    RawLevel,
     VarRaw,
 )
 from apb2.parserV2.parse_quant.operations import (
@@ -98,61 +102,59 @@ def test_a_multi_column_identity_states_every_key_in_authored_order() -> None:
     assert "genes" not in var.raw_key_columns
 
 
-def test_a_raw_layer_puts_its_var_keys_first_and_obs_values_after_them() -> None:
-    layer = RawLayerTable(
-        layer_name="Intensity",
-        raw_var_key_columns=("sequence", "charge"),
-        values=pl.DataFrame(
-            {
-                "sequence": ["PEPMIDE", "PEPMIDE", "OTHER"],
-                "charge": ["2", "2", "3"],
-                "A": [100.0, 110.0, 50.0],
-                "B": [120.0, None, 60.0],
-            }
+def test_a_long_layer_keeps_repeated_cells_and_splits_them_off_once_placed() -> None:
+    rows = pl.DataFrame(
+        {VAR_POS: [0, 0, 1], OBS_POS: [0, 0, 0], VALUE: [100.0, 110.0, 50.0]},
+        schema={VAR_POS: pl.UInt32, OBS_POS: pl.UInt32, VALUE: pl.Float64},
+    )
+
+    once, repeated = LongLayer(layer_name="Intensity", rows=rows).split()
+
+    # Repeated raw cells survive decomposition for the duplicate policy to resolve.
+    assert repeated.rows.get_column(VALUE).to_list() == [100.0, 110.0]
+    assert once.rows.get_column(VALUE).to_list() == [50.0]
+
+
+def test_final_positions_drop_the_rows_of_axis_rows_that_did_not_survive() -> None:
+    positions = FinalPositions(
+        var=pl.Series([0, None, 1], dtype=pl.UInt32),
+        obs=pl.Series([None, 0], dtype=pl.UInt32),
+        var_keys=pl.DataFrame({"feature": ["F1", "F3"]}),
+        grid=ObservationGrid(height=2, labels=("obs_0",)),
+    )
+    layer = LongLayer(
+        "Intensity",
+        pl.DataFrame(
+            {VAR_ROW: [0, 1, 2, 2], OBS_ROW: [1, 1, 1, 0], VALUE: [1.0, 2.0, 3.0, 4.0]},
+            schema={VAR_ROW: pl.UInt32, OBS_ROW: pl.UInt32, VALUE: pl.Float64},
         ),
     )
 
-    keys = len(layer.raw_var_key_columns)
-    assert layer.values.columns[:keys] == ["sequence", "charge"]
-    # Repeated raw cells survive decomposition for the duplicate policy to resolve.
-    assert layer.values.height == 3
+    placed = positions.place(layer)
 
-
-def test_a_key_map_relates_equal_length_raw_and_final_frames() -> None:
-    mapping = RawToFinalKeyMap(
-        raw_keys=pl.DataFrame({"sequence": ["PEPMIDE", "OTHER"], "charge": ["2", "3"]}),
-        final_keys=pl.DataFrame({"ProForma_ion": ["PEPMIDE/2", "OTHER/3"]}),
-    )
-
-    assert mapping.raw_keys.height == mapping.final_keys.height
+    assert placed.rows.rows() == [(0, 0, 1.0), (1, 0, 3.0)]
+    assert placed.var_keys is positions.var_keys
 
 
 def test_decomposition_reduces_every_physical_shape_to_one_raw_contract() -> None:
-    raw = DecomposedDataRaw(
+    raw = RawLevel(
         obs=ObsRaw(frame=pl.DataFrame({"sample": ["A"]}), raw_key_columns=("sample",)),
         var=VarRaw(frame=pl.DataFrame({"feature": ["F"]}), raw_key_columns=("feature",)),
-        layers=LayersRaw(
-            primary_layer_name="Intensity",
-            values=(
-                RawLayerTable(
-                    layer_name="Intensity",
-                    raw_var_key_columns=("feature",),
-                    values=pl.DataFrame({"feature": ["F"], "A": [1.0]}),
-                ),
+        primary_layer_name="Intensity",
+        layers=(
+            LongLayer(
+                "Intensity",
+                pl.DataFrame({VAR_ROW: [0], OBS_ROW: [0], VALUE: [1.0]}),
             ),
         ),
     )
 
-    assert raw.layers.primary_layer_name == "Intensity"
-    assert tuple(layer.layer_name for layer in raw.layers.values) == ("Intensity",)
+    assert raw.primary_layer_name == "Intensity"
+    assert tuple(layer.layer_name for layer in raw.layers) == ("Intensity",)
 
 
 def test_raw_and_final_layer_tables_share_no_mode_bearing_abstraction() -> None:
-    raw = RawLayerTable(
-        layer_name="Intensity",
-        raw_var_key_columns=("feature",),
-        values=pl.DataFrame({"feature": ["F"], "A": [1.0]}),
-    )
+    raw = LongLayer("Intensity", pl.DataFrame({VAR_ROW: [0], OBS_ROW: [0], VALUE: [1.0]}))
     final = FinalLayerTable(
         layer_name="Intensity",
         values=(pl.DataFrame({"ProForma_ion": ["F/2"], "A": [1.0]})).drop(
@@ -209,22 +211,14 @@ def test_a_parsed_level_composes_final_values_and_nothing_new() -> None:
     assert parsed.primary_layer_name in parsed.layers
 
 
-def test_pipeline_values_carry_no_matrices_indexes_or_temporary_identities() -> None:
-    forbidden = {"X", "codes", "index", "matrix", "obs_codes", "var_codes", "join_map"}
-    for record in (
-        LevelSourceTable,
-        ObsRaw,
-        VarRaw,
-        RawLayerTable,
-        LayersRaw,
-        DecomposedDataRaw,
-        RawToFinalKeyMap,
-        ObsFinal,
-        VarFinal,
-        FinalLayerTable,
-        ParsedLevel,
-    ):
-        assert not forbidden & set(vars(record).get("__slots__", ()))
+def test_pipeline_values_carry_no_matrices_and_results_carry_no_row_numbers() -> None:
+    """Layers are long rows of integer positions until widened, last; no record is a matrix,
+    and a parsed result keeps no row numbers or positions of its own."""
+    for record in (LevelSourceTable, ObsRaw, VarRaw, LongLayer, RawLevel, FinalPositions):
+        assert not {"X", "matrix", "index", "join_map"} & set(vars(record).get("__slots__", ()))
+    for record in (ObsFinal, VarFinal, FinalLayerTable, ParsedLevel):
+        slots = set(vars(record).get("__slots__", ()))
+        assert not {"X", "matrix", "index", "join_map", "rows", "positions"} & slots
 
 
 # --------------------------------------------------------------------------------- parameters
@@ -500,7 +494,7 @@ class _Reader:
 
 
 class _Decomposer:
-    def decompose(self, table: LevelSourceTable, /) -> DecomposedDataRaw:
+    def decompose(self, table: LevelSourceTable, /) -> RawLevel:
         del table
         raise NotImplementedError
 
@@ -530,8 +524,7 @@ class _Presence:
 
 
 class _Policy:
-    def resolve(self, layer: RawLayerTable, presence: RawValuePresence, /) -> RawLayerTable:
-        del presence
+    def resolve(self, layer: LongLayer, /) -> LongLayer:
         return layer
 
 
@@ -541,7 +534,7 @@ def test_the_intended_collaborators_satisfy_their_client_owned_contracts() -> No
     separator: FragmentTableSeparator = _Separator()
     coercer: AxisValueCoercer = _Coercer()
     computer: ColumnComputer = _Computer()
-    presence: RawValuePresence = _Presence()
+    presence = _Presence()
     policy: DuplicatePolicy = _Policy()
 
     assert reader.read().frame.height == 1

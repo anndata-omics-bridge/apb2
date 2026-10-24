@@ -1,8 +1,8 @@
 """Decomposition: three physical shapes, one raw contract, repeated cells intact.
 
 What must hold whatever the layout was: a raw axis has one stable-first row per complete raw
-key, a raw layer is wide with its var keys first and its value columns positionally aligned to
-the obs frame, and nothing has been decided about repeated cells yet.
+key, a layer is long rows naming their raw axis rows beside the value as read, and nothing has
+been decided about repeated cells yet.
 """
 
 from __future__ import annotations
@@ -10,8 +10,17 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
-from apb2.parserV2.parse_quant.data.layer_columns import observation_labels
-from apb2.parserV2.parse_quant.data.raw import DISAGREEING_VALUES, DecomposedDataRaw
+from apb2.parserV2.parse_quant.data.layer_columns import ObservationGrid, observation_labels
+from apb2.parserV2.parse_quant.data.raw import (
+    DISAGREEING_VALUES,
+    OBS_POS,
+    OBS_ROW,
+    VALUE,
+    VAR_POS,
+    VAR_ROW,
+    FinalPositions,
+    RawLevel,
+)
 from apb2.parserV2.parse_quant.decomposition import (
     DelimitedFragmentSourceDecomposer,
     LongSourceDecomposer,
@@ -36,7 +45,6 @@ from apb2.parserV2.parse_quant.parameters.source import (
     WideRawLayerPlan,
     WideRawLayerSource,
 )
-from apb2.parserV2.parse_quant.value_parsing import FactorLayerParser
 
 
 def axis(raw: tuple[str, ...], payload: tuple[str, ...] = ()) -> AxisSourcePlan:
@@ -65,8 +73,15 @@ def long_decomposer(
     )
 
 
-def layers_of(raw: DecomposedDataRaw) -> dict[str, pl.DataFrame]:
-    return {layer.layer_name: layer.values for layer in raw.layers.values}
+def cells_of(raw: RawLevel, name: str) -> list[tuple[object, ...]]:
+    """One layer's rows as (raw var keys…, raw obs keys…, value), in physical order."""
+    layer = next(layer for layer in raw.layers if layer.layer_name == name)
+    var_keys = raw.var.frame.select(raw.var.raw_key_columns)
+    obs_keys = raw.obs.frame.select(raw.obs.raw_key_columns)
+    return [
+        (*var_keys.row(var_row), *obs_keys.row(obs_row), value)
+        for var_row, obs_row, value in layer.rows.iter_rows()
+    ]
 
 
 # ------------------------------------------------------------------------- one raw contract
@@ -110,17 +125,12 @@ def test_equivalent_long_and_wide_inputs_produce_the_same_raw_invariant() -> Non
     assert from_long.var.frame.to_dicts() == from_wide.var.frame.to_dicts()
     # The wide file lists F1's samples across columns, the long file across rows; both mean
     # the same layer.
-    assert layers_of(from_long)["Intensity"].to_dicts() == [
-        {"Feature": "F1", "obs_0": 1.0, "obs_1": 3.0},
-        {"Feature": "F2", "obs_0": 2.0, "obs_1": 4.0},
-    ]
-    assert layers_of(from_wide)["Intensity"].to_dicts() == [
-        {"Feature": "F1", "obs_0": 1.0, "obs_1": 3.0},
-        {"Feature": "F2", "obs_0": 2.0, "obs_1": 4.0},
-    ]
+    cells = [("F1", "A", 1.0), ("F2", "A", 2.0), ("F1", "B", 3.0), ("F2", "B", 4.0)]
+    assert cells_of(from_long, "Intensity") == cells
+    assert cells_of(from_wide, "Intensity") == cells
 
 
-def test_a_layer_puts_its_var_keys_first_and_the_obs_columns_in_axis_order() -> None:
+def test_a_layer_names_its_axis_rows_and_the_obs_axis_keeps_first_seen_order() -> None:
     table = LevelSourceTable(
         frame=pl.DataFrame(
             {
@@ -138,11 +148,12 @@ def test_a_layer_puts_its_var_keys_first_and_the_obs_columns_in_axis_order() -> 
         obs=axis(("run",)),
         var=axis(("seq", "charge")),
     ).decompose(table)
-    values = layers_of(raw)["Intensity"]
+    (layer,) = raw.layers
 
     assert raw.obs.frame.get_column("run").to_list() == ["B", "A"]
-    assert values.columns == ["seq", "charge", "obs_0", "obs_1"]
-    assert values.to_dicts() == [{"seq": "P", "charge": "2", "obs_0": 1.0, "obs_1": 2.0}]
+    assert layer.rows.columns == [VAR_ROW, OBS_ROW, VALUE]
+    assert layer.rows.rows() == [(0, 0, 1.0), (0, 1, 2.0)]
+    assert cells_of(raw, "Intensity") == [("P", "2", "B", 1.0), ("P", "2", "A", 2.0)]
 
 
 def test_a_raw_axis_keeps_the_first_payload_it_saw_for_one_key() -> None:
@@ -289,10 +300,7 @@ def test_a_missing_raw_key_component_is_an_identity_of_its_own() -> None:
 
     assert raw.obs.frame.get_column("run").to_list() == ["A", None, "B"]
     assert raw.var.frame.get_column("Feature").to_list() == ["F1", None]
-    assert layers_of(raw)["Intensity"].to_dicts() == [
-        {"Feature": "F1", "obs_0": 1.0, "obs_1": 2.0, "obs_2": None},
-        {"Feature": None, "obs_0": None, "obs_1": None, "obs_2": 3.0},
-    ]
+    assert cells_of(raw, "Intensity") == [("F1", "A", 1.0), ("F1", None, 2.0), (None, "B", 3.0)]
 
 
 def test_a_multi_column_obs_key_becomes_several_columns_of_one_raw_axis() -> None:
@@ -316,33 +324,16 @@ def test_a_multi_column_obs_key_becomes_several_columns_of_one_raw_axis() -> Non
 
     assert raw.obs.raw_key_columns == ("run", "fraction")
     assert raw.obs.frame.height == 2
-    assert layers_of(raw)["Intensity"].to_dicts() == [{"Feature": "F1", "obs_0": 1.0, "obs_1": 2.0}]
+    assert cells_of(raw, "Intensity") == [("F1", "A", "1", 1.0), ("F1", "A", "2", 2.0)]
 
 
-def test_long_decomposition_pivots_distinct_layer_sources_together(
+def test_long_layers_share_their_row_numbers_and_keep_the_column_as_read(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[str, ...]] = []
-    original_pivot = pl.DataFrame.pivot
+    def no_pivot(*_args: object, **_kwargs: object) -> pl.DataFrame:
+        raise AssertionError("decomposition widens nothing")
 
-    def counted_pivot(
-        self: pl.DataFrame,
-        on: str,
-        *,
-        index: list[str],
-        values: str | list[str],
-        separator: str = "_",
-    ) -> pl.DataFrame:
-        calls.append((values,) if isinstance(values, str) else tuple(values))
-        return original_pivot(
-            self,
-            on=on,
-            index=index,
-            values=values,
-            separator=separator,
-        )
-
-    monkeypatch.setattr(pl.DataFrame, "pivot", counted_pivot)
+    monkeypatch.setattr(pl.DataFrame, "pivot", no_pivot)
     table = LevelSourceTable(
         frame=pl.DataFrame(
             {
@@ -364,25 +355,21 @@ def test_long_decomposition_pivots_distinct_layer_sources_together(
         obs=axis(("run",)),
         var=axis(("Feature",)),
     ).decompose(table)
-    layers = layers_of(raw)
+    layers = {layer.layer_name: layer.rows for layer in raw.layers}
 
-    assert len(calls) == 1
-    assert len(calls[0]) == 3
     assert layers["Intensity"].equals(layers["Intensity_Copy"])
-    assert layers["Status"].to_dicts() == [
-        {"Feature": "F1", "obs_0": "found", "obs_1": "transferred"}
-    ]
-    assert layers["Empty"].schema == {
-        "Feature": pl.String,
-        "obs_0": pl.Float64,
-        "obs_1": pl.Float64,
-    }
+    assert all(
+        rows.select(VAR_ROW, OBS_ROW).equals(layers["Status"].select(VAR_ROW, OBS_ROW))
+        for rows in layers.values()
+    )
+    assert layers["Status"].get_column(VALUE).to_list() == ["found", "transferred"]
+    assert layers["Empty"].schema == {VAR_ROW: pl.UInt32, OBS_ROW: pl.UInt32, VALUE: pl.Float64}
 
 
 # ------------------------------------------------------------------------- repeated cells
 
 
-def test_a_repeated_long_cell_becomes_a_repeated_var_row() -> None:
+def test_a_repeated_long_cell_becomes_a_second_row_naming_the_same_cell() -> None:
     table = LevelSourceTable(
         frame=pl.DataFrame(
             {
@@ -393,22 +380,22 @@ def test_a_repeated_long_cell_becomes_a_repeated_var_row() -> None:
         )
     )
 
-    values = layers_of(
-        long_decomposer(
-            ("Intensity", "intensity"),
-            primary="Intensity",
-            obs=axis(("run",)),
-            var=axis(("Feature",)),
-        ).decompose(table)
-    )["Intensity"]
+    raw = long_decomposer(
+        ("Intensity", "intensity"),
+        primary="Intensity",
+        obs=axis(("run",)),
+        var=axis(("Feature",)),
+    ).decompose(table)
 
-    assert values.to_dicts() == [
-        {"Feature": "F1", "obs_0": 10.0, "obs_1": 20.0, "obs_2": 30.0},
-        {"Feature": "F1", "obs_0": 11.0, "obs_1": None, "obs_2": None},
+    assert cells_of(raw, "Intensity") == [
+        ("F1", "A", 10.0),
+        ("F1", "B", 20.0),
+        ("F1", "A", 11.0),
+        ("F1", "C", 30.0),
     ]
 
 
-def test_two_wide_columns_claiming_one_sample_become_repeated_rows() -> None:
+def test_two_wide_columns_claiming_one_sample_repeat_its_cells_header_first() -> None:
     table = LevelSourceTable(
         frame=pl.DataFrame(
             {"Feature": ["F1", "F2"], "A one": [1.0, 2.0], "A two": [9.0, None], "B": [3.0, 4.0]}
@@ -431,17 +418,17 @@ def test_two_wide_columns_claiming_one_sample_become_repeated_rows() -> None:
         var_values=(),
     )
 
-    values = layers_of(config.decompose(table))["Intensity"]
-
-    assert values.to_dicts() == [
-        {"Feature": "F1", "obs_0": 1.0, "obs_1": 3.0},
-        {"Feature": "F1", "obs_0": 9.0, "obs_1": None},
-        {"Feature": "F2", "obs_0": 2.0, "obs_1": 4.0},
-        {"Feature": "F2", "obs_0": None, "obs_1": None},
+    assert cells_of(config.decompose(table), "Intensity") == [
+        ("F1", "A", 1.0),
+        ("F2", "A", 2.0),
+        ("F1", "B", 3.0),
+        ("F2", "B", 4.0),
+        ("F1", "A", 9.0),
+        ("F2", "A", None),
     ]
 
 
-def test_a_required_wide_layer_with_no_aligned_column_stays_aligned_and_empty() -> None:
+def test_a_required_wide_layer_with_no_aligned_column_is_kept_without_rows() -> None:
     table = LevelSourceTable(frame=pl.DataFrame({"Feature": ["F1"], "A": [1.0]}))
     config = WideSourceDecomposer(
         primary_layer_name="Intensity",
@@ -457,11 +444,9 @@ def test_a_required_wide_layer_with_no_aligned_column_stays_aligned_and_empty() 
     )
 
     raw = config.decompose(table)
-    count = layers_of(raw)["Count"]
 
-    assert count.columns == ["Feature", "obs_0"]
-    assert count.to_dicts() == [{"Feature": "F1", "obs_0": None}]
-    assert [layer.layer_name for layer in raw.layers.values] == ["Intensity", "Count"]
+    assert cells_of(raw, "Count") == []
+    assert [layer.layer_name for layer in raw.layers] == ["Intensity", "Count"]
 
 
 @pytest.mark.parametrize("repetitions", [0, 1, 20])
@@ -489,11 +474,19 @@ def test_wide_keep_first_preserves_file_order_for_equal_keys(
         var=axis(("Feature",)),
         var_values=(),
     ).decompose(table)
-    result = KeepFirstDuplicate().resolve(raw.layers.values[0], FactorLayerParser(()))
-    assert result.values.to_dict(as_series=False) == {
-        "Feature": ["F1", "F2", None] if repetitions else [],
-        "obs_0": [1, 2, 3] if repetitions else [],
-    }
+    positions = FinalPositions(
+        var=pl.int_range(raw.var.frame.height, dtype=pl.UInt32, eager=True),
+        obs=pl.int_range(raw.obs.frame.height, dtype=pl.UInt32, eager=True),
+        var_keys=raw.var.frame,
+        grid=ObservationGrid(raw.var.frame.height, ("obs_0",)),
+    )
+    result = KeepFirstDuplicate().resolve(positions.place(raw.layers[0])).rows
+    assert raw.var.frame.get_column("Feature").to_list() == (
+        ["F1", "F2", None] if repetitions else []
+    )
+    assert result.sort(VAR_POS).select(VAR_POS, OBS_POS, VALUE).rows() == (
+        [(0, 0, 1), (1, 0, 2), (2, 0, 3)] if repetitions else []
+    )
 
 
 def test_the_wide_observation_axis_comes_from_the_primary_layer_alone() -> None:
@@ -519,8 +512,8 @@ def test_the_wide_observation_axis_comes_from_the_primary_layer_alone() -> None:
 
     assert raw.obs.frame.get_column("sample").to_list() == ["A"]
     # A non-primary sample token does not expand the observation axis, so the layer that
-    # matched it aligns to nothing.
-    assert layers_of(raw)["Count"].to_dicts() == [{"Feature": "F1", "obs_0": None}]
+    # matched it has no rows.
+    assert cells_of(raw, "Count") == []
 
 
 # ---------------------------------------------------------------------- packed fragments
@@ -619,7 +612,7 @@ def test_the_fragment_path_separates_first_and_then_delegates_once() -> None:
             return table
 
     class Long:
-        def decompose(self, table: LevelSourceTable, /) -> DecomposedDataRaw:
+        def decompose(self, table: LevelSourceTable, /) -> RawLevel:
             calls.append("decompose")
             raise NotImplementedError
 
@@ -651,9 +644,11 @@ def test_the_fragment_decomposer_reuses_the_ordinary_long_implementation() -> No
         {"Seq": "P", "fragment_label": "frag_0"},
         {"Seq": "P", "fragment_label": "frag_1"},
     ]
-    assert layers_of(raw)["Fragment_Quant"].to_dicts() == [
-        {"Seq": "P", "fragment_label": "frag_0", "obs_0": "10", "obs_1": "30"},
-        {"Seq": "P", "fragment_label": "frag_1", "obs_0": "20", "obs_1": "40"},
+    assert cells_of(raw, "Fragment_Quant") == [
+        ("P", "frag_0", "A", "10"),
+        ("P", "frag_1", "A", "20"),
+        ("P", "frag_0", "B", "30"),
+        ("P", "frag_1", "B", "40"),
     ]
 
 
@@ -666,22 +661,10 @@ def test_positional_labels_step_aside_for_a_vendor_column_of_the_same_name() -> 
     assert observation_labels(0, reserved=("obs_0",)) == ()
 
 
-def test_a_layer_value_column_never_collides_with_a_var_key_column() -> None:
-    table = LevelSourceTable(
-        frame=pl.DataFrame({"run": ["A"], "obs_0": ["F1"], "intensity": [1.0]})
-    )
-
-    raw = long_decomposer(
-        ("Intensity", "intensity"), primary="Intensity", obs=axis(("run",)), var=axis(("obs_0",))
-    ).decompose(table)
-
-    assert layers_of(raw)["Intensity"].columns == ["obs_0", "obs__0"]
-
-
 # ------------------------------------------------------------------- nothing else survives
 
 
-def test_no_returned_value_carries_a_counter_a_coordinate_or_a_matrix() -> None:
+def test_a_layer_carries_only_its_two_row_numbers_and_the_value() -> None:
     table = LevelSourceTable(
         frame=pl.DataFrame({"run": ["A", "A"], "Feature": ["F1", "F1"], "intensity": [1.0, 2.0]})
     )
@@ -690,9 +673,30 @@ def test_no_returned_value_carries_a_counter_a_coordinate_or_a_matrix() -> None:
         ("Intensity", "intensity"), primary="Intensity", obs=axis(("run",)), var=axis(("Feature",))
     ).decompose(table)
 
-    internal = {"_occurrence", "_var_slot", "_obs_slot"}
-    assert not internal & set(raw.obs.frame.columns)
-    assert not internal & set(raw.var.frame.columns)
-    for layer in raw.layers.values:
-        assert not internal & set(layer.values.columns)
-        assert isinstance(layer.values, pl.DataFrame)
+    assert raw.obs.frame.columns == ["run"]
+    assert raw.var.frame.columns == ["Feature"]
+    for layer in raw.layers:
+        assert layer.rows.schema == {VAR_ROW: pl.UInt32, OBS_ROW: pl.UInt32, VALUE: pl.Float64}
+
+
+def test_a_composite_var_key_names_one_raw_var_row() -> None:
+    table = LevelSourceTable(
+        frame=pl.DataFrame(
+            {
+                "run": ["A", "A", "B"],
+                "Feature": ["F1", "F1", "F1"],
+                "Charge": ["2", "3", "2"],
+                "intensity": [1.0, 2.0, 3.0],
+            }
+        )
+    )
+
+    raw = long_decomposer(
+        ("Intensity", "intensity"),
+        primary="Intensity",
+        obs=axis(("run",)),
+        var=axis(("Feature", "Charge")),
+    ).decompose(table)
+
+    assert raw.var.frame.rows() == [("F1", "2"), ("F1", "3")]
+    assert raw.layers[0].rows.get_column(VAR_ROW).to_list() == [0, 1, 0]

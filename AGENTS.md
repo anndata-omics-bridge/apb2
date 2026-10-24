@@ -58,6 +58,8 @@ do not import those I/O modules.
 Encode each concrete boundary in `.importlinter`; `make lint` and `make check`
 must execute `lint-imports`, so the prose rule is also a merge-blocking check.
 
+Parser V2 layers stay long until they are widened, last. A layer row names its cell by integer row numbers (`var_row`, `obs_row`), assigned once by one join per axis on the raw key columns, and by final positions (`var_pos`, `obs_pos`) once the axes are prepared. Duplicate resolution and value parsing run on these long rows; nothing widens or pivots a layer before `ObservationGrid.widen`. Identity stays in the raw and final key columns of the small axis frames; the integers only point at axis rows.
+
 ## Physical input preparation
 
 - Join and preparation hooks are allowed in two cases: one conversion consumes several physical tables, files or sheets of one workbook, or a single file's rows are not any hierarchy level, so no rule can declare them as one. MSAngel's workbook is an example of the first: its protein-set sheet joins its peptide-ion sheet. MetaMorpheus FlashLFQ `AllQuantifiedPeaks.tsv` is one of the second: its rows are peaks, not ions.

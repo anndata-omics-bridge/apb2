@@ -465,6 +465,11 @@ def test_no_removed_concept_reappeared() -> None:
         "ServiceLocator",
         "Builder",
         "AbstractFactory",
+        "RawLayerTable",
+        "LayersRaw",
+        "DecomposedDataRaw",
+        "RawToFinalKeyMap",
+        "RawValuePresence",
     )
     for path in _modules(PARSER_V2):
         source = path.read_text(encoding="utf-8")

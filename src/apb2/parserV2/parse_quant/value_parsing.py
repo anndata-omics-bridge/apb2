@@ -1,4 +1,9 @@
-"""Parse one aligned measurement layer into final canonical values."""
+"""Parse one layer's resolved cells into final canonical values, then widen them.
+
+The cells arrive as long rows at final positions, one per cell a layer measured; a cell no row
+names is absent, exactly as an absent cell of the wide layer would be. Widening is the last
+step, so only one layer's wide frame is built at a time.
+"""
 
 from __future__ import annotations
 
@@ -7,6 +12,7 @@ from dataclasses import dataclass
 import polars as pl
 from loguru import logger
 
+from apb2.parserV2.parse_quant.data.layer_columns import ObservationGrid
 from apb2.parserV2.parse_quant.data.parsed import (
     AuxiliaryLayerRole,
     CategoricalLayerSemantics,
@@ -16,6 +22,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
     NumericLayerType,
     QuantitativeLayerSemantics,
 )
+from apb2.parserV2.parse_quant.data.raw import OBS_POS, VALUE, VAR_POS, LongLayer
 from apb2.parserV2.parse_quant.errors import LayerValueError
 from apb2.parserV2.parse_quant.numeric_text import absent, as_numbers
 from apb2.parserV2.parse_quant.parameters.source import NumericTextFormat
@@ -43,34 +50,19 @@ class PlainNumericLayerParser:
         sentinel = _declared_missing(numbers, self.missing_values, self.missing_at_or_below)
         return ~(_missing_text(values, dtype, self.missing_tokens) | sentinel.fill_null(False))
 
-    def parse(self, layer: FinalLayerTable) -> tuple[FinalLayerTable, dict[str, JsonValue]]:
-        values = layer.values
-        evidence: dict[str, JsonValue] = {}
-        if not values.width:
-            canonical = values
-        else:
-            prepared = values.select(
-                pl.struct(
-                    pl.col(column).alias("raw"),
-                    as_numbers(pl.col(column), dtype, self.number_format).alias("number"),
-                    _missing_text(pl.col(column), dtype, self.missing_tokens).alias("blank"),
-                ).alias(column)
-                for column, dtype in values.schema.items()
-            )
-            evidence = NumericTokenDiagnostics(self.layer_name).collect(prepared)
-            canonical = prepared.select(
-                _masked(
-                    pl.all().struct.field("number"), self.missing_values, self.missing_at_or_below
-                ).name.keep()
-            )
-        return (
-            _parsed_layer(
-                layer,
-                _validate_numeric_type(self.layer_name, canonical, self.numeric_type),
-                semantics=QuantitativeLayerSemantics(logical_type=self.numeric_type),
-                role=MeasurementLayerRole(),
-            ),
-            evidence,
+    def parse(
+        self, layer: LongLayer, grid: ObservationGrid, /
+    ) -> tuple[FinalLayerTable, dict[str, JsonValue]]:
+        dtype = layer.rows.schema[VALUE]
+        return _numeric_layer(
+            self.layer_name,
+            layer.rows,
+            as_numbers(pl.col(VALUE), dtype, self.number_format),
+            _missing_text(pl.col(VALUE), dtype, self.missing_tokens),
+            self.missing_values,
+            self.missing_at_or_below,
+            self.numeric_type,
+            grid,
         )
 
 
@@ -93,34 +85,23 @@ class RegexNumericLayerParser:
         sentinel = _declared_missing(numbers, self.missing_values, self.missing_at_or_below)
         return ~(_missing_text(values, dtype, self.missing_tokens) | sentinel.fill_null(False))
 
-    def parse(self, layer: FinalLayerTable) -> tuple[FinalLayerTable, dict[str, JsonValue]]:
-        values = layer.values
-        prepared = values.select(
-            pl.struct(
-                pl.col(column).alias("raw"),
-                as_numbers(
-                    pl.col(column).cast(pl.String, strict=False).str.extract(self.pattern, 1),
-                    pl.String(),
-                    self.number_format,
-                ).alias("number"),
-                _missing_text(pl.col(column), dtype, self.missing_tokens).alias("blank"),
-            ).alias(column)
-            for column, dtype in values.schema.items()
-        )
-        evidence = NumericTokenDiagnostics(self.layer_name).collect(prepared)
-        canonical = prepared.select(
-            _masked(
-                pl.all().struct.field("number"), self.missing_values, self.missing_at_or_below
-            ).name.keep()
-        )
-        return (
-            _parsed_layer(
-                layer,
-                _validate_numeric_type(self.layer_name, canonical, self.numeric_type),
-                semantics=QuantitativeLayerSemantics(logical_type=self.numeric_type),
-                role=MeasurementLayerRole(),
+    def parse(
+        self, layer: LongLayer, grid: ObservationGrid, /
+    ) -> tuple[FinalLayerTable, dict[str, JsonValue]]:
+        dtype = layer.rows.schema[VALUE]
+        return _numeric_layer(
+            self.layer_name,
+            layer.rows,
+            as_numbers(
+                pl.col(VALUE).cast(pl.String, strict=False).str.extract(self.pattern, 1),
+                pl.String(),
+                self.number_format,
             ),
-            evidence,
+            _missing_text(pl.col(VALUE), dtype, self.missing_tokens),
+            self.missing_values,
+            self.missing_at_or_below,
+            self.numeric_type,
+            grid,
         )
 
 
@@ -134,24 +115,32 @@ class FactorLayerParser:
         """Every non-missing label claims a cell, including unknown labels."""
         return ~absent(values, dtype)
 
-    def parse(self, layer: FinalLayerTable) -> tuple[FinalLayerTable, dict[str, JsonValue]]:
+    def parse(
+        self, layer: LongLayer, grid: ObservationGrid, /
+    ) -> tuple[FinalLayerTable, dict[str, JsonValue]]:
         semantics = CategoricalLayerSemantics(
             categories=self.categories,
             missing_code=UNKNOWN_CATEGORY_CODE,
         )
-        mapping = dict(self.categories)
-        values = layer.values
-        canonical = values.select(
-            pl.all()
+        codes = (
+            layer.rows.get_column(VALUE)
             .cast(pl.String, strict=False)
             .replace_strict(
-                mapping,
-                default=UNKNOWN_CATEGORY_CODE,
-                return_dtype=pl.Int64,
+                dict(self.categories), default=UNKNOWN_CATEGORY_CODE, return_dtype=pl.Int64
             )
         )
         return (
-            _parsed_layer(layer, canonical, semantics=semantics, role=AuxiliaryLayerRole()),
+            FinalLayerTable(
+                layer_name=layer.layer_name,
+                values=grid.widen(
+                    layer.rows.get_column(VAR_POS),
+                    layer.rows.get_column(OBS_POS),
+                    codes,
+                    UNKNOWN_CATEGORY_CODE,
+                ),
+                role=AuxiliaryLayerRole(),
+                semantics=semantics,
+            ),
             {},
         )
 
@@ -194,19 +183,35 @@ class NumericTokenDiagnostics:
         }
 
 
-def _parsed_layer(
-    layer: FinalLayerTable,
-    values: pl.DataFrame,
-    /,
-    *,
-    semantics: QuantitativeLayerSemantics | CategoricalLayerSemantics,
-    role: MeasurementLayerRole | AuxiliaryLayerRole,
-) -> FinalLayerTable:
-    return FinalLayerTable(
-        layer_name=layer.layer_name,
-        values=values,
-        role=role,
-        semantics=semantics,
+def _numeric_layer(
+    layer_name: str,
+    rows: pl.DataFrame,
+    number: pl.Expr,
+    blank: pl.Expr,
+    missing_values: tuple[float, ...],
+    missing_at_or_below: float | None,
+    numeric_type: NumericLayerType,
+    grid: ObservationGrid,
+) -> tuple[FinalLayerTable, dict[str, JsonValue]]:
+    """Read each resolved cell's number, report the unreadable ones, and widen the layer."""
+    prepared = rows.select(
+        pl.struct(pl.col(VALUE).alias("raw"), number.alias("number"), blank.alias("blank")).alias(
+            VALUE
+        )
+    )
+    evidence = NumericTokenDiagnostics(layer_name).collect(prepared)
+    numbers = prepared.select(
+        _masked(pl.col(VALUE).struct.field("number"), missing_values, missing_at_or_below)
+    ).to_series()
+    values = _validate_numeric_type(layer_name, rows, numbers, numeric_type)
+    return (
+        FinalLayerTable(
+            layer_name=layer_name,
+            values=grid.widen(rows.get_column(VAR_POS), rows.get_column(OBS_POS), values, None),
+            role=MeasurementLayerRole(),
+            semantics=QuantitativeLayerSemantics(logical_type=numeric_type),
+        ),
+        evidence,
     )
 
 
@@ -238,29 +243,31 @@ def _masked(
 
 def _validate_numeric_type(
     layer_name: str,
-    values: pl.DataFrame,
+    rows: pl.DataFrame,
+    numbers: pl.Series,
     numeric_type: NumericLayerType,
     /,
-) -> pl.DataFrame:
-    if numeric_type == "number" or not values.width:
-        return values
+) -> pl.Series:
+    """Integer layers hold whole finite numbers; examples follow observation, then var order."""
+    if numeric_type == "number":
+        return numbers
     invalid = (
-        pl.all().is_not_null()
-        & ~pl.all().is_nan().fill_null(False)
-        & (~pl.all().is_finite().fill_null(False) | (pl.all() != pl.all().floor()).fill_null(False))
+        numbers.is_not_null()
+        & ~numbers.is_nan().fill_null(False)
+        & (~numbers.is_finite().fill_null(False) | (numbers != numbers.floor()).fill_null(False))
     )
-    examples = (
-        values.select(
-            pl.concat_list(pl.all().filter(invalid).head(_EXAMPLE_LIMIT).implode())
-            .list.explode(empty_as_null=False)
+    if invalid.any():
+        examples = (
+            rows.select(OBS_POS, VAR_POS)
+            .with_columns(numbers)
+            .filter(invalid)
+            .sort(OBS_POS, VAR_POS)
+            .get_column(numbers.name)
             .head(_EXAMPLE_LIMIT)
+            .to_list()
         )
-        .to_series()
-        .to_list()
-    )
-    if examples:
         raise LayerValueError(
             f"integer layer {layer_name!r} contains fractional or infinite values; "
             f"examples={examples}"
         )
-    return values.select(pl.all().fill_nan(None).cast(pl.Int64, strict=True))
+    return numbers.fill_nan(None).cast(pl.Int64, strict=True)

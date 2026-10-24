@@ -1,23 +1,40 @@
-"""Decomposed physical shape: small raw axes, wide raw layers, and the temporary key map.
+"""Decomposed physical shape: small raw axes and each layer as long rows of integer positions.
 
 These are the states between one physical table and one parsed level. Identity is explicit:
-every axis and every layer states the ordered raw-key columns that distinguish its rows, so
-no consumer has to rediscover which columns matter. A layer's remaining columns align by
-*position* with the rows of the corresponding raw obs frame — their names are collision-free
-storage labels, never observation identity.
+every axis states the ordered raw-key columns that distinguish its rows. A layer never repeats
+those keys; each of its rows names its cell by the row it points at in each raw axis
+(``var_row``, ``obs_row``), assigned once by joining the raw keys against the axis.
 
-``RawToFinalKeyMap`` exists only while an axis is being prepared and a layer aligned. It is
-discarded before ``ParsedLevel`` is returned.
+After axis preparation ``FinalPositions`` turns those rows into final positions (``var_pos``,
+``obs_pos``) and drops the rows whose axis row did not survive. Duplicates and value parsing
+work on these long rows; a layer becomes wide only when it is widened, last.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import polars as pl
 
+from apb2.parserV2.parse_quant.data.layer_columns import ObservationGrid
+
 DISAGREEING_VALUES = "_disagreeing_values"
 """The column of a disagreement frame listing the distinct values one feature's rows gave."""
+
+VAR_ROW = "var_row"
+"""A long row's row in the raw var axis frame."""
+
+OBS_ROW = "obs_row"
+"""A long row's row in the raw obs axis frame."""
+
+VAR_POS = "var_pos"
+"""A placed row's position in the final var axis."""
+
+OBS_POS = "obs_pos"
+"""A placed row's position in the final obs axis."""
+
+VALUE = "value"
+"""A long row's value, as the reader produced it until value parsing."""
 
 
 @dataclass(slots=True)
@@ -43,89 +60,87 @@ class VarRaw:
     frame: pl.DataFrame
     # pl.DataFrame({
     #     "sequence": ["PEPMIDE", "OTHER"],
-    #     "mods": ["Oxidation@M", None],
-    #     "mod_sites": ["4", None],
     #     "charge": ["2", "3"],
     #     "genes": ["GENE1", "GENE2"],
     # })
 
     raw_key_columns: tuple[str, ...]
-    # ("sequence", "mods", "mod_sites", "charge")
+    # ("sequence", "charge")
 
     disagreements: dict[str, pl.DataFrame] = field(default_factory=dict[str, pl.DataFrame])
     # {"genes": pl.DataFrame({"sequence": ["PEPMIDE"], ..., "_disagreeing_values": [["G1", "G2"]]})}
 
 
 @dataclass(slots=True)
-class RawLayerTable:
-    """One measurement, wide: raw var-key columns first, then one column per raw obs row.
+class LongLayer:
+    """One measurement as long rows: two axis references and a value, in physical order.
 
-    Repeated raw cells survive as repeated var rows; resolving them is the duplicate
-    policy's question, not the decomposer's.
+    Decomposition gives ``var_row`` and ``obs_row``; placing gives ``var_pos`` and ``obs_pos``.
+    A repeated pair is a repeated cell, which is the duplicate policy's question. ``var_keys``
+    holds, once placed, the raw var keys of the final var rows, for error examples only.
     """
 
     layer_name: str
     # "Intensity"
 
-    raw_var_key_columns: tuple[str, ...]
-    # ("sequence", "mods", "mod_sites", "charge")
+    rows: pl.DataFrame
+    # pl.DataFrame({"var_row": [0, 0, 1], "obs_row": [0, 0, 1], "value": ["1.5", "2", "7"]})
 
-    values: pl.DataFrame
-    # pl.DataFrame({
-    #     "sequence": ["PEPMIDE", "PEPMIDE", "OTHER"],
-    #     "mods": ["Oxidation@M", "Oxidation@M", None],
-    #     "mod_sites": ["4", "4", None],
-    #     "charge": ["2", "2", "3"],
-    #     "A": [100.0, 110.0, 50.0],
-    #     "B": [120.0, None, 60.0],
-    #     "C": [None, 90.0, 70.0],
-    # })
+    var_keys: pl.DataFrame = field(default_factory=pl.DataFrame)
+    # pl.DataFrame({"sequence": ["PEPMIDE", "OTHER"], "charge": ["2", "3"]})
 
+    def repeats(self) -> pl.Series:
+        """Which placed rows share their cell with another row."""
+        return self.rows.select(VAR_POS, OBS_POS).is_duplicated()
 
-@dataclass(slots=True)
-class LayersRaw:
-    """Every retained raw layer in authored order, and which of them is primary."""
-
-    primary_layer_name: str
-    # "Intensity"
-
-    values: tuple[RawLayerTable, ...]
-    # (intensity_raw, q_value_raw)
+    def split(self) -> tuple[LongLayer, LongLayer]:
+        """The placed rows alone in their cell, and those that repeat a cell."""
+        repeated = self.repeats()
+        if not repeated.any():
+            return self, replace(self, rows=self.rows.clear())
+        return (
+            replace(self, rows=self.rows.filter(~repeated)),
+            replace(self, rows=self.rows.filter(repeated)),
+        )
 
 
 @dataclass(slots=True)
-class DecomposedDataRaw:
-    """What every physical shape reduces to: two small raw axes and wide raw layers."""
+class RawLevel:
+    """What every physical shape reduces to: two small raw axes and long layers."""
 
     obs: ObsRaw
-    # ObsRaw(frame=obs_frame, raw_key_columns=("sample",))
-
     var: VarRaw
-    # VarRaw(
-    #     frame=var_frame,
-    #     raw_key_columns=("sequence", "mods", "mod_sites", "charge"),
-    # )
-
-    layers: LayersRaw
-    # LayersRaw(
-    #     primary_layer_name="Intensity",
-    #     values=(intensity_raw, q_value_raw),
-    # )
+    primary_layer_name: str
+    layers: tuple[LongLayer, ...]
+    # (intensity_long, q_value_long), in authored order
 
 
-@dataclass(slots=True)
-class RawToFinalKeyMap:
-    """One temporary row relation: equal-length raw-key and final-key frames."""
+@dataclass(frozen=True, slots=True)
+class FinalPositions:
+    """Where each raw axis row ended up: its final position, or null when it left its axis."""
 
-    raw_keys: pl.DataFrame
-    # pl.DataFrame({
-    #     "sequence": ["PEPMIDE", "OTHER"],
-    #     "mods": ["Oxidation@M", None],
-    #     "mod_sites": ["4", None],
-    #     "charge": ["2", "3"],
-    # })
+    var: pl.Series
+    # pl.Series("var_pos", [0, None, 1], dtype=pl.UInt32)
 
-    final_keys: pl.DataFrame
-    # pl.DataFrame({
-    #     "ProForma_ion": ["PEPM[UNIMOD:35]IDE/2", "OTHER/3"],
-    # })
+    obs: pl.Series
+    # pl.Series("obs_pos", [0, 1], dtype=pl.UInt32)
+
+    var_keys: pl.DataFrame
+    # The raw var keys of the final var rows, in final order.
+
+    grid: ObservationGrid
+    # ObservationGrid(height=2, labels=("obs_0", "obs_1"))
+
+    def place(self, layer: LongLayer) -> LongLayer:
+        """The layer's rows at final positions, without those pointing at a dropped axis row."""
+        rows = pl.DataFrame(
+            [
+                self.var.gather(layer.rows.get_column(VAR_ROW)).alias(VAR_POS),
+                self.obs.gather(layer.rows.get_column(OBS_ROW)).alias(OBS_POS),
+                layer.rows.get_column(VALUE),
+            ]
+        )
+        kept = pl.all_horizontal(pl.col(VAR_POS, OBS_POS).is_not_null())
+        if not rows.select(kept.all()).item():
+            rows = rows.filter(kept)
+        return LongLayer(layer.layer_name, rows, self.var_keys)

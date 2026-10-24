@@ -18,6 +18,7 @@ import pytest
 
 from apb2.parserV2.parse_quant.contracts import LayerValueParser
 from apb2.parserV2.parse_quant.data.errors import ConversionError
+from apb2.parserV2.parse_quant.data.layer_columns import ObservationGrid
 from apb2.parserV2.parse_quant.data.parsed import (
     AuxiliaryLayerRole,
     CategoricalLayerSemantics,
@@ -29,6 +30,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
     ParsedLevels,
     VarFinal,
 )
+from apb2.parserV2.parse_quant.data.raw import OBS_POS, VALUE, VAR_POS, LongLayer
 from apb2.parserV2.parse_quant.errors import LayerContractError, LayerValueError
 from apb2.parserV2.parse_quant.io.anndata_writer import (
     AnnDataWriter,
@@ -296,14 +298,31 @@ def block(*columns: list[object]) -> pl.DataFrame:
     )
 
 
-def canonical_values(
-    parser: LayerValueParser,
-    values: pl.DataFrame,
-) -> pl.DataFrame:
-    layer = FinalLayerTable(
-        layer_name="L", values=(values).drop((), strict=False), semantic_roles=("abundance",)
+def parse_wide(
+    parser: LayerValueParser, values: pl.DataFrame, name: str = "L"
+) -> tuple[FinalLayerTable, dict[str, JsonValue]]:
+    """Parse a wide block as the parser parses a layer: as long cells at their positions."""
+    labels = tuple(values.columns)
+    cells = (
+        pl.concat(
+            [
+                values.select(
+                    pl.int_range(pl.len(), dtype=pl.UInt32).alias(VAR_POS),
+                    pl.lit(index, dtype=pl.UInt32).alias(OBS_POS),
+                    pl.col(label).alias(VALUE),
+                )
+                for index, label in enumerate(labels)
+            ],
+            how="vertical_relaxed",
+        )
+        if labels
+        else pl.DataFrame(schema={VAR_POS: pl.UInt32, OBS_POS: pl.UInt32, VALUE: pl.Null})
     )
-    return parser.parse(layer)[0].values
+    return parser.parse(LongLayer(name, cells), ObservationGrid(values.height, labels))
+
+
+def canonical_values(parser: LayerValueParser, values: pl.DataFrame) -> pl.DataFrame:
+    return parse_wide(parser, values)[0].values
 
 
 def test_plain_numeric_encoding_reads_numbers_and_blanks_out_the_sentinel() -> None:
@@ -354,7 +373,7 @@ def test_numeric_diagnostics_count_all_cells_and_tokens_before_bounding_examples
             "obs_1": [*invalid, "bad7", None, None, "0", "2.5"],
         }
     )
-    parsed, evidence = parser.parse(FinalLayerTable(layer_name="Intensity", values=values))
+    parsed, evidence = parse_wide(parser, values, "Intensity")
     assert evidence == {
         "cell_count": 16,
         "distinct_token_count": 8,
@@ -377,9 +396,7 @@ def test_a_declared_missing_token_is_missing_and_not_reported_as_unreadable(
 ) -> None:
     parser = make_layer_parser("Intensity", declaration, DOT)
 
-    parsed, evidence = parser.parse(
-        FinalLayerTable(layer_name="Intensity", values=block(["12.5", "-", " NA ", "n/a"]))
-    )
+    parsed, evidence = parse_wide(parser, block(["12.5", "-", " NA ", "n/a"]), "Intensity")
 
     assert parsed.values.get_column("obs_0").to_list() == [12.5, None, None, None]
     assert evidence == {"cell_count": 1, "distinct_token_count": 1, "examples": ["n/a"]}
@@ -394,13 +411,10 @@ def test_regex_numeric_diagnostics_count_failed_captures() -> None:
         ),
         DOT,
     )
-    parsed, evidence = parser.parse(
-        FinalLayerTable(
-            layer_name="AScore",
-            values=block(
-                ["x:12.5", "x:0", "unstructured", "unstructured", "wrong", None, None, None]
-            ),
-        )
+    parsed, evidence = parse_wide(
+        parser,
+        block(["x:12.5", "x:0", "unstructured", "unstructured", "wrong", None, None, None]),
+        "AScore",
     )
     assert evidence == {
         "cell_count": 3,

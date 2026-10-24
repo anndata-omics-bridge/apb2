@@ -2,15 +2,16 @@
 
 The point of this class is that you can read it. Every collaborator is already configured, so
 ``parse`` is the sequence of operations and nothing else: decompose the source it is handed,
-prepare each axis on its own small frame, reindex each layer onto the axes that survived, then
-validate the layers and leave out the fields that carry no information. No step asks what
-vendor, level, layout, value form, duplicate mode, or output format it is dealing with.
+prepare each axis on its own small frame, place each layer's long rows at the final positions
+that survived, resolve repeated cells, parse and widen one layer at a time, then validate the
+layers and leave out the fields that carry no information. No step asks what vendor, level,
+layout, value form, duplicate mode, or output format it is dealing with.
 
 Two things are decided here and nowhere else. Identity: raw keys become authored final keys on
 the small axis frames, and two distinct raw identities that collapse into one valid final
 identity are an information loss, reported rather than resolved. And validity: a row whose
-final key is incomplete cannot enter an axis, so the temporary key map keeps it just long
-enough to remove the layer cells that pointed at it.
+final key is incomplete cannot enter an axis, so it gets no final position, and the layer rows
+that pointed at it leave when the layer is placed.
 
 Parsing never writes: ``parse`` returns the levels, and only a result writer persists them.
 """
@@ -18,7 +19,7 @@ Parsing never writes: ``parse`` returns the levels, and only a result writer per
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from time import perf_counter
 from typing import cast
@@ -37,7 +38,7 @@ from apb2.parserV2.parse_quant.contracts import (
 )
 from apb2.parserV2.parse_quant.conversion_record import ConversionEvidence
 from apb2.parserV2.parse_quant.data.errors import ConversionError
-from apb2.parserV2.parse_quant.data.layer_columns import observation_labels
+from apb2.parserV2.parse_quant.data.layer_columns import ObservationGrid, observation_labels
 from apb2.parserV2.parse_quant.data.parsed import (
     FinalLayerTable,
     JsonValue,
@@ -49,10 +50,10 @@ from apb2.parserV2.parse_quant.data.parsed import (
 )
 from apb2.parserV2.parse_quant.data.raw import (
     DISAGREEING_VALUES,
-    LayersRaw,
+    VALUE,
+    FinalPositions,
+    LongLayer,
     ObsRaw,
-    RawLayerTable,
-    RawToFinalKeyMap,
     VarRaw,
 )
 from apb2.parserV2.parse_quant.data.step_log import logged_step
@@ -212,11 +213,22 @@ class ParseStrategy:
         with logged_step("parse.decompose", level=self.level):
             raw = self.decomposer.decompose(source)
         with logged_step("parse.obs", level=self.level):
-            obs, obs_map = self._prepare_obs(raw.obs)
+            obs, obs_positions, _obs_keys = self._prepare_obs(raw.obs)
         with logged_step("parse.var", level=self.level):
-            var, var_map, unknown_mod_tokens = self._prepare_var(raw.var)
+            var, var_positions, var_keys, unknown_mod_tokens = self._prepare_var(raw.var)
+        positions = FinalPositions(
+            var=var_positions,
+            obs=obs_positions,
+            var_keys=var_keys,
+            grid=ObservationGrid(
+                height=var.frame.height,
+                labels=observation_labels(
+                    obs.frame.height, reserved=self.var.keys.final_key_columns
+                ),
+            ),
+        )
         with logged_step("parse.layers", level=self.level):
-            layers, unreadable_numeric = self._prepare_layers(raw.layers, obs_map, var_map)
+            layers, unreadable_numeric = self._prepare_layers(raw.layers, positions)
         with logged_step("parse.validate", level=self.level):
             effectively_empty = self.layer_validator.validate(layers)
             pruned = self.pruner.prune(obs, var, layers, effectively_empty or {})
@@ -227,13 +239,13 @@ class ParseStrategy:
             unreadable_numeric,
             pruned.single_valued,
             pruned.effectively_empty,
-            self._var_disagreements(raw.var, var_map),
+            self._var_disagreements(raw.var, var_keys),
         )
 
         return ParsedLevel(
             obs=obs,
             var=var,
-            primary_layer_name=raw.layers.primary_layer_name,
+            primary_layer_name=raw.primary_layer_name,
             uns=evidence.record(self.provenance),
             layers=layers,
             obsm={},
@@ -244,17 +256,22 @@ class ParseStrategy:
 
     # ------------------------------------------------------------------------ the two axes
 
-    def _prepare_obs(self, raw: ObsRaw) -> tuple[ObsFinal, RawToFinalKeyMap]:
-        frame, mapping, _diagnostics = self._prepare_axis(raw.frame, raw.raw_key_columns, self.obs)
-        return ObsFinal(frame=frame, key_columns=self.obs.keys.final_key_columns), mapping
+    def _prepare_obs(self, raw: ObsRaw) -> tuple[ObsFinal, pl.Series, pl.DataFrame]:
+        frame, positions, keys, _diagnostics = self._prepare_axis(
+            raw.frame, raw.raw_key_columns, self.obs
+        )
+        return ObsFinal(frame=frame, key_columns=self.obs.keys.final_key_columns), positions, keys
 
-    def _prepare_var(self, raw: VarRaw) -> tuple[VarFinal, RawToFinalKeyMap, tuple[str, ...]]:
-        frame, mapping, unknown_mod_tokens = self._prepare_axis(
+    def _prepare_var(
+        self, raw: VarRaw
+    ) -> tuple[VarFinal, pl.Series, pl.DataFrame, tuple[str, ...]]:
+        frame, positions, keys, unknown_mod_tokens = self._prepare_axis(
             raw.frame, raw.raw_key_columns, self.var
         )
         return (
             VarFinal(frame=frame, key_columns=self.var.keys.final_key_columns),
-            mapping,
+            positions,
+            keys,
             unknown_mod_tokens,
         )
 
@@ -263,32 +280,35 @@ class ParseStrategy:
         raw: pl.DataFrame,
         raw_key_columns: tuple[str, ...],
         plan: AxisRuntimePlan,
-    ) -> tuple[pl.DataFrame, RawToFinalKeyMap, tuple[str, ...]]:
+    ) -> tuple[pl.DataFrame, pl.Series, pl.DataFrame, tuple[str, ...]]:
         """One staged algorithm for both axes: identity first, then public metadata.
 
         The raw axis already holds one stable-first row per raw key, so nothing here calls
         ``unique`` on the final keys: a repeated valid final key means two raw identities
         collapsed, which is an error rather than a deduplication.
+
+        Returns the final axis, each raw row's final position (null where the row's final key
+        is incomplete), and the raw keys of the rows that stayed, in final order.
         """
         working, early_tokens = ParseStrategy._materialize_axis_columns(raw, raw, plan.key_phase)
 
-        mapping = RawToFinalKeyMap(
-            # Read from the frame as it arrived: a declared column may carry the name of the
-            # physical column it was selected from, and materializing it would then replace
-            # the raw values this map exists to hold.
-            raw_keys=raw.select(list(raw_key_columns)),
-            # A number coerced from text such as ``nan`` is as absent as null.
-            final_keys=working.select(list(plan.keys.final_key_columns)).fill_nan(None),
-        )
-        ParseStrategy._require_injective_key_mapping(mapping)
+        # Read from the frame as it arrived: a declared column may carry the name of the
+        # physical column it was selected from, and materializing it would then replace the
+        # raw values the identity check reports.
+        raw_keys = raw.select(list(raw_key_columns))
+        # A number coerced from text such as ``nan`` is as absent as null.
+        final_keys = working.select(list(plan.keys.final_key_columns)).fill_nan(None)
+        ParseStrategy._require_injective_keys(raw_keys, final_keys)
 
-        valid = ParseStrategy._valid_final_key_rows(mapping.final_keys)
+        valid = ParseStrategy._valid_final_key_rows(final_keys)
         final_rows, output_tokens = ParseStrategy._materialize_axis_columns(
             working.filter(valid), raw.filter(valid), plan.output_phase
         )
+        positions = valid.cast(pl.UInt32).cum_sum() - 1
         return (
             final_rows.select(list(plan.outputs)),
-            mapping,
+            pl.select(pl.when(valid).then(positions)).to_series(),
+            raw_keys.filter(valid),
             tuple(dict.fromkeys((*early_tokens, *output_tokens))),
         )
 
@@ -314,9 +334,8 @@ class ParseStrategy:
         return result, tuple(unknown)
 
     @staticmethod
-    def _var_disagreements(raw: VarRaw, mapping: RawToFinalKeyMap) -> dict[str, JsonValue]:
+    def _var_disagreements(raw: VarRaw, kept: pl.DataFrame) -> dict[str, JsonValue]:
         """Per vendor column, the features in the result whose rows disagree, with examples."""
-        kept = mapping.raw_keys.filter(ParseStrategy._valid_final_key_rows(mapping.final_keys))
         keys = list(raw.raw_key_columns)
         found: dict[str, JsonValue] = {}
         for source, disagreeing in raw.disagreements.items():
@@ -341,24 +360,21 @@ class ParseStrategy:
         ).to_series()
 
     @staticmethod
-    def _require_injective_key_mapping(mapping: RawToFinalKeyMap) -> None:
+    def _require_injective_keys(raw_keys: pl.DataFrame, final_keys: pl.DataFrame) -> None:
         """Distinct raw identities must stay distinct once they are canonicalized.
 
         Decomposition already made raw keys unique. Repeated valid final keys therefore
         identify collisions directly; nested evidence keeps overlapping column names apart.
         """
-        duplicated = (
-            ParseStrategy._valid_final_key_rows(mapping.final_keys)
-            & mapping.final_keys.is_duplicated()
-        )
+        duplicated = ParseStrategy._valid_final_key_rows(final_keys) & final_keys.is_duplicated()
         if not duplicated.any():
             return
         evidence = pl.DataFrame(
-            {"final": mapping.final_keys.to_struct(), "raw": mapping.raw_keys.to_struct()}
+            {"final": final_keys.to_struct(), "raw": raw_keys.to_struct()}
         ).filter(duplicated)
         raise CanonicalKeyCollisionError(
             f"{evidence.n_unique(subset='final')} value(s) of the final key "
-            f"{list(mapping.final_keys.columns)} were produced by more than one raw identity; "
+            f"{list(final_keys.columns)} were produced by more than one raw identity; "
             f"examples of final keys and their raw evidence: {evidence.head(_EXAMPLE_LIMIT).to_dicts()}"
         )
 
@@ -366,109 +382,59 @@ class ParseStrategy:
 
     def _prepare_layers(
         self,
-        raw: LayersRaw,
-        obs_map: RawToFinalKeyMap,
-        var_map: RawToFinalKeyMap,
+        raw: tuple[LongLayer, ...],
+        positions: FinalPositions,
     ) -> tuple[dict[str, FinalLayerTable], dict[str, JsonValue]]:
         layers: dict[str, FinalLayerTable] = {}
         diagnostics: dict[str, JsonValue] = {}
-        duplicates = self._ranked_duplicates(raw, obs_map, var_map)
-        for layer in raw.values:
-            parser = self.layer_parsers[layer.layer_name]
-            mappable = self._retain_mappable_layer(layer, obs_map, var_map)
-            resolved = duplicates.resolve(mappable, parser)
-            aligned = self._align_layer_keys(
-                resolved,
-                obs_map,
-                var_map,
+        duplicates = self._ranked_duplicates(raw, positions)
+        for layer in raw:
+            values = self.layer_parsers[layer.layer_name]
+            once, repeated = self._claimed(layer, positions, values).split()
+            resolved = duplicates.resolve(repeated)
+            cells = (
+                replace(once, rows=pl.concat([once.rows, resolved.rows], how="vertical_relaxed"))
+                if resolved.rows.height
+                else once
             )
-            parsed, evidence = parser.parse(aligned)
+            parsed, evidence = values.parse(cells, positions.grid)
             layers[layer.layer_name] = parsed
             if evidence:
                 diagnostics[layer.layer_name] = evidence
         return layers, diagnostics
 
     def _ranked_duplicates(
-        self, raw: LayersRaw, obs_map: RawToFinalKeyMap, var_map: RawToFinalKeyMap
+        self, raw: tuple[LongLayer, ...], positions: FinalPositions
     ) -> DuplicatePolicy:
         """keep_best ranks once, on its ``by`` layer; every other policy needs no ranking."""
         if not isinstance(self.duplicates, KeepBestDuplicate):
             return self.duplicates
-        ranking = next(
-            (layer for layer in raw.values if layer.layer_name == self.duplicates.by), None
-        )
+        ranking = next((layer for layer in raw if layer.layer_name == self.duplicates.by), None)
         if ranking is None:
             raise ConversionError(
                 f"keep_best ranks by layer {self.duplicates.by!r}, which this source lacks"
             )
         return self.duplicates.ranked(
-            self._retain_mappable_layer(ranking, obs_map, var_map),
-            self.layer_parsers[ranking.layer_name],
+            self._claimed(ranking, positions, self.layer_parsers[ranking.layer_name])
         )
 
     @staticmethod
-    def _retain_mappable_layer(
-        layer: RawLayerTable,
-        obs: RawToFinalKeyMap,
-        var: RawToFinalKeyMap,
-        /,
-    ) -> RawLayerTable:
-        """Drop the cells that point at an identity the axes could not keep.
+    def _claimed(
+        layer: LongLayer, positions: FinalPositions, values: LayerValueParser, /
+    ) -> LongLayer:
+        """The layer's rows at final positions, with every scalar that claims no cell nulled.
 
-        Fixed validity filtering, not a policy: the duplicate policy is then asked only
-        about cells that can actually enter the result, while still grouping by raw keys.
+        Fixed validity filtering, not a policy: rows pointing at an axis row that did not
+        survive leave here, so the duplicate policy is asked only about cells that can enter
+        the result. Presence is the layer's own question; the raw scalar is kept unconverted.
         """
-        keys = list(layer.raw_var_key_columns)
-        value_columns = layer.values.columns[len(keys) :]
-        kept_columns = (
-            pl.DataFrame(
-                {
-                    "label": value_columns,
-                    "valid": ParseStrategy._valid_final_key_rows(obs.final_keys),
-                }
-            )
-            .filter(pl.col("valid"))
-            .select("label")
-            .to_series()
-            .to_list()
-        )
-        usable_var = var.raw_keys.filter(ParseStrategy._valid_final_key_rows(var.final_keys))
-        rows = layer.values.join(
-            usable_var.unique(maintain_order=True),
-            on=keys,
-            how="semi",
-            nulls_equal=True,
-            maintain_order="left",
-        )
-        return RawLayerTable(
-            layer_name=layer.layer_name,
-            raw_var_key_columns=layer.raw_var_key_columns,
-            values=rows.select([*keys, *kept_columns]),
-        )
-
-    @staticmethod
-    def _align_layer_keys(
-        layer: RawLayerTable,
-        obs: RawToFinalKeyMap,
-        var: RawToFinalKeyMap,
-        /,
-    ) -> FinalLayerTable:
-        """Reindex one resolved layer onto the final axes; the only producer of a final layer.
-
-        The valid variable map in final order is the left spine, so a final variable this
-        layer never measured becomes a row of nulls rather than a missing row.
-        """
-        keys = list(layer.raw_var_key_columns)
-        var_valid = ParseStrategy._valid_final_key_rows(var.final_keys)
-        final_keys = var.final_keys.filter(var_valid)
-        spine = var.raw_keys.filter(var_valid)
-        joined = spine.join(
-            layer.values, on=keys, how="left", nulls_equal=True, maintain_order="left"
-        )
-        value_columns = layer.values.columns[len(keys) :]
-        labels = observation_labels(len(value_columns), reserved=final_keys.columns)
-        values = joined.select(value_columns).rename(dict(zip(value_columns, labels, strict=True)))
-        return FinalLayerTable(
-            layer_name=layer.layer_name,
-            values=values,
+        placed = positions.place(layer)
+        present = placed.rows.select(
+            values.present(pl.col(VALUE), placed.rows.schema[VALUE])
+        ).to_series()
+        if present.all():
+            return placed
+        value = pl.col(VALUE)
+        return replace(
+            placed, rows=placed.rows.with_columns(pl.when(present).then(value).alias(VALUE))
         )

@@ -3,19 +3,24 @@
 The distinction these tests protect: presence may inspect a token but never converts it, and
 a policy may select or add scalars but never compares final keys. A token that cannot be read
 stays present, so a later encoding failure is not silently resolved away here.
+
+Layers are written here as small wide frames for readability; ``resolved`` places them as long
+rows, nulls what presence rejects, and resolves them as the parser does: the rows alone in
+their cell pass through and the policy receives the repeated ones.
 """
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import get_args
 
 import polars as pl
 import pytest
 
-from apb2.parserV2.parse_quant.contracts import DuplicatePolicy, RawValuePresence
+from apb2.parserV2.parse_quant.contracts import DuplicatePolicy, LayerValueParser
 from apb2.parserV2.parse_quant.data.errors import ConversionError
-from apb2.parserV2.parse_quant.data.parsed import FinalLayerTable
-from apb2.parserV2.parse_quant.data.raw import RawLayerTable
+from apb2.parserV2.parse_quant.data.layer_columns import ObservationGrid
+from apb2.parserV2.parse_quant.data.raw import OBS_POS, VALUE, VAR_POS, LongLayer
 from apb2.parserV2.parse_quant.duplicates import (
     AggregateNumericDuplicates,
     AggregateTypeError,
@@ -64,17 +69,82 @@ SUM = duplicate_policy_for("sum")
 MAX = duplicate_policy_for("max")
 
 
-def layer(frame: pl.DataFrame, *, keys: tuple[str, ...] = ("Feature",)) -> RawLayerTable:
-    return RawLayerTable(layer_name="L", raw_var_key_columns=keys, values=frame)
+def placed(
+    frame: pl.DataFrame,
+    presence: LayerValueParser,
+    *,
+    keys: tuple[str, ...] = ("Feature",),
+    name: str = "L",
+) -> LongLayer:
+    """A wide test frame as placed long rows, column by column, with absent scalars nulled."""
+    features = frame.select(keys).unique(maintain_order=True)
+    var_pos = (
+        frame.select(keys)
+        .join(
+            features.with_row_index(VAR_POS),
+            on=list(keys),
+            how="left",
+            nulls_equal=True,
+            maintain_order="left",
+        )
+        .get_column(VAR_POS)
+    )
+    columns = [column for column in frame.columns if column not in keys]
+    rows = pl.concat(
+        [
+            pl.DataFrame(
+                [
+                    var_pos,
+                    pl.repeat(index, frame.height, dtype=pl.UInt32, eager=True).alias(OBS_POS),
+                    frame.get_column(column).alias(VALUE),
+                ]
+            )
+            for index, column in enumerate(columns)
+        ],
+        how="vertical_relaxed",
+    )
+    present = rows.select(presence.present(pl.col(VALUE), rows.schema[VALUE])).to_series()
+    rows = rows.with_columns(pl.when(present).then(pl.col(VALUE)).alias(VALUE))
+    return LongLayer(name, rows, features)
 
 
-def presence_mask(strategy: RawValuePresence, values: pl.Series) -> pl.Series:
-    """Evaluate one presence expression as the duplicate resolver does."""
+def resolved(policy: DuplicatePolicy, layer: LongLayer) -> LongLayer:
+    """Resolve as the parser does: single cells pass, the policy sees the repeated ones."""
+    once, repeated = layer.split()
+    result = policy.resolve(repeated)
+    if not result.rows.height:
+        return once
+    return replace(once, rows=pl.concat([once.rows, result.rows], how="vertical_relaxed"))
+
+
+def wide(layer: LongLayer, *labels: str) -> pl.DataFrame:
+    """The resolved cells back in the wide test shape: keys first, then one column per label."""
+    grid = ObservationGrid(layer.var_keys.height, labels)
+    rows = layer.rows
+    values = grid.widen(rows.get_column(VAR_POS), rows.get_column(OBS_POS), rows[VALUE], None)
+    return pl.concat([layer.var_keys, values], how="horizontal")
+
+
+def resolve_wide(
+    policy: DuplicatePolicy, frame: pl.DataFrame, presence: LayerValueParser
+) -> pl.DataFrame:
+    labels = [column for column in frame.columns if column != "Feature"]
+    return wide(resolved(policy, placed(frame, presence)), *labels)
+
+
+def presence_mask(strategy: LayerValueParser, values: pl.Series) -> pl.Series:
+    """Evaluate one presence expression as the parser does before resolution."""
     return (
         values.to_frame()
         .select(strategy.present(pl.col(values.name), values.dtype).alias(values.name))
         .to_series()
     )
+
+
+def parse_wide(parser: LayerValueParser, frame: pl.DataFrame) -> pl.DataFrame:
+    """Parse one wide test column through the long cells the parser would hand it."""
+    layer = placed(frame.with_row_index("Feature"), parser, keys=("Feature",))
+    return parser.parse(layer, ObservationGrid(frame.height, tuple(frame.columns)))[0].values
 
 
 # ------------------------------------------------------------------------------- presence
@@ -137,17 +207,9 @@ def test_an_at_or_below_bound_reads_the_number_inside_a_structured_token() -> No
 
 
 def test_an_at_or_below_bound_leaves_only_positive_final_values() -> None:
-    final = FinalLayerTable(
-        layer_name="L",
-        values=(pl.DataFrame({"Feature": ["F1", "F2", "F3"], "obs_0": [5.0, 0.0, -1.0]})).drop(
-            ("Feature",), strict=False
-        ),
-        semantic_roles=("abundance",),
-    )
+    parsed = parse_wide(NONPOSITIVE, pl.DataFrame({"obs_0": [5.0, 0.0, -1.0]}))
 
-    parsed, _ = NONPOSITIVE.parse(final)
-
-    assert parsed.values.get_column("obs_0").to_list() == [5.0, None, None]
+    assert parsed.get_column("obs_0").to_list() == [5.0, None, None]
 
 
 def test_a_nonblank_token_that_cannot_be_read_stays_present() -> None:
@@ -184,7 +246,7 @@ def test_regex_presence_reads_the_number_inside_a_structured_token() -> None:
 
 
 def test_every_presence_strategy_returns_a_mask_of_its_input_shape() -> None:
-    strategies: tuple[RawValuePresence, ...] = (NULL_ONLY, ZERO_SENTINEL, ASCORE)
+    strategies: tuple[LayerValueParser, ...] = (NULL_ONLY, ZERO_SENTINEL, ASCORE)
     values = pl.Series("obs_0", ["1", None, "2", ""])
 
     for strategy in strategies:
@@ -198,34 +260,34 @@ def test_every_presence_strategy_returns_a_mask_of_its_input_shape() -> None:
 
 
 def test_two_claiming_values_in_one_cell_are_an_error_when_the_rule_says_so() -> None:
-    repeated = layer(pl.DataFrame({"Feature": ["F1", "F1"], "obs_0": [1.0, 2.0]}))
+    repeated = pl.DataFrame({"Feature": ["F1", "F1"], "obs_0": [1.0, 2.0]})
 
-    with pytest.raises(DuplicateCellError, match="more than once"):
-        ErrorOnDuplicates().resolve(repeated, NULL_ONLY)
+    with pytest.raises(
+        DuplicateCellError, match=r"1 raw key\(s\).*examples: \[\{'Feature': 'F1'\}\]"
+    ):
+        resolve_wide(ErrorOnDuplicates(), repeated, NULL_ONLY)
 
 
 def test_one_claiming_value_beside_a_sentinel_is_not_a_duplicate() -> None:
-    repeated = layer(pl.DataFrame({"Feature": ["F1", "F1"], "obs_0": [0.0, 2.0]}))
+    repeated = pl.DataFrame({"Feature": ["F1", "F1"], "obs_0": [0.0, 2.0]})
 
-    resolved = ErrorOnDuplicates().resolve(repeated, ZERO_SENTINEL)
+    result = resolve_wide(ErrorOnDuplicates(), repeated, ZERO_SENTINEL)
 
-    assert resolved.values.to_dicts() == [{"Feature": "F1", "obs_0": 2.0}]
+    assert result.to_dicts() == [{"Feature": "F1", "obs_0": 2.0}]
 
 
 def test_keep_first_selects_independently_in_every_observation_column() -> None:
-    repeated = layer(
-        pl.DataFrame(
-            {
-                "Feature": ["F1", "F1", "F2"],
-                "obs_0": [None, 12.0, 5.0],
-                "obs_1": [3.0, 4.0, None],
-            }
-        )
+    repeated = pl.DataFrame(
+        {
+            "Feature": ["F1", "F1", "F2"],
+            "obs_0": [None, 12.0, 5.0],
+            "obs_1": [3.0, 4.0, None],
+        }
     )
 
-    resolved = KeepFirstDuplicate().resolve(repeated, NULL_ONLY)
+    result = resolve_wide(KeepFirstDuplicate(), repeated, NULL_ONLY)
 
-    assert resolved.values.to_dicts() == [
+    assert result.to_dicts() == [
         {"Feature": "F1", "obs_0": 12.0, "obs_1": 3.0},
         {"Feature": "F2", "obs_0": 5.0, "obs_1": None},
     ]
@@ -233,50 +295,46 @@ def test_keep_first_selects_independently_in_every_observation_column() -> None:
 
 def test_keep_first_skips_a_sentinel_and_keeps_the_real_value_unencoded() -> None:
     """AlphaDIA writes 0 for "not measured"; the value kept is the vendor's own scalar."""
-    repeated = layer(pl.DataFrame({"Feature": ["F1", "F1"], "obs_0": ["0", "12.5"]}))
+    repeated = pl.DataFrame({"Feature": ["F1", "F1"], "obs_0": ["0", "12.5"]})
 
-    resolved = KeepFirstDuplicate().resolve(repeated, ZERO_SENTINEL)
+    result = resolve_wide(KeepFirstDuplicate(), repeated, ZERO_SENTINEL)
 
-    assert resolved.values.to_dicts() == [{"Feature": "F1", "obs_0": "12.5"}]
-    assert resolved.values.schema["obs_0"] == pl.String
+    assert result.to_dicts() == [{"Feature": "F1", "obs_0": "12.5"}]
+    assert result.schema["obs_0"] == pl.String
 
 
 def test_an_unreadable_token_reaches_the_result_instead_of_being_resolved_away() -> None:
-    repeated = layer(pl.DataFrame({"Feature": ["F1", "F1"], "obs_0": ["broken", "12.5"]}))
+    repeated = pl.DataFrame({"Feature": ["F1", "F1"], "obs_0": ["broken", "12.5"]})
 
-    resolved = KeepFirstDuplicate().resolve(repeated, ZERO_SENTINEL)
+    result = resolve_wide(KeepFirstDuplicate(), repeated, ZERO_SENTINEL)
 
-    assert resolved.values.to_dicts() == [{"Feature": "F1", "obs_0": "broken"}]
+    assert result.to_dicts() == [{"Feature": "F1", "obs_0": "broken"}]
 
 
 def test_an_unknown_factor_label_also_stays_present() -> None:
-    repeated = layer(pl.DataFrame({"Feature": ["F1", "F1"], "obs_0": ["surprise", "MBR"]}))
+    repeated = pl.DataFrame({"Feature": ["F1", "F1"], "obs_0": ["surprise", "MBR"]})
 
     with pytest.raises(DuplicateCellError):
-        ErrorOnDuplicates().resolve(repeated, NULL_ONLY)
+        resolve_wide(ErrorOnDuplicates(), repeated, NULL_ONLY)
 
 
 def test_numeric_aggregate_sums_only_the_claiming_values() -> None:
-    repeated = layer(
-        pl.DataFrame({"Feature": ["F1", "F1", "F1", "F2"], "obs_0": [1.0, 0.0, 2.0, 7.0]})
-    )
+    repeated = pl.DataFrame({"Feature": ["F1", "F1", "F1", "F2"], "obs_0": [1.0, 0.0, 2.0, 7.0]})
 
-    resolved = SUM.resolve(repeated, ZERO_SENTINEL)
+    result = resolve_wide(SUM, repeated, ZERO_SENTINEL)
 
-    assert resolved.values.to_dicts() == [
+    assert result.to_dicts() == [
         {"Feature": "F1", "obs_0": 3.0},
         {"Feature": "F2", "obs_0": 7.0},
     ]
 
 
 def test_numeric_aggregate_drops_nonpositive_values_before_summing() -> None:
-    repeated = layer(
-        pl.DataFrame({"Feature": ["F1", "F1", "F1", "F2"], "obs_0": [1.0, -2.0, 0.0, -7.0]})
-    )
+    repeated = pl.DataFrame({"Feature": ["F1", "F1", "F1", "F2"], "obs_0": [1.0, -2.0, 0.0, -7.0]})
 
-    resolved = SUM.resolve(repeated, NONPOSITIVE)
+    result = resolve_wide(SUM, repeated, NONPOSITIVE)
 
-    assert resolved.values.to_dicts() == [
+    assert result.to_dicts() == [
         {"Feature": "F1", "obs_0": 1.0},
         {"Feature": "F2", "obs_0": None},
     ]
@@ -288,42 +346,40 @@ def test_a_cell_with_nothing_present_stays_null_instead_of_becoming_zero(
     policy: DuplicatePolicy,
     missing: float | None,
 ) -> None:
-    repeated = layer(pl.DataFrame({"Feature": ["F1", "F1"], "obs_0": [missing, None]}))
+    repeated = pl.DataFrame({"Feature": ["F1", "F1"], "obs_0": [missing, None]})
 
-    resolved = policy.resolve(repeated, ZERO_SENTINEL)
+    result = resolve_wide(policy, repeated, ZERO_SENTINEL)
 
-    assert resolved.values.to_dicts() == [{"Feature": "F1", "obs_0": None}]
+    assert result.to_dicts() == [{"Feature": "F1", "obs_0": None}]
 
 
 @pytest.mark.parametrize("policy", [SUM, MAX], ids=["sum", "max"])
 def test_numeric_aggregate_refuses_values_that_are_not_numbers(policy: DuplicatePolicy) -> None:
-    text = layer(pl.DataFrame({"Feature": ["F1"], "obs_0": ["MBR"]}))
+    text = pl.DataFrame({"Feature": ["F1"], "obs_0": ["MBR"]})
 
     with pytest.raises(AggregateTypeError, match="needs numeric"):
-        policy.resolve(text, NULL_ONLY)
+        resolve_wide(policy, text, NULL_ONLY)
 
 
 @pytest.mark.parametrize("policy", [SUM, MAX], ids=["sum", "max"])
 def test_numeric_aggregate_accepts_a_layer_that_resolved_to_no_values_at_all(
     policy: DuplicatePolicy,
 ) -> None:
-    empty = layer(
-        pl.DataFrame({"Feature": ["F1"], "obs_0": [None]}, schema_overrides={"obs_0": pl.Null})
+    empty = pl.DataFrame(
+        {"Feature": ["F1", "F1"], "obs_0": [None, None]}, schema_overrides={"obs_0": pl.Null}
     )
 
-    resolved = policy.resolve(empty, NULL_ONLY)
+    result = resolve_wide(policy, empty, NULL_ONLY)
 
-    assert resolved.values.to_dicts() == [{"Feature": "F1", "obs_0": None}]
+    assert result.to_dicts() == [{"Feature": "F1", "obs_0": None}]
 
 
 def test_numeric_max_never_selects_a_value_presence_masked() -> None:
-    repeated = layer(
-        pl.DataFrame({"Feature": ["F1", "F1", "F2", "F2"], "obs_0": [1.0, 3.0, -7.0, -1.0]})
-    )
+    repeated = pl.DataFrame({"Feature": ["F1", "F1", "F2", "F2"], "obs_0": [1.0, 3.0, -7.0, -1.0]})
 
-    resolved = MAX.resolve(repeated, NONPOSITIVE)
+    result = resolve_wide(MAX, repeated, NONPOSITIVE)
 
-    assert resolved.values.to_dicts() == [
+    assert result.to_dicts() == [
         {"Feature": "F1", "obs_0": 3.0},
         {"Feature": "F2", "obs_0": None},
     ]
@@ -331,11 +387,11 @@ def test_numeric_max_never_selects_a_value_presence_masked() -> None:
 
 @pytest.mark.parametrize("policy", [SUM, MAX], ids=["sum", "max"])
 def test_nan_is_absent_before_a_numeric_reduction(policy: DuplicatePolicy) -> None:
-    repeated = layer(pl.DataFrame({"Feature": ["F1", "F1"], "obs_0": [float("nan"), 1.0]}))
+    repeated = pl.DataFrame({"Feature": ["F1", "F1"], "obs_0": [float("nan"), 1.0]})
 
-    resolved = policy.resolve(repeated, NULL_ONLY)
+    result = resolve_wide(policy, repeated, NULL_ONLY)
 
-    assert resolved.values.to_dicts() == [{"Feature": "F1", "obs_0": 1.0}]
+    assert result.to_dicts() == [{"Feature": "F1", "obs_0": 1.0}]
 
 
 def test_numeric_max_stays_above_a_negative_threshold() -> None:
@@ -343,130 +399,59 @@ def test_numeric_max_stays_above_a_negative_threshold() -> None:
     above_minus_one = make_layer_parser(
         "L", PlainNumericLayerDeclaration(missing_values=(), missing_at_or_below=-1.0), DOT
     )
-    repeated = layer(pl.DataFrame({"Feature": ["F1", "F1"], "obs_0": [-0.5, -0.8]}))
+    repeated = pl.DataFrame({"Feature": ["F1", "F1"], "obs_0": [-0.5, -0.8]})
 
-    resolved = MAX.resolve(repeated, above_minus_one)
-    final = FinalLayerTable(
-        layer_name="L", values=resolved.values.drop("Feature"), semantic_roles=("abundance",)
-    )
+    result = resolve_wide(MAX, repeated, above_minus_one).drop("Feature")
 
-    assert above_minus_one.parse(final)[0].values.get_column("obs_0").to_list() == [-0.5]
+    assert parse_wide(above_minus_one, result).get_column("obs_0").to_list() == [-0.5]
 
 
 def test_numeric_max_keeps_an_integer_layer_integer() -> None:
-    repeated = layer(pl.DataFrame({"Feature": ["F1", "F1"], "obs_0": [3, 5]}))
+    repeated = pl.DataFrame({"Feature": ["F1", "F1"], "obs_0": [3, 5]})
 
-    resolved = MAX.resolve(repeated, NULL_ONLY)
+    result = resolve_wide(MAX, repeated, NULL_ONLY)
 
-    assert resolved.values.to_dicts() == [{"Feature": "F1", "obs_0": 5}]
-    assert resolved.values.schema["obs_0"] == pl.Int64
+    assert result.to_dicts() == [{"Feature": "F1", "obs_0": 5}]
+    assert result.schema["obs_0"] == pl.Int64
 
 
 @pytest.mark.parametrize(
     "policy", [duplicate_policy_for(mode) for mode in STATELESS], ids=STATELESS
 )
 @pytest.mark.parametrize("empty", [False, True])
-def test_every_policy_keeps_the_keys_the_group_order_and_the_layer_name(
+def test_every_policy_keeps_the_layer_name_and_one_row_per_cell_in_first_order(
     policy: DuplicatePolicy,
     empty: bool,
 ) -> None:
-    values = layer(
-        pl.DataFrame(
-            {
-                "Feature": ["F2", "F1", "F3"],
-                "Charge": ["3", "2", "1"],
-                "obs_0": [1.0, 2.0, 3.0],
-            }
-        ),
-        keys=("Feature", "Charge"),
+    rows = pl.DataFrame(
+        {VAR_POS: [2, 0, 2, 1], OBS_POS: [0, 0, 0, 1], VALUE: [1.0, None, None, 3.0]},
+        schema={VAR_POS: pl.UInt32, OBS_POS: pl.UInt32, VALUE: pl.Float64},
     )
-    if empty:
-        values.values = values.values.head(0)
+    layer = LongLayer("L", rows.head(0) if empty else rows)
 
-    resolved = policy.resolve(values, NULL_ONLY)
+    result = policy.resolve(layer)
 
-    assert resolved.layer_name == "L"
-    assert resolved.raw_var_key_columns == ("Feature", "Charge")
-    assert resolved.values.columns == ["Feature", "Charge", "obs_0"]
-    assert resolved.values.get_column("Feature").to_list() == ([] if empty else ["F2", "F1", "F3"])
-
-
-@pytest.mark.parametrize(
-    "policy", [duplicate_policy_for(mode) for mode in STATELESS], ids=STATELESS
-)
-def test_a_multi_column_raw_key_groups_as_one_identity(policy: DuplicatePolicy) -> None:
-    values = layer(
-        pl.DataFrame(
-            {
-                "Feature": ["F1", "F1", "F1"],
-                "Charge": ["2", "3", "2"],
-                "obs_0": [1.0, 2.0, None],
-            }
-        ),
-        keys=("Feature", "Charge"),
+    assert result.layer_name == "L"
+    assert result.rows.columns == [VAR_POS, OBS_POS, VALUE]
+    assert result.rows.select(VAR_POS, OBS_POS).rows() == (
+        [] if empty else [(2, 0), (0, 0), (1, 1)]
     )
 
-    resolved = policy.resolve(values, NULL_ONLY)
 
-    assert resolved.values.height == 2
-
-
-def test_grouping_treats_two_null_key_components_as_the_same_identity() -> None:
-    values = layer(
-        pl.DataFrame(
-            {"Feature": ["F1", None, None], "obs_0": [1.0, 2.0, None]},
-        )
+def test_split_sets_apart_the_rows_that_repeat_a_cell() -> None:
+    rows = pl.DataFrame(
+        {VAR_POS: [0, 1, 0, 2], OBS_POS: [0, 0, 0, 0], VALUE: ["a", "b", "c", "d"]},
+        schema={VAR_POS: pl.UInt32, OBS_POS: pl.UInt32, VALUE: pl.String},
     )
 
-    resolved = KeepFirstDuplicate().resolve(values, NULL_ONLY)
+    once, repeated = LongLayer("L", rows).split()
 
-    assert resolved.values.height == 2
-    assert resolved.values.get_column("obs_0").to_list() == [1.0, 2.0]
-
-
-def test_a_layer_with_no_observation_columns_resolves_to_its_keys() -> None:
-    values = layer(pl.DataFrame({"Feature": ["F1", "F1"]}))
-
-    resolved = KeepFirstDuplicate().resolve(values, NULL_ONLY)
-
-    assert resolved.values.to_dicts() == [{"Feature": "F1"}]
-    assert ErrorOnDuplicates().resolve(values, NULL_ONLY).values.height == 1
-    assert SUM.resolve(values, NULL_ONLY).values.height == 1
-    assert MAX.resolve(values, NULL_ONLY).values.height == 1
-
-
-@pytest.mark.parametrize(
-    "policy", [duplicate_policy_for(mode) for mode in STATELESS], ids=STATELESS
-)
-@pytest.mark.parametrize(
-    "names",
-    [
-        ("Feature", "value", "present", "_present_0"),
-        ("_duplicate", "_duplicate_", "_duplicate__", "value"),
-    ],
-)
-def test_internal_names_do_not_collide_with_keys_or_measurement_columns(
-    policy: DuplicatePolicy,
-    names: tuple[str, str, str, str],
-) -> None:
-    key, first, second, third = names
-    values = layer(
-        pl.DataFrame(
-            {
-                key: ["F2", "F1", "F2"],
-                first: [None, 2.5, 3.0],
-                second: [4, None, None],
-                third: [None, None, 8.0],
-            }
-        ),
-        keys=(key,),
-    )
-    resolved = policy.resolve(values, NULL_ONLY).values
-    assert resolved.schema == values.values.schema
-    assert resolved.to_dicts() == [
-        {key: "F2", first: 3.0, second: 4, third: 8.0},
-        {key: "F1", first: 2.5, second: None, third: None},
-    ]
+    assert once.rows.get_column(VALUE).to_list() == ["b", "d"]
+    assert repeated.rows.get_column(VALUE).to_list() == ["a", "c"]
+    unique_once, nothing = LongLayer("L", once.rows).split()
+    assert unique_once.rows is once.rows, "a layer without repeats is passed on as it is"
+    assert nothing.rows.height == 0
+    assert nothing.rows.schema == once.rows.schema
 
 
 def test_the_declared_mode_selects_one_stateless_policy() -> None:
@@ -499,40 +484,37 @@ def test_no_duplicate_policy_retains_its_discriminator() -> None:
 # ------------------------------------------------------------------------------- keep_best
 
 
-def _ranked_pair() -> tuple[RawLayerTable, RawLayerTable]:
-    """An intensity and a score layer from one pivot: F1 has two PSMs in obs_0."""
-    intensity = RawLayerTable(
-        layer_name="Intensity",
-        raw_var_key_columns=("Feature",),
-        values=pl.DataFrame(
-            {
-                "Feature": ["F1", "F1", "F2"],
-                "obs_0": [100.0, 200.0, 10.0],
-                "obs_1": [50.0, None, 20.0],
-            }
-        ),
+INTENSITY = pl.DataFrame(
+    {
+        "Feature": ["F1", "F1", "F2"],
+        "obs_0": [100.0, 200.0, 10.0],
+        "obs_1": [50.0, None, 20.0],
+    }
+)
+SCORE = pl.DataFrame(
+    {
+        "Feature": ["F1", "F1", "F2"],
+        "obs_0": ["1.5", "7.0", "2.0"],
+        "obs_1": ["3.0", None, "1.0"],
+    }
+)
+
+
+def _ranked_pair() -> tuple[LongLayer, LongLayer]:
+    """An intensity and a score layer from one long table: F1 has two PSMs in obs_0."""
+    return (
+        placed(INTENSITY, NULL_ONLY, name="Intensity"),
+        placed(SCORE, NULL_ONLY, name="Score"),
     )
-    score = RawLayerTable(
-        layer_name="Score",
-        raw_var_key_columns=("Feature",),
-        values=pl.DataFrame(
-            {
-                "Feature": ["F1", "F1", "F2"],
-                "obs_0": ["1.5", "7.0", "2.0"],
-                "obs_1": ["3.0", None, "1.0"],
-            }
-        ),
-    )
-    return intensity, score
 
 
 @pytest.mark.parametrize(("highest", "kept"), [(True, 200.0), (False, 100.0)])
 def test_keep_best_takes_every_layer_from_the_best_ranked_row(highest: bool, kept: float) -> None:
     intensity, score = _ranked_pair()
-    policy = KeepBestDuplicate(by="Score", highest=highest).ranked(score, NULL_ONLY)
+    policy = KeepBestDuplicate(by="Score", highest=highest).ranked(score)
 
-    values = policy.resolve(intensity, NULL_ONLY).values.to_dicts()
-    scores = policy.resolve(score, NULL_ONLY).values.to_dicts()
+    values = wide(resolved(policy, intensity), "obs_0", "obs_1").to_dicts()
+    scores = wide(resolved(policy, score), "obs_0", "obs_1").to_dicts()
 
     assert values == [
         {"Feature": "F1", "obs_0": kept, "obs_1": 50.0},
@@ -544,41 +526,51 @@ def test_keep_best_takes_every_layer_from_the_best_ranked_row(highest: bool, kep
 def test_keep_best_sums_its_summed_layers_and_takes_the_rest_from_the_best_row() -> None:
     intensity, score = _ranked_pair()
     policy = KeepBestDuplicate(by="Score", highest=False, summed=frozenset({"Intensity"})).ranked(
-        score, NULL_ONLY
+        score
     )
 
-    assert policy.resolve(intensity, NULL_ONLY).values.to_dicts() == [
+    assert wide(resolved(policy, intensity), "obs_0", "obs_1").to_dicts() == [
         {"Feature": "F1", "obs_0": 300.0, "obs_1": 50.0},
         {"Feature": "F2", "obs_0": 10.0, "obs_1": 20.0},
     ], "F1's two PSMs in obs_0 add up"
-    assert policy.resolve(score, NULL_ONLY).values.to_dicts()[0]["obs_0"] == "1.5"
+    assert wide(resolved(policy, score), "obs_0", "obs_1").to_dicts()[0]["obs_0"] == "1.5"
 
 
 def test_keep_best_prefers_a_ranked_row_and_keeps_file_order_on_ties() -> None:
-    intensity = layer(pl.DataFrame({"Feature": ["F1", "F1", "F1"], "obs_0": [1.0, 2.0, 3.0]}))
-    score = layer(pl.DataFrame({"Feature": ["F1", "F1", "F1"], "obs_0": [None, 4.0, 4.0]}))
+    intensity = placed(pl.DataFrame({"Feature": ["F1"] * 3, "obs_0": [1.0, 2.0, 3.0]}), NULL_ONLY)
+    score = placed(pl.DataFrame({"Feature": ["F1"] * 3, "obs_0": [None, 4.0, 4.0]}), NULL_ONLY)
 
-    policy = KeepBestDuplicate(by="L", highest=False).ranked(score, NULL_ONLY)
+    policy = KeepBestDuplicate(by="L", highest=False).ranked(score)
 
-    assert policy.resolve(intensity, NULL_ONLY).values.to_dicts() == [
+    assert wide(resolved(policy, intensity), "obs_0").to_dicts() == [
         {"Feature": "F1", "obs_0": 2.0}
     ]
 
 
 def test_keep_best_refuses_a_ranking_layer_that_is_not_numbers() -> None:
-    score = layer(pl.DataFrame({"Feature": ["F1"], "obs_0": ["high"]}))
+    score = placed(pl.DataFrame({"Feature": ["F1"], "obs_0": ["high"]}), NULL_ONLY)
 
     with pytest.raises(AggregateTypeError, match="not plain numbers"):
-        KeepBestDuplicate(by="L", highest=True).ranked(score, NULL_ONLY)
+        KeepBestDuplicate(by="L", highest=True).ranked(score)
+
+
+def test_keep_best_reads_every_ranking_value_even_in_a_cell_of_its_own() -> None:
+    """A bad ranking value fails whether or not its cell repeats; F2 is alone in obs_0."""
+    score = placed(
+        pl.DataFrame({"Feature": ["F1", "F1", "F2"], "obs_0": ["1", "2", "high"]}), NULL_ONLY
+    )
+
+    with pytest.raises(AggregateTypeError, match="not plain numbers"):
+        KeepBestDuplicate(by="L", highest=True).ranked(score)
 
 
 def test_keep_best_refuses_a_layer_that_does_not_repeat_the_ranking_rows() -> None:
-    intensity, score = _ranked_pair()
-    policy = KeepBestDuplicate(by="Score", highest=True).ranked(score, NULL_ONLY)
-    shorter = layer(intensity.values.head(2))
+    _intensity, score = _ranked_pair()
+    policy = KeepBestDuplicate(by="Score", highest=True).ranked(score)
+    shorter = placed(INTENSITY.slice(1), NULL_ONLY, name="Intensity")
 
     with pytest.raises(ConversionError, match="does not repeat the rows"):
-        policy.resolve(shorter, NULL_ONLY)
+        resolved(policy, shorter)
 
 
 def test_keep_best_is_built_from_the_declared_ranking_only() -> None:

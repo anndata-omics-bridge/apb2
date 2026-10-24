@@ -1,4 +1,4 @@
-"""Physical shape becomes the common raw contract: two small axes and wide raw layers.
+"""Physical shape becomes the common raw contract: two small axes and long layers.
 
 A decomposer converts layout and nothing else. It receives source-resolved column names and
 configured key sets — never a rule, a vendor, a level, an unresolved regex, a duplicate mode,
@@ -8,9 +8,10 @@ downstream is written once.
 Two invariants are easy to lose and are the reason this module exists at all. A raw axis holds
 exactly one row per complete raw-key tuple: the obs axis keeps the first payload metadata it
 saw, and each var payload column applies the value policy the resolver configured for it,
-reporting features whose rows disagree. And a raw layer *keeps* repeated cells: a repeated ``(var key, obs key)`` pair becomes a
-repeated var row, because deciding what several values for one cell mean is the duplicate
-policy's question, and collapsing them here would destroy the evidence it needs.
+reporting features whose rows disagree. And a layer *keeps* repeated cells: each physical value
+becomes one long row naming its axis rows, so two values for one cell are two rows, because
+deciding what they mean is the duplicate policy's question and collapsing them here would
+destroy the evidence it needs. Layer rows carry no key text, only the two row numbers.
 """
 
 from __future__ import annotations
@@ -24,13 +25,14 @@ from apb2.parserV2.parse_quant.contracts import (
     FragmentTableSeparator,
     SourceDecomposer,
 )
-from apb2.parserV2.parse_quant.data.layer_columns import observation_labels
 from apb2.parserV2.parse_quant.data.raw import (
     DISAGREEING_VALUES,
-    DecomposedDataRaw,
-    LayersRaw,
+    OBS_ROW,
+    VALUE,
+    VAR_ROW,
+    LongLayer,
     ObsRaw,
-    RawLayerTable,
+    RawLevel,
     VarRaw,
 )
 from apb2.parserV2.parse_quant.numeric_text import absent
@@ -43,14 +45,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
 
 _VALUE_LIMIT = 5
 _DISAGREES = "_disagrees_"
-_OCCURRENCE = "_occurrence"
-_OBS_SLOT = "_obs_slot"
-_PIVOT_SEPARATOR = "::"
-
-
-def _value_column(label: str, dtype: pl.DataType, *, observed: bool) -> pl.Expr:
-    """One layer value column: the pivoted values, or nulls for an unobserved observation."""
-    return pl.col(label) if observed else pl.lit(None, dtype=dtype).alias(label)
+_ROW_INDEX = "_row"
 
 
 def _axis_frame(frame: pl.DataFrame, plan: AxisSourcePlan) -> pl.DataFrame:
@@ -110,6 +105,30 @@ def _disagreeing(
     )
 
 
+def _row_numbers(frame: pl.DataFrame, axis: pl.DataFrame, keys: tuple[str, ...]) -> pl.Series:
+    """Each physical row's row in one raw axis, by one join on the raw key columns alone.
+
+    Every physical row's key tuple is in the axis it built, so no row number is null.
+    """
+    index = _ROW_INDEX
+    while index in keys:
+        index += "_"
+    return (
+        frame.lazy()
+        .select(keys)
+        .join(
+            axis.lazy().select(keys).with_row_index(index),
+            on=list(keys),
+            how="left",
+            nulls_equal=True,
+            maintain_order="left",
+        )
+        .select(index)
+        .collect()
+        .to_series()
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class LongSourceDecomposer:
     """One physical row per (observation, feature); every layer names an exact column."""
@@ -120,129 +139,27 @@ class LongSourceDecomposer:
     var: AxisSourcePlan
     var_values: tuple[FeatureValuePolicy, ...]
 
-    def decompose(self, table: LevelSourceTable, /) -> DecomposedDataRaw:
+    def decompose(self, table: LevelSourceTable, /) -> RawLevel:
+        """Both raw axes, then every layer as the read column beside two shared row numbers."""
         frame = table.frame
         obs_frame = _axis_frame(frame, self.obs)
         var = _var_raw(frame, self.var, self.var_values)
-        var_frame = var.frame
-        labels = observation_labels(obs_frame.height, reserved=var_frame.columns)
-        source_columns = tuple(dict.fromkeys(source.source_column for source in self.layer_sources))
-        source_aliases = dict(
-            zip(
-                source_columns,
-                self._pivot_value_aliases(len(source_columns), reserved=frame.columns),
-                strict=True,
-            )
-        )
-        pivoted = self._pivot_layers(
-            frame,
-            obs_frame,
-            var_frame,
-            labels,
-            source_aliases,
-        )
-        return DecomposedDataRaw(
+        var_row = _row_numbers(frame, var.frame, self.var.keys.raw_key_columns).alias(VAR_ROW)
+        obs_row = _row_numbers(frame, obs_frame, self.obs.keys.raw_key_columns).alias(OBS_ROW)
+        return RawLevel(
             obs=ObsRaw(frame=obs_frame, raw_key_columns=self.obs.keys.raw_key_columns),
             var=var,
-            layers=LayersRaw(
-                primary_layer_name=self.primary_layer_name,
-                values=tuple(
-                    self._layer(
-                        pivoted,
-                        labels,
-                        source,
-                        source_aliases[source.source_column],
-                        source_dtype=frame.schema[source.source_column],
-                        several_sources=len(source_aliases) > 1,
-                    )
-                    for source in self.layer_sources
-                ),
+            primary_layer_name=self.primary_layer_name,
+            layers=tuple(
+                LongLayer(
+                    source.name,
+                    pl.DataFrame(
+                        [var_row, obs_row, frame.get_column(source.source_column).alias(VALUE)]
+                    ),
+                )
+                for source in self.layer_sources
             ),
         )
-
-    def _pivot_layers(
-        self,
-        frame: pl.DataFrame,
-        obs_frame: pl.DataFrame,
-        var_frame: pl.DataFrame,
-        labels: tuple[str, ...],
-        source_aliases: dict[str, str],
-    ) -> pl.DataFrame:
-        """Place, count, pivot, and order every distinct physical layer source once."""
-        var_keys = self.var.keys.raw_key_columns
-        obs_keys = self.obs.keys.raw_key_columns
-        slots = obs_frame.select(list(obs_keys)).with_columns(
-            pl.Series(_OBS_SLOT, list(labels), dtype=pl.String)
-        )
-        identity_columns = tuple(dict.fromkeys((*obs_keys, *var_keys)))
-        projected = frame.select(
-            [
-                *identity_columns,
-                *(pl.col(source).alias(alias) for source, alias in source_aliases.items()),
-            ]
-        )
-        placed = projected.join(
-            slots,
-            on=list(obs_keys),
-            how="inner",
-            nulls_equal=True,
-            maintain_order="left",
-        )
-        counted = placed.with_columns(
-            (pl.cum_count(_OBS_SLOT).over([*var_keys, _OBS_SLOT]) - 1).alias(_OCCURRENCE)
-        )
-        pivoted = counted.pivot(
-            on=_OBS_SLOT,
-            index=[*var_keys, _OCCURRENCE],
-            values=list(source_aliases.values()),
-            separator=_PIVOT_SEPARATOR,
-        )
-        return (
-            var_frame.select(var_keys)
-            .join(pivoted, on=var_keys, how="left", nulls_equal=True, maintain_order="left_right")
-            .drop(_OCCURRENCE)
-        )
-
-    @staticmethod
-    def _pivot_value_aliases(count: int, reserved: tuple[str, ...] | list[str]) -> tuple[str, ...]:
-        """Collision-free local names for physical value columns during the shared pivot."""
-        taken = set(reserved)
-        prefix = "_layer_value"
-        while True:
-            aliases = tuple(f"{prefix}_{index}" for index in range(count))
-            if not taken.intersection(aliases):
-                return aliases
-            prefix += "_"
-
-    def _layer(
-        self,
-        pivoted: pl.DataFrame,
-        labels: tuple[str, ...],
-        source: LongRawLayerSource,
-        source_alias: str,
-        *,
-        source_dtype: pl.DataType,
-        several_sources: bool,
-    ) -> RawLayerTable:
-        """Project one logical wide layer from the shared, already ordered pivot."""
-        var_keys = self.var.keys.raw_key_columns
-        present = set(pivoted.columns)
-        pivot_labels = tuple(
-            f"{source_alias}{_PIVOT_SEPARATOR}{label}" if several_sources else label
-            for label in labels
-        )
-        values = pivoted.select(
-            [
-                *var_keys,
-                *(
-                    _value_column(pivot_label, source_dtype, observed=pivot_label in present).alias(
-                        label
-                    )
-                    for pivot_label, label in zip(pivot_labels, labels, strict=True)
-                ),
-            ]
-        )
-        return RawLayerTable(layer_name=source.name, raw_var_key_columns=var_keys, values=values)
 
 
 @dataclass(frozen=True, slots=True)
@@ -255,23 +172,18 @@ class WideSourceDecomposer:
     var: AxisSourcePlan
     var_values: tuple[FeatureValuePolicy, ...]
 
-    def decompose(self, table: LevelSourceTable, /) -> DecomposedDataRaw:
+    def decompose(self, table: LevelSourceTable, /) -> RawLevel:
+        """The samples as the obs axis, then every layer as one block of rows per column."""
         frame = table.frame
         samples = self._samples()
         obs_frame = pl.DataFrame({name: list(samples) for name in self.obs.keys.raw_key_columns})
         var = _var_raw(frame, self.var, self.var_values)
-        var_frame = var.frame
-        labels = observation_labels(len(samples), reserved=var_frame.columns)
-        return DecomposedDataRaw(
+        var_row = _row_numbers(frame, var.frame, self.var.keys.raw_key_columns).alias(VAR_ROW)
+        return RawLevel(
             obs=ObsRaw(frame=obs_frame, raw_key_columns=self.obs.keys.raw_key_columns),
             var=var,
-            layers=LayersRaw(
-                primary_layer_name=self.primary_layer_name,
-                values=tuple(
-                    self._layer(frame, var_frame, samples, labels, plan)
-                    for plan in self.layer_plans
-                ),
-            ),
+            primary_layer_name=self.primary_layer_name,
+            layers=tuple(self._layer(frame, var_row, samples, plan) for plan in self.layer_plans),
         )
 
     def _samples(self) -> tuple[str, ...]:
@@ -279,55 +191,32 @@ class WideSourceDecomposer:
         primary = next(plan for plan in self.layer_plans if plan.name == self.primary_layer_name)
         return tuple(dict.fromkeys(source.sample for source in primary.sources))
 
+    @staticmethod
     def _layer(
-        self,
-        frame: pl.DataFrame,
-        var_frame: pl.DataFrame,
-        samples: tuple[str, ...],
-        labels: tuple[str, ...],
-        plan: WideRawLayerPlan,
-    ) -> RawLayerTable:
-        """Align one layer's resolved columns to the primary samples, in that order.
+        frame: pl.DataFrame, var_row: pl.Series, samples: tuple[str, ...], plan: WideRawLayerPlan
+    ) -> LongLayer:
+        """One block of rows per resolved column, the first column of every sample first.
 
-        Several physical columns claiming one sample become repeated rows, so long and wide
-        inputs reach the duplicate policy in the same shape.
+        Several physical columns claiming one sample are repeated cells, so long and wide
+        inputs reach the duplicate policy in the same shape; a cell's repeats keep header
+        order, then row order. A sample the layer lacks contributes no rows.
         """
-        var_keys = self.var.keys.raw_key_columns
         by_sample: dict[str, list[str]] = {}
         for source in plan.sources:
             by_sample.setdefault(source.sample, []).append(source.source_column)
-        depth = max((len(columns) for columns in by_sample.values()), default=1)
+        depth = max((len(columns) for columns in by_sample.values()), default=0)
+        rows = pl.DataFrame([var_row])
         blocks = [
-            frame.select(
-                [
-                    *var_keys,
-                    *(
-                        self._value(by_sample.get(sample, []), occurrence, label)
-                        for sample, label in zip(samples, labels, strict=True)
-                    ),
-                ]
+            rows.with_columns(
+                pl.lit(position, dtype=pl.UInt32).alias(OBS_ROW),
+                frame.get_column(by_sample[sample][occurrence]).alias(VALUE),
             )
             for occurrence in range(depth)
+            for position, sample in enumerate(samples)
+            if occurrence < len(by_sample.get(sample, ()))
         ]
-        stacked = pl.concat(blocks) if blocks else frame.select(list(var_keys))
-        return RawLayerTable(
-            layer_name=plan.name,
-            raw_var_key_columns=var_keys,
-            values=var_frame.select(var_keys).join(
-                stacked, on=var_keys, how="left", nulls_equal=True, maintain_order="left_right"
-            ),
-        )
-
-    @staticmethod
-    def _value(columns: list[str], occurrence: int, label: str) -> pl.Expr:
-        """One sample's value at one occurrence, or a null of no particular type.
-
-        A required layer whose pattern matched only non-primary samples has no resolved
-        column at all; ``Null`` says exactly that, and both writers accept it.
-        """
-        if occurrence < len(columns):
-            return pl.col(columns[occurrence]).alias(label)
-        return _value_column(label, pl.Null(), observed=False)
+        empty = pl.DataFrame(schema={VAR_ROW: pl.UInt32, OBS_ROW: pl.UInt32, VALUE: pl.Null})
+        return LongLayer(plan.name, pl.concat(blocks, how="vertical_relaxed") if blocks else empty)
 
 
 @dataclass(frozen=True, slots=True)
@@ -341,5 +230,5 @@ class DelimitedFragmentSourceDecomposer:
     separator: FragmentTableSeparator
     long_decomposer: SourceDecomposer
 
-    def decompose(self, table: LevelSourceTable, /) -> DecomposedDataRaw:
+    def decompose(self, table: LevelSourceTable, /) -> RawLevel:
         return self.long_decomposer.decompose(self.separator.separate(table))

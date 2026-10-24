@@ -12,9 +12,10 @@ Execution laws:
 
 - axis selections are Polars expressions; computations preserve frame rows and columns
   while assigning their declared output and returning explicit diagnostic metadata;
-- ``RawValuePresence.present`` returns a Boolean expression that evaluates to one non-null mask
+- ``LayerValueParser.present`` returns a Boolean expression that evaluates to one non-null mask
   value per input row, in input order, and never a converted measurement value;
-- a duplicate policy preserves the raw var-key columns and the input group order.
+- a duplicate policy receives a layer's repeated cells, absent values already null, and returns
+  one row per cell, keeping the placed position columns.
 """
 
 from __future__ import annotations
@@ -25,8 +26,9 @@ from typing import Protocol
 
 import polars as pl
 
+from apb2.parserV2.parse_quant.data.layer_columns import ObservationGrid
 from apb2.parserV2.parse_quant.data.parsed import FinalLayerTable, JsonValue, ObsFinal, VarFinal
-from apb2.parserV2.parse_quant.data.raw import DecomposedDataRaw, RawLayerTable
+from apb2.parserV2.parse_quant.data.raw import LongLayer, RawLevel
 from apb2.parserV2.parse_quant.parameters.axis import AxisKeyPlan
 from apb2.parserV2.parse_quant.parameters.source import LevelSourceTable
 
@@ -38,9 +40,9 @@ class BoundInputReader(Protocol):
 
 
 class SourceDecomposer(Protocol):
-    """Convert one physical table shape into common raw axes and wide raw layers."""
+    """Convert one physical table shape into common raw axes and long layers."""
 
-    def decompose(self, table: LevelSourceTable, /) -> DecomposedDataRaw: ...
+    def decompose(self, table: LevelSourceTable, /) -> RawLevel: ...
 
 
 class FragmentTableSeparator(Protocol):
@@ -70,16 +72,10 @@ class ColumnComputer(Protocol):
     def compute(self, frame: pl.DataFrame, /) -> tuple[pl.DataFrame, tuple[str, ...]]: ...
 
 
-class RawValuePresence(Protocol):
-    """Mark the raw layer scalars that semantically claim a cell, without converting them."""
-
-    def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr: ...
-
-
 class DuplicatePolicy(Protocol):
-    """Resolve repeated values of each raw wide cell into one value."""
+    """Resolve the repeated values of each placed cell into one value."""
 
-    def resolve(self, layer: RawLayerTable, presence: RawValuePresence, /) -> RawLayerTable: ...
+    def resolve(self, layer: LongLayer, /) -> LongLayer: ...
 
 
 class FeatureValuePolicy(Protocol):
@@ -98,11 +94,17 @@ class FeatureValuePolicy(Protocol):
 
 
 class LayerValueParser(Protocol):
-    """One layer's settings for raw presence and final value parsing, in separate phases."""
+    """One layer's settings for raw presence and final value parsing, in separate phases.
+
+    ``present`` marks the raw scalars that claim a cell, without converting them; ``parse``
+    turns the resolved cells into canonical values and widens them onto the grid.
+    """
 
     def present(self, values: pl.Expr, dtype: pl.DataType, /) -> pl.Expr: ...
 
-    def parse(self, layer: FinalLayerTable) -> tuple[FinalLayerTable, dict[str, JsonValue]]: ...
+    def parse(
+        self, layer: LongLayer, grid: ObservationGrid, /
+    ) -> tuple[FinalLayerTable, dict[str, JsonValue]]: ...
 
 
 class LayerSetValidator(Protocol):
