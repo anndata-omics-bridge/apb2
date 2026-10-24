@@ -18,7 +18,7 @@ Parsing never writes: ``parse`` returns the levels, and only a result writer per
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from time import perf_counter
@@ -38,7 +38,13 @@ from apb2.parserV2.parse_quant.contracts import (
 )
 from apb2.parserV2.parse_quant.conversion_record import ConversionEvidence
 from apb2.parserV2.parse_quant.data.errors import ConversionError
-from apb2.parserV2.parse_quant.data.layer_columns import VALUE, ObservationGrid, observation_labels
+from apb2.parserV2.parse_quant.data.layer_columns import (
+    OBS_POS,
+    VALUE,
+    VAR_POS,
+    ObservationGrid,
+    observation_labels,
+)
 from apb2.parserV2.parse_quant.data.parsed import (
     FinalLayerTable,
     JsonValue,
@@ -55,6 +61,7 @@ from apb2.parserV2.parse_quant.data.raw import (
     FinalPositions,
     LongLayer,
     ObsRaw,
+    RawLevel,
     VarRaw,
 )
 from apb2.parserV2.parse_quant.data.step_log import logged_step
@@ -156,22 +163,27 @@ class Parser:
 
     def parse(self) -> ParsedLevel:
         """Read the bound input once, then execute the compiled strategy."""
-        with logged_step("read", level=self.level):
-            source = self.input_reader.read()
-        return self.strategy.parse(source)
+        return self.parse_with_timings()[0]
 
     def parse_with_timings(
         self,
     ) -> tuple[ParsedLevel, LevelParseTimings, tuple[InputTable, ...]]:
-        """Read and parse once, reporting the two wall times and the tables read."""
+        """Read and parse once, reporting the two wall times and the tables read.
+
+        The read table is let go as soon as it is decomposed: its key and payload columns are
+        then held by nothing, and each layer's column only until that layer is parsed.
+        """
         started = perf_counter()
         with logged_step("read", level=self.level):
             source = self.input_reader.read()
         read_seconds = perf_counter() - started
+        tables = source.input_tables
         started = perf_counter()
-        parsed = self.strategy.parse(source)
+        raw = self.strategy.decompose(source)
+        del source
+        parsed = self.strategy.parse_decomposed(raw)
         timing = LevelParseTimings(self.level, read_seconds, perf_counter() - started)
-        return parsed, timing, source.input_tables
+        return parsed, timing, tables
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,8 +223,15 @@ class ParseStrategy:
 
     def parse(self, source: LevelSourceTable) -> ParsedLevel:
         """Execute the shared parsing pipeline on an already-read source table."""
+        return self.parse_decomposed(self.decompose(source))
+
+    def decompose(self, source: LevelSourceTable) -> RawLevel:
+        """Reduce the read table to raw axes and long layers, the first step of ``parse``."""
         with logged_step("parse.decompose", level=self.level):
-            raw = self.decomposer.decompose(source)
+            return self.decomposer.decompose(source)
+
+    def parse_decomposed(self, raw: RawLevel) -> ParsedLevel:
+        """Every step of ``parse`` after decomposition; it consumes ``raw``'s layers."""
         with logged_step("parse.obs", level=self.level):
             obs, obs_positions, _obs_keys = self._prepare_obs(raw.obs)
         with logged_step("parse.var", level=self.level):
@@ -229,7 +248,9 @@ class ParseStrategy:
             ),
         )
         with logged_step("parse.layers", level=self.level):
-            layers, unreadable_numeric = self._prepare_layers(raw.layers, positions)
+            pending = list(raw.layers)
+            raw.layers = ()
+            layers, unreadable_numeric = self._prepare_layers(pending, positions)
         with logged_step("parse.validate", level=self.level):
             effectively_empty = self.layer_validator.validate(layers)
             pruned = self.pruner.prune(obs, var, layers, effectively_empty or {})
@@ -383,21 +404,23 @@ class ParseStrategy:
 
     def _prepare_layers(
         self,
-        raw: tuple[LongLayer, ...],
+        pending: list[LongLayer],
         positions: FinalPositions,
     ) -> tuple[dict[str, FinalLayerTable], dict[str, JsonValue]]:
+        """Parse the layers in authored order, letting each raw layer go once it is parsed."""
         layers: dict[str, FinalLayerTable] = {}
         diagnostics: dict[str, JsonValue] = {}
-        duplicates = self._ranked_duplicates(raw, positions)
+        duplicates = self._ranked_duplicates(pending, positions)
         previous: tuple[pl.DataFrame, LongLayer] | None = None
-        for layer in raw:
+        while pending:
+            layer = pending.pop(0)
             values = self.layer_parsers[layer.layer_name]
             # Layers read from one table point at the same raw rows; placing them alike lets
             # every parsed layer share one copy of the position columns.
             raw_rows = layer.rows.select(VAR_ROW, OBS_ROW)
             like = previous[1] if previous and previous[0].equals(raw_rows) else None
             placed = positions.place(layer, like)
-            previous = (raw_rows, placed)
+            previous = (raw_rows, LongLayer(layer.layer_name, placed.rows.select(VAR_POS, OBS_POS)))
             once, repeated = self._claimed(placed, values).split()
             resolved = duplicates.resolve(repeated)
             cells = (
@@ -412,7 +435,7 @@ class ParseStrategy:
         return layers, diagnostics
 
     def _ranked_duplicates(
-        self, raw: tuple[LongLayer, ...], positions: FinalPositions
+        self, raw: Sequence[LongLayer], positions: FinalPositions
     ) -> DuplicatePolicy:
         """keep_best ranks once, on its ``by`` layer; every other policy needs no ranking."""
         if not isinstance(self.duplicates, KeepBestDuplicate):

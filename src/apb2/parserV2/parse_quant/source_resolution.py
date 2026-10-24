@@ -54,6 +54,7 @@ from apb2.parserV2.parse_quant.parameters.axis import (
     AxisKeyPlan,
     AxisSourcePlan,
     FeatureDuplicates,
+    FeatureRanking,
 )
 from apb2.parserV2.parse_quant.parameters.measurements import (
     WorkingMeasurementLayer,
@@ -121,9 +122,9 @@ class SourcePlanResolver:
         obs_source, obs, obs_json = self._resolve_axis(
             working.obs, present, self._obs_synthesized(), numbers
         )
-        read = self._read_plan(evidence, obs_source, var_source, layers)
-        self._require_aggregatable(evidence, read, layers)
         var_modes = self._var_duplicates(working.var, var_source)
+        read = self._read_plan(evidence, obs_source, var_source, layers, var_modes)
+        self._require_aggregatable(evidence, read, layers)
         var_values = tuple(
             feature_value_policy(source, mode, numbers) for source, mode in var_modes.items()
         )
@@ -441,6 +442,7 @@ class SourcePlanResolver:
         obs: AxisSourcePlan,
         var: AxisSourcePlan,
         layers: _ResolvedLayers,
+        var_modes: Mapping[str, FeatureDuplicates],
     ) -> LevelReadPlan:
         """Project exactly this level's transitive source closure, and decide every dtype.
 
@@ -449,6 +451,11 @@ class SourcePlanResolver:
         other measurement stays text: parsing it as a float is a semantic transformation owned
         by the parser, and real exports write ``-``, ``NA``, or ``False`` in a column a rule
         calls numeric — which an eager numeric read cannot survive.
+
+        Key and payload text is read as ``pl.Categorical``: a run path repeated on every row
+        costs four bytes there. Packed and layer columns stay text, and so do the sources of
+        var columns resolved by number (``min``, ``max``, ``keep_best``) and their ranking
+        columns, because those cast every row.
         """
         lexical = frozenset(
             {
@@ -462,6 +469,18 @@ class SourcePlanResolver:
         needed = lexical | layers.source_columns
         projected = tuple(name for name in evidence.columns if name in needed)
         reduced = self._reduced_sources(layers)
+        ranked = {
+            column
+            for source, mode in var_modes.items()
+            if mode != "keep_first"
+            for column in (source, *((mode.by,) if isinstance(mode, FeatureRanking) else ()))
+        }
+        keyed = (
+            lexical
+            - frozenset(self._configuration.source_layout.packed_sources())
+            - layers.source_columns
+            - ranked
+        )
         if isinstance(evidence, FrameSourceEvidence):
             # Parquet and prepared frames keep their own types. Only text layers that a
             # number-reducing rule must add up are read as numbers, as delimited input does.
@@ -470,6 +489,7 @@ class SourcePlanResolver:
                 projected_columns=projected,
                 text_sources=frozenset(),
                 native_numeric_sources=(reduced - lexical) & text,
+                categorical_sources=keyed & text,
             )
         native = (
             frozenset()
@@ -477,10 +497,12 @@ class SourcePlanResolver:
             # The facade already rejects number-reducing rules with non-plain numeric layers.
             else reduced - lexical
         )
+        text = frozenset(projected) - native
         return LevelReadPlan(
             projected_columns=projected,
-            text_sources=frozenset(projected) - native,
+            text_sources=text,
             native_numeric_sources=native,
+            categorical_sources=keyed & text,
         )
 
     def _decomposition(

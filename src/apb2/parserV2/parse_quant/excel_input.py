@@ -116,9 +116,10 @@ class ExcelInputReader:
             raise_if_empty=False,
         )
         # Excel stores every number as a float; an integer-looking cell is one too.
-        projected = projected.with_columns(cs.integer().cast(pl.Float64)).with_columns(
-            pl.col(self.plan.text_sources).cast(pl.String),
-            pl.col(self.plan.native_numeric_sources).cast(pl.Float64),
+        projected = (
+            projected.with_columns(cs.integer().cast(pl.Float64))
+            .with_columns(pl.col(self.plan.text_sources).cast(pl.String))
+            .with_columns(*self.plan.casts())
         )
         table = InputTable(
             InputFile(self.path, "table", "xlsx"), self.evidence.columns, projected.height

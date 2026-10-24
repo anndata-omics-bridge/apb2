@@ -236,6 +236,10 @@ def test_the_alphadia_wide_ion_level_resolves_exactly_as_specified() -> None:
         projected_columns=header,
         text_sources=frozenset(header),
         native_numeric_sources=frozenset(),
+        # Keys and feature metadata are read as Categorical; the intensity columns stay text.
+        categorical_sources=frozenset(
+            {"sequence", "mods", "mod_sites", "charge", "genes", "decoy"}
+        ),
     )
     assert isinstance(resolved.decomposer, WideSourceDecomposer)
     assert resolved.decomposer.var_values == tuple(
@@ -307,6 +311,32 @@ def test_the_diann_fragment_level_separates_packed_values_before_decomposing() -
     assert decomposition.long_decomposer.primary_layer_name == "Fragment_Quant_Raw"
     # The label the separator synthesizes is identity, so its tokens must survive as text.
     assert "Fragment.Quant.Raw" in resolved.read.text_sources
+    # Keys and payload are read as Categorical; packed columns stay text to be split.
+    assert resolved.read.categorical_sources == frozenset(
+        {"Run", "Modified.Sequence", "Precursor.Charge", "Protein.Group"}
+    )
+
+
+def test_a_var_column_resolved_by_number_and_every_layer_stay_text() -> None:
+    """``min`` and the layers cast every row, so they keep text; the keys become Categorical."""
+    path = Path("src/apb2/parserV2/vendor_parse_rules/documents/diann/v1_7/rules.json")
+    facade = ParseRuleFacade(load_rule_document(path), "protein", _EVIDENCES[0])
+    header = (
+        "File.Name",
+        "Protein.Group",
+        "Protein.Names",
+        "Genes",
+        "Global.PG.Q.Value",
+        "PG.Normalised",
+        "PG.Quantity",
+    )
+
+    read = facade.resolve_source(delimited(header)).read
+
+    assert read.categorical_sources == frozenset(
+        {"File.Name", "Protein.Group", "Protein.Names", "Genes"}
+    )
+    assert {"Global.PG.Q.Value", "PG.Normalised", "PG.Quantity"} <= read.text_sources
 
 
 # ------------------------------------------------------- what the generic walk must find

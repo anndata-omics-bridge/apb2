@@ -44,7 +44,7 @@ class ParquetInputReader:
         frame = (
             pl.scan_parquet(self.path)
             .select(list(self.plan.projected_columns))
-            .with_columns(pl.col(sorted(self.plan.native_numeric_sources)).cast(pl.Float64))
+            .with_columns(*self.plan.casts())
             .collect()
         )
         table = InputTable(InputFile(self.path, "table", "parquet"), self.columns, frame.height)

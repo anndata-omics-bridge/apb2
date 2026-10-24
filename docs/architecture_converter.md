@@ -35,7 +35,7 @@ The facade remains the schema adapter and now constructs executable computed-col
 
 Vendor guessing checks only headers and source metadata; it never compiles a strategy. Effective level detection binds each candidate once and retains its parser. Public `compile()` assembles the retained parsers, without repeating document projection or source resolution. `checks` is applied during that binding. Rule documents are validated directly, without a private shell proxy or a second long/wide recognition family. Their projected compiler contract owns header recognition. Measurement uniqueness and primary-layer validity are checked at the authored schema boundary, not again in an internal runtime constructor.
 
-The executable strategy owns its collaborators once. `Parser.parse()` reads once and invokes `strategy.parse(source)`; it never writes. Prepared input receives the read projection and both axes' raw key tuples, not the strategy graph. `plan_json` preserves the previous serialized decisions, including skipped declarations and both axis phases, but runtime never consumes it.
+The executable strategy owns its collaborators once. `Parser.parse()` reads once, has the strategy decompose the read table (`strategy.decompose(source)`), lets the table go, and has the strategy finish (`strategy.parse_decomposed(raw)`); it never writes. Once decomposed, the read table's key and payload columns are held by nothing, and each layer's column only until that layer is parsed, because `parse_decomposed` consumes the raw level's layers one by one. A read shared by several levels keeps, after each level's projection, only the columns the levels still to read project. Prepared input receives the read projection and both axes' raw key tuples, not the strategy graph. `plan_json` preserves the previous serialized decisions, including skipped declarations and both axis phases, but runtime never consumes it.
 
 Each retained layer now has one configured value parser exposing both `present()` and `parse()`. The parser applies `present()` to each placed layer and nulls the scalars that claim no cell before any duplicate policy runs; `parse()` reads the resolved cells and widens them, and measurement occupancy validation follows value parsing. No parallel presence-object mapping remains. Sequence normalizers record localized rendering labels directly and return `SequenceValue`, without intermediate occurrence records or a second result wrapper; independently declared stripping remains a separate computation.
 
@@ -2409,9 +2409,9 @@ For delimited text, `text_sources` includes:
 - packed label and value sources that must be split as text;
 - factor labels and regex/localized-number layer sources whose raw presence or canonical value parsing needs original tokens.
 
-A physical source used by several roles is text when any role requires lexical preservation.
-Plain numeric layer sources may be read as native numeric columns. Parquet keeps its physical
-schema and bypasses text-dialect parsing.
+A physical source used by several roles is text when any role requires lexical preservation. A layer source is read as a native number only when the rule reduces it (`sum`, `min`, `max`, or a `keep_best` summed layer); every other layer stays text for its value parser. Parquet keeps its physical schema and bypasses text-dialect parsing.
+
+`categorical_sources` is the subset of text read as `pl.Categorical`: the obs and var raw keys and payload, minus packed columns, layer sources, and the sources of var columns resolved by number (`min`, `max`, `keep_best`) together with their ranking column, which cast every row. A run path repeated on every row then costs four bytes instead of its text: on a 150-run DIA-NN report (9 M rows) the ion level's read fell from 7.2 GB to 3.7 GB footprint. Every consumer of these columns casts to text first or compares codes (axis coercers and computers, `unique`, `group_by`, joins within one read), so no Categorical reaches a parsed result. `LevelReadPlan.union` keeps a column categorical only where every level reading it says so. `LevelSourceTable` nulls a blank category the way it nulls blank text, finding the blank texts among the column's distinct values rather than casting the column.
 
 For delimited input, `text_sources` and `native_numeric_sources` are disjoint and their union is
 exactly `projected_columns`. A plain numeric source is native only when its resolved number format
@@ -2494,6 +2494,7 @@ frame = (
         encoding=resolved_encoding,
         schema_overrides={
             **{name: pl.String for name in plan.text_sources},
+            **{name: pl.Categorical for name in plan.categorical_sources},
             **{name: pl.Float64 for name in plan.native_numeric_sources},
         },
         decimal_comma=resolved_number_format.decimal_mark == ",",

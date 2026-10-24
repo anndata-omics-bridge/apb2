@@ -60,6 +60,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
     DelimitedFormatContract,
     DelimitedSourceEvidence,
     InputContract,
+    LevelReadPlan,
     LevelSourceTable,
     LongSourceLayout,
     NumericTextFormat,
@@ -574,3 +575,31 @@ def test_a_runtime_axis_plan_holds_configured_behaviour_and_no_discriminator() -
     assert not hasattr(plan, "skipped")
     assert not hasattr(plan.key_phase.selections[0], "required")
     assert not hasattr(plan.key_phase.selections[0], "logical_type")
+
+
+def test_a_shared_read_keeps_a_column_categorical_only_where_every_level_does() -> None:
+    ion = LevelReadPlan(
+        ("run", "seq", "q"), frozenset({"run", "seq", "q"}), frozenset(), frozenset({"run", "seq"})
+    )
+    protein = LevelReadPlan(
+        ("run", "seq"), frozenset({"run", "seq"}), frozenset(), frozenset({"run"})
+    )
+
+    union = LevelReadPlan.union([ion, protein])
+
+    assert union.categorical_sources == frozenset({"run"})
+    assert union.text_sources == frozenset({"run", "seq", "q"})
+
+
+def test_a_blank_category_is_as_absent_as_blank_text() -> None:
+    frame = pl.DataFrame(
+        {
+            "key": pl.Series(["A", " ", None, "B", "\t"], dtype=pl.Categorical),
+            "value": [1.0, 2.0, 3.0, 4.0, 5.0],
+        }
+    )
+
+    table = LevelSourceTable(frame)
+
+    assert table.frame.get_column("key").to_list() == ["A", None, None, "B", None]
+    assert table.frame.schema["key"] == pl.Categorical()

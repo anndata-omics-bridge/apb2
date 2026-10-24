@@ -240,6 +240,7 @@ class DelimitedInputReader:
         nothing new.
         """
         overrides: dict[str, pl.DataType] = {name: pl.String() for name in self.plan.text_sources}
+        overrides.update({name: pl.Categorical() for name in self.plan.categorical_sources})
         overrides.update({name: pl.Float64() for name in self.plan.native_numeric_sources})
         encoding = self.evidence.encoding
         if encoding not in ("utf8", "utf8-lossy"):

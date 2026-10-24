@@ -142,7 +142,11 @@ class PhysicalTable:
 
 
 class _SharedRead:
-    """One read of a file through the union of the level plans it serves, once per parse."""
+    """One read of a file through the union of the level plans it serves, once per parse.
+
+    After each level takes its projection, the shared table keeps only the columns the levels
+    still to read project, so a column no remaining level needs is let go at once.
+    """
 
     __slots__ = ("_bound", "_evidence", "_plans", "_table", "_unread")
 
@@ -151,7 +155,7 @@ class _SharedRead:
         self._evidence = evidence
         self._plans: list[LevelReadPlan] = []
         self._table: LevelSourceTable | None = None
-        self._unread = 0
+        self._unread: list[LevelReadPlan] = []
 
     def admits(self, evidence: SourceEvidence, plan: LevelReadPlan) -> bool:
         """Same evidence, and no column one plan reads as a number while another does not."""
@@ -169,12 +173,17 @@ class _SharedRead:
             self._table = self._bound.reader(
                 self._evidence, LevelReadPlan.union(self._plans)
             ).read()
-            self._unread = len(self._plans)
+            self._unread = list(self._plans)
         table = self._table
-        self._unread -= 1
-        if not self._unread:
+        projection = LevelSourceTable(
+            table.frame.select(plan.projected_columns), table.input_tables
+        )
+        self._unread.remove(plan)
+        if self._unread:
+            table.frame = table.frame.select(LevelReadPlan.union(self._unread).projected_columns)
+        else:
             self._table = None
-        return LevelSourceTable(table.frame.select(plan.projected_columns), table.input_tables)
+        return projection
 
 
 @dataclass(frozen=True, slots=True)

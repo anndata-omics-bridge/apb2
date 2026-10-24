@@ -146,12 +146,34 @@ class LevelSourceTable:
         reader or preparation produced the frame.
         """
         frame = frame.with_columns(
-            cs.float().fill_nan(None), pl.when(cs.string().str.contains(r"\S")).then(cs.string())
+            cs.float().fill_nan(None),
+            pl.when(cs.string().str.contains(r"\S")).then(cs.string()),
+            *(
+                pl.when(pl.col(name).is_in(blank.implode()))
+                .then(None)
+                .otherwise(pl.col(name))
+                .alias(name)
+                for name, blank in _blank_categories(frame).items()
+            ),
         )
         if frame.width:
             frame = frame.filter(pl.any_horizontal(pl.all().is_not_null()))
         self.frame = frame
         self.input_tables = input_tables
+
+
+def _blank_categories(frame: pl.DataFrame) -> dict[str, pl.Series]:
+    """Per categorical column, its distinct texts without a non-whitespace character.
+
+    Found among the column's distinct values, so the column itself is never cast to text.
+    """
+    blanks: dict[str, pl.Series] = {}
+    for name in frame.select(cs.categorical()).columns:
+        distinct = frame.get_column(name).unique().drop_nulls()
+        blank = distinct.filter(~distinct.cast(pl.String).str.contains(r"\S"))
+        if blank.len():
+            blanks[name] = blank
+    return blanks
 
 
 type InputSource = SingleFile | Folder
@@ -354,19 +376,41 @@ class LevelReadPlan:
 
     For delimited input ``text_sources`` and ``native_numeric_sources`` are disjoint and
     their union is ``projected_columns``: no column is left to inference.
+    ``categorical_sources`` are text sources that only name keys and feature or run metadata;
+    they are read as ``pl.Categorical``, which holds each distinct text once.
     """
 
     projected_columns: tuple[str, ...]
     text_sources: frozenset[str]
     native_numeric_sources: frozenset[str]
+    categorical_sources: frozenset[str] = frozenset()
 
     @classmethod
     def union(cls, plans: Sequence[LevelReadPlan]) -> LevelReadPlan:
-        """One plan reading every column of several, each with the dtype they agree on."""
+        """One plan reading every column of several, each with the dtype they agree on.
+
+        A column is categorical only when every plan reading it says so; otherwise it is
+        text, which every consumer of a categorical column also accepts.
+        """
+        categorical = frozenset[str]().union(*(plan.categorical_sources for plan in plans))
+        for plan in plans:
+            categorical -= frozenset(plan.projected_columns) - plan.categorical_sources
         return cls(
             tuple(dict.fromkeys(name for plan in plans for name in plan.projected_columns)),
             frozenset[str]().union(*(plan.text_sources for plan in plans)),
             frozenset[str]().union(*(plan.native_numeric_sources for plan in plans)),
+            categorical,
+        )
+
+    def casts(self) -> tuple[pl.Expr, ...]:
+        """The casts a reader of native-typed input applies: numbers and categorical keys."""
+        return tuple(
+            pl.col(sorted(columns)).cast(dtype)
+            for columns, dtype in (
+                (self.native_numeric_sources, pl.Float64()),
+                (self.categorical_sources, pl.Categorical()),
+            )
+            if columns
         )
 
     def disagrees(self, other: LevelReadPlan) -> bool:
