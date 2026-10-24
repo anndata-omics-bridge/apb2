@@ -147,7 +147,7 @@ Consumers discover scientific meaning from these typed maps without knowing vend
 
 ### Structural layer roles
 
-Layer tables hold only observation values: row i belongs to var row i and column j to obs row j. They remain Polars frames until an h5ad or h5mu writer performs the matrix projection. `FinalLayerTable.role` defaults to `MeasurementLayerRole()`. Measurement layers may be primary and enter the occupancy comparison that runs when a level is parsed. `AuxiliaryLayerRole()` is for numeric diagnostics such as counts or component IDs: writers validate, encode, store and restore these layers like any other, but parsing leaves them out of the occupancy comparison, and one cannot be the primary layer.
+A layer is held as its stored cells, long: `cells` has `var_pos`, `obs_pos` and `value`, one row per stored cell, and a cell no row names holds the layer's fill (null for numbers, the missing code for categories). `height` is the number of var rows and `labels` names one column per obs row. `wide()` builds the matrix, row i for var row i and column j for obs row j, anew on every call; writers widen one layer at a time, so a level's layers are never all wide together. `FinalLayerTable.from_wide()` stores a wide frame. `FinalLayerTable.role` defaults to `MeasurementLayerRole()`. Measurement layers may be primary and enter the occupancy comparison that runs when a level is parsed. `AuxiliaryLayerRole()` is for numeric diagnostics such as counts or component IDs: writers validate, encode, store and restore these layers like any other, but parsing leaves them out of the occupancy comparison, and one cannot be the primary layer.
 
 The structural-role-bearing layer field is:
 
@@ -155,10 +155,16 @@ The structural-role-bearing layer field is:
 @dataclass(slots=True)
 class FinalLayerTable:
     layer_name: str
-    values: polars.DataFrame
+    cells: polars.DataFrame          # var_pos UInt32, obs_pos UInt32, value
+    height: int                      # var rows
+    labels: tuple[str, ...]          # one column label per obs row
     role: FinalLayerRole = field(default_factory=MeasurementLayerRole)
     semantic_roles: tuple[str, ...] = ()
     semantics: FinalLayerSemantics = field(default_factory=QuantitativeLayerSemantics)
+
+    def wide(self) -> polars.DataFrame: ...
+    @classmethod
+    def from_wide(cls, layer_name, values, *, role=None, semantic_roles=(), semantics=None): ...
 ```
 
 Pairwise frames have exactly `row`, `column`, and `value` columns. Positions are zero-based local
@@ -183,8 +189,10 @@ numbers = level.layers["Intensity"].quantitative_values()
 
 - `ParsedLevel.build()`: each layer frame has one row per var row and one column per obs row, by position; APB2 names the columns. Abundance layers are measurements with the `abundance` role; auxiliary layers are diagnostics, integer when every column is
 - `ParsedLevel.with_layers()`: a new level with layers and `varm` tables added and metadata sections set; existing names raise
-- `FinalLayerTable.quantitative_values()`: the numeric value block; a categorical layer raises
-- `FinalLayerTable.decoded_values()`: category codes replaced by their labels, numbers unchanged
+- `FinalLayerTable.wide()`: the matrix, one row per var row and one column per obs row, built on each call
+- `FinalLayerTable.from_wide()`: a layer stored from such a matrix; every cell that does not hold the fill is stored
+- `FinalLayerTable.quantitative_values()`: the numeric value block, wide; a categorical layer raises
+- `FinalLayerTable.decoded_values()`: the wide block with category codes replaced by their labels, numbers unchanged
 - `ParsedLevels.with_annotation_table()` and `with_feature_relation()`: a new result with a keyed feature table, or a directed relation between features of its levels and annotation tables (`source`, `row`, `target`, `column`, `value`)
 
 ## Errors

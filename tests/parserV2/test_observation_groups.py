@@ -29,7 +29,7 @@ def _level(frame: pl.DataFrame, key: str) -> ParsedLevel:
         primary_layer_name="Intensity",
         uns={},
         layers={
-            "Intensity": FinalLayerTable(
+            "Intensity": FinalLayerTable.from_wide(
                 "Intensity",
                 (values).drop(("feature",), strict=False),
                 semantic_roles=("abundance",),
@@ -63,7 +63,7 @@ def test_bijective_alignment_preserves_cells_on_one_shared_axis() -> None:
     assert protein.obs.key_columns == ("Raw_File",)
     assert protein.obs.frame["Raw_File"].to_list() == ["raw_z", "raw_a"]
     assert protein.obs.frame["Experiment"].to_list() == ["B", "A"]
-    assert protein.layers["Intensity"].values.rows() == [(101, 100)]
+    assert protein.layers["Intensity"].wide().rows() == [(101, 100)]
     assert original.obs.key_columns == ("Experiment",)
     assert original.obs.frame.columns == ["Experiment"]
     assert parse_section(protein.uns, "result")["observation_keys_original"] == ["Experiment"]
@@ -78,7 +78,7 @@ def test_alignment_fills_an_empty_observation_axis_without_losing_features() -> 
     (result,) = parsed.observation_groups()
     protein = result.levels["protein"]
     assert protein.obs.frame["Raw_File"].to_list() == ["raw_z", "raw_a"]
-    assert protein.layers["Intensity"].values.rows() == [(None, None)]
+    assert protein.layers["Intensity"].wide().rows() == [(None, None)]
     assert parsed.levels["protein"].obs.frame.is_empty()
 
 

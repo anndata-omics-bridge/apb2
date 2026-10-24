@@ -115,9 +115,10 @@ def _write_layers(layers: Mapping[str, FinalLayerTable], directory: Path) -> dic
     names = safe_names(layers, prefix="layer", suffix=".parquet")
     result: dict[str, JsonValue] = {}
     for name, layer in layers.items():
-        layer.values.write_parquet(directory / names[name])
+        values = layer.wide()
+        values.write_parquet(directory / names[name])
         result[name] = {
-            **table_metadata(layer.values, names[name]),
+            **table_metadata(values, names[name]),
             "role": layer.role.persisted_name(),
             "semantics": layer_semantics_metadata(layer.semantics),
         }

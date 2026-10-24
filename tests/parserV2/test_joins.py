@@ -320,12 +320,12 @@ def test_maxquant_higher_join_fanout_preserves_original_cells(tmp_path: Path) ->
     assert set(parsed) == {"peptidoform", "peptide", "protein"}
     protein = parsed["protein"]
     assert protein.obs.frame["Experiment"].to_list() == ["A", "B"]
-    assert protein.layers["Intensity"].values.rows() == [
+    assert protein.layers["Intensity"].wide().rows() == [
         (100.0, 101.0),
         (200.0, None),
         (300.0, 301.0),
     ]
-    assert parsed["peptide"].layers["Intensity"].values.row(0) == (25.0,)
+    assert parsed["peptide"].layers["Intensity"].wide().row(0) == (25.0,)
 
 
 def test_maxquant_join_does_not_accept_evidence() -> None:
@@ -443,7 +443,7 @@ def test_maxquant_every_nonempty_subset_round_trips_available_levels(
         expected_values["peptide"] = [[25.0, None]]
     for name, level in parsed.items():
         # HDF5 represents missing numeric cells as NaN; table backends retain nulls.
-        values = level.layers["Intensity"].values.cast(pl.Float64).fill_nan(None)
+        values = level.layers["Intensity"].wide().cast(pl.Float64).fill_nan(None)
         assert values.rows() == [tuple(row) for row in expected_values[name]]
         obs_key = "Raw_File" if name == "ion" else "Experiment"
         expected_samples = {"ion": ["raw1", "raw2"], "protein": ["A", "B"]}.get(
@@ -459,7 +459,7 @@ def test_maxquant_every_nonempty_subset_round_trips_available_levels(
         assert names == {MAXQUANT_FILES[role] for role in roles}
     if "protein" in parsed:
         protein = parsed["protein"]
-        lfq = protein.layers["LFQ_Intensity"].values.cast(pl.Float64).fill_nan(None)
+        lfq = protein.layers["LFQ_Intensity"].wide().cast(pl.Float64).fill_nan(None)
         assert lfq.rows() == [(110.0, 111.0), (210.0, None), (310.0, 311.0)]
 
 
@@ -538,12 +538,12 @@ def test_maxquant_one_to_one_experiments_align_to_raw_files(tmp_path: Path, suff
     protein = result.levels["protein"]
     assert protein.obs.frame["Raw_File"].to_list() == ["raw1", "raw2"]
     assert protein.obs.frame["Experiment"].to_list() == ["B", "A"]
-    values = protein.layers["Intensity"].values.cast(pl.Float64).fill_nan(None)
+    values = protein.layers["Intensity"].wide().cast(pl.Float64).fill_nan(None)
     assert values.rows() == [(101.0, 100.0), (None, 200.0), (301.0, 300.0)]
     ion = result.levels["ion"]
     # raw1 holds two evidence rows of the ion: intensities add up, PEP is the better row's.
-    assert ion.layers["Intensity"].values.row(0) == (20.0, 5.0)
-    assert ion.layers["PEP"].values.cast(pl.Float64).row(0) == (0.002, 0.05)
+    assert ion.layers["Intensity"].wide().row(0) == (20.0, 5.0)
+    assert ion.layers["PEP"].wide().cast(pl.Float64).row(0) == (0.002, 0.05)
     if suffix == ".h5mu":
         stored = mudata.read_h5mu(target)
         assert stored.n_obs == 2
@@ -694,7 +694,7 @@ def test_cli_directory_joins_before_ion_conversion(tmp_path: Path) -> None:
         )
     assert result.value.code == 0
     parsed = read_parsed_levels(tmp_path / "output.parquet").levels["ion"]
-    assert parsed.layers["Intensity"].values.row(0) == (12.0, None)
-    assert parsed.layers["QValue"].values.row(0) == (0.001, 0.002)
-    assert parsed.layers["Proba"].values.row(0) == (0.1, 0.2)
+    assert parsed.layers["Intensity"].wide().row(0) == (12.0, None)
+    assert parsed.layers["QValue"].wide().row(0) == (0.001, 0.002)
+    assert parsed.layers["Proba"].wide().row(0) == (0.1, 0.2)
     assert "Protein_Group_QValue" not in parsed.var.frame.columns

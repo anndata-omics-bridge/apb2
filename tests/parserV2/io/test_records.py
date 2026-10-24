@@ -38,7 +38,9 @@ def level() -> ParsedLevel:
         var=VarFinal(frame=pl.DataFrame({"feature": ["F1"]}), key_columns=("feature",)),
         primary_layer_name="Intensity",
         uns={},
-        layers={"Intensity": FinalLayerTable("Intensity", pl.DataFrame({"obs_0": [1.0]}))},
+        layers={
+            "Intensity": FinalLayerTable.from_wide("Intensity", pl.DataFrame({"obs_0": [1.0]}))
+        },
         obsm={},
         varm={},
         obsp={},

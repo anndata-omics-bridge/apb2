@@ -40,7 +40,7 @@ def var(**columns: list[object]) -> VarFinal:
 def layer(name: str, rows: list[list[float | None]]) -> FinalLayerTable:
     """One layer with two features and three runs, given row by row."""
     columns = list(zip(*rows, strict=True))
-    return FinalLayerTable(
+    return FinalLayerTable.from_wide(
         name, pl.DataFrame({f"c{index}": list(column) for index, column in enumerate(columns)})
     )
 
@@ -150,7 +150,7 @@ def test_retained_fields_stay_whatever_they_hold() -> None:
 
 
 def test_a_single_valued_factor_layer_reports_its_label() -> None:
-    status = FinalLayerTable(
+    status = FinalLayerTable.from_wide(
         "Status",
         pl.DataFrame({"c0": [1, 1], "c1": [1, -1], "c2": [1, 1]}),
         role=AuxiliaryLayerRole(),

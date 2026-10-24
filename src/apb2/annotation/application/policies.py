@@ -17,7 +17,7 @@ from apb2.annotation.data.model import (
     LevelAnnotationMatch,
     LevelAnnotationReport,
 )
-from apb2.parserV2.parse_quant.data.layer_columns import observation_labels
+from apb2.parserV2.parse_quant.data.layer_columns import OBS_POS, observation_labels
 from apb2.parserV2.parse_quant.data.parsed import (
     FinalLayerTable,
     JsonValue,
@@ -275,12 +275,12 @@ def _annotated_level(
 
 
 def _subset_layer(layer: FinalLayerTable, kept: list[int]) -> FinalLayerTable:
-    value_columns = layer.values.columns
-    selected_names = [value_columns[index] for index in kept]
-    values = layer.values.select(selected_names)
-    replacement = observation_labels(len(kept), ())
-    values = values.rename(dict(zip(selected_names, replacement, strict=True)))
-    return replace(layer, values=values)
+    """The layer's cells of the kept observations, renumbered in kept order."""
+    renumbered = pl.col(OBS_POS).replace_strict(
+        {old: new for new, old in enumerate(kept)}, return_dtype=pl.UInt32
+    )
+    cells = layer.cells.filter(pl.col(OBS_POS).is_in(kept)).with_columns(renumbered)
+    return replace(layer, cells=cells, labels=observation_labels(len(kept), ()))
 
 
 def _subset_pairwise(frame: pl.DataFrame, kept: list[int]) -> pl.DataFrame:

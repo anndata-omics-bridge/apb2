@@ -9,12 +9,14 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Literal, Protocol, cast
 
+import h5py
 import pandas as pd
 import polars as pl
 import polars.selectors as cs
 import pyarrow as pa
 from anndata import AnnData
 from anndata import settings as anndata_settings
+from anndata.io import write_elem
 from mudata import MuData
 from scipy import sparse
 
@@ -65,9 +67,13 @@ class AnnDataWriter:
     __slots__ = ()
 
     def to_anndata_for_level(self, parsed: ParsedLevel, level_name: ParsedLevelName) -> AnnData:
-        """Build one level's AnnData: its APB part in ``uns["apb"]``, its ``export_uns`` beside."""
+        """Build one level's AnnData without its matrices: axes, tables and ``uns``.
+
+        Its APB part goes to ``uns["apb"]`` and its ``export_uns`` beside it. ``X`` and the layers
+        are written into the stored file afterwards, one wide matrix at a time
+        (``_write_matrices``), so a level's layers are never all wide together.
+        """
         validate_parsed_level(level_name, parsed)
-        arrays = {name: layer.values.to_numpy().T for name, layer in parsed.layers.items()}
         layer_names = safe_names(parsed.layers, prefix="layer", suffix="")
         slot_names = {
             "obsm": safe_names(parsed.obsm, prefix="obsm", suffix=""),
@@ -76,14 +82,9 @@ class AnnDataWriter:
             "varp": safe_names(parsed.varp, prefix="varp", suffix=""),
         }
         adata = AnnData(
-            X=arrays[parsed.primary_layer_name],
+            X=None,
             obs=_make_axis_frame(parsed.obs.frame, parsed.obs.key_columns),
             var=_make_axis_frame(parsed.var.frame, parsed.var.key_columns),
-            layers={
-                layer_names[name]: values
-                for name, values in arrays.items()
-                if name != parsed.primary_layer_name
-            },
         )
         self._write_aligned(parsed, adata, slot_names)
         self._write_pairwise(parsed, adata, slot_names)
@@ -279,7 +280,15 @@ class MuDataWriter:
             storage=_collection_storage_metadata(parsed, annotation_names, relation_names),
         )
         result.uns.update(parsed.export_uns)
-        _write_atomically(target, result.write_h5mu)
+
+        def write(path: Path, /, *, compression: Literal["gzip"], compression_opts: int) -> None:
+            result.write_h5mu(path, compression=compression, compression_opts=compression_opts)
+            with h5py.File(path, "r+") as stored:
+                modalities_group = cast(h5py.Group, stored["mod"])
+                for level_name, level in parsed.levels.items():
+                    _write_matrices(cast(h5py.Group, modalities_group[level_name]), level)
+
+        _write_atomically(target, write)
 
 
 class H5adWriter:
@@ -312,7 +321,13 @@ class H5adWriter:
             _collection_storage_metadata(parsed, {}, {}),
         )
         adata.uns.update(parsed.export_uns)
-        _write_atomically(target, adata.write_h5ad)
+
+        def write(path: Path, /, *, compression: Literal["gzip"], compression_opts: int) -> None:
+            adata.write_h5ad(path, compression=compression, compression_opts=compression_opts)
+            with h5py.File(path, "r+") as stored:
+                _write_matrices(stored, level)
+
+        _write_atomically(target, write)
 
 
 @dataclass(frozen=True, slots=True)
@@ -340,7 +355,7 @@ def represent_layer_values(
         raise InvalidResultError(f"level has no layer {layer_name!r}") from error
     return represent_semantics(
         layer.semantics,
-        layer.values,
+        layer.wide(),
         observation_limit=observation_limit,
     )
 
@@ -362,7 +377,7 @@ def _level_storage_metadata(
                     if name == parsed.primary_layer_name
                     else {"physical_name": layer_names[name]}
                 ),
-                "value_columns": list(layer.values.columns),
+                "value_columns": list(layer.labels),
                 "role": layer.role.persisted_name(),
                 "semantics": layer_semantics_metadata(layer.semantics),
             }
@@ -519,6 +534,24 @@ def _write_namespaces(
 ) -> None:
     """Store canonical shared metadata and a nonduplicating physical descriptor."""
     target.uns[NAMESPACE] = UnsJsonCodec().encode(shared, storage)
+
+
+def _write_matrices(group: h5py.Group, parsed: ParsedLevel) -> None:
+    """Write a stored level's ``X`` and layers, building one wide matrix at a time.
+
+    The names and placement are those ``_level_storage_metadata`` records; compression is the
+    file's own, which ``write_elem`` does not inherit.
+    """
+    layer_names = safe_names(parsed.layers, prefix="layer", suffix="")
+    layers = cast(h5py.Group, group["layers"])
+    for name, layer in parsed.layers.items():
+        matrix = layer.wide().to_numpy().T
+        compressed = {"compression": "gzip", "compression_opts": GZIP_LEVEL} if matrix.size else {}
+        if name == parsed.primary_layer_name:
+            write_elem(group, "X", matrix, dataset_kwargs=compressed)
+        else:
+            write_elem(layers, layer_names[name], matrix, dataset_kwargs=compressed)
+        del matrix
 
 
 class _HDF5Write(Protocol):

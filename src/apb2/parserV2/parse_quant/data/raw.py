@@ -16,7 +16,7 @@ from dataclasses import dataclass, field, replace
 
 import polars as pl
 
-from apb2.parserV2.parse_quant.data.layer_columns import ObservationGrid
+from apb2.parserV2.parse_quant.data.layer_columns import OBS_POS, VALUE, VAR_POS, ObservationGrid
 
 DISAGREEING_VALUES = "_disagreeing_values"
 """The column of a disagreement frame listing the distinct values one feature's rows gave."""
@@ -26,15 +26,6 @@ VAR_ROW = "var_row"
 
 OBS_ROW = "obs_row"
 """A long row's row in the raw obs axis frame."""
-
-VAR_POS = "var_pos"
-"""A placed row's position in the final var axis."""
-
-OBS_POS = "obs_pos"
-"""A placed row's position in the final obs axis."""
-
-VALUE = "value"
-"""A long row's value, as the reader produced it until value parsing."""
 
 
 @dataclass(slots=True)
@@ -131,8 +122,19 @@ class FinalPositions:
     grid: ObservationGrid
     # ObservationGrid(height=2, labels=("obs_0", "obs_1"))
 
-    def place(self, layer: LongLayer) -> LongLayer:
-        """The layer's rows at final positions, without those pointing at a dropped axis row."""
+    def place(self, layer: LongLayer, like: LongLayer | None = None) -> LongLayer:
+        """The layer's rows at final positions, without those pointing at a dropped axis row.
+
+        ``like`` is a layer already placed from the same raw rows: when it kept every row, its
+        position columns are reused, so layers read from one table share one copy of them.
+        """
+        if like is not None and like.rows.height == layer.rows.height:
+            positions = like.rows.select(VAR_POS, OBS_POS)
+            return LongLayer(
+                layer.layer_name,
+                positions.with_columns(layer.rows.get_column(VALUE)),
+                self.var_keys,
+            )
         rows = pl.DataFrame(
             [
                 self.var.gather(layer.rows.get_column(VAR_ROW)).alias(VAR_POS),

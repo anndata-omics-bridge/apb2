@@ -1,8 +1,8 @@
-"""Parse one layer's resolved cells into final canonical values, then widen them.
+"""Parse one layer's resolved cells into final canonical values, still as long rows.
 
 The cells arrive as long rows at final positions, one per cell a layer measured; a cell no row
-names is absent, exactly as an absent cell of the wide layer would be. Widening is the last
-step, so only one layer's wide frame is built at a time.
+names is absent, exactly as an absent cell of the wide layer would be. The parsed layer keeps
+those positions, so nothing here widens a layer.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from dataclasses import dataclass
 import polars as pl
 from loguru import logger
 
-from apb2.parserV2.parse_quant.data.layer_columns import ObservationGrid
+from apb2.parserV2.parse_quant.data.layer_columns import OBS_POS, VALUE, VAR_POS, ObservationGrid
 from apb2.parserV2.parse_quant.data.parsed import (
     AuxiliaryLayerRole,
     CategoricalLayerSemantics,
@@ -22,7 +22,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
     NumericLayerType,
     QuantitativeLayerSemantics,
 )
-from apb2.parserV2.parse_quant.data.raw import OBS_POS, VALUE, VAR_POS, LongLayer
+from apb2.parserV2.parse_quant.data.raw import LongLayer
 from apb2.parserV2.parse_quant.errors import LayerValueError
 from apb2.parserV2.parse_quant.numeric_text import absent, as_numbers
 from apb2.parserV2.parse_quant.parameters.source import NumericTextFormat
@@ -131,13 +131,10 @@ class FactorLayerParser:
         )
         return (
             FinalLayerTable(
-                layer_name=layer.layer_name,
-                values=grid.widen(
-                    layer.rows.get_column(VAR_POS),
-                    layer.rows.get_column(OBS_POS),
-                    codes,
-                    UNKNOWN_CATEGORY_CODE,
-                ),
+                layer.layer_name,
+                layer.rows.select(VAR_POS, OBS_POS).with_columns(codes.alias(VALUE)),
+                grid.height,
+                grid.labels,
                 role=AuxiliaryLayerRole(),
                 semantics=semantics,
             ),
@@ -193,7 +190,7 @@ def _numeric_layer(
     numeric_type: NumericLayerType,
     grid: ObservationGrid,
 ) -> tuple[FinalLayerTable, dict[str, JsonValue]]:
-    """Read each resolved cell's number, report the unreadable ones, and widen the layer."""
+    """Read each resolved cell's number and report the unreadable ones."""
     prepared = rows.select(
         pl.struct(pl.col(VALUE).alias("raw"), number.alias("number"), blank.alias("blank")).alias(
             VALUE
@@ -206,8 +203,10 @@ def _numeric_layer(
     values = _validate_numeric_type(layer_name, rows, numbers, numeric_type)
     return (
         FinalLayerTable(
-            layer_name=layer_name,
-            values=grid.widen(rows.get_column(VAR_POS), rows.get_column(OBS_POS), values, None),
+            layer_name,
+            rows.select(VAR_POS, OBS_POS).with_columns(values.alias(VALUE)),
+            grid.height,
+            grid.labels,
             role=MeasurementLayerRole(),
             semantics=QuantitativeLayerSemantics(logical_type=numeric_type),
         ),

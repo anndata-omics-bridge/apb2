@@ -221,9 +221,9 @@ def _layers(
             pl.DataFrame(matrix.T, schema=value_columns, orient="row"),
             semantics,
         )
-        result[name] = FinalLayerTable(
-            layer_name=name,
-            values=values,
+        result[name] = FinalLayerTable.from_wide(
+            name,
+            values,
             role=layer_role_from_metadata(entry, f"layer {name!r}"),
             semantics=semantics,
         )

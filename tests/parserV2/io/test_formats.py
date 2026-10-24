@@ -102,7 +102,7 @@ def _level(name: str, feature_column: str) -> ParsedLevel:
     var = pl.DataFrame(var_values)
     layer_keys = {column: var.get_column(column) for column in var_key_columns}
     layers = {
-        "Intensity": FinalLayerTable(
+        "Intensity": FinalLayerTable.from_wide(
             layer_name="Intensity",
             values=(
                 pl.DataFrame(
@@ -116,7 +116,7 @@ def _level(name: str, feature_column: str) -> ParsedLevel:
             semantics=QuantitativeLayerSemantics(),
             semantic_roles=("abundance",),
         ),
-        "Status": FinalLayerTable(
+        "Status": FinalLayerTable.from_wide(
             layer_name="Status",
             values=(
                 pl.DataFrame(
@@ -133,7 +133,7 @@ def _level(name: str, feature_column: str) -> ParsedLevel:
                 missing_code=-1,
             ),
         ),
-        "Count": FinalLayerTable(
+        "Count": FinalLayerTable.from_wide(
             layer_name="Count",
             values=(
                 pl.DataFrame(
@@ -271,7 +271,7 @@ def _assert_layer_mapping(
         assert got.semantic_roles == wanted.semantic_roles
         assert type(got.role) is type(wanted.role)
         assert got.semantics == wanted.semantics
-        assert_frame_equal(got.values, wanted.values)
+        assert_frame_equal(got.wide(), wanted.wide())
 
 
 def _assert_frame_mapping(
@@ -566,7 +566,7 @@ def test_h5mu_projection_is_idempotent(tmp_path: Path) -> None:
     writer_for(ResultFormat.H5MU).write(projected, second)
 
     _assert_result_equal(reader_for(ResultFormat.H5MU).read(second), projected)
-    assert projected.levels["ion"].layers["Status"].values.get_column("obs_0").to_list() == [
+    assert projected.levels["ion"].layers["Status"].wide().get_column("obs_0").to_list() == [
         1.0,
         2.0,
     ]
@@ -679,19 +679,32 @@ def test_writers_validate_aligned_and_pairwise_values_before_touching_target(
 
 def test_layer_rows_are_positional_after_writing(tmp_path: Path) -> None:
     parsed = rich_result()
-    layer = parsed.levels["ion"].layers["Intensity"]
-    layer.values = layer.values.reverse()
+    layers = parsed.levels["ion"].layers
+    layers["Intensity"] = FinalLayerTable.from_wide(
+        layers["Intensity"].layer_name,
+        layers["Intensity"].wide().reverse(),
+        role=layers["Intensity"].role,
+        semantic_roles=layers["Intensity"].semantic_roles,
+        semantics=layers["Intensity"].semantics,
+    )
+    layer = layers["Intensity"]
     target = tmp_path / "result.duckdb"
     write_parsed_levels(parsed, target)
     assert_frame_equal(
-        read_parsed_levels(target).levels["ion"].layers["Intensity"].values, layer.values
+        read_parsed_levels(target).levels["ion"].layers["Intensity"].wide(), layer.wide()
     )
 
 
 def test_a_layer_with_a_different_var_key_is_rejected_before_writing(tmp_path: Path) -> None:
     parsed = rich_result()
-    layer = parsed.levels["ion"].layers["Intensity"]
-    layer.values = layer.values.with_columns(pl.Series("Ion", ["different", "F2"]))
+    layers = parsed.levels["ion"].layers
+    layers["Intensity"] = FinalLayerTable.from_wide(
+        layers["Intensity"].layer_name,
+        layers["Intensity"].wide().with_columns(pl.Series("Ion", ["different", "F2"])),
+        role=layers["Intensity"].role,
+        semantic_roles=layers["Intensity"].semantic_roles,
+        semantics=layers["Intensity"].semantics,
+    )
     target = tmp_path / "result.duckdb"
 
     with pytest.raises(InvalidResultError, match="observation columns"):
@@ -702,8 +715,14 @@ def test_a_layer_with_a_different_var_key_is_rejected_before_writing(tmp_path: P
 
 def test_a_layer_whose_var_keys_are_not_leading_columns_is_rejected(tmp_path: Path) -> None:
     parsed = rich_result()
-    layer = parsed.levels["protein"].layers["Intensity"]
-    layer.values = layer.values.with_columns(pl.lit("unexpected").alias("Protein"))
+    layers = parsed.levels["protein"].layers
+    layers["Intensity"] = FinalLayerTable.from_wide(
+        layers["Intensity"].layer_name,
+        layers["Intensity"].wide().with_columns(pl.lit("unexpected").alias("Protein")),
+        role=layers["Intensity"].role,
+        semantic_roles=layers["Intensity"].semantic_roles,
+        semantics=layers["Intensity"].semantics,
+    )
     target = tmp_path / "result.duckdb"
 
     with pytest.raises(InvalidResultError, match="observation columns"):
@@ -830,7 +849,7 @@ def test_h5_writer_accepts_an_added_numeric_layer_missing_from_the_parse_plan(
 ) -> None:
     parsed = rich_result()
     ion = parsed.levels["ion"]
-    ion.layers["medpolish_from_fragment"] = FinalLayerTable(
+    ion.layers["medpolish_from_fragment"] = FinalLayerTable.from_wide(
         layer_name="medpolish_from_fragment",
         values=(
             pl.DataFrame(
@@ -849,7 +868,7 @@ def test_h5_writer_accepts_an_added_numeric_layer_missing_from_the_parse_plan(
 
     restored = read_parsed_levels(target).levels["ion"]
     np.testing.assert_allclose(
-        restored.layers["medpolish_from_fragment"].values.select("obs_0", "obs_1").to_numpy(),
+        restored.layers["medpolish_from_fragment"].wide().select("obs_0", "obs_1").to_numpy(),
         np.array([[10.0, 11.0], [20.0, np.nan]]),
         equal_nan=True,
     )
@@ -868,7 +887,7 @@ def test_h5_writer_accepts_a_planless_derived_level(tmp_path: Path) -> None:
     }
     protein.primary_layer_name = "medpolish_from_ion"
     protein.layers = {
-        "medpolish_from_ion": FinalLayerTable(
+        "medpolish_from_ion": FinalLayerTable.from_wide(
             layer_name="medpolish_from_ion",
             values=(
                 pl.DataFrame(
@@ -888,13 +907,13 @@ def test_h5_writer_accepts_a_planless_derived_level(tmp_path: Path) -> None:
 
     restored = read_parsed_levels(target).levels["protein"]
     assert restored.primary_layer_name == "medpolish_from_ion"
-    assert restored.layers["medpolish_from_ion"].values.height == 2
+    assert restored.layers["medpolish_from_ion"].wide().height == 2
 
 
 def test_h5_writer_rejects_an_unplanned_nonnumeric_layer(tmp_path: Path) -> None:
     parsed = rich_result()
     ion = parsed.levels["ion"]
-    ion.layers["derived_text"] = FinalLayerTable(
+    ion.layers["derived_text"] = FinalLayerTable.from_wide(
         layer_name="derived_text",
         values=(
             pl.DataFrame(
@@ -1264,7 +1283,7 @@ def test_open_hierarchy_and_typed_roles_round_trip(suffix: str, tmp_path: Path) 
     assert restored.hierarchy == parsed.hierarchy
     assert restored.levels["site"].var.roles == level.var.roles
     assert restored.levels["site"].layers["Intensity"].semantic_roles == ("abundance",)
-    assert restored.levels["site"].layers["Intensity"].values.width == level.obs.frame.height
+    assert restored.levels["site"].layers["Intensity"].wide().width == level.obs.frame.height
     assert "hierarchy" not in restored.metadata
     assert "column_roles" not in restored.levels["site"].uns
 

@@ -175,7 +175,7 @@ def test_one_parsed_level_writes_to_both_backends(tmp_path: Path) -> None:
     written = pl.read_parquet(
         tmp_path / "protein.parquet" / "levels" / level["directory"] / "layers" / layer["file"]
     )
-    assert written.schema == parsed.layers["PG_MaxLFQ"].values.schema
+    assert written.schema == parsed.layers["PG_MaxLFQ"].wide().schema
 
 
 # ------------------------------------------------------------------- the outer boundary

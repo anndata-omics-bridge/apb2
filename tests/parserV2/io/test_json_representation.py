@@ -64,7 +64,7 @@ def _parsed() -> ParsedLevels:
         ),
         primary_layer_name="Intensity",
         layers={
-            "Intensity": FinalLayerTable(
+            "Intensity": FinalLayerTable.from_wide(
                 layer_name="Intensity",
                 values=(
                     pl.DataFrame(
@@ -77,7 +77,7 @@ def _parsed() -> ParsedLevels:
                 ).drop(("feature",), strict=False),
                 semantic_roles=("abundance",),
             ),
-            "Count": FinalLayerTable(
+            "Count": FinalLayerTable.from_wide(
                 layer_name="Count",
                 values=(
                     pl.DataFrame(
@@ -144,7 +144,7 @@ def _empty_level() -> ParsedLevel:
         ),
         primary_layer_name="Intensity",
         layers={
-            "Intensity": FinalLayerTable(
+            "Intensity": FinalLayerTable.from_wide(
                 layer_name="Intensity",
                 values=pl.DataFrame(schema={"obs_0": pl.Float64, "obs_1": pl.Float64}),
                 semantic_roles=("abundance",),
@@ -162,7 +162,7 @@ def _factor_result() -> ParsedLevels:
     parsed = _parsed()
     level = parsed.levels["ion"]
     level.uns["plan_json"] = _factor_plan()
-    level.layers["Status"] = FinalLayerTable(
+    level.layers["Status"] = FinalLayerTable.from_wide(
         layer_name="Status",
         values=(
             pl.DataFrame(
@@ -579,15 +579,19 @@ def test_factor_semantics_survive_h5_read_projection_and_rewrite(tmp_path: Path)
     }
     assert "statistics" not in status
 
-    status_values = restored.levels["ion"].layers["Status"].values
-    restored.levels["ion"].layers["Status"].values = status_values.with_columns(
-        pl.Series("obs_0", [1, 2, 1, -1], dtype=pl.Int64)
+    layers = restored.levels["ion"].layers
+    layers["Status"] = FinalLayerTable.from_wide(
+        layers["Status"].layer_name,
+        layers["Status"].wide().with_columns(pl.Series("obs_0", [1, 2, 1, -1], dtype=pl.Int64)),
+        role=layers["Status"].role,
+        semantic_roles=layers["Status"].semantic_roles,
+        semantics=layers["Status"].semantics,
     )
     second = tmp_path / "factor-again.h5ad"
     write_parsed_levels(restored, second)
 
     rewritten = read_parsed_levels(second)
-    assert rewritten.levels["ion"].layers["Status"].values.get_column("obs_0").to_list() == [
+    assert rewritten.levels["ion"].layers["Status"].wide().get_column("obs_0").to_list() == [
         1,
         2,
         1,
@@ -618,7 +622,7 @@ def test_observation_identifiers_and_layer_summaries_share_one_fixed_cap(
         var=VarFinal(frame=pl.DataFrame({"feature": ["F1"]}), key_columns=("feature",)),
         primary_layer_name="Intensity",
         layers={
-            "Intensity": FinalLayerTable(
+            "Intensity": FinalLayerTable.from_wide(
                 layer_name="Intensity",
                 values=(
                     pl.DataFrame(

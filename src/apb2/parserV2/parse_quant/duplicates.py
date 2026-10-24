@@ -28,7 +28,8 @@ from dataclasses import dataclass, replace
 import polars as pl
 
 from apb2.parserV2.parse_quant.data.errors import ConversionError
-from apb2.parserV2.parse_quant.data.raw import OBS_POS, VALUE, VAR_POS, LongLayer
+from apb2.parserV2.parse_quant.data.layer_columns import OBS_POS, VALUE, VAR_POS
+from apb2.parserV2.parse_quant.data.raw import LongLayer
 from apb2.parserV2.parse_quant.numeric_text import absent, as_numbers
 from apb2.parserV2.parse_quant.parameters.source import NumericTextFormat
 

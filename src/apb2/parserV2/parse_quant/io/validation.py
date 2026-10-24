@@ -5,6 +5,7 @@ from __future__ import annotations
 import polars as pl
 import polars.selectors as cs
 
+from apb2.parserV2.parse_quant.data.layer_columns import OBS_POS, VALUE, VAR_POS
 from apb2.parserV2.parse_quant.data.parsed import (
     AnnotationTable,
     CategoricalLayerSemantics,
@@ -69,21 +70,29 @@ def validate_parsed_level(name: str, parsed: ParsedLevel, /) -> None:
                 f"level {name!r} stores layer {layer_name!r} with internal name "
                 f"{layer.layer_name!r}"
             )
-        if layer.values.height != parsed.var.frame.height:
+        if layer.height != parsed.var.frame.height:
             raise InvalidResultError(
-                f"level {name!r} layer {layer_name!r} has {layer.values.height} rows; "
+                f"level {name!r} layer {layer_name!r} has {layer.height} rows; "
                 f"var has {parsed.var.frame.height}"
             )
-        value_count = layer.values.width
+        value_count = len(layer.labels)
         if value_count != parsed.obs.frame.height:
             raise InvalidResultError(
                 f"level {name!r} layer {layer_name!r} has {value_count} observation "
                 f"columns; obs has {parsed.obs.frame.height} rows"
             )
+        outside = layer.cells.filter(
+            (pl.col(VAR_POS) >= layer.height) | (pl.col(OBS_POS) >= value_count)
+        )
+        if outside.height:
+            raise InvalidResultError(
+                f"level {name!r} layer {layer_name!r} stores {outside.height} cell(s) outside "
+                f"its {layer.height} rows and {value_count} observation columns"
+            )
         _validate_layer_values(
             name,
             layer_name,
-            layer.values,
+            layer.cells.select(VALUE),
             layer.semantics,
         )
     _validate_aligned(name, "obsm", parsed.obsm, parsed.obs.frame.height)

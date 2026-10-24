@@ -144,7 +144,7 @@ def presence_mask(strategy: LayerValueParser, values: pl.Series) -> pl.Series:
 def parse_wide(parser: LayerValueParser, frame: pl.DataFrame) -> pl.DataFrame:
     """Parse one wide test column through the long cells the parser would hand it."""
     layer = placed(frame.with_row_index("Feature"), parser, keys=("Feature",))
-    return parser.parse(layer, ObservationGrid(frame.height, tuple(frame.columns)))[0].values
+    return parser.parse(layer, ObservationGrid(frame.height, tuple(frame.columns)))[0].wide()
 
 
 # ------------------------------------------------------------------------------- presence

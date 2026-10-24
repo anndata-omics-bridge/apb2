@@ -58,7 +58,7 @@ def test_software_only_api_preserves_parsed_values_and_rule_provenance() -> None
     assert actual.uns == expected.uns
     assert actual.layers.keys() == expected.layers.keys()
     for name, layer in actual.layers.items():
-        assert_frame_equal(layer.values, expected.layers[name].values)
+        assert_frame_equal(layer.wide(), expected.layers[name].wide())
     assert without_parameters.detection.version is None
     with pytest.raises(ValueError, match="no vendor parameter file"):
         _ = without_parameters.parameters

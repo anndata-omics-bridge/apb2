@@ -76,7 +76,7 @@ def _parsed(
     pair_rows = [index for index in range(len(runs) - 1) for _ in range(2)]
     pair_columns = [neighbor for index in range(len(runs) - 1) for neighbor in (index + 1, index)]
     pair_rows[1::2] = range(1, len(runs))
-    layer = FinalLayerTable(
+    layer = FinalLayerTable.from_wide(
         layer_name="Intensity",
         values=(
             pl.DataFrame(
@@ -240,8 +240,8 @@ def test_drop_and_boolean_selection_subsets_every_observation_aligned_value() ->
         "run": ["run_A", "run_C"],
         "include": [True, True],
     }
-    assert result.layers["Intensity"].values.columns == ["obs_0", "obs_1"]
-    assert result.layers["Intensity"].values.get_column("obs_1").to_list() == [3.0, 13.0]
+    assert result.layers["Intensity"].wide().columns == ["obs_0", "obs_1"]
+    assert result.layers["Intensity"].wide().get_column("obs_1").to_list() == [3.0, 13.0]
     assert result.obsm["quality"].get_column("score").to_list() == [0, 2]
     assert result.obsp["links"].is_empty()
 
@@ -273,7 +273,7 @@ def test_annotation_preserves_layer_semantics_and_round_trips(
     tmp_path: Path,
 ) -> None:
     parsed = _parsed()
-    layer = FinalLayerTable(
+    layer = FinalLayerTable.from_wide(
         layer_name="Evidence",
         values=(
             pl.DataFrame(
@@ -292,7 +292,7 @@ def test_annotation_preserves_layer_semantics_and_round_trips(
     target = tmp_path / "annotated.h5ad"
     write_parsed_levels(result, target)
     restored = read_parsed_levels(target)
-    expected = layer.values.select(
+    expected = layer.wide().select(
         *(pl.col(f"obs_{old}").alias(f"obs_{new}") for new, old in enumerate(kept))
     )
     for level in (result.levels["ion"], restored.levels["ion"]):
@@ -301,9 +301,9 @@ def test_annotation_preserves_layer_semantics_and_round_trips(
         assert copied.layer_name == layer.layer_name
         assert copied.semantic_roles == layer.semantic_roles
         assert isinstance(copied.role, AuxiliaryLayerRole)
-        assert_frame_equal(copied.values, expected)
+        assert_frame_equal(copied.wide(), expected)
         assert level.obs.frame["run"].to_list() == [["run_A", "run_B", "run_C"][i] for i in kept]
-    assert layer.values.columns == ["obs_0", "obs_1", "obs_2"]
+    assert layer.wide().columns == ["obs_0", "obs_1", "obs_2"]
 
 
 def test_exact_matching_supports_composite_keys() -> None:
@@ -313,8 +313,12 @@ def test_exact_matching_supports_composite_keys() -> None:
         frame=pl.DataFrame({"run": ["A", "B"], "channel": [1, 2]}),
         key_columns=("run", "channel"),
     )
-    level.layers["Intensity"].values = pl.DataFrame(
-        {"feature": ["p1", "p2"], "obs_0": [1.0, 2.0], "obs_1": [3.0, 4.0]}
+    level.layers["Intensity"] = FinalLayerTable.from_wide(
+        level.layers["Intensity"].layer_name,
+        pl.DataFrame({"feature": ["p1", "p2"], "obs_0": [1.0, 2.0], "obs_1": [3.0, 4.0]}),
+        role=level.layers["Intensity"].role,
+        semantic_roles=level.layers["Intensity"].semantic_roles,
+        semantics=level.layers["Intensity"].semantics,
     )
     level.obsm = {}
     level.obsp = {}

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import polars as pl
 from loguru import logger
 
+from apb2.parserV2.parse_quant.data.layer_columns import VALUE
 from apb2.parserV2.parse_quant.data.parsed import FinalLayerTable, JsonValue
 from apb2.parserV2.parse_quant.errors import LayerContractError
 
@@ -34,8 +35,11 @@ class LayerContractValidator:
 
         candidates: dict[str, pl.DataFrame] = {}
         for name, layer in layers.items():
-            candidates.update(layer.role.occupancy_candidates(name, layer.values))
-        ratios = {name: _occupancy(values) for name, values in candidates.items()}
+            candidates.update(layer.role.occupancy_candidates(name, layer.cells.select(VALUE)))
+        ratios = {
+            name: _occupancy(values, layers[name].height * len(layers[name].labels))
+            for name, values in candidates.items()
+        }
         populated = [name for name, ratio in ratios.items() if ratio >= self.populated_ratio]
         empty = [name for name, ratio in ratios.items() if ratio < self.empty_ratio]
         if not populated:
@@ -60,13 +64,8 @@ class LayerContractValidator:
         return diagnostics
 
 
-def _occupancy(values: pl.DataFrame, /) -> float:
-    cells = values.height * values.width
+def _occupancy(values: pl.DataFrame, cells: int, /) -> float:
+    """The share of a layer's cells holding a usable value: stored, neither null nor NaN."""
     if not cells:
         return 0.0
-    usable = (
-        values.fill_nan(None)
-        .select(pl.sum_horizontal(pl.all().is_not_null().cast(pl.UInt64).sum()))
-        .item()
-    )
-    return usable / cells
+    return values.fill_nan(None).select(pl.col(VALUE).is_not_null().sum()).item() / cells

@@ -93,7 +93,7 @@ def level(
         primary_layer_name=primary,
         uns=metadata,
         layers={
-            name: FinalLayerTable(
+            name: FinalLayerTable.from_wide(
                 layer_name=name,
                 values=(frame).drop(var_keys, strict=False),
                 semantic_roles=("abundance",),
@@ -147,10 +147,10 @@ def test_a_parquet_dataset_round_trips_every_value_and_dtype(tmp_path: Path) -> 
 
     assert restored.obs.frame.equals(parsed.obs.frame)
     assert restored.var.frame.schema == parsed.var.frame.schema
-    intensity = restored.layers["Intensity"].values
+    intensity = restored.layers["Intensity"].wide()
     assert intensity.get_column("obs_0").to_list() == [100000.5, None]
     assert intensity.schema["obs_0"] == pl.Float64
-    assert restored.layers["Kind"].values.get_column("obs_0").to_list() == [
+    assert restored.layers["Kind"].wide().get_column("obs_0").to_list() == [
         2,
         1,
     ]
@@ -322,7 +322,7 @@ def parse_wide(
 
 
 def canonical_values(parser: LayerValueParser, values: pl.DataFrame) -> pl.DataFrame:
-    return parse_wide(parser, values)[0].values
+    return parse_wide(parser, values)[0].wide()
 
 
 def test_plain_numeric_encoding_reads_numbers_and_blanks_out_the_sentinel() -> None:
@@ -379,7 +379,7 @@ def test_numeric_diagnostics_count_all_cells_and_tokens_before_bounding_examples
         "distinct_token_count": 8,
         "examples": ["bad0", "bad1", "bad2", "bad3", "bad4"],
     }
-    assert parsed.values.get_column("obs_0").to_list() == [*([None] * 11), 1.5]
+    assert parsed.wide().get_column("obs_0").to_list() == [*([None] * 11), 1.5]
 
 
 @pytest.mark.parametrize(
@@ -398,7 +398,7 @@ def test_a_declared_missing_token_is_missing_and_not_reported_as_unreadable(
 
     parsed, evidence = parse_wide(parser, block(["12.5", "-", " NA ", "n/a"]), "Intensity")
 
-    assert parsed.values.get_column("obs_0").to_list() == [12.5, None, None, None]
+    assert parsed.wide().get_column("obs_0").to_list() == [12.5, None, None, None]
     assert evidence == {"cell_count": 1, "distinct_token_count": 1, "examples": ["n/a"]}
 
 
@@ -421,7 +421,7 @@ def test_regex_numeric_diagnostics_count_failed_captures() -> None:
         "distinct_token_count": 2,
         "examples": ["unstructured", "wrong"],
     }
-    assert parsed.values.get_column("obs_0").to_list() == [12.5, *([None] * 7)]
+    assert parsed.wide().get_column("obs_0").to_list() == [12.5, *([None] * 7)]
 
 
 def test_an_already_numeric_column_is_not_sent_through_its_own_text_form() -> None:
@@ -531,7 +531,7 @@ def validate_layers(
     config: LayerContractValidator | None = None,
 ) -> None:
     layers = {
-        name: FinalLayerTable(
+        name: FinalLayerTable.from_wide(
             layer_name=name,
             values=(frame).drop((), strict=False),
             role=AuxiliaryLayerRole() if name in auxiliary else MeasurementLayerRole(),
@@ -583,8 +583,8 @@ def test_an_empty_nonprimary_measurement_only_warns_unless_the_check_is_strict()
 
 def test_nonfatal_empty_layer_diagnostics_record_occupancy_and_reference() -> None:
     layers = {
-        "Intensity": FinalLayerTable(layer_name="Intensity", values=block([1.0, 2.0])),
-        "QValue": FinalLayerTable(layer_name="QValue", values=block([None, None])),
+        "Intensity": FinalLayerTable.from_wide(layer_name="Intensity", values=block([1.0, 2.0])),
+        "QValue": FinalLayerTable.from_wide(layer_name="QValue", values=block([None, None])),
     }
     assert contract().validate(layers) == {
         "QValue": {
@@ -716,7 +716,13 @@ def test_writer_does_not_repeat_parse_time_occupancy_checks(
 
 def test_the_parser_owned_anndata_writer_validates_layer_key_alignment(tmp_path: Path) -> None:
     parsed = level()
-    parsed.layers["Intensity"].values = parsed.layers["Intensity"].values.head(1)
+    parsed.layers["Intensity"] = FinalLayerTable.from_wide(
+        parsed.layers["Intensity"].layer_name,
+        parsed.layers["Intensity"].wide().head(1),
+        role=parsed.layers["Intensity"].role,
+        semantic_roles=parsed.layers["Intensity"].semantic_roles,
+        semantics=parsed.layers["Intensity"].semantics,
+    )
     target = tmp_path / "ion.h5ad"
 
     with pytest.raises(InvalidResultError, match="rows"):
@@ -1111,3 +1117,35 @@ def test_one_array_is_allocated_for_each_encoded_layer(
     write_h5ad(parsed, tmp_path / "ion.h5ad")
 
     assert allocated == [(1, 2), (1, 2)]
+
+
+def test_the_h5_writer_widens_each_layer_once_and_writes_it_into_the_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only one layer's wide frame and its array exist at a time: none is built ahead."""
+    widened: list[str] = []
+    original = FinalLayerTable.wide
+
+    def counted(self: FinalLayerTable) -> pl.DataFrame:
+        widened.append(self.layer_name)
+        return original(self)
+
+    monkeypatch.setattr(FinalLayerTable, "wide", counted)
+    parsed = level(
+        layers={
+            "Intensity": pl.DataFrame({"obs_0": [1.0, 2.0], "obs_1": [3.0, None]}),
+            "QValue": pl.DataFrame({"obs_0": [0.01, None], "obs_1": [0.02, 0.03]}),
+        }
+    )
+    target = tmp_path / "ion.h5ad"
+
+    write_h5ad(parsed, target)
+
+    assert sorted(widened) == ["Intensity", "QValue"]
+    stored = anndata.read_h5ad(target)
+    np.testing.assert_array_equal(np.asarray(stored.X), np.array([[1.0, 2.0], [3.0, np.nan]]))
+    # anndata 0.13 lists X among the layers under the key None.
+    (physical,) = [name for name, _matrix in stored.layers.items() if name is not None]
+    np.testing.assert_array_equal(
+        np.asarray(stored.layers[physical]), np.array([[0.01, np.nan], [0.02, 0.03]])
+    )

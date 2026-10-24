@@ -321,8 +321,8 @@ def test_a_simple_parse_produces_both_axes_and_one_aligned_layer() -> None:
 
     assert parsed.obs.frame.to_dicts() == [{"Run": "A"}, {"Run": "B"}]
     assert parsed.var.frame.to_dicts() == [{"Feature": "F1"}, {"Feature": "F2"}]
-    assert parsed.layers["Intensity"].values.width == parsed.obs.frame.height
-    assert parsed.layers["Intensity"].values.to_dicts() == [
+    assert parsed.layers["Intensity"].wide().width == parsed.obs.frame.height
+    assert parsed.layers["Intensity"].wide().to_dicts() == [
         {"obs_0": 1.0, "obs_1": 3.0},
         {"obs_0": 2.0, "obs_1": 4.0},
     ]
@@ -360,7 +360,7 @@ def test_a_computed_key_is_materialized_before_identity_is_checked() -> None:
     assert parsed.var.key_columns == ("ProForma_ion",)
     assert parsed.var.frame.columns == ["ProForma_ion", "Sequence", "Charge", "Gene"]
     assert parsed.var.frame.get_column("ProForma_ion").to_list() == ["PEP/2", "OTH/3"]
-    assert parsed.layers["Intensity"].values.rows() == [(1.0,), (2.0,)]
+    assert parsed.layers["Intensity"].wide().rows() == [(1.0,), (2.0,)]
 
 
 def test_two_raw_identities_collapsing_into_one_final_key_are_reported() -> None:
@@ -489,7 +489,7 @@ def test_a_repeated_raw_key_reaches_the_duplicate_policy_instead() -> None:
         var=SIMPLE_VAR,
         duplicates="keep_first",
     ).parse()
-    assert kept.layers["Intensity"].values.to_dicts() == [{"obs_0": 1.0}]
+    assert kept.layers["Intensity"].wide().to_dicts() == [{"obs_0": 1.0}]
 
 
 def test_keep_best_keeps_one_psm_per_cell_across_layers() -> None:
@@ -513,11 +513,11 @@ def test_keep_best_keeps_one_psm_per_cell_across_layers() -> None:
         rank_by="Score",
     ).parse()
 
-    assert parsed.layers["Intensity"].values.to_dicts() == [
+    assert parsed.layers["Intensity"].wide().to_dicts() == [
         {"obs_0": 1.0, "obs_1": 3.0},
         {"obs_0": 4.0, "obs_1": None},
     ], "F1 in A keeps the PSM scored 9, not the first or the larger intensity"
-    assert parsed.layers["Score"].values.to_dicts() == [
+    assert parsed.layers["Score"].wide().to_dicts() == [
         {"obs_0": 9.0, "obs_1": 1.0},
         {"obs_0": 2.0, "obs_1": None},
     ]
@@ -556,7 +556,7 @@ def test_a_nan_key_is_the_same_absence_as_a_null_key() -> None:
     ).parse()
 
     assert parsed.var.frame.get_column("Mass").to_list() == [1.5]
-    assert parsed.layers["Intensity"].values.to_dicts() == [{"obs_0": 1.0}]
+    assert parsed.layers["Intensity"].wide().to_dicts() == [{"obs_0": 1.0}]
 
 
 class _LenientNumber:
@@ -596,7 +596,7 @@ def test_an_incomplete_final_key_removes_its_axis_row_and_its_layer_cells() -> N
     ).parse()
 
     assert parsed.var.frame.to_dicts() == [{"Feature": "F1"}]
-    assert parsed.layers["Intensity"].values.to_dicts() == [{"obs_0": 1.0, "obs_1": 3.0}]
+    assert parsed.layers["Intensity"].wide().to_dicts() == [{"obs_0": 1.0, "obs_1": 3.0}]
 
 
 class _BlankToNull:
@@ -636,7 +636,7 @@ def test_empty_text_is_missing_in_keys_and_payload_alike() -> None:
         {"Feature": "F1", "Group": "G1"},
         {"Feature": "F2", "Group": None},
     ], "the empty feature is no feature; an empty group on a real feature is missing"
-    assert parsed.layers["Intensity"].values.to_dicts() == [
+    assert parsed.layers["Intensity"].wide().to_dicts() == [
         {"obs_0": 1.0, "obs_1": 3.0},
         {"obs_0": None, "obs_1": 4.0},
     ]
@@ -667,8 +667,8 @@ def test_an_observation_whose_key_is_incomplete_loses_its_value_column() -> None
     ).parse()
 
     assert parsed.obs.frame.to_dicts() == [{"Run": "A"}, {"Run": "B"}]
-    assert parsed.layers["Intensity"].values.rows() == [(1.0, 3.0)]
-    assert parsed.layers["Intensity"].values.to_dicts() == [{"obs_0": 1.0, "obs_1": 3.0}]
+    assert parsed.layers["Intensity"].wide().rows() == [(1.0, 3.0)]
+    assert parsed.layers["Intensity"].wide().to_dicts() == [{"obs_0": 1.0, "obs_1": 3.0}]
 
 
 # ---------------------------------------------------------------------- layers and results
@@ -693,7 +693,7 @@ def test_a_final_variable_a_layer_never_measured_becomes_a_row_of_nulls() -> Non
     ).parse()
 
     assert list(parsed.layers) == ["Intensity", "Score"]
-    assert parsed.layers["Score"].values.to_dicts() == [
+    assert parsed.layers["Score"].wide().to_dicts() == [
         {"obs_0": 0.5},
         {"obs_0": None},
     ]
@@ -730,7 +730,7 @@ def test_a_composite_observation_identity_stays_in_the_axis_not_in_a_column_name
         {"Run": "A", "Fraction": "2"},
     ]
     # The value columns are positions, so nothing concatenated "A" and "1" into a name.
-    assert parsed.layers["Intensity"].values.rows() == [(1.0, 2.0)]
+    assert parsed.layers["Intensity"].wide().rows() == [(1.0, 2.0)]
 
 
 def test_a_parsed_level_is_a_direct_composition_and_keeps_no_key_map() -> None:
@@ -805,7 +805,7 @@ def test_a_parsed_level_is_a_direct_composition_and_keeps_no_key_map() -> None:
         ],
     }
     assert isinstance(parsed.obs.frame, pl.DataFrame)
-    assert isinstance(parsed.layers["Intensity"].values, pl.DataFrame)
+    assert isinstance(parsed.layers["Intensity"].wide(), pl.DataFrame)
 
 
 def test_no_parse_result_holds_a_matrix_a_pandas_index_or_an_encoded_layer() -> None:
@@ -820,7 +820,7 @@ def test_no_parse_result_holds_a_matrix_a_pandas_index_or_an_encoded_layer() -> 
     for frame in (
         parsed.obs.frame,
         parsed.var.frame,
-        *(layer.values for layer in parsed.layers.values()),
+        *(layer.wide() for layer in parsed.layers.values()),
     ):
         assert isinstance(frame, pl.DataFrame)
         assert type(frame).__module__.startswith("polars")
@@ -1012,7 +1012,7 @@ def test_wide_repeats_keep_the_first_value_in_header_then_row_order() -> None:
         ),
     ).parse(LevelSourceTable(frame))
 
-    assert parsed.layers["Intensity"].values.to_dicts() == [{"obs_0": 7.0}, {"obs_0": 1.0}], (
+    assert parsed.layers["Intensity"].wide().to_dicts() == [{"obs_0": 7.0}, {"obs_0": 1.0}], (
         "the first header's column is read down every row before the second header's"
     )
 
@@ -1035,7 +1035,7 @@ def test_a_factor_cell_without_a_known_label_is_the_missing_code() -> None:
         {"Intensity": _numbers("Intensity"), "Status": status},
     ).parse(LevelSourceTable(frame))
 
-    values = parsed.layers["Status"].values
+    values = parsed.layers["Status"].wide()
     assert values.to_dicts() == [{"obs_0": 1, "obs_1": -1}, {"obs_0": -1, "obs_1": -1}]
     assert values.dtypes == [pl.Int64, pl.Int64]
 
@@ -1053,7 +1053,7 @@ def test_nan_text_stays_nan_and_a_blank_cell_stays_null() -> None:
         _long((("Intensity", "intensity"),)), {"Intensity": _numbers("Intensity")}
     ).parse(LevelSourceTable(frame))
 
-    first, second = parsed.layers["Intensity"].values.rows()
+    first, second = parsed.layers["Intensity"].wide().rows()
     assert first[0] is not None and math.isnan(first[0])
     assert first[1] == 1.5
     assert second == (None, 2.0)
@@ -1098,8 +1098,8 @@ def test_keep_best_copies_the_winning_rows_absent_value() -> None:
         rank_by="Score",
     ).parse()
 
-    assert parsed.layers["Intensity"].values.to_dicts() == [{"obs_0": None, "obs_1": 3.0}]
-    assert parsed.layers["Score"].values.to_dicts() == [{"obs_0": 9.0, "obs_1": 2.0}]
+    assert parsed.layers["Intensity"].wide().to_dicts() == [{"obs_0": None, "obs_1": 3.0}]
+    assert parsed.layers["Score"].wide().to_dicts() == [{"obs_0": 9.0, "obs_1": 2.0}]
 
 
 def test_observation_labels_step_aside_for_a_var_key_named_like_them() -> None:
@@ -1118,7 +1118,7 @@ def test_observation_labels_step_aside_for_a_var_key_named_like_them() -> None:
         var_plan=var_plan,
     ).parse(LevelSourceTable(frame))
 
-    assert parsed.layers["Intensity"].values.columns == ["obs__0", "obs__1"]
+    assert parsed.layers["Intensity"].wide().columns == ["obs__0", "obs__1"]
 
 
 def test_a_level_without_valid_observations_or_features_has_empty_layers() -> None:
@@ -1132,8 +1132,8 @@ def test_a_level_without_valid_observations_or_features_has_empty_layers() -> No
     )
     strategy = _strategy(_long((("Intensity", "intensity"),)), {"Intensity": _numbers("Intensity")})
 
-    without_runs = strategy.parse(LevelSourceTable(no_runs)).layers["Intensity"].values
-    without_features = strategy.parse(LevelSourceTable(no_features)).layers["Intensity"].values
+    without_runs = strategy.parse(LevelSourceTable(no_runs)).layers["Intensity"].wide()
+    without_features = strategy.parse(LevelSourceTable(no_features)).layers["Intensity"].wide()
 
     assert without_runs.shape == (0, 0)
     assert without_features.shape == (0, 2)
@@ -1153,7 +1153,7 @@ def test_unreadable_tokens_are_counted_on_the_cells_keep_first_kept() -> None:
         _long((("Intensity", "intensity"),)), {"Intensity": _numbers("Intensity")}, "keep_first"
     ).parse(LevelSourceTable(frame))
 
-    assert parsed.layers["Intensity"].values.to_dicts() == [
+    assert parsed.layers["Intensity"].wide().to_dicts() == [
         {"obs_0": None, "obs_1": None},
         {"obs_0": 1.0, "obs_1": 2.0},
     ]
@@ -1179,4 +1179,4 @@ def test_presence_is_decided_before_duplicates_are_resolved() -> None:
         LevelSourceTable(frame)
     )
 
-    assert parsed.layers["Intensity"].values.to_dicts() == [{"obs_0": 2.0, "obs_1": 3.0}]
+    assert parsed.layers["Intensity"].wide().to_dicts() == [{"obs_0": 2.0, "obs_1": 3.0}]

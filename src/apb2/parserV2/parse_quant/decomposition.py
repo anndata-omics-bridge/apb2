@@ -24,10 +24,10 @@ from apb2.parserV2.parse_quant.contracts import (
     FeatureValuePolicy,
     FragmentTableSeparator,
 )
+from apb2.parserV2.parse_quant.data.layer_columns import VALUE
 from apb2.parserV2.parse_quant.data.raw import (
     DISAGREEING_VALUES,
     OBS_ROW,
-    VALUE,
     VAR_ROW,
     LongLayer,
     ObsRaw,

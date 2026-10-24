@@ -138,7 +138,7 @@ class DuckDBWriter:
             "layer_order": list(parsed.layers),
             "layers": {
                 name: {
-                    **tables.write(layer.values),
+                    **tables.write(layer.wide()),
                     "role": layer.role.persisted_name(),
                     "semantics": layer_semantics_metadata(layer.semantics),
                 }
@@ -301,9 +301,9 @@ class DuckDBReader:
         result: dict[str, FinalLayerTable] = {}
         for name in order:
             entry = object_mapping(entries.get(name), f"layer {name!r}")
-            result[name] = FinalLayerTable(
-                layer_name=name,
-                values=self._read_table(connection, entry),
+            result[name] = FinalLayerTable.from_wide(
+                name,
+                self._read_table(connection, entry),
                 role=layer_role_from_metadata(entry, f"layer {name!r}"),
                 semantics=layer_semantics_from_metadata(entry.get("semantics"), f"layer {name!r}"),
             )

@@ -1,8 +1,10 @@
 """The result of one parse: final axes, canonical layers, and their composition.
 
 Layer values have already been converted to their declared numeric or categorical meaning.
-Writers only map these storage-neutral values into a physical backend, which is why this
-module knows nothing about matrices, pandas indexes, or AnnData.
+A layer is held as its stored cells, long, and becomes a wide frame only when a consumer or a
+writer asks for it, one layer at a time. Writers only map these storage-neutral values into a
+physical backend, which is why this module knows nothing about matrices, pandas indexes, or
+AnnData.
 
 ``JsonScalar`` and ``JsonValue`` are declared here rather than imported: provenance crosses
 this boundary as data, and a shared parent module holding the alias would force this child
@@ -19,7 +21,13 @@ from typing import Literal, cast
 
 import polars as pl
 
-from apb2.parserV2.parse_quant.data.layer_columns import observation_labels
+from apb2.parserV2.parse_quant.data.layer_columns import (
+    OBS_POS,
+    VALUE,
+    VAR_POS,
+    ObservationGrid,
+    observation_labels,
+)
 
 # Ruff RUF036 wants ``None`` last; the specification's ordering is otherwise identical.
 type JsonScalar = bool | int | float | str | None
@@ -196,17 +204,24 @@ type FinalLayerSemantics = QuantitativeLayerSemantics | CategoricalLayerSemantic
 
 @dataclass(slots=True)
 class FinalLayerTable:
-    """One matrix: one row per var row and one column per obs row, by position."""
+    """One matrix, a row per var row and a column per obs row, held as its stored cells.
+
+    ``cells`` names each stored cell by position beside its value; a cell no row names holds
+    the layer's fill, null for numbers and the missing code for categories. ``wide()`` builds
+    the matrix itself, anew on every call, so only the layer a consumer reads is ever wide.
+    """
 
     layer_name: str
     # "Intensity"
 
-    values: pl.DataFrame
-    # pl.DataFrame({
-    #     "A": [100.0, 50.0],
-    #     "B": [120.0, 60.0],
-    #     "C": [90.0, 70.0],
-    # })
+    cells: pl.DataFrame
+    # pl.DataFrame({"var_pos": [0, 0, 1], "obs_pos": [0, 1, 0], "value": [100.0, 120.0, 50.0]})
+
+    height: int
+    # 2, the number of var rows
+
+    labels: tuple[str, ...]
+    # ("obs_0", "obs_1"), one column label per obs row
 
     role: FinalLayerRole = field(default_factory=MeasurementLayerRole)
     # MeasurementLayerRole()
@@ -217,17 +232,72 @@ class FinalLayerTable:
     semantics: FinalLayerSemantics = field(default_factory=QuantitativeLayerSemantics)
     # QuantitativeLayerSemantics(logical_type="number")
 
+    def wide(self) -> pl.DataFrame:
+        """Return the matrix: one row per var row and one column per obs row, by position."""
+        return ObservationGrid(self.height, self.labels).widen(
+            self.cells.get_column(VAR_POS),
+            self.cells.get_column(OBS_POS),
+            self.cells.get_column(VALUE),
+            _fill(self.semantics),
+        )
+
     def quantitative_values(self) -> pl.DataFrame:
         """Return the numbers: one row per var row and one column per obs row.
 
         Raises:
             ValueError: The layer is categorical.
         """
-        return self.semantics.numeric(self.layer_name, self.values)
+        return self.semantics.numeric(self.layer_name, self.wide())
 
     def decoded_values(self) -> pl.DataFrame:
         """Return the values with category codes replaced by their labels; numbers unchanged."""
-        return self.semantics.decode(self.values)
+        return self.semantics.decode(self.wide())
+
+    @classmethod
+    def from_wide(
+        cls,
+        layer_name: str,
+        values: pl.DataFrame,
+        *,
+        role: FinalLayerRole | None = None,
+        semantic_roles: tuple[str, ...] = (),
+        semantics: FinalLayerSemantics | None = None,
+    ) -> FinalLayerTable:
+        """Store a matrix with a row per var row and a column per obs row, by position.
+
+        Every cell that does not hold the fill is stored, so ``wide()`` returns this matrix;
+        columns of different numeric types share their supertype.
+        """
+        semantics = semantics or QuantitativeLayerSemantics()
+        fill = _fill(semantics)
+        labels = tuple(values.columns)
+        if not labels:
+            cells = pl.DataFrame(schema={VAR_POS: pl.UInt32, OBS_POS: pl.UInt32, VALUE: pl.Null})
+        else:
+            label = "_label"
+            unpivoted = values.with_row_index(VAR_POS).unpivot(
+                index=VAR_POS, variable_name=label, value_name=VALUE
+            )
+            position = pl.col(label).replace_strict(
+                {name: index for index, name in enumerate(labels)}, return_dtype=pl.UInt32
+            )
+            value = pl.col(VALUE)
+            stored = value.is_not_null() if fill is None else value.is_null() | (value != fill)
+            cells = unpivoted.select(VAR_POS, position.alias(OBS_POS), VALUE).filter(stored)
+        return cls(
+            layer_name,
+            cells,
+            values.height,
+            labels,
+            role=role or MeasurementLayerRole(),
+            semantic_roles=semantic_roles,
+            semantics=semantics,
+        )
+
+
+def _fill(semantics: FinalLayerSemantics) -> int | None:
+    """What a cell no row names holds: the missing code of a category, else null."""
+    return semantics.missing_code if isinstance(semantics, CategoricalLayerSemantics) else None
 
 
 @dataclass(slots=True)
@@ -339,7 +409,7 @@ class ParsedLevel:
                 match the axes.
         """
         added_varm = dict(varm or {})
-        labels = tuple(self.layers[self.primary_layer_name].values.columns)
+        labels = self.layers[self.primary_layer_name].labels
         added = _new_layers(abundance or {}, auxiliary or {}, labels, self.var.frame.height)
         clashes = (set(added) & set(self.layers)) | (set(added_varm) & set(self.varm))
         if clashes:
@@ -392,7 +462,7 @@ def _new_layers(
     if both:
         raise ValueError(f"layers {sorted(both)} are both abundance and auxiliary")
     layers = {
-        name: FinalLayerTable(
+        name: FinalLayerTable.from_wide(
             name, _positional(name, values, labels, rows), semantic_roles=("abundance",)
         )
         for name, values in abundance.items()
@@ -400,7 +470,7 @@ def _new_layers(
     for name, values in auxiliary.items():
         frame = _positional(name, values, labels, rows)
         integer = all(dtype.is_integer() for dtype in frame.dtypes)
-        layers[name] = FinalLayerTable(
+        layers[name] = FinalLayerTable.from_wide(
             name,
             frame,
             role=AuxiliaryLayerRole(),
@@ -684,23 +754,20 @@ def _shared_axis(levels: dict[str, ParsedLevel]) -> dict[str, ParsedLevel]:
             .get_column(position)
             .to_list()
         )
-        layers = {}
-        for layer_name, layer in level.layers.items():
-            labels = observation_labels(spine.height, level.var.frame.columns)
-            values = pl.DataFrame(
-                [
-                    layer.values.get_column(layer.values.columns[index]).rename(label)
-                    if index is not None
-                    else pl.Series(
-                        label,
-                        [None] * level.var.frame.height,
-                        dtype=next(iter(layer.values.dtypes), pl.Null),
-                    )
-                    for label, index in zip(labels, mapping, strict=True)
-                ]
-            )
-            layers[layer_name] = replace(layer, values=values)
         row_mapping = {old: new for new, old in enumerate(mapping) if old is not None}
+        moved = pl.Series(
+            OBS_POS, [row_mapping[old] for old in range(level.obs.frame.height)], dtype=pl.UInt32
+        )
+        labels = observation_labels(spine.height, level.var.frame.columns)
+        layers = {
+            layer_name: replace(
+                layer,
+                cells=layer.cells.with_columns(moved.gather(layer.cells.get_column(OBS_POS))),
+                height=level.var.frame.height,
+                labels=labels,
+            )
+            for layer_name, layer in level.layers.items()
+        }
         result[name] = replace(
             level,
             obs=ObsFinal(

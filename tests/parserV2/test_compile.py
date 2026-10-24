@@ -475,7 +475,7 @@ def test_one_level_compiles_into_a_complete_parser(tmp_path: Path) -> None:
     assert isinstance(parser, Parser)
     assert parser.level == "ion"
     assert parsed.obs.frame.to_dicts() == [{"sample": "A"}]
-    assert parsed.layers["Quantity"].values.get_column("obs_0").to_list() == [1.5]
+    assert parsed.layers["Quantity"].wide().get_column("obs_0").to_list() == [1.5]
 
 
 def test_compilation_injects_the_detected_number_notation_into_axis_coercers(

@@ -38,7 +38,7 @@ from apb2.parserV2.parse_quant.contracts import (
 )
 from apb2.parserV2.parse_quant.conversion_record import ConversionEvidence
 from apb2.parserV2.parse_quant.data.errors import ConversionError
-from apb2.parserV2.parse_quant.data.layer_columns import ObservationGrid, observation_labels
+from apb2.parserV2.parse_quant.data.layer_columns import VALUE, ObservationGrid, observation_labels
 from apb2.parserV2.parse_quant.data.parsed import (
     FinalLayerTable,
     JsonValue,
@@ -50,7 +50,8 @@ from apb2.parserV2.parse_quant.data.parsed import (
 )
 from apb2.parserV2.parse_quant.data.raw import (
     DISAGREEING_VALUES,
-    VALUE,
+    OBS_ROW,
+    VAR_ROW,
     FinalPositions,
     LongLayer,
     ObsRaw,
@@ -388,9 +389,16 @@ class ParseStrategy:
         layers: dict[str, FinalLayerTable] = {}
         diagnostics: dict[str, JsonValue] = {}
         duplicates = self._ranked_duplicates(raw, positions)
+        previous: tuple[pl.DataFrame, LongLayer] | None = None
         for layer in raw:
             values = self.layer_parsers[layer.layer_name]
-            once, repeated = self._claimed(layer, positions, values).split()
+            # Layers read from one table point at the same raw rows; placing them alike lets
+            # every parsed layer share one copy of the position columns.
+            raw_rows = layer.rows.select(VAR_ROW, OBS_ROW)
+            like = previous[1] if previous and previous[0].equals(raw_rows) else None
+            placed = positions.place(layer, like)
+            previous = (raw_rows, placed)
+            once, repeated = self._claimed(placed, values).split()
             resolved = duplicates.resolve(repeated)
             cells = (
                 replace(once, rows=pl.concat([once.rows, resolved.rows], how="vertical_relaxed"))
@@ -415,20 +423,18 @@ class ParseStrategy:
                 f"keep_best ranks by layer {self.duplicates.by!r}, which this source lacks"
             )
         return self.duplicates.ranked(
-            self._claimed(ranking, positions, self.layer_parsers[ranking.layer_name])
+            self._claimed(positions.place(ranking), self.layer_parsers[ranking.layer_name])
         )
 
     @staticmethod
-    def _claimed(
-        layer: LongLayer, positions: FinalPositions, values: LayerValueParser, /
-    ) -> LongLayer:
-        """The layer's rows at final positions, with every scalar that claims no cell nulled.
+    def _claimed(placed: LongLayer, values: LayerValueParser, /) -> LongLayer:
+        """The placed layer with every scalar that claims no cell nulled.
 
-        Fixed validity filtering, not a policy: rows pointing at an axis row that did not
-        survive leave here, so the duplicate policy is asked only about cells that can enter
-        the result. Presence is the layer's own question; the raw scalar is kept unconverted.
+        Placing is fixed validity filtering, not a policy: rows pointing at an axis row that
+        did not survive have left, so the duplicate policy is asked only about cells that can
+        enter the result. Presence is the layer's own question; the raw scalar is kept
+        unconverted.
         """
-        placed = positions.place(layer)
         present = placed.rows.select(
             values.present(pl.col(VALUE), placed.rows.schema[VALUE])
         ).to_series()

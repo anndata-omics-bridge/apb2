@@ -177,7 +177,7 @@ def test_a_gzipped_maxquant_folder_converts_like_its_plain_tables(tmp_path: Path
         assert list(produced) == list(expected)
         for name, level in produced.items():
             for layer, values in level.layers.items():
-                assert_frame_equal(values.values, expected[name].layers[layer].values)
+                assert_frame_equal(values.wide(), expected[name].layers[layer].wide())
             assert_frame_equal(level.obs.frame, expected[name].obs.frame)
 
 

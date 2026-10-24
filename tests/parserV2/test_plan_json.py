@@ -217,7 +217,7 @@ def test_a_max_rule_reads_numbers_keeps_the_largest_and_records_its_mode(tmp_pat
     plan = json.loads(str(provenance[PLAN_JSON_KEY]))
     assert plan["duplicate_mode"] == "max"
     assert plan["read"]["native_numeric_sources"] == ["Quantity"]
-    assert parsed.layers["Quantity"].values.rows() == [(4.0, 2.0), (3.0, None)]
+    assert parsed.layers["Quantity"].wide().rows() == [(4.0, 2.0), (3.0, None)]
 
 
 def test_the_plan_reaches_the_parse_namespace_of_a_written_h5ad(tmp_path: Path) -> None:

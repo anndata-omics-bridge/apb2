@@ -71,10 +71,12 @@ The parser keeps each measurement layer as long rows until its values are parsed
 ```text
 decomposed:  var_row, obs_row, value    one row per physical value; integer rows of the raw axes
 placed:      var_pos, obs_pos, value    final positions; rows of dropped axis rows removed
-widened:     obs_0, obs_1, ...          one row per VarFinal row, one column per ObsFinal row
+parsed:      var_pos, obs_pos, value    a FinalLayerTable's stored cells, canonical values
+widened:     obs_0, obs_1, ...          FinalLayerTable.wide(): one row per VarFinal row, one
+                                        column per ObsFinal row, built on request
 ```
 
-It does not create pandas indexes, NumPy/SciPy matrices, or AnnData objects. `ParseStrategy` resolves repeated cells and parses each layer's cells into canonical numeric values or category codes on the long rows, widens one layer at a time, and validates their occupancy before returning. `ParquetLevelsWriter` writes those frames directly; `AnnDataWriter` performs only structural projection, orientation change, array allocation, pandas-index construction, validation and AnnData I/O. When the CLI omits `LEVEL`, `ParserCollection` collects ordinary per-level results into `ParsedLevels`; `MuDataWriter` reuses one stateless `AnnDataWriter` to assemble `MuData(axis=0)`. MuData is storage composition, not a multi-level parsing algorithm. The same `ParsedLevels` value is the result-I/O boundary:
+It does not create pandas indexes, NumPy/SciPy matrices, or AnnData objects. `ParseStrategy` resolves repeated cells and parses each layer's cells into canonical numeric values or category codes on the long rows, keeps them long, and validates their occupancy before returning. `ParquetLevelsWriter` writes each layer's `wide()` frame, one at a time; `AnnDataWriter` performs only structural projection, orientation change, array allocation, pandas-index construction, validation and AnnData I/O. When the CLI omits `LEVEL`, `ParserCollection` collects ordinary per-level results into `ParsedLevels`; `MuDataWriter` reuses one stateless `AnnDataWriter` to assemble `MuData(axis=0)`. MuData is storage composition, not a multi-level parsing algorithm. The same `ParsedLevels` value is the result-I/O boundary:
 
 ```python
 parsed = reader_for(input_format).read(source)
@@ -98,7 +100,7 @@ The identity model keeps identity in explicit key columns; layer rows reach axis
 - a reorder join copied each wide layer again;
 - duplicate rows were widened before they collapsed: one protein had 2,671 rows in one run.
 
-Now each layer stays long rows of integer positions. Presence, duplicate resolution and value parsing run on those rows, and only the parsed values are widened, one layer at a time. Raw and final key columns still define identity on the small axis frames; integer row numbers are only how layer rows point at axis rows. Parsed results are unchanged: `ParsedLevel` and `FinalLayerTable` hold wide layers and no row numbers, until a planned later iteration.
+Now each layer stays long rows of integer positions. Presence, duplicate resolution and value parsing run on those rows, and only the parsed values are widened, one layer at a time. Raw and final key columns still define identity on the small axis frames; integer row numbers are only how layer rows point at axis rows. Parsed results stay long as well: a `FinalLayerTable` holds its stored cells at final positions (`var_pos`, `obs_pos`, `value`) with its `height` and observation `labels`, and `wide()` builds the matrix on request. Writers widen one layer at a time, so a level's layers are never all wide together; on a 150-run subset this moved the ion level's write peak from 21.8 GB to the size of one layer and its array.
 
 This algorithm is derived from each effective rule. AlphaDIA, DIA-NN, FragPipe, MaxQuant,
 Spectronaut, WOMBAT-P, and the other packaged documents exercise the same code. Vendor- or
@@ -189,8 +191,8 @@ flowchart TB
     REPEATED["LongLayer<br/>rows that repeat a cell"]
     DEDUPOP(["DuplicatePolicy.resolve(repeated)"])
     CELLS["LongLayer<br/>one row per measured cell"]
-    VALUES(["LayerValueParser.parse(cells, grid)<br/>parse long, then ObservationGrid.widen()"])
-    LFINAL["FinalLayerTable<br/>wide canonical values + roles + semantics"]
+    VALUES(["LayerValueParser.parse(cells, grid)<br/>parse long; the parsed layer stays long"])
+    LFINAL["FinalLayerTable<br/>stored cells at final positions + roles + semantics<br/>wide() on request"]
     VALIDATE(["LayerContractValidator.validate(layers)"])
     PRUNE(["FieldPruner.prune(obs, var, layers, effectively_empty)"])
     RESULT["ParsedLevel<br/>final axes + final layer tables + primary name + uns"]
@@ -260,8 +262,8 @@ select one effective rule and one physical source
          null the scalars the layer parser's present() says claim no cell
          split off the rows that repeat a (var_pos, obs_pos) cell
          resolve those repeated cells with the duplicate policy
-         parse the single and resolved cells into canonical numbers or category codes
-         widen them into the layer's wide frame
+         parse the single and resolved cells into canonical numbers or category codes,
+         kept as the layer's stored cells
     -> validate canonical layer names and measurement occupancy
     -> leave out single-valued, empty and effectively empty columns and layers, recording each
     -> assign semantic roles to the retained var columns and layers
@@ -686,7 +688,7 @@ class ParseStrategy:
                 if resolved.rows.height
                 else once
             )
-            parsed, evidence = values.parse(cells, positions.grid)  # parse long, then widen
+            parsed, evidence = values.parse(cells, positions.grid)  # parsed cells stay long
             layers[layer.layer_name] = parsed
             if evidence:
                 diagnostics[layer.layer_name] = evidence
@@ -761,11 +763,11 @@ Per layer, in authored order, the parser then:
 1. splits the claimed rows with `LongLayer.split()` into rows alone in their cell and rows that repeat a cell, by one `is_duplicated()` on the two position columns;
 2. resolves only the repeated rows with the duplicate policy, which always runs, on a layer without rows when nothing repeats;
 3. concatenates the single rows and the resolved rows (`vertical_relaxed`, because `sum` may promote a small integer dtype);
-4. hands those cells and the grid to `LayerValueParser.parse()`, which parses the one long value column into canonical numbers or category codes, reports unreadable tokens on these cells, and widens them through `ObservationGrid.widen()`.
+4. hands those cells and the grid to `LayerValueParser.parse()`, which parses the one long value column into canonical numbers or category codes, reports unreadable tokens on these cells, and returns them as the `FinalLayerTable`'s stored cells with the grid's height and labels. Layers read from one table share one copy of the position columns: `FinalPositions.place()` reuses the previous layer's placed positions when its raw rows are equal and no row was dropped.
 
 `keep_best` adds one step before the loop: `_ranked_duplicates()` places and claims the ranking layer once and builds `RankedDuplicates` from it.
 
-`ObservationGrid.widen()` is the only place a layer becomes wide. It fills one buffer of the layer's size (`VarFinal` height times observation count) with the fill value, scatters each value to `obs_pos × height + var_pos`, and returns the columns as slices of that buffer. The result is complete by construction: every final var row and observation column exists, and a cell no row names holds the fill, null for numbers and −1 for factor layers. A null stays null and a NaN stays NaN, in the parsed dtype. Only one layer's wide frame is built at a time.
+`ObservationGrid.widen()` is the only place a layer becomes wide; `FinalLayerTable.wide()` calls it on request. It fills one buffer of the layer's size (`VarFinal` height times observation count) with the fill value, scatters each value to `obs_pos × height + var_pos`, and returns the columns as slices of that buffer. The result is complete by construction: every final var row and observation column exists, and a cell no row names holds the fill, null for numbers and −1 for factor layers. A null stays null and a NaN stays NaN, in the parsed dtype. Parsing builds no wide frame; writers and consumers build one layer's at a time.
 
 The generated storage column names are positional labels only. They are unique and disjoint from the final var-key column names, but they are not observation identity. `ObsFinal.frame` and `ObsFinal.key_columns` remain the sole semantic identity, and a wide layer aligns with both axes by position alone.
 
@@ -778,7 +780,7 @@ class ParsedLevelsWriter(Protocol):
 
 The writer receives the complete parsed result. It treats that result as read-only and creates its own backend values. Before any backend allocation or staging, `io/validation.py` verifies that final axis keys are complete and unique and that every layer has one row per `VarFinal` row and one value column per `ObsFinal` row; a layer carries no key columns and aligns with its axes by position. It also requires the primary layer to have `MeasurementLayerRole`; an `AuxiliaryLayerRole` cannot define the primary quantitative matrix.
 
-Downstream APB tools import only `apb2.api`. They build levels with `ParsedLevel.build()` and read values with `FinalLayerTable.quantitative_values()`, so the positional observation labels stay an APB2 convention.
+Downstream APB tools import only `apb2.api`. They build levels with `ParsedLevel.build()` and read values with `FinalLayerTable.wide()`, `quantitative_values()` or `decoded_values()`, each building one wide frame on request, so the positional observation labels stay an APB2 convention.
 
 ### 6.1 Parquet
 
@@ -786,7 +788,7 @@ The result-I/O `ParquetLevelsWriter` persists:
 
 - `parsed.obs.frame` plus `parsed.obs.key_columns` metadata;
 - `parsed.var.frame` plus `parsed.var.key_columns` metadata;
-- every `FinalLayerTable.values` plus layer-role and semantics metadata;
+- every layer's `wide()` frame, built one layer at a time, plus layer-role and semantics metadata;
 - `primary_layer_name`, per-level `uns`, and shared `ParsedLevels.uns`;
 - every `obsm`/`varm` aligned frame; and
 - every `obsp`/`varp` sparse-coordinate frame.
@@ -817,25 +819,22 @@ mapping. `ParquetReader` accepts this APB2 dataset only; a vendor `.parquet` fil
 
 ### 6.2 AnnData
 
-`AnnDataWriter` owns physical representation, not scientific value parsing. The following excerpt shows the matrix projection inside `to_anndata_for_level()`; the full method also writes aligned/pairwise slots and storage metadata.
+`AnnDataWriter` owns physical representation, not scientific value parsing. `to_anndata_for_level()` builds an AnnData without matrices (axes, aligned and pairwise slots, storage metadata); the writer stores it and then writes the matrices into the open file, one layer at a time:
 
 ```python
-validate_parsed_level(level_name, parsed)
-arrays = {name: layer.values.to_numpy().T for name, layer in parsed.layers.items()}
-layer_names = safe_names(parsed.layers, prefix="layer", suffix="")
-adata = AnnData(
-    X=arrays[parsed.primary_layer_name],
-    obs=_make_axis_frame(parsed.obs.frame, parsed.obs.key_columns),
-    var=_make_axis_frame(parsed.var.frame, parsed.var.key_columns),
-    layers={
-        layer_names[name]: values
-        for name, values in arrays.items()
-        if name != parsed.primary_layer_name
-    },
-)
+def _write_matrices(group: h5py.Group, parsed: ParsedLevel) -> None:
+    layer_names = safe_names(parsed.layers, prefix="layer", suffix="")
+    layers = group["layers"]
+    for name, layer in parsed.layers.items():
+        matrix = layer.wide().to_numpy().T
+        compressed = {"compression": "gzip", "compression_opts": GZIP_LEVEL} if matrix.size else {}
+        if name == parsed.primary_layer_name:
+            write_elem(group, "X", matrix, dataset_kwargs=compressed)
+        else:
+            write_elem(layers, layer_names[name], matrix, dataset_kwargs=compressed)
 ```
 
-The primary layer is stored only in `X`; other matrices use safe names in `layers`. `AnnDataWriter.to_anndata_for_level()` and `_write_namespaces()` persist each level part and the root part below `uns["apb"]`, each with its own `storage` descriptor; an h5ad keeps its level part below `uns[<level>]["apb"]`. `_write_atomically()` publishes the completed result.
+The group is the file root for h5ad and `mod/<level>` for h5mu, where `write_elem` replaces the null `X` MuData writes for a modality without one. The primary layer is stored only in `X`; other matrices use safe names in `layers`. `AnnDataWriter.to_anndata_for_level()` and `_write_namespaces()` persist each level part and the root part below `uns["apb"]`, each with its own `storage` descriptor; an h5ad keeps its level part below `uns[<level>]["apb"]`. `_write_atomically()` publishes the completed result.
 
 The shared `_make_axis_frame()` I/O helper converts Polars through Arrow to pandas, preserves supported nullable/categorical representations, and retains every authored key as an ordinary column. One string key can serve directly as the storage index; other keys use a collision-free canonical JSON array of typed scalar pairs. Storage labels never enter parsing joins or identity.
 
@@ -1094,7 +1093,7 @@ classDiagram
     RawLevel *-- LongLayer : one per layer
     FinalPositions *-- ObservationGrid
     FinalPositions ..> LongLayer : places at final positions
-    LongLayer ..> FinalLayerTable : parsed, then widened through ObservationGrid
+    LongLayer ..> FinalLayerTable : parsed; wide() widens through ObservationGrid
     ParsedLevel *-- ObsFinal
     ParsedLevel *-- VarFinal
     ParsedLevel *-- FinalLayerTable
@@ -1309,8 +1308,8 @@ The implementation must preserve these invariants:
 - the parser nulls the scalars the layer parser's `present()` rejects before any duplicate policy runs; selected raw scalars remain uninterpreted until the same parser parses the resolved cells;
 - raw duplicates are resolved per placed (`var_pos`, `obs_pos`) cell, which equal raw keys and only equal raw keys share;
 - different raw keys that collapse to one valid final key raise `CanonicalKeyCollisionError`;
-- `ObsFinal` and `VarFinal` retain authored final keys as ordinary columns; a `FinalLayerTable` holds values only, aligned with both axes by position;
-- row numbers and final positions are discarded before `ParsedLevel` is returned, so a parsed result holds wide layers and no row numbers;
+- `ObsFinal` and `VarFinal` retain authored final keys as ordinary columns; a `FinalLayerTable` holds its stored cells at final positions and no key columns, and `wide()` aligns them with both axes by position;
+- raw row numbers are discarded before `ParsedLevel` is returned; a parsed layer keeps only final positions;
 - a column or layer that holds one value, or none, is left out and its finding recorded in the parse record; keys, role, computed and flag-input columns and the primary and sample layers are kept;
 - parsing converts resolved raw values into backend-neutral numeric/category values and widens them into Polars frames, but never creates a matrix, pandas index or backend object;
 - Parquet and DuckDB preserve canonical Polars values; AnnData/MuData alone own matrix projection and array allocation;
@@ -1547,13 +1546,15 @@ class FinalLayerTable:
     layer_name: str
     # "Intensity"
 
-    values: pl.DataFrame
-    # one row per VarFinal row and one column per ObsFinal row, by position:
-    # pl.DataFrame({
-    #     "obs_0": [100.0, 50.0],
-    #     "obs_1": [120.0, 60.0],
-    #     "obs_2": [90.0, 70.0],
-    # })
+    cells: pl.DataFrame
+    # one row per stored cell; a cell no row names holds the fill (null, or the missing code):
+    # pl.DataFrame({"var_pos": [0, 0, 1], "obs_pos": [0, 2, 1], "value": [100.0, 90.0, 60.0]})
+
+    height: int
+    # 2, one row per VarFinal row
+
+    labels: tuple[str, ...]
+    # ("obs_0", "obs_1", "obs_2"), one column per ObsFinal row
 
     role: FinalLayerRole = field(default_factory=MeasurementLayerRole)
     # MeasurementLayerRole()
@@ -1623,9 +1624,7 @@ Axis preparation reads the raw keys and the final keys of one raw axis as two lo
 ```python
 class ParseStrategy:
     @staticmethod
-    def _claimed(
-        layer: LongLayer, positions: FinalPositions, values: LayerValueParser, /
-    ) -> LongLayer: ...
+    def _claimed(placed: LongLayer, values: LayerValueParser, /) -> LongLayer: ...
 
 
 class DuplicatePolicy(Protocol):
@@ -1744,7 +1743,7 @@ Computations return `(frame, unknown_mod_tokens)`; the Series-based `ColumnCompu
 | `FeatureValuePolicy` | Resolve the values a feature's repeated rows give one var payload column, and flag disagreement | `FirstFeatureValue`, `ExtremeFeatureValue` (min, max), `RankedFeatureValue` (keep_best) |
 | `ParsedLevelsReader` | Read one APB2 result | h5ad, h5mu, Parquet dataset, DuckDB |
 | `ParsedLevelsWriter` | Persist one APB2 result collection | h5ad, h5mu, Parquet dataset, DuckDB |
-| `LayerValueParser` | Mark raw scalars that claim a cell without converting them; parse resolved cells, widen them and attach semantics | plain numeric, regex numeric, factor |
+| `LayerValueParser` | Mark raw scalars that claim a cell without converting them; parse resolved cells and attach semantics | plain numeric, regex numeric, factor |
 | `LayerSetValidator` | Check canonical required names and occupancy; return the effectively empty layers | `LayerContractValidator`, with standard/strict settings |
 | `FieldPruner` | Leave out single-valued, empty and effectively empty columns and layers, with their findings | `UninformativeFields` |
 
@@ -2722,7 +2721,7 @@ Tests must cover:
 - strings and factors rejected by numeric aggregate;
 - canonical collisions under every duplicate policy;
 - invalid final keys removed before duplicate resolution;
-- widened layers complete: every `VarFinal` row and `ObsFinal` column exists, null where a retained layer has no value and −1 in a factor layer; `NaN` text stays NaN and a blank cell null; a level without valid observations or features gives empty layers of the right shape;
+- `wide()` layers complete: every `VarFinal` row and `ObsFinal` column exists, null where a retained layer has no value and −1 in a factor layer; `NaN` text stays NaN and a blank cell null; a level without valid observations or features gives empty layers of the right shape;
 - unreadable-token counts on the cells the duplicate policy kept, and integer-layer error examples in observation, then var order;
 - multi-column obs and var keys without string-concatenated parse identity;
 - no ndarray or pandas index created during any parse test.
@@ -3046,7 +3045,7 @@ The implementation does not contain:
 - source composers, packers, reconstruction traces, or round-trip laws;
 - integer axis identities or temporary-to-final key maps; layer row numbers and final positions only point at axis rows (§1);
 - physical cell ledgers or lexical reconstruction envelopes;
-- parser-side layer matrices, contributions, resolved-cell DTOs, or scatter assembly into arrays; `ObservationGrid.widen()` scatters each parsed layer into one Polars buffer, last;
+- parser-side layer matrices, contributions, resolved-cell DTOs, or scatter assembly into arrays; `ObservationGrid.widen()` scatters a parsed layer into one Polars buffer when `wide()` asks;
 - pre-decomposition final-key materialization on the full source table;
 - long/wide-specific duplicate-policy methods;
 - string-concatenated intermediate parse identity;

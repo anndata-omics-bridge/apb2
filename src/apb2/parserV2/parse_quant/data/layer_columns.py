@@ -21,6 +21,15 @@ from apb2.parserV2.parse_quant.data.errors import ConversionError
 _OBSERVATION_PREFIX = "obs"
 _SEPARATOR = "_"
 
+VAR_POS = "var_pos"
+"""A stored cell's position in the final var axis."""
+
+OBS_POS = "obs_pos"
+"""A stored cell's position in the final obs axis."""
+
+VALUE = "value"
+"""A cell's value: as the reader produced it until value parsing, canonical after it."""
+
 
 class StorageLabelError(ConversionError):
     """No positional label prefix is free of the key columns it must sit beside."""

@@ -131,9 +131,9 @@ def _read_layers(directory: Path, level: object) -> dict[str, FinalLayerTable]:
     result: dict[str, FinalLayerTable] = {}
     for name in order:
         entry = object_mapping(entries.get(name), f"layer {name!r}")
-        result[name] = FinalLayerTable(
-            layer_name=name,
-            values=_read_table(directory / "layers", entry),
+        result[name] = FinalLayerTable.from_wide(
+            name,
+            _read_table(directory / "layers", entry),
             role=layer_role_from_metadata(entry, f"layer {name!r}"),
             semantics=layer_semantics_from_metadata(entry.get("semantics"), f"layer {name!r}"),
         )

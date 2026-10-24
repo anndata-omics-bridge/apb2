@@ -64,7 +64,7 @@ def test_build_names_value_columns_by_observation_position() -> None:
     level = _level()
 
     intensity = level.layers["Intensity"]
-    assert intensity.values.columns == ["obs_0", "obs_1"]
+    assert intensity.wide().columns == ["obs_0", "obs_1"]
     assert intensity.semantic_roles == ("abundance",)
     assert level.var.roles == {"protein_assignment": "protein"}
     assert level.layers["Count"].semantics == QuantitativeLayerSemantics("integer")
@@ -94,7 +94,7 @@ def test_with_layers_returns_a_new_level_and_refuses_existing_names() -> None:
         metadata={"provenance": ["summed"]},
     )
 
-    assert extended.layers["Summed"].values.columns == ["obs_0", "obs_1"]
+    assert extended.layers["Summed"].wide().columns == ["obs_0", "obs_1"]
     assert "Summed" not in level.layers
     assert extended.metadata == {"provenance": ["summed"]}
     with pytest.raises(ValueError, match="already has"):
@@ -147,13 +147,13 @@ def test_abundance_layers_selects_all_or_validates_names() -> None:
 
 def test_layer_values_are_numbers_or_decoded_labels() -> None:
     level = _level()
-    flags = FinalLayerTable(
+    flags = FinalLayerTable.from_wide(
         "Flag",
         pl.DataFrame({"obs_0": [0, 1, -1], "obs_1": [1, 1, 0]}),
         semantics=CategoricalLayerSemantics(categories=(("low", 0), ("high", 1))),
     )
 
-    assert level.layers["Intensity"].decoded_values().equals(level.layers["Intensity"].values)
+    assert level.layers["Intensity"].decoded_values().equals(level.layers["Intensity"].wide())
     assert flags.decoded_values().to_dict(as_series=False) == {
         "obs_0": ["low", "high", None],
         "obs_1": ["high", "high", "low"],
@@ -194,3 +194,53 @@ def test_annotation_tables_and_relations_attach_to_a_new_result() -> None:
         )
     with pytest.raises(ValueError, match="lacks key columns"):
         parsed.with_annotation_table("t", pl.DataFrame({"a": [1]}), ("b",))
+
+
+# ------------------------------------------------------------------- long layers, wide on demand
+
+
+@pytest.mark.parametrize(
+    ("values", "semantics"),
+    [
+        (
+            pl.DataFrame({"a": [1.0, None, float("nan")], "b": [None, None, 2.5]}),
+            QuantitativeLayerSemantics(),
+        ),
+        (
+            pl.DataFrame(
+                {"a": [1, None, 3], "b": [None, 5, None]}, schema={"a": pl.Int64, "b": pl.Int64}
+            ),
+            QuantitativeLayerSemantics("integer"),
+        ),
+        (
+            pl.DataFrame(
+                {"a": [1, -1, 2], "b": [-1, None, 1]}, schema={"a": pl.Int64, "b": pl.Int64}
+            ),
+            CategoricalLayerSemantics(categories=(("found", 1), ("transferred", 2))),
+        ),
+        (pl.DataFrame(schema={"a": pl.Float64, "b": pl.Float64}), QuantitativeLayerSemantics()),
+        (pl.DataFrame(), QuantitativeLayerSemantics()),
+    ],
+    ids=["number", "integer", "categorical", "no-var", "no-obs"],
+)
+def test_a_layer_stores_its_cells_and_widens_back_to_the_same_frame(
+    values: pl.DataFrame, semantics: QuantitativeLayerSemantics | CategoricalLayerSemantics
+) -> None:
+    layer = FinalLayerTable.from_wide("L", values, semantics=semantics)
+
+    assert layer.wide().equals(values, null_equal=True)
+    assert layer.wide().schema == values.schema
+    assert layer.height == values.height
+    assert layer.labels == tuple(values.columns)
+
+
+def test_only_cells_that_do_not_hold_the_fill_are_stored() -> None:
+    numbers = FinalLayerTable.from_wide("L", pl.DataFrame({"a": [1.0, None], "b": [None, 2.0]}))
+    codes = FinalLayerTable.from_wide(
+        "S",
+        pl.DataFrame({"a": [1, -1], "b": [-1, None]}),
+        semantics=CategoricalLayerSemantics(categories=(("found", 1),)),
+    )
+
+    assert numbers.cells.rows() == [(0, 0, 1.0), (1, 1, 2.0)]
+    assert codes.cells.rows() == [(0, 0, 1), (1, 1, None)], "a null code is kept, -1 is the fill"

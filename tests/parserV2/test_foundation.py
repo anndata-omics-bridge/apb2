@@ -155,7 +155,7 @@ def test_decomposition_reduces_every_physical_shape_to_one_raw_contract() -> Non
 
 def test_raw_and_final_layer_tables_share_no_mode_bearing_abstraction() -> None:
     raw = LongLayer("Intensity", pl.DataFrame({VAR_ROW: [0], OBS_ROW: [0], VALUE: [1.0]}))
-    final = FinalLayerTable(
+    final = FinalLayerTable.from_wide(
         layer_name="Intensity",
         values=(pl.DataFrame({"ProForma_ion": ["F/2"], "A": [1.0]})).drop(
             ("ProForma_ion",), strict=False
@@ -179,7 +179,7 @@ def test_a_parsed_level_composes_final_values_and_nothing_new() -> None:
         primary_layer_name="Intensity",
         uns={"hierarchy": "lfq", "software_name": "AlphaDIA", "quantification_level": "ion"},
         layers={
-            "Intensity": FinalLayerTable(
+            "Intensity": FinalLayerTable.from_wide(
                 layer_name="Intensity",
                 values=(pl.DataFrame({"ProForma_ion": ["F/2"], "A": [1.0], "B": [2.0]})).drop(
                     ("ProForma_ion",), strict=False

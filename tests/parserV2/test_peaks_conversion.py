@@ -54,7 +54,7 @@ def test_peaks_fdr_does_not_filter_and_is_recorded_only_as_a_search_parameter(
     assert_frame_equal(first.var.frame, second.var.frame)
     assert first.layers.keys() == second.layers.keys()
     for name in first.layers:
-        assert_frame_equal(first.layers[name].values, second.layers[name].values)
+        assert_frame_equal(first.layers[name].wide(), second.layers[name].wide())
     assert first.uns == second.uns
     assert _recorded_parameters(first_result).ident_fdr_psm == 0.01
     assert _recorded_parameters(second_result).ident_fdr_psm == 0.0
@@ -121,4 +121,4 @@ def test_peaks_samples_come_from_run_mz_columns_not_group_averages(tmp_path: Pat
     level = read_parsed_levels(target).levels["ion"]
     assert level.obs.frame.get_column("sample").to_list() == list(runs)
     assert set(level.layers) == {"Normalized_Area", "Sample_Mz", "Sample_RT_Mean"}
-    assert level.layers["Normalized_Area"].values.width == len(runs)
+    assert level.layers["Normalized_Area"].wide().width == len(runs)

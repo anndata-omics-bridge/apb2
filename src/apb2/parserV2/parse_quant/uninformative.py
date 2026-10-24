@@ -19,6 +19,7 @@ from dataclasses import dataclass, replace
 import polars as pl
 
 from apb2.parserV2.parse_quant.contracts import PrunedFields
+from apb2.parserV2.parse_quant.data.layer_columns import VALUE
 from apb2.parserV2.parse_quant.data.parsed import (
     FinalLayerTable,
     JsonScalar,
@@ -140,20 +141,18 @@ def _column_values(frame: pl.DataFrame, retained: frozenset[str]) -> dict[str, _
 
 
 def _layer_values(layer: FinalLayerTable) -> _Values:
-    """The filled count and extreme values of one layer across all its runs, as labels."""
-    columns = _column_values(layer.decoded_values(), frozenset()).values()
-    return _Values(
-        sum(values.filled for values in columns),
-        frozenset(extreme for values in columns if values.filled for extreme in values.extremes),
-    )
+    """The filled count and extreme values of one layer across all its runs, as labels.
+
+    Read from the stored cells: a cell no row names holds the fill, which is never filled.
+    """
+    values = _column_values(layer.semantics.decode(layer.cells.select(VALUE)), frozenset())[VALUE]
+    return _Values(values.filled, values.extremes if values.filled else frozenset())
 
 
 def _summary(layer: FinalLayerTable) -> dict[str, JsonValue]:
     """The six-number summary of an effectively empty layer's finite values."""
-    values = layer.quantitative_values()
-    if not values.width:
-        return {}
-    numbers = pl.concat([values.get_column(name).cast(pl.Float64) for name in values.columns])
+    values = layer.semantics.numeric(layer.layer_name, layer.cells.select(VALUE))
+    numbers = values.get_column(VALUE).cast(pl.Float64)
     finite = pl.DataFrame({"value": numbers.filter(numbers.is_finite())})
     if finite.is_empty():
         return {}

@@ -58,7 +58,7 @@ do not import those I/O modules.
 Encode each concrete boundary in `.importlinter`; `make lint` and `make check`
 must execute `lint-imports`, so the prose rule is also a merge-blocking check.
 
-Parser V2 layers stay long until they are widened, last. A layer row names its cell by integer row numbers (`var_row`, `obs_row`), assigned once by one join per axis on the raw key columns, and by final positions (`var_pos`, `obs_pos`) once the axes are prepared. Duplicate resolution and value parsing run on these long rows; nothing widens or pivots a layer before `ObservationGrid.widen`. Identity stays in the raw and final key columns of the small axis frames; the integers only point at axis rows.
+Parser V2 layers stay long until they are widened, last. A layer row names its cell by integer row numbers (`var_row`, `obs_row`), assigned once by one join per axis on the raw key columns, and by final positions (`var_pos`, `obs_pos`) once the axes are prepared. Duplicate resolution and value parsing run on these long rows; nothing widens or pivots a layer before `ObservationGrid.widen`. A parsed `FinalLayerTable` stays long too: `wide()` builds its matrix on request, and writers widen one layer at a time, never all of a level's together. Identity stays in the raw and final key columns of the small axis frames; the integers only point at axis rows.
 
 ## Physical input preparation
 

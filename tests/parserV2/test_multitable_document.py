@@ -230,7 +230,7 @@ def test_explicit_multitable_conversion_round_trips_in_canonical_order(
     assert result.levels["ion"].obs.frame.height == result.levels["protein"].obs.frame.height == 1
     expected_values: tuple[tuple[QuantificationLevel, int], ...] = (("ion", 11), ("protein", 22))
     for level, expected in expected_values:
-        values = result.levels[level].layers["Quantity"].values.get_column("obs_0")
+        values = result.levels[level].layers["Quantity"].wide().get_column("obs_0")
         assert values.cast(pl.Float64).to_list() == [expected]
     assert sidecar_path(target).exists()
 
@@ -267,7 +267,7 @@ def test_integer_measurements_round_trip_with_canonical_integer_dtype(
     assert list(result.levels) == ["ion", "protein"]
     expected_values: tuple[tuple[QuantificationLevel, int], ...] = (("ion", 11), ("protein", 22))
     for level, expected in expected_values:
-        values = result.levels[level].layers["Quantity"].values.get_column("obs_0")
+        values = result.levels[level].layers["Quantity"].wide().get_column("obs_0")
         assert values.cast(pl.Float64).to_list() == [expected]
     assert sidecar_path(target).exists()
 
