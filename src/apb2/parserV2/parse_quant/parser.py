@@ -1,8 +1,9 @@
 """One fully configured quantification level, and the algorithm it runs.
 
 The point of this class is that you can read it. Every collaborator is already configured, so
-``parse`` is the sequence of operations and nothing else: read, decompose, prepare each axis
-on its own small frame, then reindex each layer onto the axes that survived. No step asks what
+``parse`` is the sequence of operations and nothing else: decompose the source it is handed,
+prepare each axis on its own small frame, reindex each layer onto the axes that survived, then
+validate the layers and leave out the fields that carry no information. No step asks what
 vendor, level, layout, value form, duplicate mode, or output format it is dealing with.
 
 Two things are decided here and nowhere else. Identity: raw keys become authored final keys on
@@ -11,8 +12,7 @@ identity are an information loss, reported rather than resolved. And validity: a
 final key is incomplete cannot enter an axis, so the temporary key map keeps it just long
 enough to remove the layer cells that pointed at it.
 
-``convert`` writes a result it is handed. It never calls ``parse``, so a second read is
-impossible unless a caller asks for one.
+Parsing never writes: ``parse`` returns the levels, and only a result writer persists them.
 """
 
 from __future__ import annotations

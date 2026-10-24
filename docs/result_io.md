@@ -90,11 +90,7 @@ Semantic roles do not select AnnData `X`, alter encoding, or participate in occu
 
 Every backend persists `"measurement"` or `"auxiliary"` with each layer and restores the matching `MeasurementLayerRole` or `AuxiliaryLayerRole`. Structural roles are part of the [current versioned result contract](metadata_specification.md#versions); unsupported previous versions are rejected.
 
-Every layer retained in `ParsedLevel.layers` remains part of the persisted result and is validated,
-encoded, written, and read. Required-layer name checks still inspect the complete encoded mapping.
-For h5 output, only measurement layers enter the occupancy comparison. Auxiliary layers therefore
-cannot make a sparse measurement look populated, and their own sparsity does not trigger an
-occupancy failure. The primary layer must have the measurement role.
+Every layer retained in `ParsedLevel.layers` remains part of the persisted result and is validated, encoded, written, and read. The occupancy comparison runs when a level is parsed, not when it is written, and only measurement layers enter it: auxiliary layers cannot make a sparse measurement look populated, and their own sparsity never makes them effectively empty. The primary layer must have the measurement role.
 
 ## Fidelity
 

@@ -3,7 +3,8 @@
 The parent facade chooses computations from authored declarations, without retaining storage
 models. Source resolution binds these same objects to available inputs and execution phases.
 Only coercion and layer parsing still need construction here: their numeric notation comes
-from the physical source. Duplicate policies are immutable registry entries.
+from the physical source. Stateless duplicate policies are immutable registry entries;
+``keep_best`` is built from its ranking column.
 
 These contracts compose inward settings and behavior, so they live here rather than in the
 independent parameters leaf. The parser itself consumes only the bound runtime collaborators.

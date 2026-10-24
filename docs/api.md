@@ -147,11 +147,7 @@ Consumers discover scientific meaning from these typed maps without knowing vend
 
 ### Structural layer roles
 
-Layer tables hold only observation values: row i belongs to var row i and column j to obs row j. They remain Polars frames until an h5ad or h5mu writer performs the matrix projection. `FinalLayerTable.role` defaults to
-`MeasurementLayerRole()`. Measurement layers may be primary and participate in h5 matrix-occupancy
-comparisons. `AuxiliaryLayerRole()` is for numeric diagnostics such as counts or component IDs: the
-writer still validates, encodes, stores, and restores these layers, but excludes them from occupancy
-comparisons and does not allow one to be the primary layer.
+Layer tables hold only observation values: row i belongs to var row i and column j to obs row j. They remain Polars frames until an h5ad or h5mu writer performs the matrix projection. `FinalLayerTable.role` defaults to `MeasurementLayerRole()`. Measurement layers may be primary and enter the occupancy comparison that runs when a level is parsed. `AuxiliaryLayerRole()` is for numeric diagnostics such as counts or component IDs: writers validate, encode, store and restore these layers like any other, but parsing leaves them out of the occupancy comparison, and one cannot be the primary layer.
 
 The structural-role-bearing layer field is:
 
@@ -197,9 +193,9 @@ numbers = level.layers["Intensity"].quantitative_values()
 from apb2.api import ConversionError, ResultIOError
 ```
 
-Catch `ConversionError` for expected conversion failures from constructing a `ParseRuleCompiler`, `compile()` or `parse()`: unreadable parameter or rule files, inputs no rule accepts, and values the selected rule rejects. It is a `ValueError`; anything else that escapes is a defect.
+Catch `ConversionError` for expected conversion failures from constructing a `ParseRuleCompiler`, `compile()` or `parse()`: unreadable parameter or rule files, inputs no rule accepts, values the selected rule rejects, and an effectively empty primary layer (with strict checks, any effectively empty layer). It is a `ValueError`; anything else that escapes is a defect.
 
-Catch `ResultIOError` for expected result-format failures: an unsupported suffix, an invalid in-memory or persisted result, or an encoded layer set that violates an h5 required-name check or the measurement-layer occupancy contract. Its message names the cause; the subclasses that carry it are APB2-internal.
+Catch `ResultIOError` for expected result-format failures: an unsupported suffix, or an invalid in-memory or persisted result. Its message names the cause; the subclasses that carry it are APB2-internal.
 
 ## Parser/result boundary
 

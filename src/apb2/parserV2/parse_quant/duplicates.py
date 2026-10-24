@@ -10,6 +10,10 @@ resolves each observation column independently, and copies the scalar it selecte
 unchanged. A token that cannot be read stays present on purpose: keep-first must not
 be able to hide a value that will fail to encode later.
 
+The feature-value policies at the end ask the resolution question of a ``var`` column: which
+of a feature's repeated rows gives its one value, the first present one, an extreme, or the one
+another column ranks best, and whether the rows disagreed.
+
 What is *not* here: any comparison of final keys. Two different raw keys that canonicalize to
 one final key are an information loss, not a duplicate, and axis preparation rejects them
 before any of this runs.

@@ -14,7 +14,7 @@ The closest `AGENTS.md` wins. Explicit user instructions override this file.
 | Tests | `.venv/bin/pytest -q` |
 | Build | `uv build && .venv/bin/twine check dist/*` |
 | Full gate | `make check` |
-| Integration test | `uv run --project ../apb_studio corpus run routine convert` — 10 named fixtures through the real CLI; see the workspace `AGENTS.md` |
+| Integration test | `uv run --project ../apb_studio corpus run routine convert` — the 13 routine datasets through the real CLI; see the workspace `AGENTS.md` |
 
 Keep integration scope equal to the tool being changed. For `apb2 convert`, run only `uv run --project ../apb_studio corpus run routine convert`; do not run annotation, FASTA, ProteoBench, the other converter, or a full corpus unless the user explicitly requests broader coverage. Apply the same rule to FASTA work: run only a FASTA-focused workflow. If no such workflow exists, report that fact instead of substituting a broader pipeline.
 
@@ -74,7 +74,7 @@ must execute `lint-imports`, so the prose rule is also a merge-blocking check.
 - Decide the placement from the tool's documentation, the data and what the column means. One dataset alone does not decide it: a column with the same value in every cell of one result says nothing about whether it varies per run, while one that differs across runs in any result is a layer.
 - Write the reason for a placement in the entry's `note`, especially where a reader would expect the other one.
 - A `var` column keeps a feature's first nonblank value (`keep_first`) and reports features whose rows disagree as `var_disagreements`, so check in a real report that the rows agree. A tool that writes placeholders into some rows, as DIA-NN writes 1.0 into `Global.PG.Q.Value`, needs `"duplicates": {"mode": "min"}` (or `max`). Columns that describe one of a feature's repeated rows, as Proline lists a shared peptide once per protein set, take `"duplicates": {"mode": "keep_best", "by": "<score column>"}`: each takes its value from the row the score ranks best.
-- A column or layer that holds one value, or none, in a result is not created; the parse record keeps what it held. That says nothing about placement, so declare it where its meaning belongs. Keys, role and computed columns, the flags' inputs and the primary layer are kept.
+- A column or layer that holds one value, or none, in a result is not created; the parse record keeps what it held. That says nothing about placement, so declare it where its meaning belongs. Keys, role and computed columns, the flags' inputs and the primary and sample layers are kept.
 - A moved layer becomes a `var` entry with `"type": "number", "required": false`: a `var` entry is a required string by default, and a required column decides which files the rule accepts.
 - The steps for a new format are in [docs/adding_a_format.md](docs/adding_a_format.md).
 
