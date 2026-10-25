@@ -12,6 +12,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from apb2.parserV2.parse_quant.data.parsed import ParsedLevel
+from apb2.parserV2.parse_quant.parameters.source import LevelSourceTable
 from apb2.parserV2.parse_quant.parser import ParseStrategy
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.vendor_parse_rules.document import (
@@ -41,6 +43,11 @@ def with_flags(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
     at = next((index for index, entry in enumerate(entries) if "source" not in entry), len(entries))
     missing = [dict(flag) for flag in FLAGS if flag["name"] not in declared]
     return [*entries[:at], *missing, *entries[at:]]
+
+
+def parse_table(strategy: ParseStrategy, table: LevelSourceTable) -> ParsedLevel:
+    """Parse one read table as the runtime does: decompose it, then parse the raw level."""
+    return strategy.parse_decomposed(strategy.decompose(table))
 
 
 def plan_snapshot(strategy: ParseStrategy) -> dict[str, Any]:

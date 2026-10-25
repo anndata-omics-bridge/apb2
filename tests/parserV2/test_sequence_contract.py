@@ -96,7 +96,11 @@ def frame() -> pl.DataFrame:
 def parse(tmp_path: Path, built: RuleDocument, values: pl.DataFrame | None = None) -> ParsedLevel:
     path = tmp_path / "input.tsv"
     (frame() if values is None else values).write_csv(path, separator="\t")
-    return PhysicalTable(make_vendor_file(path)).parser(synthetic.facade(built), "standard").parse()
+    return (
+        PhysicalTable(make_vendor_file(path))
+        .parser(synthetic.facade(built), "standard")
+        .parse_with_timings()[0]
+    )
 
 
 def parse_result(parsed: ParsedLevel) -> dict[str, JsonValue]:

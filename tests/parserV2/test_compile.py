@@ -470,7 +470,7 @@ def test_one_level_compiles_into_a_complete_parser(tmp_path: Path) -> None:
     facade = synthetic.facade(document)
 
     parser = PhysicalTable(make_vendor_file(path)).parser(facade, "standard")
-    parsed = parser.parse()
+    parsed = parser.parse_with_timings()[0]
 
     assert isinstance(parser, Parser)
     assert parser.level == "ion"
@@ -529,7 +529,7 @@ def test_compilation_injects_the_detected_number_notation_into_axis_coercers(
     )
 
     parser = PhysicalTable(make_vendor_file(path)).parser(synthetic.facade(document), "standard")
-    parsed = parser.parse()
+    parsed = parser.parse_with_timings()[0]
 
     assert parsed.var.frame.get_column("Score").to_list() == [23.451117]
 

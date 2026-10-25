@@ -63,6 +63,7 @@ from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
 from parserV2 import synthetic
 from parserV2.fixtures import PackagedDocument, document_pairs, level_pairs
+from parserV2.synthetic import parse_table
 from parserV2.synthetic import plan_snapshot as snapshot
 
 NUMBERS = NumericTextFormat(decimal_mark=".", thousands_marks=())
@@ -1101,7 +1102,7 @@ def test_a_var_column_resolves_a_features_repeated_rows_as_its_rule_declares() -
         }
     )
 
-    parsed = strategy.parse(LevelSourceTable(frame=frame))
+    parsed = parse_table(strategy, LevelSourceTable(frame=frame))
 
     assert snapshot(strategy)["var_duplicates"] == {"Global": "min", "Gene": "keep_first"}
     assert parsed.var.frame.select("Feature", "Global", "Gene").to_dicts() == [
@@ -1141,7 +1142,7 @@ def test_keep_best_takes_a_column_from_the_row_another_column_ranks_best() -> No
         }
     )
 
-    parsed = strategy.parse(LevelSourceTable(frame=frame))
+    parsed = parse_table(strategy, LevelSourceTable(frame=frame))
 
     assert snapshot(strategy)["var_duplicates"] == {
         "samesets": {"by": "score", "highest": True},

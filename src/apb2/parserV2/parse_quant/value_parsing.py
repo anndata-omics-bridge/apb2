@@ -148,34 +148,23 @@ class NumericTokenDiagnostics:
 
     layer_name: str
 
-    def collect(self, prepared: pl.DataFrame) -> dict[str, JsonValue]:
-        if not prepared.width:
+    def collect(self, tokens: pl.Series) -> dict[str, JsonValue]:
+        """``tokens`` holds the value of every resolved cell with text but no number."""
+        if not tokens.len():
             return {}
-        invalid = ~pl.all().struct.field("blank") & pl.all().struct.field("number").is_null()
-        cell_count = prepared.select(pl.sum_horizontal(invalid.cast(pl.UInt64).sum())).item()
-        if not cell_count:
-            return {}
-        tokens = prepared.select(
-            pl.concat_list(
-                pl.all().struct.field("raw").cast(pl.String).filter(invalid).unique().implode()
-            )
-            .list.explode(empty_as_null=False)
-            .unique()
-            .sort()
-            .alias("token")
-        )
-        examples = tokens.head(_EXAMPLE_LIMIT).to_series().to_list()
+        distinct = tokens.cast(pl.String).unique().sort()
+        examples = distinct.head(_EXAMPLE_LIMIT).to_list()
         logger.warning(
             "layer {!r} declares numeric values; {} distinct unreadable token(s) "
             "in {} cell(s) became missing, examples={}",
             self.layer_name,
-            tokens.height,
-            cell_count,
+            distinct.len(),
+            tokens.len(),
             examples,
         )
         return {
-            "cell_count": cell_count,
-            "distinct_token_count": tokens.height,
+            "cell_count": tokens.len(),
+            "distinct_token_count": distinct.len(),
             "examples": examples,
         }
 
@@ -191,14 +180,13 @@ def _numeric_layer(
     grid: ObservationGrid,
 ) -> tuple[FinalLayerTable, dict[str, JsonValue]]:
     """Read each resolved cell's number and report the unreadable ones."""
-    prepared = rows.select(
-        pl.struct(pl.col(VALUE).alias("raw"), number.alias("number"), blank.alias("blank")).alias(
-            VALUE
-        )
+    read = rows.select(pl.col(VALUE), number.alias("number"), blank.alias("blank"))
+    unreadable = read.select(~pl.col("blank") & pl.col("number").is_null()).to_series()
+    evidence = NumericTokenDiagnostics(layer_name).collect(
+        read.get_column(VALUE).filter(unreadable)
     )
-    evidence = NumericTokenDiagnostics(layer_name).collect(prepared)
-    numbers = prepared.select(
-        _masked(pl.col(VALUE).struct.field("number"), missing_values, missing_at_or_below)
+    numbers = read.select(
+        _masked(pl.col("number"), missing_values, missing_at_or_below)
     ).to_series()
     values = _validate_numeric_type(layer_name, rows, numbers, numeric_type)
     return (

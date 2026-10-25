@@ -82,6 +82,7 @@ from apb2.parserV2.parse_quant.parser import (
     ParseStrategy,
     SemanticRoles,
 )
+from parserV2.synthetic import parse_table
 
 DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
 DOT_NUMBERS = NumericTextFormat(decimal_mark=".", thousands_marks=())
@@ -291,7 +292,7 @@ def test_parse_runs_its_collaborators_in_the_documented_order() -> None:
         ),
     )
 
-    parsed = parser.parse()
+    parsed = parser.parse_with_timings()[0]
 
     assert calls == [
         "read",
@@ -317,7 +318,7 @@ def test_a_simple_parse_produces_both_axes_and_one_aligned_layer() -> None:
         var_plan=SIMPLE_VAR_PLAN,
         obs=SIMPLE_OBS,
         var=SIMPLE_VAR,
-    ).parse()
+    ).parse_with_timings()[0]
 
     assert parsed.obs.frame.to_dicts() == [{"Run": "A"}, {"Run": "B"}]
     assert parsed.var.frame.to_dicts() == [{"Feature": "F1"}, {"Feature": "F2"}]
@@ -355,7 +356,7 @@ def test_a_computed_key_is_materialized_before_identity_is_checked() -> None:
         var_plan=var_plan,
         obs=SIMPLE_OBS,
         var=var,
-    ).parse()
+    ).parse_with_timings()[0]
 
     assert parsed.var.key_columns == ("ProForma_ion",)
     assert parsed.var.frame.columns == ["ProForma_ion", "Sequence", "Charge", "Gene"]
@@ -390,7 +391,7 @@ def test_two_raw_identities_collapsing_into_one_final_key_are_reported() -> None
             var_plan=var_plan,
             obs=SIMPLE_OBS,
             var=var,
-        ).parse()
+        ).parse_with_timings()[0]
 
 
 def test_an_injective_coalesce_of_the_same_shape_parses_normally() -> None:
@@ -419,7 +420,7 @@ def test_an_injective_coalesce_of_the_same_shape_parses_normally() -> None:
         var_plan=var_plan,
         obs=SIMPLE_OBS,
         var=var,
-    ).parse()
+    ).parse_with_timings()[0]
 
     assert parsed.var.frame.get_column("Key").to_list() == ["K1", "K2"]
 
@@ -457,7 +458,7 @@ def test_a_canonical_collision_is_reported_under_every_duplicate_policy(
             obs=SIMPLE_OBS,
             var=var,
             duplicates=mode,
-        ).parse()
+        ).parse_with_timings()[0]
     assert f"'final': {{'{key_name}': 'K'}}" in str(error.value)
     assert "'raw': {'first': 'K', 'second': None}" in str(error.value)
     assert "'raw': {'first': None, 'second': 'K'}" in str(error.value)
@@ -479,7 +480,7 @@ def test_a_repeated_raw_key_reaches_the_duplicate_policy_instead() -> None:
             var_plan=SIMPLE_VAR_PLAN,
             obs=SIMPLE_OBS,
             var=SIMPLE_VAR,
-        ).parse()
+        ).parse_with_timings()[0]
 
     kept = parser_for(
         frame,
@@ -488,7 +489,7 @@ def test_a_repeated_raw_key_reaches_the_duplicate_policy_instead() -> None:
         obs=SIMPLE_OBS,
         var=SIMPLE_VAR,
         duplicates="keep_first",
-    ).parse()
+    ).parse_with_timings()[0]
     assert kept.layers["Intensity"].wide().to_dicts() == [{"obs_0": 1.0}]
 
 
@@ -511,7 +512,7 @@ def test_keep_best_keeps_one_psm_per_cell_across_layers() -> None:
         layers=(("Intensity", "intensity"), ("Score", "score")),
         duplicates="keep_best",
         rank_by="Score",
-    ).parse()
+    ).parse_with_timings()[0]
 
     assert parsed.layers["Intensity"].wide().to_dicts() == [
         {"obs_0": 1.0, "obs_1": 3.0},
@@ -553,7 +554,7 @@ def test_a_nan_key_is_the_same_absence_as_a_null_key() -> None:
         var_plan=var_plan,
         obs=SIMPLE_OBS,
         var=var,
-    ).parse()
+    ).parse_with_timings()[0]
 
     assert parsed.var.frame.get_column("Mass").to_list() == [1.5]
     assert parsed.layers["Intensity"].wide().to_dicts() == [{"obs_0": 1.0}]
@@ -593,7 +594,7 @@ def test_an_incomplete_final_key_removes_its_axis_row_and_its_layer_cells() -> N
         var_plan=var_plan,
         obs=SIMPLE_OBS,
         var=var,
-    ).parse()
+    ).parse_with_timings()[0]
 
     assert parsed.var.frame.to_dicts() == [{"Feature": "F1"}]
     assert parsed.layers["Intensity"].wide().to_dicts() == [{"obs_0": 1.0, "obs_1": 3.0}]
@@ -630,7 +631,7 @@ def test_empty_text_is_missing_in_keys_and_payload_alike() -> None:
         var_plan=var_plan,
         obs=SIMPLE_OBS,
         var=var,
-    ).parse()
+    ).parse_with_timings()[0]
 
     assert parsed.var.frame.to_dicts() == [
         {"Feature": "F1", "Group": "G1"},
@@ -664,7 +665,7 @@ def test_an_observation_whose_key_is_incomplete_loses_its_value_column() -> None
         var_plan=SIMPLE_VAR_PLAN,
         obs=obs,
         var=SIMPLE_VAR,
-    ).parse()
+    ).parse_with_timings()[0]
 
     assert parsed.obs.frame.to_dicts() == [{"Run": "A"}, {"Run": "B"}]
     assert parsed.layers["Intensity"].wide().rows() == [(1.0, 3.0)]
@@ -690,7 +691,7 @@ def test_a_final_variable_a_layer_never_measured_becomes_a_row_of_nulls() -> Non
         obs=SIMPLE_OBS,
         var=SIMPLE_VAR,
         layers=(("Intensity", "intensity"), ("Score", "score")),
-    ).parse()
+    ).parse_with_timings()[0]
 
     assert list(parsed.layers) == ["Intensity", "Score"]
     assert parsed.layers["Score"].wide().to_dicts() == [
@@ -722,7 +723,7 @@ def test_a_composite_observation_identity_stays_in_the_axis_not_in_a_column_name
         var_plan=SIMPLE_VAR_PLAN,
         obs=obs,
         var=SIMPLE_VAR,
-    ).parse()
+    ).parse_with_timings()[0]
 
     assert parsed.obs.key_columns == ("Run", "Fraction")
     assert parsed.obs.frame.to_dicts() == [
@@ -740,7 +741,7 @@ def test_a_parsed_level_is_a_direct_composition_and_keeps_no_key_map() -> None:
         var_plan=SIMPLE_VAR_PLAN,
         obs=SIMPLE_OBS,
         var=SIMPLE_VAR,
-    ).parse()
+    ).parse_with_timings()[0]
 
     assert set(ParsedLevel.__slots__) == {
         "obs",
@@ -815,7 +816,7 @@ def test_no_parse_result_holds_a_matrix_a_pandas_index_or_an_encoded_layer() -> 
         var_plan=SIMPLE_VAR_PLAN,
         obs=SIMPLE_OBS,
         var=SIMPLE_VAR,
-    ).parse()
+    ).parse_with_timings()[0]
 
     for frame in (
         parsed.obs.frame,
@@ -882,7 +883,7 @@ def test_a_coercion_that_changes_the_row_count_fails_at_the_boundary() -> None:
             var_plan=var_plan,
             obs=SIMPLE_OBS,
             var=SIMPLE_VAR,
-        ).parse()
+        ).parse_with_timings()[0]
 
 
 def test_a_computed_column_of_the_wrong_length_fails_at_the_boundary() -> None:
@@ -923,7 +924,7 @@ def test_a_computed_column_of_the_wrong_length_fails_at_the_boundary() -> None:
     )
 
     with pytest.raises(pl.exceptions.InvalidOperationError):
-        parser.parse()
+        parser.parse_with_timings()[0]
 
 
 class _ReaderOf:
@@ -1003,14 +1004,17 @@ def test_wide_repeats_keep_the_first_value_in_header_then_row_order() -> None:
         {"feature": ["F1", "F1", "F2"], "A_1": [None, 7.0, 1.0], "A_2": [5.0, None, None]}
     )
 
-    parsed = _strategy(
-        decomposer,
-        {"Intensity": _numbers("Intensity")},
-        "keep_first",
-        obs_plan=AxisRuntimePlan(
-            keys=samples.keys, key_phase=phase(), output_phase=phase(), outputs=("sample",)
+    parsed = parse_table(
+        _strategy(
+            decomposer,
+            {"Intensity": _numbers("Intensity")},
+            "keep_first",
+            obs_plan=AxisRuntimePlan(
+                keys=samples.keys, key_phase=phase(), output_phase=phase(), outputs=("sample",)
+            ),
         ),
-    ).parse(LevelSourceTable(frame))
+        LevelSourceTable(frame),
+    )
 
     assert parsed.layers["Intensity"].wide().to_dicts() == [{"obs_0": 7.0}, {"obs_0": 1.0}], (
         "the first header's column is read down every row before the second header's"
@@ -1030,10 +1034,13 @@ def test_a_factor_cell_without_a_known_label_is_the_missing_code() -> None:
         "Status", FactorLayerDeclaration(categories=(("ok", 1), ("bad", 2))), DOT
     )
 
-    parsed = _strategy(
-        _long((("Intensity", "intensity"), ("Status", "status"))),
-        {"Intensity": _numbers("Intensity"), "Status": status},
-    ).parse(LevelSourceTable(frame))
+    parsed = parse_table(
+        _strategy(
+            _long((("Intensity", "intensity"), ("Status", "status"))),
+            {"Intensity": _numbers("Intensity"), "Status": status},
+        ),
+        LevelSourceTable(frame),
+    )
 
     values = parsed.layers["Status"].wide()
     assert values.to_dicts() == [{"obs_0": 1, "obs_1": -1}, {"obs_0": -1, "obs_1": -1}]
@@ -1049,9 +1056,10 @@ def test_nan_text_stays_nan_and_a_blank_cell_stays_null() -> None:
         }
     )
 
-    parsed = _strategy(
-        _long((("Intensity", "intensity"),)), {"Intensity": _numbers("Intensity")}
-    ).parse(LevelSourceTable(frame))
+    parsed = parse_table(
+        _strategy(_long((("Intensity", "intensity"),)), {"Intensity": _numbers("Intensity")}),
+        LevelSourceTable(frame),
+    )
 
     first, second = parsed.layers["Intensity"].wide().rows()
     assert first[0] is not None and math.isnan(first[0])
@@ -1074,7 +1082,7 @@ def test_integer_layer_errors_list_examples_observation_by_observation() -> None
     )
 
     with pytest.raises(LayerValueError, match=r"examples=\[1\.5, 2\.5, 3\.5\]"):
-        strategy.parse(LevelSourceTable(frame))
+        parse_table(strategy, LevelSourceTable(frame))
 
 
 def test_keep_best_copies_the_winning_rows_absent_value() -> None:
@@ -1096,7 +1104,7 @@ def test_keep_best_copies_the_winning_rows_absent_value() -> None:
         layers=(("Intensity", "intensity"), ("Score", "score")),
         duplicates="keep_best",
         rank_by="Score",
-    ).parse()
+    ).parse_with_timings()[0]
 
     assert parsed.layers["Intensity"].wide().to_dicts() == [{"obs_0": None, "obs_1": 3.0}]
     assert parsed.layers["Score"].wide().to_dicts() == [{"obs_0": 9.0, "obs_1": 2.0}]
@@ -1112,11 +1120,14 @@ def test_observation_labels_step_aside_for_a_var_key_named_like_them() -> None:
     )
     frame = pl.DataFrame({"run": ["A", "B"], "feature": ["F1", "F1"], "intensity": [1.0, 2.0]})
 
-    parsed = _strategy(
-        _long((("Intensity", "intensity"),), var),
-        {"Intensity": _numbers("Intensity")},
-        var_plan=var_plan,
-    ).parse(LevelSourceTable(frame))
+    parsed = parse_table(
+        _strategy(
+            _long((("Intensity", "intensity"),), var),
+            {"Intensity": _numbers("Intensity")},
+            var_plan=var_plan,
+        ),
+        LevelSourceTable(frame),
+    )
 
     assert parsed.layers["Intensity"].wide().columns == ["obs__0", "obs__1"]
 
@@ -1132,8 +1143,10 @@ def test_a_level_without_valid_observations_or_features_has_empty_layers() -> No
     )
     strategy = _strategy(_long((("Intensity", "intensity"),)), {"Intensity": _numbers("Intensity")})
 
-    without_runs = strategy.parse(LevelSourceTable(no_runs)).layers["Intensity"].wide()
-    without_features = strategy.parse(LevelSourceTable(no_features)).layers["Intensity"].wide()
+    without_runs = parse_table(strategy, LevelSourceTable(no_runs)).layers["Intensity"].wide()
+    without_features = (
+        parse_table(strategy, LevelSourceTable(no_features)).layers["Intensity"].wide()
+    )
 
     assert without_runs.shape == (0, 0)
     assert without_features.shape == (0, 2)
@@ -1149,9 +1162,12 @@ def test_unreadable_tokens_are_counted_on_the_cells_keep_first_kept() -> None:
         }
     )
 
-    parsed = _strategy(
-        _long((("Intensity", "intensity"),)), {"Intensity": _numbers("Intensity")}, "keep_first"
-    ).parse(LevelSourceTable(frame))
+    parsed = parse_table(
+        _strategy(
+            _long((("Intensity", "intensity"),)), {"Intensity": _numbers("Intensity")}, "keep_first"
+        ),
+        LevelSourceTable(frame),
+    )
 
     assert parsed.layers["Intensity"].wide().to_dicts() == [
         {"obs_0": None, "obs_1": None},
@@ -1175,8 +1191,9 @@ def test_presence_is_decided_before_duplicates_are_resolved() -> None:
         "Intensity", PlainNumericLayerDeclaration(missing_values=(0.0,)), DOT
     )
 
-    parsed = _strategy(_long((("Intensity", "intensity"),)), {"Intensity": sentinel}).parse(
-        LevelSourceTable(frame)
+    parsed = parse_table(
+        _strategy(_long((("Intensity", "intensity"),)), {"Intensity": sentinel}),
+        LevelSourceTable(frame),
     )
 
     assert parsed.layers["Intensity"].wide().to_dicts() == [{"obs_0": 2.0, "obs_1": 3.0}]

@@ -94,7 +94,7 @@ def parser_v2_conversion(
     data = pair.required_data_path()
     facade = ParseRuleFacade(document, level, evidence_for(pair))
     parser = PhysicalTable(make_vendor_file(data)).parser(facade, "standard")
-    parsed = parser.parse()
+    parsed = parser.parse_with_timings()[0]
     with tempfile.TemporaryDirectory() as folder:
         target = Path(folder) / "level.h5ad"
         write_level(parsed, target)
@@ -110,7 +110,9 @@ def test_the_packaged_fragment_level_parses_its_own_export() -> None:
         load_rule_document(pair.parser_v2_path), "fragment", evidence_for(pair)
     )
 
-    parsed = PhysicalTable(make_vendor_file(data)).parser(facade, "standard").parse()
+    parsed = (
+        PhysicalTable(make_vendor_file(data)).parser(facade, "standard").parse_with_timings()[0]
+    )
 
     assert parsed.var.key_columns == ("ProForma_fragment",)
     assert parsed.var.frame.height > parsed.obs.frame.height
@@ -158,7 +160,7 @@ def test_one_parsed_level_writes_to_both_backends(tmp_path: Path) -> None:
     facade = ParseRuleFacade(document, "protein", evidence_for(pair))
     parser = PhysicalTable(make_vendor_file(data)).parser(facade, "standard")
 
-    parsed = parser.parse()
+    parsed = parser.parse_with_timings()[0]
     write_level(parsed, tmp_path / "protein.parquet")
     write_level(parsed, tmp_path / "protein.h5ad")
 
@@ -250,7 +252,9 @@ def test_the_provenance_of_a_parsed_level_names_the_rule_it_came_from() -> None:
     data = pair.required_data_path()
     facade = ParseRuleFacade(load_rule_document(pair.parser_v2_path), "ion", evidence_for(pair))
 
-    parsed: ParsedLevel = PhysicalTable(make_vendor_file(data)).parser(facade, "standard").parse()
+    parsed: ParsedLevel = (
+        PhysicalTable(make_vendor_file(data)).parser(facade, "standard").parse_with_timings()[0]
+    )
 
     provenance = parsed.uns["provenance"]
     assert isinstance(provenance, dict)

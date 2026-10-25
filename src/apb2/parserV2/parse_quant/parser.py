@@ -161,10 +161,6 @@ class Parser:
         """The quantification level this bound parser produces."""
         return self.strategy.level
 
-    def parse(self) -> ParsedLevel:
-        """Read the bound input once, then execute the compiled strategy."""
-        return self.parse_with_timings()[0]
-
     def parse_with_timings(
         self,
     ) -> tuple[ParsedLevel, LevelParseTimings, tuple[InputTable, ...]]:
@@ -221,17 +217,13 @@ class ParseStrategy:
     roles: SemanticRoles
     provenance: Mapping[str, JsonValue]
 
-    def parse(self, source: LevelSourceTable) -> ParsedLevel:
-        """Execute the shared parsing pipeline on an already-read source table."""
-        return self.parse_decomposed(self.decompose(source))
-
     def decompose(self, source: LevelSourceTable) -> RawLevel:
-        """Reduce the read table to raw axes and long layers, the first step of ``parse``."""
+        """Reduce the read table to raw axes and long layers, the first step of parsing."""
         with logged_step("parse.decompose", level=self.level):
             return self.decomposer.decompose(source)
 
     def parse_decomposed(self, raw: RawLevel) -> ParsedLevel:
-        """Every step of ``parse`` after decomposition; it consumes ``raw``'s layers."""
+        """Every step of parsing after decomposition; it consumes ``raw``'s layers."""
         with logged_step("parse.obs", level=self.level):
             obs, obs_positions, _obs_keys = self._prepare_obs(raw.obs)
         with logged_step("parse.var", level=self.level):
@@ -375,8 +367,6 @@ class ParseStrategy:
     @staticmethod
     def _valid_final_key_rows(final_keys: pl.DataFrame) -> pl.Series:
         """Which rows have every component of their authored final key."""
-        if not final_keys.columns:
-            return final_keys.select(pl.repeat(True, pl.len()).alias("_valid")).to_series()
         return final_keys.select(
             pl.all_horizontal(pl.all().is_not_null()).alias("_valid")
         ).to_series()
@@ -440,11 +430,8 @@ class ParseStrategy:
         """keep_best ranks once, on its ``by`` layer; every other policy needs no ranking."""
         if not isinstance(self.duplicates, KeepBestDuplicate):
             return self.duplicates
-        ranking = next((layer for layer in raw if layer.layer_name == self.duplicates.by), None)
-        if ranking is None:
-            raise ConversionError(
-                f"keep_best ranks by layer {self.duplicates.by!r}, which this source lacks"
-            )
+        # The ranking layer is required, so source resolution guarantees it is read.
+        ranking = next(layer for layer in raw if layer.layer_name == self.duplicates.by)
         return self.duplicates.ranked(
             self._claimed(positions.place(ranking), self.layer_parsers[ranking.layer_name])
         )

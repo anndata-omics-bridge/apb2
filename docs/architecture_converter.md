@@ -35,7 +35,7 @@ The facade remains the schema adapter and now constructs executable computed-col
 
 Vendor guessing checks only headers and source metadata; it never compiles a strategy. Effective level detection binds each candidate once and retains its parser. Public `compile()` assembles the retained parsers, without repeating document projection or source resolution. `checks` is applied during that binding. Rule documents are validated directly, without a private shell proxy or a second long/wide recognition family. Their projected compiler contract owns header recognition. Measurement uniqueness and primary-layer validity are checked at the authored schema boundary, not again in an internal runtime constructor.
 
-The executable strategy owns its collaborators once. `Parser.parse()` reads once, has the strategy decompose the read table (`strategy.decompose(source)`), lets the table go, and has the strategy finish (`strategy.parse_decomposed(raw)`); it never writes. Once decomposed, the read table's key and payload columns are held by nothing, and each layer's column only until that layer is parsed, because `parse_decomposed` consumes the raw level's layers one by one. A read shared by several levels keeps, after each level's projection, only the columns the levels still to read project. Prepared input receives the read projection and both axes' raw key tuples, not the strategy graph. `plan_json` preserves the previous serialized decisions, including skipped declarations and both axis phases, but runtime never consumes it.
+The executable strategy owns its collaborators once. `Parser.parse_with_timings()` reads once, has the strategy decompose the read table (`strategy.decompose(source)`), lets the table go, and has the strategy finish (`strategy.parse_decomposed(raw)`); it never writes. Once decomposed, the read table's key and payload columns are held by nothing, and each layer's column only until that layer is parsed, because `parse_decomposed` consumes the raw level's layers one by one. A read shared by several levels keeps, after each level's projection, only the columns the levels still to read project. Prepared input receives the read projection and both axes' raw key tuples, not the strategy graph. `plan_json` preserves the previous serialized decisions, including skipped declarations and both axis phases, but runtime never consumes it.
 
 Each retained layer now has one configured value parser exposing both `present()` and `parse()`. The parser applies `present()` to each placed layer and nulls the scalars that claim no cell before any duplicate policy runs; `parse()` reads the resolved cells and widens them, and measurement occupancy validation follows value parsing. No parallel presence-object mapping remains. Sequence normalizers record localized rendering labels directly and return `SequenceValue`, without intermediate occurrence records or a second result wrapper; independently declared stripping remains a separate computation.
 
@@ -615,8 +615,11 @@ class Parser:
     def level(self) -> QuantificationLevel:
         return self.strategy.level
 
-    def parse(self) -> ParsedLevel:
-        return self.strategy.parse(self.input_reader.read())
+    def parse_with_timings(self) -> tuple[ParsedLevel, LevelParseTimings, tuple[InputTable, ...]]:
+        source = self.input_reader.read()
+        raw = self.strategy.decompose(source)
+        del source  # the read is let go once decomposed
+        return self.strategy.parse_decomposed(raw), ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -634,8 +637,10 @@ class ParseStrategy:
     roles: SemanticRoles
     provenance: Mapping[str, JsonValue]
 
-    def parse(self, source: LevelSourceTable) -> ParsedLevel:
-        raw = self.decomposer.decompose(source)
+    def decompose(self, source: LevelSourceTable) -> RawLevel:
+        return self.decomposer.decompose(source)
+
+    def parse_decomposed(self, raw: RawLevel) -> ParsedLevel:
         obs, obs_positions, _obs_keys = self._prepare_obs(raw.obs)
         var, var_positions, var_keys, unknown_mod_tokens = self._prepare_var(raw.var)
         positions = FinalPositions(
@@ -960,12 +965,13 @@ classDiagram
     class Parser {
         +BoundInputReader input_reader
         +ParseStrategy strategy
-        +parse() ParsedLevel
+        +parse_with_timings() tuple
     }
 
     class ParseStrategy {
         +LevelReadPlan read
-        +parse(source) ParsedLevel
+        +decompose(source) RawLevel
+        +parse_decomposed(raw) ParsedLevel
         -_prepare_obs(raw) tuple
         -_prepare_var(raw) tuple
         -_prepare_layers(raw, positions) dict
@@ -1317,7 +1323,7 @@ The implementation must preserve these invariants:
   through a backend-to-backend shortcut;
 - runtime strategies contain no Pydantic rule, vendor selector, level selector, layout switch,
   `how` switch, encoding switch, duplicate-mode switch, or output switch;
-- `Parser.parse()` computes and returns; it never writes;
+- `Parser.parse_with_timings()` computes and returns; it never writes;
 - FASTA annotation remains outside this refactor.
 
 This is the smallest forward model that retains the information needed for correct duplicate
@@ -3071,7 +3077,7 @@ Implementation began after the following statements were accepted together:
 2. Polars is the concrete parse dataframe engine;
 3. raw/final key columns and wide layer DataFrames are the computational model;
 4. raw duplicate resolution and canonical final-key collision remain separate;
-5. `Parser.parse()` returns `ParsedLevel`, and result writers persist `ParsedLevels`;
+5. `Parser.parse_with_timings()` returns `ParsedLevel`, and result writers persist `ParsedLevels`;
 6. Parquet is a multi-table directory dataset; AnnData alone performs encoding and array
    allocation;
 7. the implementation lives in `parserV2`, with legacy code serving only as parity evidence or

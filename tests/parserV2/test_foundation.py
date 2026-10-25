@@ -461,7 +461,7 @@ def test_source_compilation_returns_one_executable_strategy_not_a_resolved_graph
     assert read.text_sources.isdisjoint(read.native_numeric_sources)
     assert read.text_sources | read.native_numeric_sources == set(read.projected_columns)
     assert strategy.var.keys.final_key_columns == ("Feature",)
-    assert callable(strategy.parse)
+    assert callable(strategy.decompose) and callable(strategy.parse_decomposed)
     assert not hasattr(strategy, "layer_values")
     assert not hasattr(strategy, "decomposition")
 

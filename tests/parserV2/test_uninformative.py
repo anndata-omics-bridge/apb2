@@ -189,7 +189,7 @@ def test_a_parsed_level_reports_what_it_left_out() -> None:
         }
     )
 
-    parsed = strategy.parse(LevelSourceTable(frame=frame))
+    parsed = synthetic.parse_table(strategy, LevelSourceTable(frame=frame))
 
     assert "Decoy" in parsed.var.frame.columns
     assert "Organism" not in parsed.var.frame.columns
