@@ -91,7 +91,9 @@ def _level(name: str, feature_column: str) -> ParsedLevel:
             "NumericText": ["001", "002"],
         }
     )
-    var_key_columns = (feature_column,) if name == "ion" else (feature_column, "Isoform")
+    var_key_columns = (
+        (feature_column,) if name == "peptidoform_ion" else (feature_column, "Isoform")
+    )
     var_values: dict[str, list[object]] = {
         feature_column: ["F1", "F2"],
         "Charge": [2, None],
@@ -190,10 +192,10 @@ def _level(name: str, feature_column: str) -> ParsedLevel:
 def rich_result() -> ParsedLevels:
     return ParsedLevels(
         levels={
-            "ion": _level("ion", "Ion"),
+            "peptidoform_ion": _level("peptidoform_ion", "Ion"),
             "protein": _level("protein", "Protein"),
         },
-        uns={"produced_by": "apb2", "quantification_levels": ["ion", "protein"]},
+        uns={"produced_by": "apb2", "quantification_levels": ["peptidoform_ion", "protein"]},
         metadata={"collection_extension": {"enabled": True}},
         export_uns={"status": "experimental", "producers": ["apb2", "test"]},
     )
@@ -216,7 +218,7 @@ def annotated_result() -> ParsedLevels:
     parsed.feature_relations["protein_group_membership"] = FeatureRelation(
         coordinates=pl.DataFrame(
             {
-                "source": ["protein_group_members"] * 3 + ["ion"] * 2,
+                "source": ["protein_group_members"] * 3 + ["peptidoform_ion"] * 2,
                 "row": [0, 1, 2, 0, 1],
                 "target": ["protein"] * 5,
                 "column": [0, 0, 1, 0, 1],
@@ -287,7 +289,7 @@ def test_layer_diagnostics_survive_storage_and_sidecar_projection(
     suffix: str,
     tmp_path: Path,
 ) -> None:
-    parsed = ParsedLevels(levels={"ion": _level("ion", "Ion")}, uns={})
+    parsed = ParsedLevels(levels={"peptidoform_ion": _level("peptidoform_ion", "Ion")}, uns={})
     diagnostics: dict[str, JsonValue] = {
         "schema_version": "1",
         "unreadable_numeric": {
@@ -306,10 +308,12 @@ def test_layer_diagnostics_survive_storage_and_sidecar_projection(
             }
         },
     }
-    parsed.levels["ion"].uns["layer_diagnostics"] = diagnostics
+    parsed.levels["peptidoform_ion"].uns["layer_diagnostics"] = diagnostics
     target = tmp_path / f"result{suffix}"
     write_parsed_levels(parsed, target)
-    assert read_parsed_levels(target).levels["ion"].uns["layer_diagnostics"] == diagnostics
+    assert (
+        read_parsed_levels(target).levels["peptidoform_ion"].uns["layer_diagnostics"] == diagnostics
+    )
     sidecar = json.loads(target.with_name(f"{target.name}.apb.json").read_text())
     assert sidecar["levels"][0]["apb"]["parse"]["layer_diagnostics"] == diagnostics
 
@@ -363,7 +367,7 @@ def test_h5mu_stores_a_relation_as_one_matrix_under_its_own_name(tmp_path: Path)
     matrix = stored.varp["protein_group_membership"].tocoo()
 
     # Two ions, then two proteins, then three table members on the MuData's var axis.
-    assert list(stored.mod) == ["ion", "protein", "annotation_protein_group_members"]
+    assert list(stored.mod) == ["peptidoform_ion", "protein", "annotation_protein_group_members"]
     assert set(zip(matrix.row.tolist(), matrix.col.tolist(), strict=True)) == {
         (0, 2),
         (1, 3),
@@ -381,16 +385,21 @@ def test_h5mu_stores_a_relation_as_one_matrix_under_its_own_name(tmp_path: Path)
             "links 'peptide', neither a level nor an annotation table",
         ),
         (
-            {"source": ["ion"], "row": [2], "target": ["protein"], "column": [0]},
+            {"source": ["peptidoform_ion"], "row": [2], "target": ["protein"], "column": [0]},
             "outside its source or target axis",
         ),
         (
-            {"source": ["ion", "ion"], "row": [0, 0], "target": ["protein"] * 2, "column": [1, 1]},
+            {
+                "source": ["peptidoform_ion", "peptidoform_ion"],
+                "row": [0, 0],
+                "target": ["protein"] * 2,
+                "column": [1, 1],
+            },
             "repeats a matrix coordinate",
         ),
         (
             {
-                "source": pl.Series(["ion"], dtype=pl.Categorical),
+                "source": pl.Series(["peptidoform_ion"], dtype=pl.Categorical),
                 "row": [0],
                 "target": ["protein"],
                 "column": [0],
@@ -466,7 +475,7 @@ def test_h5ad_rejects_annotation_tables_before_touching_target(tmp_path: Path) -
     parsed = annotated_result()
     parsed.levels = {"protein": parsed.levels["protein"]}
     relation = parsed.feature_relations["protein_group_membership"]
-    relation.coordinates = relation.coordinates.filter(pl.col("source") != "ion")
+    relation.coordinates = relation.coordinates.filter(pl.col("source") != "peptidoform_ion")
     target = tmp_path / "annotated.h5ad"
 
     with pytest.raises(InvalidResultError, match="cannot store annotation tables"):
@@ -489,12 +498,12 @@ def test_measurement_and_auxiliary_roles_round_trip_through_every_result_format(
     suffix: str,
     tmp_path: Path,
 ) -> None:
-    source = rich_result().levels["ion"]
-    parsed = ParsedLevels(levels={"ion": source}, uns={"selected": "ion"})
+    source = rich_result().levels["peptidoform_ion"]
+    parsed = ParsedLevels(levels={"peptidoform_ion": source}, uns={"selected": "peptidoform_ion"})
     target = tmp_path / f"role{suffix}"
 
     writer_for(result_format).write(parsed, target)
-    restored = reader_for(result_format).read(target).levels["ion"]
+    restored = reader_for(result_format).read(target).levels["peptidoform_ion"]
 
     assert isinstance(restored.layers["Intensity"].role, MeasurementLayerRole)
     assert isinstance(restored.layers["Status"].role, AuxiliaryLayerRole)
@@ -505,7 +514,7 @@ def test_parquet_metadata_without_a_layer_role_is_rejected(tmp_path: Path) -> No
     writer_for(ResultFormat.PARQUET).write(rich_result(), target)
     manifest_path = target / MANIFEST_NAME
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    del manifest["levels"]["ion"]["layers"]["Status"]["role"]
+    del manifest["levels"]["peptidoform_ion"]["layers"]["Status"]["role"]
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     with pytest.raises(InvalidResultError, match="role"):
@@ -525,7 +534,7 @@ def test_parquet_reader_rejects_an_explicit_invalid_layer_role(
     writer_for(ResultFormat.PARQUET).write(rich_result(), target)
     manifest_path = target / MANIFEST_NAME
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest["levels"]["ion"]["layers"]["Status"]["role"] = persisted_role
+    manifest["levels"]["peptidoform_ion"]["layers"]["Status"]["role"] = persisted_role
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     with pytest.raises(InvalidResultError, match=message):
@@ -561,29 +570,34 @@ def test_h5mu_projection_is_idempotent(tmp_path: Path) -> None:
     projected = reader_for(ResultFormat.H5MU).read(first)
 
     assert projected.metadata == rich_result().metadata
-    assert projected.levels["ion"].metadata == rich_result().levels["ion"].metadata
+    assert (
+        projected.levels["peptidoform_ion"].metadata
+        == rich_result().levels["peptidoform_ion"].metadata
+    )
 
     writer_for(ResultFormat.H5MU).write(projected, second)
 
     _assert_result_equal(reader_for(ResultFormat.H5MU).read(second), projected)
-    assert projected.levels["ion"].layers["Status"].wide().get_column("obs_0").to_list() == [
+    assert projected.levels["peptidoform_ion"].layers["Status"].wide().get_column(
+        "obs_0"
+    ).to_list() == [
         1.0,
         2.0,
     ]
 
 
 def test_h5ad_accepts_exactly_one_level_and_is_idempotent(tmp_path: Path) -> None:
-    target = tmp_path / "ion.h5ad"
+    target = tmp_path / "peptidoform_ion.h5ad"
     single = ParsedLevels(
-        levels={"ion": rich_result().levels["ion"]},
-        uns={"selected": "ion"},
+        levels={"peptidoform_ion": rich_result().levels["peptidoform_ion"]},
+        uns={"selected": "peptidoform_ion"},
         metadata={"collection_extension": {"enabled": True}},
         export_uns={"status": "experimental"},
     )
     writer_for(ResultFormat.H5AD).write(single, target)
     projected = reader_for(ResultFormat.H5AD).read(target)
     assert projected.metadata == single.metadata
-    assert projected.levels["ion"].metadata == single.levels["ion"].metadata
+    assert projected.levels["peptidoform_ion"].metadata == single.levels["peptidoform_ion"].metadata
     second = tmp_path / "again.h5ad"
 
     writer_for(ResultFormat.H5AD).write(projected, second)
@@ -635,7 +649,10 @@ def test_one_level_h5ad_crosses_columnar_formats_in_both_directions(
     columnar_format: ResultFormat,
     tmp_path: Path,
 ) -> None:
-    raw = ParsedLevels(levels={"ion": rich_result().levels["ion"]}, uns={"selected": "ion"})
+    raw = ParsedLevels(
+        levels={"peptidoform_ion": rich_result().levels["peptidoform_ion"]},
+        uns={"selected": "peptidoform_ion"},
+    )
     suffix = ".parquet" if columnar_format is ResultFormat.PARQUET else ".duckdb"
     columnar = tmp_path / f"raw{suffix}"
     h5ad = tmp_path / "matrix.h5ad"
@@ -667,7 +684,7 @@ def test_writers_validate_aligned_and_pairwise_values_before_touching_target(
     tmp_path: Path,
 ) -> None:
     parsed = rich_result()
-    parsed.levels["ion"].obsm["bad"] = pl.DataFrame({"x": [1]})
+    parsed.levels["peptidoform_ion"].obsm["bad"] = pl.DataFrame({"x": [1]})
     target = tmp_path / "result.duckdb"
     target.write_bytes(b"previous")
 
@@ -679,7 +696,7 @@ def test_writers_validate_aligned_and_pairwise_values_before_touching_target(
 
 def test_layer_rows_are_positional_after_writing(tmp_path: Path) -> None:
     parsed = rich_result()
-    layers = parsed.levels["ion"].layers
+    layers = parsed.levels["peptidoform_ion"].layers
     layers["Intensity"] = FinalLayerTable.from_wide(
         layers["Intensity"].layer_name,
         layers["Intensity"].wide().reverse(),
@@ -691,13 +708,14 @@ def test_layer_rows_are_positional_after_writing(tmp_path: Path) -> None:
     target = tmp_path / "result.duckdb"
     write_parsed_levels(parsed, target)
     assert_frame_equal(
-        read_parsed_levels(target).levels["ion"].layers["Intensity"].wide(), layer.wide()
+        read_parsed_levels(target).levels["peptidoform_ion"].layers["Intensity"].wide(),
+        layer.wide(),
     )
 
 
 def test_a_layer_with_a_different_var_key_is_rejected_before_writing(tmp_path: Path) -> None:
     parsed = rich_result()
-    layers = parsed.levels["ion"].layers
+    layers = parsed.levels["peptidoform_ion"].layers
     layers["Intensity"] = FinalLayerTable.from_wide(
         layers["Intensity"].layer_name,
         layers["Intensity"].wide().with_columns(pl.Series("Ion", ["different", "F2"])),
@@ -733,9 +751,9 @@ def test_a_layer_whose_var_keys_are_not_leading_columns_is_rejected(tmp_path: Pa
 
 def test_a_duplicate_final_axis_key_is_rejected_before_writing(tmp_path: Path) -> None:
     parsed = rich_result()
-    parsed.levels["ion"].obs.frame = parsed.levels["ion"].obs.frame.with_columns(
-        pl.Series("Run", ["same", "same"])
-    )
+    parsed.levels["peptidoform_ion"].obs.frame = parsed.levels[
+        "peptidoform_ion"
+    ].obs.frame.with_columns(pl.Series("Run", ["same", "same"]))
     target = tmp_path / "result.duckdb"
 
     with pytest.raises(InvalidResultError, match="obs contains a duplicate key"):
@@ -746,9 +764,9 @@ def test_a_duplicate_final_axis_key_is_rejected_before_writing(tmp_path: Path) -
 
 def test_an_incomplete_final_axis_key_is_rejected_before_writing(tmp_path: Path) -> None:
     parsed = rich_result()
-    parsed.levels["ion"].var.frame = parsed.levels["ion"].var.frame.with_columns(
-        pl.Series("Ion", ["F1", None])
-    )
+    parsed.levels["peptidoform_ion"].var.frame = parsed.levels[
+        "peptidoform_ion"
+    ].var.frame.with_columns(pl.Series("Ion", ["F1", None]))
     target = tmp_path / "result.duckdb"
 
     with pytest.raises(InvalidResultError, match="var contains an incomplete key"):
@@ -822,19 +840,19 @@ def test_h5_writer_ignores_missing_and_corrupt_plan_json(tmp_path: Path) -> None
 
     parsed = rich_result()
     del parsed.levels["protein"].uns["plan_json"]
-    parsed.levels["ion"].uns["plan_json"] = "not json"
+    parsed.levels["peptidoform_ion"].uns["plan_json"] = "not json"
     target = tmp_path / "result.h5mu"
 
     writer_for(ResultFormat.H5MU).write(parsed, target)
 
     restored = reader_for(ResultFormat.H5MU).read(target)
     expected.levels["protein"].uns.pop("plan_json")
-    expected.levels["ion"].uns["plan_json"] = "not json"
+    expected.levels["peptidoform_ion"].uns["plan_json"] = "not json"
     _assert_result_equal(restored, expected)
 
 
 def test_quantitative_values_returns_canonical_values_directly() -> None:
-    ion = _level("ion", "Ion")
+    ion = _level("peptidoform_ion", "Ion")
 
     projected = ion.layers["Intensity"].quantitative_values()
 
@@ -848,9 +866,9 @@ def test_h5_writer_accepts_an_added_numeric_layer_missing_from_the_parse_plan(
     tmp_path: Path,
 ) -> None:
     parsed = rich_result()
-    ion = parsed.levels["ion"]
-    ion.layers["medpolish_from_fragment"] = FinalLayerTable.from_wide(
-        layer_name="medpolish_from_fragment",
+    ion = parsed.levels["peptidoform_ion"]
+    ion.layers["medpolish_from_peptidoform_fragment"] = FinalLayerTable.from_wide(
+        layer_name="medpolish_from_peptidoform_fragment",
         values=(
             pl.DataFrame(
                 {
@@ -866,9 +884,12 @@ def test_h5_writer_accepts_an_added_numeric_layer_missing_from_the_parse_plan(
 
     write_parsed_levels(parsed, target)
 
-    restored = read_parsed_levels(target).levels["ion"]
+    restored = read_parsed_levels(target).levels["peptidoform_ion"]
     np.testing.assert_allclose(
-        restored.layers["medpolish_from_fragment"].wide().select("obs_0", "obs_1").to_numpy(),
+        restored.layers["medpolish_from_peptidoform_fragment"]
+        .wide()
+        .select("obs_0", "obs_1")
+        .to_numpy(),
         np.array([[10.0, 11.0], [20.0, np.nan]]),
         equal_nan=True,
     )
@@ -885,10 +906,10 @@ def test_h5_writer_accepts_a_planless_derived_level(tmp_path: Path) -> None:
         "produced_by": "apb-aggregate",
         "quantification_level": "protein",
     }
-    protein.primary_layer_name = "medpolish_from_ion"
+    protein.primary_layer_name = "medpolish_from_peptidoform_ion"
     protein.layers = {
-        "medpolish_from_ion": FinalLayerTable.from_wide(
-            layer_name="medpolish_from_ion",
+        "medpolish_from_peptidoform_ion": FinalLayerTable.from_wide(
+            layer_name="medpolish_from_peptidoform_ion",
             values=(
                 pl.DataFrame(
                     {
@@ -906,13 +927,13 @@ def test_h5_writer_accepts_a_planless_derived_level(tmp_path: Path) -> None:
     write_parsed_levels(ParsedLevels(levels={"protein": protein}, uns={}), target)
 
     restored = read_parsed_levels(target).levels["protein"]
-    assert restored.primary_layer_name == "medpolish_from_ion"
-    assert restored.layers["medpolish_from_ion"].wide().height == 2
+    assert restored.primary_layer_name == "medpolish_from_peptidoform_ion"
+    assert restored.layers["medpolish_from_peptidoform_ion"].wide().height == 2
 
 
 def test_h5_writer_rejects_an_unplanned_nonnumeric_layer(tmp_path: Path) -> None:
     parsed = rich_result()
-    ion = parsed.levels["ion"]
+    ion = parsed.levels["peptidoform_ion"]
     ion.layers["derived_text"] = FinalLayerTable.from_wide(
         layer_name="derived_text",
         values=(
@@ -933,7 +954,9 @@ def test_h5_writer_rejects_an_unplanned_nonnumeric_layer(tmp_path: Path) -> None
 
 def test_pairwise_coordinates_are_validated_independently(tmp_path: Path) -> None:
     parsed = rich_result()
-    parsed.levels["ion"].obsp["bad"] = pl.DataFrame({"row": [0], "column": [2], "value": [1.0]})
+    parsed.levels["peptidoform_ion"].obsp["bad"] = pl.DataFrame(
+        {"row": [0], "column": [2], "value": [1.0]}
+    )
     target = tmp_path / "result.duckdb"
 
     with pytest.raises(InvalidResultError, match="outside"):
@@ -956,8 +979,10 @@ def test_reformat_cli_command_delegates_to_the_result_boundary(tmp_path: Path) -
 def test_root_and_level_parts_stay_apart_in_every_format(tmp_path: Path, suffix: str) -> None:
     # Start from the canonical numeric projection, so all four formats share values/dtypes.
     initial = tmp_path / "initial.h5ad"
-    write_parsed_levels(ParsedLevels(levels={"ion": _level("ion", "Ion")}, uns={}), initial)
-    level = read_parsed_levels(initial).levels["ion"]
+    write_parsed_levels(
+        ParsedLevels(levels={"peptidoform_ion": _level("peptidoform_ion", "Ion")}, uns={}), initial
+    )
+    level = read_parsed_levels(initial).levels["peptidoform_ion"]
     level.layers["Intensity"].semantic_roles = ("abundance",)
     level.metadata = {
         "tool": {"annotation": {"count": 2}, "scoring": {"Intensity": {"score": 0.5}}},
@@ -967,7 +992,9 @@ def test_root_and_level_parts_stay_apart_in_every_format(tmp_path: Path, suffix:
         "tool": {"provenance": {"annotation": {"source": "input.tsv"}}},
         "extension": {"empty": {"root": 1}, "z": {}, "a": 2, "nested": {}},
     }
-    parsed = ParsedLevels(levels={"ion": level}, uns={"result": {"n": 1}}, metadata=root)
+    parsed = ParsedLevels(
+        levels={"peptidoform_ion": level}, uns={"result": {"n": 1}}, metadata=root
+    )
     target = tmp_path / f"result{suffix}"
     write_parsed_levels(parsed, target)
     restored = read_parsed_levels(target)
@@ -981,7 +1008,7 @@ def test_root_and_level_parts_stay_apart_in_every_format(tmp_path: Path, suffix:
     if suffix == ".h5ad":
         stored = anndata.read_h5ad(target)
         assert set(stored.uns["apb"]["tool"]) == {"provenance"}
-        assert set(stored.uns["ion"]["apb"]["tool"]) == {"annotation", "scoring"}
+        assert set(stored.uns["peptidoform_ion"]["apb"]["tool"]) == {"annotation", "scoring"}
         assert "metadata_ownership" not in json.loads(stored.uns["apb"]["storage"])
         assert stored.X is not None and "Intensity" not in stored.layers
 
@@ -990,7 +1017,9 @@ def test_root_and_level_parts_stay_apart_in_every_format(tmp_path: Path, suffix:
 @pytest.mark.parametrize(
     "value",
     [
-        pytest.param({"levels": [{"level": "ion", "fingerprint": None}]}, id="record-list"),
+        pytest.param(
+            {"levels": [{"level": "peptidoform_ion", "fingerprint": None}]}, id="record-list"
+        ),
         pytest.param([{}], id="empty-record"),
         pytest.param(["a", None], id="text-with-null"),
         pytest.param([[1, 2], [3]], id="ragged-lists"),
@@ -1008,9 +1037,11 @@ def test_root_and_level_parts_stay_apart_in_every_format(tmp_path: Path, suffix:
 def test_extension_json_values_round_trip_through_every_result_format(
     tmp_path: Path, suffix: str, value: JsonValue
 ) -> None:
-    level = _level("ion", "Ion")
+    level = _level("peptidoform_ion", "Ion")
     level.metadata = {"tool": {"local": value}}
-    parsed = ParsedLevels(levels={"ion": level}, uns={}, metadata={"tool": {"shared": value}})
+    parsed = ParsedLevels(
+        levels={"peptidoform_ion": level}, uns={}, metadata={"tool": {"shared": value}}
+    )
     target = tmp_path / f"result{suffix}"
     write_parsed_levels(parsed, target)
     restored = read_parsed_levels(target)
@@ -1018,18 +1049,18 @@ def test_extension_json_values_round_trip_through_every_result_format(
     assert json.dumps(restored.metadata, sort_keys=True) == json.dumps(
         parsed.metadata, sort_keys=True
     )
-    assert json.dumps(restored.levels["ion"].metadata, sort_keys=True) == json.dumps(
+    assert json.dumps(restored.levels["peptidoform_ion"].metadata, sort_keys=True) == json.dumps(
         level.metadata, sort_keys=True
     )
 
 
 def test_h5ad_stores_only_unstorable_values_as_recorded_json_text(tmp_path: Path) -> None:
-    parsed = ParsedLevels(levels={"ion": _level("ion", "Ion")}, uns={})
-    parsed.metadata["catalog"] = {"levels": [{"level": "ion"}], "names": ["a", "b"]}
+    parsed = ParsedLevels(levels={"peptidoform_ion": _level("peptidoform_ion", "Ion")}, uns={})
+    parsed.metadata["catalog"] = {"levels": [{"level": "peptidoform_ion"}], "names": ["a", "b"]}
     target = tmp_path / "result.h5ad"
     write_parsed_levels(parsed, target)
     apb = anndata.read_h5ad(target).uns["apb"]
-    assert json.loads(apb["catalog"]["levels"]) == [{"level": "ion"}]
+    assert json.loads(apb["catalog"]["levels"]) == [{"level": "peptidoform_ion"}]
     assert isinstance(apb["catalog"]["names"], np.ndarray)
     assert json.loads(apb["storage"])["json_values"] == [["catalog", "levels"]]
 
@@ -1047,9 +1078,9 @@ def test_h5ad_stores_only_unstorable_values_as_recorded_json_text(tmp_path: Path
 def test_h5_reader_rejects_json_value_paths_that_do_not_match_the_metadata(
     tmp_path: Path, json_values: list[list[str]], message: str
 ) -> None:
-    parsed = ParsedLevels(levels={"ion": _level("ion", "Ion")}, uns={})
+    parsed = ParsedLevels(levels={"peptidoform_ion": _level("peptidoform_ion", "Ion")}, uns={})
     parsed.metadata["catalog"] = {
-        "levels": [{"level": "ion"}],
+        "levels": [{"level": "peptidoform_ion"}],
         "names": ["a", "b"],
         "text": "plain",
         "number": "1",
@@ -1066,7 +1097,9 @@ def test_h5_reader_rejects_json_value_paths_that_do_not_match_the_metadata(
 
 
 def test_h5_writer_rejects_a_section_name_hdf5_cannot_link(tmp_path: Path) -> None:
-    parsed = ParsedLevels(levels={"ion": _level("ion", "Ion")}, uns={}, metadata={"a/b": 1})
+    parsed = ParsedLevels(
+        levels={"peptidoform_ion": _level("peptidoform_ion", "Ion")}, uns={}, metadata={"a/b": 1}
+    )
     target = tmp_path / "result.h5ad"
     with pytest.raises(InvalidResultError, match="cannot name an HDF5 group"):
         write_parsed_levels(parsed, target)
@@ -1075,13 +1108,13 @@ def test_h5_writer_rejects_a_section_name_hdf5_cannot_link(tmp_path: Path) -> No
 
 def test_single_level_export_from_h5mu_retains_root_provenance(tmp_path: Path) -> None:
     source = tmp_path / "collection.h5mu"
-    target = tmp_path / "ion.h5ad"
+    target = tmp_path / "peptidoform_ion.h5ad"
     parsed = rich_result()
     parsed.metadata["tool"] = {"provenance": {"source": "input.tsv"}}
-    parsed.levels["ion"].metadata["tool"] = {"annotation": {"count": 2}}
+    parsed.levels["peptidoform_ion"].metadata["tool"] = {"annotation": {"count": 2}}
     write_parsed_levels(parsed, source)
     selected = read_parsed_levels(source)
-    selected.levels = {"ion": selected.levels["ion"]}
+    selected.levels = {"peptidoform_ion": selected.levels["peptidoform_ion"]}
     write_parsed_levels(selected, target)
     _assert_result_equal(read_parsed_levels(target), selected)
 
@@ -1095,19 +1128,22 @@ def test_one_field_may_sit_in_both_the_root_and_a_level_part(tmp_path: Path, suf
         "unit": "items",
         "status": "ok",
     }
-    parsed = ParsedLevels(levels={"ion": _level("ion", "Ion")}, uns={})
+    parsed = ParsedLevels(levels={"peptidoform_ion": _level("peptidoform_ion", "Ion")}, uns={})
     parsed.metadata["tool"] = {"schema_version": "1", "summary": [entry]}
-    parsed.levels["ion"].metadata["tool"] = {"schema_version": "1", "summary": [entry]}
+    parsed.levels["peptidoform_ion"].metadata["tool"] = {"schema_version": "1", "summary": [entry]}
     target = tmp_path / f"both{suffix}"
     write_parsed_levels(parsed, target)
     restored = read_parsed_levels(target)
     assert restored.metadata["tool"] == parsed.metadata["tool"]
-    assert restored.levels["ion"].metadata["tool"] == parsed.levels["ion"].metadata["tool"]
+    assert (
+        restored.levels["peptidoform_ion"].metadata["tool"]
+        == parsed.levels["peptidoform_ion"].metadata["tool"]
+    )
 
 
 def _one_level(export_uns: dict[str, JsonValue] | None = None) -> ParsedLevels:
     return ParsedLevels(
-        levels={"ion": _level("ion", "Ion")},
+        levels={"peptidoform_ion": _level("peptidoform_ion", "Ion")},
         uns={},
         export_uns={"status": "experimental"} if export_uns is None else export_uns,
     )
@@ -1123,13 +1159,13 @@ def test_export_uns_reads_back_with_its_json_types(tmp_path: Path, suffix: str) 
     assert json.dumps(restored.export_uns, sort_keys=True) == json.dumps(
         parsed.export_uns, sort_keys=True
     )
-    assert json.dumps(restored.levels["ion"].export_uns, sort_keys=True) == json.dumps(
-        parsed.levels["ion"].export_uns, sort_keys=True
+    assert json.dumps(restored.levels["peptidoform_ion"].export_uns, sort_keys=True) == json.dumps(
+        parsed.levels["peptidoform_ion"].export_uns, sort_keys=True
     )
 
 
 def test_export_uns_sits_natively_in_the_top_level_uns(tmp_path: Path) -> None:
-    h5ad = tmp_path / "ion.h5ad"
+    h5ad = tmp_path / "peptidoform_ion.h5ad"
     h5mu = tmp_path / "result.h5mu"
     write_parsed_levels(_one_level(), h5ad)
     write_parsed_levels(rich_result(), h5mu)
@@ -1146,7 +1182,7 @@ def test_export_uns_sits_natively_in_the_top_level_uns(tmp_path: Path) -> None:
 
 
 def test_keys_another_tool_adds_to_uns_are_not_read(tmp_path: Path) -> None:
-    target = tmp_path / "ion.h5ad"
+    target = tmp_path / "peptidoform_ion.h5ad"
     write_parsed_levels(_one_level(), target)
     stored = anndata.read_h5ad(target)
     stored.uns["added_later"] = "by another tool"
@@ -1155,7 +1191,7 @@ def test_keys_another_tool_adds_to_uns_are_not_read(tmp_path: Path) -> None:
     restored = read_parsed_levels(target)
 
     assert "added_later" not in restored.export_uns
-    assert "added_later" not in restored.levels["ion"].export_uns
+    assert "added_later" not in restored.levels["peptidoform_ion"].export_uns
 
 
 @pytest.mark.parametrize(
@@ -1175,8 +1211,8 @@ def test_export_uns_anndata_cannot_store_is_refused_before_writing(
 ) -> None:
     on_root = _one_level(export_uns)
     on_level = _one_level()
-    on_level.levels["ion"].export_uns = export_uns
-    for owner, parsed in (("root", on_root), ("level 'ion'", on_level)):
+    on_level.levels["peptidoform_ion"].export_uns = export_uns
+    for owner, parsed in (("root", on_root), ("level 'peptidoform_ion'", on_level)):
         target = tmp_path / f"{owner}{suffix}"
         with pytest.raises(InvalidResultError, match=f"{owner} export_uns.*{message}"):
             write_parsed_levels(parsed, target)
@@ -1184,13 +1220,13 @@ def test_export_uns_anndata_cannot_store_is_refused_before_writing(
 
 
 def test_h5ad_refuses_export_uns_keys_its_one_uns_would_hold_twice(tmp_path: Path) -> None:
-    level_named = _one_level({"ion": "the level part's key"})
+    level_named = _one_level({"peptidoform_ion": "the level part's key"})
     in_both = _one_level({"software": "also on the level"})
     for parsed, message in (
-        (level_named, "the h5ad level's key 'ion'"),
+        (level_named, "the h5ad level's key 'peptidoform_ion'"),
         (in_both, r"\['software'\] are in both"),
     ):
-        target = tmp_path / "ion.h5ad"
+        target = tmp_path / "peptidoform_ion.h5ad"
         with pytest.raises(InvalidResultError, match=message):
             write_parsed_levels(parsed, target)
         assert not target.exists()
@@ -1198,11 +1234,11 @@ def test_h5ad_refuses_export_uns_keys_its_one_uns_would_hold_twice(tmp_path: Pat
     write_parsed_levels(in_both, tmp_path / "separate.h5mu")
     restored = read_parsed_levels(tmp_path / "separate.h5mu")
     assert restored.export_uns["software"] == "also on the level"
-    assert restored.levels["ion"].export_uns["software"] == "Synthetic Ω"
+    assert restored.levels["peptidoform_ion"].export_uns["software"] == "Synthetic Ω"
 
 
 def test_h5_results_compress_their_arrays_with_gzip(tmp_path: Path) -> None:
-    h5ad = tmp_path / "ion.h5ad"
+    h5ad = tmp_path / "peptidoform_ion.h5ad"
     h5mu = tmp_path / "result.h5mu"
     write_parsed_levels(_one_level(), h5ad)
     write_parsed_levels(rich_result(), h5mu)
@@ -1219,8 +1255,8 @@ def test_h5mu_without_var_name_prefix_keeps_the_var_index_as_written(tmp_path: P
     write_parsed_levels(rich_result(), prefixed)
     write_parsed_levels(rich_result(), plain, var_name_prefix=False)
 
-    assert list(mudata.read_h5mu(prefixed).mod["ion"].var_names) == ["ion:F1", "ion:F2"]
-    ion = mudata.read_h5mu(plain).mod["ion"]
+    assert list(mudata.read_h5mu(prefixed).mod["peptidoform_ion"].var_names) == ["pfi:F1", "pfi:F2"]
+    ion = mudata.read_h5mu(plain).mod["peptidoform_ion"]
     assert list(ion.var_names) == ["F1", "F2"]
     assert ion.var.index.name == "Ion", "named after the single String key"
     _assert_result_equal(read_parsed_levels(plain), read_parsed_levels(prefixed))
@@ -1232,7 +1268,7 @@ def test_links_between_modalities_sharing_var_labels_survive_without_prefix(
     # Both levels label their features F1 and F2; crossed links tell positions from labels.
     links = pl.DataFrame(
         {
-            "source": ["ion", "ion"],
+            "source": ["peptidoform_ion", "peptidoform_ion"],
             "row": [0, 1],
             "target": ["peptide", "peptide"],
             "column": [1, 0],
@@ -1240,7 +1276,11 @@ def test_links_between_modalities_sharing_var_labels_survive_without_prefix(
         }
     )
     parsed = ParsedLevels(
-        levels={"ion": _level("ion", "Ion"), "peptide": _level("ion", "Peptide")}, uns={}
+        levels={
+            "peptidoform_ion": _level("peptidoform_ion", "Ion"),
+            "peptide": _level("peptidoform_ion", "Peptide"),
+        },
+        uns={},
     ).with_feature_relation("feature_mapping", links)
     target = tmp_path / "shared.h5mu"
 
@@ -1256,7 +1296,9 @@ def test_links_between_modalities_sharing_var_labels_survive_without_prefix(
 
 def test_previous_hdf_metadata_layout_is_rejected(tmp_path: Path) -> None:
     target = tmp_path / "old.h5ad"
-    write_parsed_levels(ParsedLevels(levels={"ion": _level("ion", "Ion")}, uns={}), target)
+    write_parsed_levels(
+        ParsedLevels(levels={"peptidoform_ion": _level("peptidoform_ion", "Ion")}, uns={}), target
+    )
     stored = anndata.read_h5ad(target)
     descriptor = json.loads(stored.uns["apb"]["storage"])
     descriptor["format_version"] = "2"
@@ -1293,7 +1335,7 @@ def test_var_role_requires_string_values(
     dtype: pl.DataType | type[pl.DataType], tmp_path: Path
 ) -> None:
     parsed = rich_result()
-    level = parsed.levels["ion"]
+    level = parsed.levels["peptidoform_ion"]
     level.var.frame = level.var.frame.with_columns(
         pl.Series("assignment", [1, 2]).cast(pl.String).cast(dtype)
     )

@@ -49,11 +49,11 @@ KEY_SEPARATOR = "_"
 GZIP_LEVEL = 4
 
 LEVEL_VAR_PREFIXES: Mapping[ParsedLevelName, str] = {
-    "ion": "ion:",
+    "peptidoform_ion": "pfi:",
     "peptidoform": "pfm:",
     "peptide": "pep:",
     "protein": "prt:",
-    "fragment": "frg:",
+    "peptidoform_fragment": "pff:",
 }
 
 
@@ -234,7 +234,7 @@ def _storage_index(
 class MuDataWriter:
     """Structurally serialize canonical parsed levels as one MuData file.
 
-    ``var_name_prefix`` prefixes each modality's var names with its level (``ion:``, ``prt:``);
+    ``var_name_prefix`` prefixes each modality's var names with its level (``pfi:``, ``prt:``);
     without it a modality keeps its var index as written, named after a single String key.
     """
 

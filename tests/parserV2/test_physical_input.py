@@ -488,8 +488,8 @@ def test_a_gzipped_parquet_file_is_refused_at_binding(tmp_path: Path) -> None:
 def test_the_maxquant_ion_table_is_prepared_from_evidence() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "maxquant_wide")
     document = load_rule_document(pair.parser_v2_path)
-    facade = ParseRuleFacade(document, "ion", synthetic.NO_EVIDENCE)
-    assert document.preparation("ion") == "maxquant_evidence"
+    facade = ParseRuleFacade(document, "peptidoform_ion", synthetic.NO_EVIDENCE)
+    assert document.preparation("peptidoform_ion") == "maxquant_evidence"
     assert facade.working_parameters.input.file_name is None
 
 
@@ -688,7 +688,9 @@ def test_two_levels_of_one_document_read_their_own_projections(tmp_path: Path) -
         make_vendor_file(path), TSV, lambda columns: "Run" in columns
     )
 
-    ion = ParseRuleFacade(document, "ion", synthetic.NO_EVIDENCE).resolve_source(evidence)
+    ion = ParseRuleFacade(document, "peptidoform_ion", synthetic.NO_EVIDENCE).resolve_source(
+        evidence
+    )
     protein = ParseRuleFacade(document, "protein", synthetic.NO_EVIDENCE).resolve_source(evidence)
 
     assert "Modified.Sequence" in ion.read.projected_columns

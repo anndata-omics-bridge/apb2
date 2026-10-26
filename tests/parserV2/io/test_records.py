@@ -56,7 +56,7 @@ def test_a_record_holds_only_the_fields_it_uses() -> None:
             "catalog": {"identification_confidence": {"summary": [entry(layer="Q.Value")]}},
             "extension": {"anything": [1, {"summary": "not a record"}]},
         },
-        "level 'ion'",
+        "level 'peptidoform_ion'",
     )
 
 
@@ -113,12 +113,12 @@ def test_undefined_values_are_null_with_any_status() -> None:
 
 @pytest.mark.parametrize("scope", ["root", "level"])
 def test_writers_reject_a_malformed_summary_before_publication(tmp_path: Path, scope: str) -> None:
-    parsed = ParsedLevels(levels={"ion": level()}, uns={})
+    parsed = ParsedLevels(levels={"peptidoform_ion": level()}, uns={})
     record: dict[str, JsonValue] = {"summary": [entry(status="warning")]}
     if scope == "root":
         parsed.metadata["tool"] = record
     else:
-        parsed.levels["ion"].metadata["tool"] = record
+        parsed.levels["peptidoform_ion"].metadata["tool"] = record
     target = tmp_path / "result.h5mu"
     with pytest.raises(InvalidResultError, match="unknown status"):
         write_parsed_levels(parsed, target)

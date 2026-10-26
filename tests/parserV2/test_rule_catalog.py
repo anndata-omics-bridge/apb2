@@ -33,7 +33,7 @@ def _load_changed_catalog(tmp_path: Path, payload: dict[str, Any]) -> RuleCatalo
 
 
 def test_get_rules_returns_software_and_version_specific_variants() -> None:
-    dia = get_rules("DIA", level="ion")
+    dia = get_rules("DIA", level="peptidoform_ion")
     by_name = {software.software_name: software for software in dia}
 
     assert [software.software_name for software in dia] == sorted(
@@ -55,11 +55,15 @@ def test_get_rules_returns_software_and_version_specific_variants() -> None:
         ("diann/v1_8/rules.json", r"^1\.[89](\.|$)"),
         ("diann/v2/rules.json", r"^2\..*"),
     ]
-    assert all("ion" in variant.levels for software in dia for variant in software.variants)
+    assert all(
+        "peptidoform_ion" in variant.levels for software in dia for variant in software.variants
+    )
 
 
 def test_dda_query_keeps_only_version_with_dda_evidence() -> None:
-    dda = {software.software_name: software for software in get_rules("DDA", level="ion")}
+    dda = {
+        software.software_name: software for software in get_rules("DDA", level="peptidoform_ion")
+    }
 
     assert set(dda) == {
         "AlphaPept",
@@ -81,7 +85,8 @@ def test_dda_query_keeps_only_version_with_dda_evidence() -> None:
 
 def test_level_filter_retains_version_level_association() -> None:
     dia_fragments = {
-        software.software_name: software for software in get_rules("DIA", level="fragment")
+        software.software_name: software
+        for software in get_rules("DIA", level="peptidoform_fragment")
     }
 
     assert set(dia_fragments) == {"DIA-NN", "Spectronaut"}
@@ -89,7 +94,7 @@ def test_level_filter_retains_version_level_association() -> None:
         "diann/v1_7/rules.json",
         "diann/v1_8/rules.json",
     }
-    assert get_rules("DDA", level="fragment") == []
+    assert get_rules("DDA", level="peptidoform_fragment") == []
 
 
 def test_query_rejects_unknown_category_and_level() -> None:
@@ -141,11 +146,13 @@ def test_packaged_rule_declarations_hold_what_conversion_stores() -> None:
     source = committed_sample("fragpipe")
     assert source is not None
     compiler = ParseRuleCompiler.from_software(
-        source, software="fragpipe", requested_levels=("ion",)
+        source, software="fragpipe", requested_levels=("peptidoform_ion",)
     )
-    stored = parse_section(compiler.compile().parse().levels["ion"].uns, "provenance")["rule_json"]
+    stored = parse_section(compiler.compile().parse().levels["peptidoform_ion"].uns, "provenance")[
+        "rule_json"
+    ]
 
     declarations = packaged_rule_declarations()
 
-    assert stored in declarations[("fragpipe/rules.json", "ion")]
+    assert stored in declarations[("fragpipe/rules.json", "peptidoform_ion")]
     assert all(texts and len(texts) == len(set(texts)) for texts in declarations.values())

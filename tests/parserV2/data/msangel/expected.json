@@ -2,15 +2,27 @@
   "sample": "sample.txt",
   "params": "param_0..json",
   "levels": {
-    "ion": {
+    "peptidoform_ion": {
       "observations": 2,
       "variables": 2,
-      "layers": ["Abundance", "Raw_Abundance", "Best_Score", "PSM_Count", "Elution_Time", "Corrected_Time"]
+      "layers": [
+        "Abundance",
+        "Raw_Abundance",
+        "Best_Score",
+        "PSM_Count",
+        "Elution_Time",
+        "Corrected_Time"
+      ]
     },
     "protein": {
       "observations": 2,
       "variables": 3,
-      "layers": ["Abundance", "Raw_Abundance", "PSM_Count", "Peptides_Count"]
+      "layers": [
+        "Abundance",
+        "Raw_Abundance",
+        "PSM_Count",
+        "Peptides_Count"
+      ]
     }
   }
 }

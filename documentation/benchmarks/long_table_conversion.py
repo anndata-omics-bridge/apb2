@@ -65,7 +65,7 @@ app = App(name="long-table-conversion", help=__doc__)
 class TableSpec:
     """Which columns of a long vendor export the benchmarked conversion uses.
 
-    Defaults describe a Spectronaut ion-level export. Point ``--table`` at another vendor and
+    Defaults describe a Spectronaut peptidoform-ion-level export. Point ``--table`` at another vendor and
     override the column names; the conversion itself does not change.
     """
 

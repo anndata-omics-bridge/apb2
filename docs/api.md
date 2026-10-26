@@ -9,7 +9,7 @@ APB2 exposes programmatic boundaries for in-memory vendor parsing, result I/O, a
 ```python
 from apb2.api import get_rules
 
-for software in get_rules("DIA", level="ion"):
+for software in get_rules("DIA", level="peptidoform_ion"):
     print(software.software_name)
     for variant in software.variants:
         print(variant.software_version_pattern, variant.levels)
@@ -31,18 +31,18 @@ from apb2.api import ParseRuleCompiler, write_parsed_levels
 compiler = ParseRuleCompiler.detect(
     Path("report.tsv"),
     Path("search-parameters.txt"),
-    requested_levels=("ion",),
+    requested_levels=("peptidoform_ion",),
     software="spectronaut",
     checks="standard",
 )
 parser = compiler.compile()
 parsed_levels = parser.parse()
-write_parsed_levels(parsed_levels, Path("results/ion.h5ad"))
+write_parsed_levels(parsed_levels, Path("results/peptidoform_ion.h5ad"))
 ```
 
 Construction binds the physical source, chooses the parameter parser, parses typed parameters, detects compatible rules, and resolves the requested levels. `compile()` returns one `ParserCollection`; `parse()` returns canonical `ParsedLevels` and performs no write. `compiler.parameters` and `compiler.detection` retain the typed parameter and detection results. Storage is selected only by the target passed to `write_parsed_levels()`.
 
-For a ProteoBench Custom upload, use `ParseRuleCompiler.detect(Path("custom.txt"), None, software="pb_custom", requested_levels=("ion",))`. The packaged rule needs no parameter file; `compiler.parameters` is unavailable in this case, while `compiler.detection` still describes the selected rule.
+For a ProteoBench Custom upload, use `ParseRuleCompiler.detect(Path("custom.txt"), None, software="pb_custom", requested_levels=("peptidoform_ion",))`. The packaged rule needs no parameter file; `compiler.parameters` is unavailable in this case, while `compiler.detection` still describes the selected rule.
 
 For vendor exports uploaded without search parameters, the Python API provides a separate constructor:
 
@@ -50,7 +50,7 @@ For vendor exports uploaded without search parameters, the Python API provides a
 compiler = ParseRuleCompiler.from_software(
     Path("combined_ion.tsv"),
     software="fragpipe",
-    requested_levels=("ion",),
+    requested_levels=("peptidoform_ion",),
 )
 parsed_levels = compiler.compile().parse()
 ```
@@ -119,7 +119,7 @@ write_parsed_levels(parsed, Path("results.duckdb"))
 print(sidecar_path(Path("results.duckdb")))  # results.duckdb.apb.json
 ```
 
-The suffix selects the format: `.h5ad`, `.h5mu`, `.parquet` or `.duckdb`. `write_parsed_levels()` also publishes an adjacent compact `<artifact>.apb.json` representation, which `sidecar_path(artifact)` names. Converting between formats is `write_parsed_levels(read_parsed_levels(source), target)`; the CLI command `apb2 reformat` does the same. An `.h5mu` prefixes each modality's var names with its level (`ion:`, `prt:`); `write_parsed_levels(parsed, target, var_name_prefix=False)` keeps them as written, the index named after a single String key. `ParsedLevel.export_uns` and `ParsedLevels.export_uns`, empty for parsed results and set through `ParsedLevel.build(..., export_uns=...)`, are written as they are into the file's top-level `uns`, for consumers that read their own keys there.
+The suffix selects the format: `.h5ad`, `.h5mu`, `.parquet` or `.duckdb`. `write_parsed_levels()` also publishes an adjacent compact `<artifact>.apb.json` representation, which `sidecar_path(artifact)` names. Converting between formats is `write_parsed_levels(read_parsed_levels(source), target)`; the CLI command `apb2 reformat` does the same. An `.h5mu` prefixes each modality's var names with its level (`pfi:`, `prt:`); `write_parsed_levels(parsed, target, var_name_prefix=False)` keeps them as written, the index named after a single String key. `ParsedLevel.export_uns` and `ParsedLevels.export_uns`, empty for parsed results and set through `ParsedLevel.build(..., export_uns=...)`, are written as they are into the file's top-level `uns`, for consumers that read their own keys there.
 
 ## Result model
 
@@ -218,4 +218,4 @@ been moved into this user reference.
 
 ## Level hierarchies
 
-Packaged rules name a hierarchy from `hierarchies.json`: `lfq` (fragment, ion, peptidoform, peptide, protein), `psm` (psm, ion, peptidoform, peptide, protein), or `ptm_site` (peptidoform, multisite, site). Level names are open and validated against the declared hierarchy. The collection persists its hierarchy name and complete ordered identities under `uns["apb"]["hierarchy"]`; custom results remain interpretable without the packaged rule configuration. Parser output aligns explicitly declared sample keys to their ordered union, retaining missing cells; readers and writers reject differing observation axes. Parquet uses format version 9 and DuckDB version 8.
+Packaged rules name a hierarchy from `hierarchies.json`: `lfq` (peptidoform_fragment, peptidoform_ion, peptidoform, peptide, protein), `psm` (psm, peptidoform_ion, peptidoform, peptide, protein), or `ptm_site` (peptidoform, multisite, site). Level names are open and validated against the declared hierarchy. The collection persists its hierarchy name and complete ordered identities under `uns["apb"]["hierarchy"]`; custom results remain interpretable without the packaged rule configuration. Parser output aligns explicitly declared sample keys to their ordered union, retaining missing cells; readers and writers reject differing observation axes. Parquet uses format version 9 and DuckDB version 8.

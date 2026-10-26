@@ -114,7 +114,7 @@ def _parsed(
         },
         varp={},
     )
-    return ParsedLevels(levels={"ion": level}, uns={"produced_by": "apb2"})
+    return ParsedLevels(levels={"peptidoform_ion": level}, uns={"produced_by": "apb2"})
 
 
 def test_parser_constructs_a_dataset_bound_annotation_with_inspectable_matches() -> None:
@@ -128,19 +128,19 @@ def test_parser_constructs_a_dataset_bound_annotation_with_inspectable_matches()
 
     annotation = AnnotationCompiler().compile(source).parse(parsed)
 
-    coverage = annotation.matches.levels["ion"].coverage
+    coverage = annotation.matches.levels["peptidoform_ion"].coverage
     assert coverage.matched_observation_count == 2
     assert coverage.quant_only_examples == ("run_C",)
     assert coverage.annotation_only_examples == ("unused",)
     result = annotation.annotate()
-    assert result.parsed.levels["ion"].obs.frame.to_dict(as_series=False) == {
+    assert result.parsed.levels["peptidoform_ion"].obs.frame.to_dict(as_series=False) == {
         "run": ["run_A", "run_B", "run_C"],
         "condition": ["A", "B", None],
     }
-    assert parsed.levels["ion"].obs.frame.columns == ["run"]
+    assert parsed.levels["peptidoform_ion"].obs.frame.columns == ["run"]
     root = result.parsed.metadata["prolfquapp"]
     assert isinstance(root, dict) and root["schema_version"] == "4"
-    local = result.parsed.levels["ion"].metadata["prolfquapp"]
+    local = result.parsed.levels["peptidoform_ion"].metadata["prolfquapp"]
     assert isinstance(local, dict)
     summary = local["summary"]
     assert isinstance(summary, list)
@@ -192,7 +192,7 @@ def test_compiler_loads_delimited_prolfquapp_sources(
     parser = AnnotationCompiler().compile(source)
 
     annotation = parser.parse(_parsed(("run_A",)))
-    assert annotation.matches.levels["ion"].coverage.matched_observation_count == 1
+    assert annotation.matches.levels["peptidoform_ion"].coverage.matched_observation_count == 1
 
 
 def test_memory_annotation_requires_one_supported_observation_key() -> None:
@@ -234,7 +234,7 @@ def test_drop_and_boolean_selection_subsets_every_observation_aligned_value() ->
     )
     annotation = AnnotationCompiler("drop", "include").compile(source).parse(_parsed())
 
-    result = annotation.annotate().parsed.levels["ion"]
+    result = annotation.annotate().parsed.levels["peptidoform_ion"]
 
     assert result.obs.frame.to_dict(as_series=False) == {
         "run": ["run_A", "run_C"],
@@ -283,10 +283,10 @@ def test_annotation_preserves_layer_semantics_and_round_trips(
         role=AuxiliaryLayerRole(),
         semantics=semantics,
     )
-    parsed.levels["ion"].layers["Evidence"] = layer
+    parsed.levels["peptidoform_ion"].layers["Evidence"] = layer
     source = pl.DataFrame({"raw_file": ["run_C", "run_A"], "condition": ["C", "A"]})
     result = AnnotationCompiler(unmatched).compile(source).parse(parsed).annotate().parsed
-    annotated = result.levels["ion"].layers["Evidence"]
+    annotated = result.levels["peptidoform_ion"].layers["Evidence"]
     assert annotated.semantics is semantics
     assert annotated.role is layer.role
     target = tmp_path / "annotated.h5ad"
@@ -295,7 +295,7 @@ def test_annotation_preserves_layer_semantics_and_round_trips(
     expected = layer.wide().select(
         *(pl.col(f"obs_{old}").alias(f"obs_{new}") for new, old in enumerate(kept))
     )
-    for level in (result.levels["ion"], restored.levels["ion"]):
+    for level in (result.levels["peptidoform_ion"], restored.levels["peptidoform_ion"]):
         copied = level.layers["Evidence"]
         assert copied.semantics == semantics
         assert copied.layer_name == layer.layer_name
@@ -308,7 +308,7 @@ def test_annotation_preserves_layer_semantics_and_round_trips(
 
 def test_exact_matching_supports_composite_keys() -> None:
     parsed = _parsed(("unused",))
-    level = parsed.levels["ion"]
+    level = parsed.levels["peptidoform_ion"]
     level.obs = ObsFinal(
         frame=pl.DataFrame({"run": ["A", "B"], "channel": [1, 2]}),
         key_columns=("run", "channel"),
@@ -329,10 +329,10 @@ def test_exact_matching_supports_composite_keys() -> None:
         IN_MEMORY_ANNOTATION,
     )
 
-    matches = match_annotation(table, parsed, {"ion": ExactAnnotationMatching()})
+    matches = match_annotation(table, parsed, {"peptidoform_ion": ExactAnnotationMatching()})
 
-    assert matches.levels["ion"].matched_rows.to_list() == [True, True]
-    assert matches.levels["ion"].aligned.get_column("condition").to_list() == ["x", "y"]
+    assert matches.levels["peptidoform_ion"].matched_rows.to_list() == [True, True]
+    assert matches.levels["peptidoform_ion"].aligned.get_column("condition").to_list() == ["x", "y"]
 
 
 def test_fuzzy_matching_reserves_exact_pairs_and_records_corrections() -> None:
@@ -352,10 +352,10 @@ def test_fuzzy_matching_reserves_exact_pairs_and_records_corrections() -> None:
     matches = match_annotation(
         table,
         parsed,
-        {"ion": FuzzyAnnotationMatching(cutoff=0.6, margin=0.1, near_miss_limit=3)},
+        {"peptidoform_ion": FuzzyAnnotationMatching(cutoff=0.6, margin=0.1, near_miss_limit=3)},
     )
 
-    match = matches.levels["ion"]
+    match = matches.levels["peptidoform_ion"]
     assert match.matched_rows.to_list() == [True, True]
     assert [(item.observed, item.expected) for item in match.corrections] == [
         ("sample-alpha.raw", "sample-alpha")
@@ -373,7 +373,7 @@ def test_exact_aliases_match_without_fuzzy_correction() -> None:
 
     annotation = AnnotationCompiler().compile(source).parse(_parsed(("alias_B",)))
 
-    match = annotation.matches.levels["ion"]
+    match = annotation.matches.levels["peptidoform_ion"]
     assert match.matched_rows.to_list() == [True]
     assert match.corrections == ()
 
@@ -405,13 +405,13 @@ def test_mass_spec_basename_normalization_matches_without_changing_evidence(
         table,
         _parsed((observed,)),
         {
-            "ion": ExactAnnotationMatching(
+            "peptidoform_ion": ExactAnnotationMatching(
                 normalization=normalize_mass_spec_basename,
             )
         },
     )
 
-    match = matches.levels["ion"]
+    match = matches.levels["peptidoform_ion"]
     assert match.matched_rows.to_list() == [True]
     assert match.corrections == ()
     assert match.coverage.quant_only_examples == ()
@@ -430,7 +430,7 @@ def test_mass_spec_basename_normalization_rejects_observation_collisions() -> No
             table,
             _parsed(("/first/run_A.raw", "/second/run_A.mzML")),
             {
-                "ion": ExactAnnotationMatching(
+                "peptidoform_ion": ExactAnnotationMatching(
                     normalization=normalize_mass_spec_basename,
                 )
             },
@@ -455,7 +455,7 @@ def test_mass_spec_basename_normalization_rejects_annotation_collisions() -> Non
             table,
             _parsed(("run_A",)),
             {
-                "ion": ExactAnnotationMatching(
+                "peptidoform_ion": ExactAnnotationMatching(
                     normalization=normalize_mass_spec_basename,
                 )
             },
@@ -481,7 +481,7 @@ def test_fuzzy_mass_spec_matching_preserves_original_correction_labels() -> None
         table,
         _parsed((observed,)),
         {
-            "ion": FuzzyAnnotationMatching(
+            "peptidoform_ion": FuzzyAnnotationMatching(
                 cutoff=0.6,
                 margin=0.01,
                 near_miss_limit=3,
@@ -490,7 +490,7 @@ def test_fuzzy_mass_spec_matching_preserves_original_correction_labels() -> None
         },
     )
 
-    match = matches.levels["ion"]
+    match = matches.levels["peptidoform_ion"]
     assert match.matched_rows.to_list() == [True]
     assert [(item.observed, item.expected) for item in match.corrections] == [(observed, expected)]
 
@@ -510,10 +510,10 @@ def test_persisted_exact_matching_constructs_mass_spec_normalization() -> None:
     matches = match_annotation(
         table,
         parsed,
-        {"ion": annotation_matching_for(parsed.levels["ion"])},
+        {"peptidoform_ion": annotation_matching_for(parsed.levels["peptidoform_ion"])},
     )
 
-    assert matches.levels["ion"].matched_rows.to_list() == [True]
+    assert matches.levels["peptidoform_ion"].matched_rows.to_list() == [True]
 
 
 def test_prolfquapp_logs_annotation_only_as_warning_and_quant_only_as_info() -> None:
@@ -564,9 +564,12 @@ def test_cli_annotation_round_trips_through_every_result_format(
 
     assert exit_code == 0
     restored = read_parsed_levels(target)
-    assert restored.levels["ion"].obs.frame.get_column("condition").to_list() == ["A", "B"]
+    assert restored.levels["peptidoform_ion"].obs.frame.get_column("condition").to_list() == [
+        "A",
+        "B",
+    ]
     root = restored.metadata["prolfquapp"]
-    local = restored.levels["ion"].metadata["prolfquapp"]
+    local = restored.levels["peptidoform_ion"].metadata["prolfquapp"]
     assert isinstance(root, dict) and "provenance" in root
     assert isinstance(local, dict) and set(local) == {"result", "summary"}
     assert "annotation" not in restored.metadata
@@ -575,11 +578,11 @@ def test_cli_annotation_round_trips_through_every_result_format(
 @pytest.mark.parametrize(
     ("suffix", "levels"),
     [
-        (".h5mu", ("ion", "protein")),
-        (".parquet", ("ion", "protein")),
-        (".duckdb", ("ion", "protein")),
+        (".h5mu", ("peptidoform_ion", "protein")),
+        (".parquet", ("peptidoform_ion", "protein")),
+        (".duckdb", ("peptidoform_ion", "protein")),
         # h5ad stores exactly one level; it still carries the whole declared hierarchy.
-        (".h5ad", ("ion",)),
+        (".h5ad", ("peptidoform_ion",)),
     ],
 )
 def test_annotation_preserves_the_hierarchy_in_every_result_format(
@@ -589,9 +592,9 @@ def test_annotation_preserves_the_hierarchy_in_every_result_format(
 ) -> None:
     runs = ("run_A", "run_B")
     parsed = ParsedLevels(
-        levels={name: _parsed(runs).levels["ion"] for name in levels},
+        levels={name: _parsed(runs).levels["peptidoform_ion"] for name in levels},
         uns={"produced_by": "apb2"},
-        hierarchy=LevelHierarchy("lfq", (("ion", "feature"), ("protein", "feature"))),
+        hierarchy=LevelHierarchy("lfq", (("peptidoform_ion", "feature"), ("protein", "feature"))),
     )
     source = tmp_path / f"input{suffix}"
     target = tmp_path / f"annotated{suffix}"
@@ -618,13 +621,13 @@ def test_annotating_again_leaves_the_first_result_unchanged() -> None:
         .annotate()
         .parsed
     )
-    before = copy.deepcopy((once.metadata, once.levels["ion"].metadata))
+    before = copy.deepcopy((once.metadata, once.levels["peptidoform_ion"].metadata))
 
     AnnotationCompiler().compile(
         pl.DataFrame({"raw_file": ["run_A", "unused"], "batch": ["1", "2"]})
     ).parse(once).annotate()
 
-    assert (once.metadata, once.levels["ion"].metadata) == before
+    assert (once.metadata, once.levels["peptidoform_ion"].metadata) == before
 
 
 def test_annotation_does_not_recompute_matching_during_application() -> None:
@@ -637,8 +640,8 @@ def test_annotation_does_not_recompute_matching_during_application() -> None:
 
     assert annotation.matches is before
     assert_frame_equal(
-        first.parsed.levels["ion"].obs.frame,
-        second.parsed.levels["ion"].obs.frame,
+        first.parsed.levels["peptidoform_ion"].obs.frame,
+        second.parsed.levels["peptidoform_ion"].obs.frame,
     )
 
 
@@ -700,7 +703,7 @@ def test_compiler_recognises_sdrf_and_matches_extensionless_runs(tmp_path: Path)
     annotation = AnnotationCompiler().compile(source).parse(_parsed(("run_A", "run_B")))
     result = annotation.annotate()
 
-    obs = result.parsed.levels["ion"].obs.frame
+    obs = result.parsed.levels["peptidoform_ion"].obs.frame
     assert obs.columns == [
         "run",
         "source_name",
@@ -752,7 +755,7 @@ def test_in_memory_sdrf_headers_ignore_case() -> None:
 
     annotation = AnnotationCompiler().compile(source).parse(_parsed(("run_A",)))
 
-    match = annotation.matches.levels["ion"]
+    match = annotation.matches.levels["peptidoform_ion"]
     assert match.matched_rows.to_list() == [True]
     assert match.corrections == ()
 
@@ -794,9 +797,9 @@ def test_cli_annotates_with_sdrf(tmp_path: Path) -> None:
 
     assert exit_code == 0
     restored = read_parsed_levels(target)
-    obs = restored.levels["ion"].obs.frame
+    obs = restored.levels["peptidoform_ion"].obs.frame
     assert obs.get_column("factor_value_spiked_compound").to_list() == ["A", "B"]
-    local = restored.levels["ion"].metadata["sdrf"]
+    local = restored.levels["peptidoform_ion"].metadata["sdrf"]
     assert isinstance(local, dict) and set(local) == {"result", "summary"}
 
 

@@ -132,11 +132,11 @@ def benchmark(
     repeats: int = 3,
 ) -> None:
     """Measure one- and two-level results in a fresh temporary directory."""
-    ion = _level("ion", observations, variables, layers)
-    one = ParsedLevels(levels={"ion": ion}, uns={"case": "one-level"})
+    ion = _level("peptidoform_ion", observations, variables, layers)
+    one = ParsedLevels(levels={"peptidoform_ion": ion}, uns={"case": "one-level"})
     protein = _level("protein", observations, variables // 4, layers)
     two = ParsedLevels(
-        levels={"ion": ion, "protein": protein},
+        levels={"peptidoform_ion": ion, "protein": protein},
         uns={"case": "two-level"},
     )
     with tempfile.TemporaryDirectory(prefix="apb2-result-io-") as scratch:

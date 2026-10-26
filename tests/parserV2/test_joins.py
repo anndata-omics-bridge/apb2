@@ -53,7 +53,7 @@ MAXQUANT_FILES = {
     "protein": "proteinGroups.txt",
 }
 MAXQUANT_LEVELS: dict[str, QuantificationLevel] = {
-    "evidence": "ion",
+    "evidence": "peptidoform_ion",
     "peptidoform": "peptidoform",
     "peptide": "peptide",
     "protein": "protein",
@@ -205,13 +205,13 @@ def test_msangel_binds_its_ion_sheet_and_the_protein_sets_it_can_join() -> None:
     sets = ("protein_set_id", "abundance_A")
 
     assert msangel.identify({_ION_SHEET: ions, _PROTEIN_SHEET: sets}) == {
-        "ion": _ION_SHEET,
+        "peptidoform_ion": _ION_SHEET,
         "protein": _PROTEIN_SHEET,
     }
-    assert msangel.identify({_ION_SHEET: ions}) == {"ion": _ION_SHEET}
+    assert msangel.identify({_ION_SHEET: ions}) == {"peptidoform_ion": _ION_SHEET}
     assert msangel.identify(
         {_ION_SHEET: ("sequence", "raw_abundance_A"), _PROTEIN_SHEET: sets}
-    ) == {"ion": _ION_SHEET}
+    ) == {"peptidoform_ion": _ION_SHEET}
     assert msangel.identify({_ION_SHEET: ("sequence", "quant_is_valid_for_protein_set")}) == {}
 
 
@@ -226,17 +226,17 @@ def test_msangel_gives_each_ion_row_its_protein_sets_columns() -> None:
     )
     sets = pl.DataFrame({"protein_set_id": ["1", "2", "4"], "abundance_A": ["10", "20", "40"]})
 
-    joined = msangel.join({"ion": ions, "protein": sets})
+    joined = msangel.join({"peptidoform_ion": ions, "protein": sets})
 
     assert joined.columns == [
-        "ion.sequence",
-        "ion.protein_set_id",
-        "ion.raw_abundance_A",
+        "peptidoform_ion.sequence",
+        "peptidoform_ion.protein_set_id",
+        "peptidoform_ion.raw_abundance_A",
         "protein.protein_set_id",
         "protein.abundance_A",
     ]
     assert joined.get_column("protein.abundance_A").to_list() == ["40", "20", "10"]
-    assert msangel.join({"ion": ions}).columns == joined.columns[:3]
+    assert msangel.join({"peptidoform_ion": ions}).columns == joined.columns[:3]
 
 
 @pytest.mark.parametrize(
@@ -251,7 +251,7 @@ def test_msangel_refuses_protein_sets_it_cannot_join(sets: list[str | None], mat
     ions = pl.DataFrame({"protein_set_id": ["1", "2"]})
 
     with pytest.raises(ValueError, match=match):
-        msangel.join({"ion": ions, "protein": pl.DataFrame({"protein_set_id": sets})})
+        msangel.join({"peptidoform_ion": ions, "protein": pl.DataFrame({"protein_set_id": sets})})
 
 
 def test_a_workbook_offers_a_preparation_only_the_sheets_it_names(
@@ -272,13 +272,13 @@ def test_a_workbook_offers_a_preparation_only_the_sheets_it_names(
     prepared = inputs.prepare(path)
 
     assert {role: table.name for role, (table, _header) in inputs.tables.items()} == {
-        "ion": _ION_SHEET,
+        "peptidoform_ion": _ION_SHEET,
         "protein": _PROTEIN_SHEET,
     }
     assert read == [_ION_SHEET, _PROTEIN_SHEET]
     assert prepared.frame.height == 3, "one row per ion and protein set"
     assert [(table.file.role, table.file.format) for table in prepared.input_tables] == [
-        ("ion", "xlsx"),
+        ("peptidoform_ion", "xlsx"),
         ("protein", "xlsx"),
     ]
     assert PreparationInputs.identify(SingleFile(path), "wombat").tables == {}
@@ -286,7 +286,10 @@ def test_a_workbook_offers_a_preparation_only_the_sheets_it_names(
     assert PreparationInputs.identify(SingleFile(proline), "msangel").tables == {}
 
 
-@pytest.mark.parametrize(("protein_sets", "levels"), [(True, ["ion", "protein"]), (False, ["ion"])])
+@pytest.mark.parametrize(
+    ("protein_sets", "levels"),
+    [(True, ["peptidoform_ion", "protein"]), (False, ["peptidoform_ion"])],
+)
 def test_an_msangel_workbook_converts_the_levels_its_sheets_carry(
     tmp_path: Path, protein_sets: bool, levels: list[str]
 ) -> None:
@@ -358,7 +361,7 @@ def test_folder_conversion_joins_all_levels_and_round_trips(tmp_path: Path, suff
         tmp_path / f"output.experiment{suffix}",
     )
     assert not (tmp_path / f"output{suffix}").exists()
-    ion = read_parsed_levels(result.outputs[0]).levels["ion"]
+    ion = read_parsed_levels(result.outputs[0]).levels["peptidoform_ion"]
     ion_preparation = parse_section(ion.uns, "provenance")["input_preparation"]
     assert isinstance(ion_preparation, dict)
     assert ion_preparation["how"] == "maxquant_evidence"
@@ -410,7 +413,7 @@ def test_maxquant_every_nonempty_subset_round_trips_available_levels(
         tuple(MAXQUANT_LEVELS.values()),
     )
     assert [item.level for item in detected.levels] == expected_levels
-    prepared = [item.source for item in detected.levels if item.level != "ion"]
+    prepared = [item.source for item in detected.levels if item.level != "peptidoform_ion"]
     assert all(source is prepared[0] for source in prepared)
     if "evidence" in roles:
         evidence = detected.levels[0].source
@@ -433,7 +436,7 @@ def test_maxquant_every_nonempty_subset_round_trips_available_levels(
     assert list(parsed) == expected_levels
     assert len(summary.outputs) == (2 if "evidence" in roles and len(roles) > 1 else 1)
     expected_values = {
-        "ion": [[20.0, 5.0]],
+        "peptidoform_ion": [[20.0, 5.0]],
         "peptidoform": [[25.0]],
         "peptide": [[25.0]],
         "protein": [[100.0, 101.0], [200.0, None], [300.0, 301.0]],
@@ -445,14 +448,14 @@ def test_maxquant_every_nonempty_subset_round_trips_available_levels(
         # HDF5 represents missing numeric cells as NaN; table backends retain nulls.
         values = level.layers["Intensity"].wide().cast(pl.Float64).fill_nan(None)
         assert values.rows() == [tuple(row) for row in expected_values[name]]
-        obs_key = "Raw_File" if name == "ion" else "Experiment"
-        expected_samples = {"ion": ["raw1", "raw2"], "protein": ["A", "B"]}.get(
+        obs_key = "Raw_File" if name == "peptidoform_ion" else "Experiment"
+        expected_samples = {"peptidoform_ion": ["raw1", "raw2"], "protein": ["A", "B"]}.get(
             name, ["A", "B"] if "protein" in parsed else ["A"]
         )
         assert level.obs.frame[obs_key].to_list() == expected_samples
         preparation = parse_section(level.uns, "provenance")["input_preparation"]
         assert isinstance(preparation, dict)
-        if name == "ion":
+        if name == "peptidoform_ion":
             assert preparation["how"] == "maxquant_evidence"
     for path in summary.outputs:
         names = {str(record["file_name"]) for record in input_files(read_parsed_levels(path).uns)}
@@ -475,7 +478,7 @@ def test_maxquant_renamed_subsets_select_only_present_levels(
         document, Folder(tmp_path), document.levels, KnownParameters(UNKNOWN_SEARCH_PARAMETERS)
     )
     assert [item.level for item in selected] == [MAXQUANT_LEVELS[role] for role in roles]
-    prepared = [item.source for item in selected if item.level != "ion"]
+    prepared = [item.source for item in selected if item.level != "peptidoform_ion"]
     assert all(source is prepared[0] for source in prepared)
     if "evidence" in roles:
         evidence = selected[0].source
@@ -499,10 +502,10 @@ def test_maxquant_absent_requested_level_fails_without_writing(tmp_path: Path) -
         if role != "evidence":
             table.write_csv(tmp_path / MAXQUANT_FILES[role], separator="\t")
     target = tmp_path / "missing.parquet"
-    with pytest.raises(ConversionError, match="ion"):
+    with pytest.raises(ConversionError, match="peptidoform_ion"):
         convert_from_rule_config(
             data=tmp_path,
-            level="ion",
+            level="peptidoform_ion",
             output=target,
             rule_config=RULES / "maxquant_wide/rules.json",
             parameters_path=None,
@@ -540,7 +543,7 @@ def test_maxquant_one_to_one_experiments_align_to_raw_files(tmp_path: Path, suff
     assert protein.obs.frame["Experiment"].to_list() == ["B", "A"]
     values = protein.layers["Intensity"].wide().cast(pl.Float64).fill_nan(None)
     assert values.rows() == [(101.0, 100.0), (None, 200.0), (301.0, 300.0)]
-    ion = result.levels["ion"]
+    ion = result.levels["peptidoform_ion"]
     # raw1 holds two evidence rows of the ion: intensities add up, PEP is the better row's.
     assert ion.layers["Intensity"].wide().row(0) == (20.0, 5.0)
     assert ion.layers["PEP"].wide().cast(pl.Float64).row(0) == (0.002, 0.05)
@@ -565,7 +568,7 @@ def test_ion_only_reads_evidence_and_protein_groups_but_no_peptide_table(
     monkeypatch.setattr(preparation_module.pl, "read_csv", counted_read)
     document = load_rule_document(RULES / "maxquant_wide/rules.json")
     selected = select_document_levels(
-        document, Folder(tmp_path), ("ion",), KnownParameters(UNKNOWN_SEARCH_PARAMETERS)
+        document, Folder(tmp_path), ("peptidoform_ion",), KnownParameters(UNKNOWN_SEARCH_PARAMETERS)
     )
     assert len(selected) == 1
     assert sorted(calls) == sorted(
@@ -683,7 +686,7 @@ def test_cli_directory_joins_before_ion_conversion(tmp_path: Path) -> None:
             [
                 "convert",
                 str(tmp_path),
-                "ion",
+                "peptidoform_ion",
                 "--rule-config",
                 str(RULES / "alphadia/v1_12/rules.json"),
                 "--format",
@@ -693,7 +696,7 @@ def test_cli_directory_joins_before_ion_conversion(tmp_path: Path) -> None:
             ]
         )
     assert result.value.code == 0
-    parsed = read_parsed_levels(tmp_path / "output.parquet").levels["ion"]
+    parsed = read_parsed_levels(tmp_path / "output.parquet").levels["peptidoform_ion"]
     assert parsed.layers["Intensity"].wide().row(0) == (12.0, None)
     assert parsed.layers["QValue"].wide().row(0) == (0.001, 0.002)
     assert parsed.layers["Proba"].wide().row(0) == (0.1, 0.2)

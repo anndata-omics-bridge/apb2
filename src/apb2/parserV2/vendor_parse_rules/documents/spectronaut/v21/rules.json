@@ -77,7 +77,7 @@
         }
       },
       "levels": {
-        "ion": {
+        "peptidoform_ion": {
           "axis": {
             "var_keys": [
               "ProForma_ion"
@@ -392,7 +392,7 @@
             ]
           }
         },
-        "fragment": {
+        "peptidoform_fragment": {
           "axis": {
             "var_keys": [
               "EG_PrecursorId",

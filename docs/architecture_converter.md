@@ -94,13 +94,13 @@ The identity model keeps identity in explicit key columns; layer rows reach axis
 - equal raw keys share one placed cell, so several rows at one (`var_pos`, `obs_pos`) are a quantitative duplicate;
 - different raw keys that materialize to one valid final key are a canonicalization error, not a quantitative duplicate.
 
-**Decision, 24 Oct 2026: layers stay long until they are widened, last.** It replaces the earlier decision that "the identity model uses explicit columns rather than temporary integer IDs", under which every layer was a wide raw table keyed by raw var-key columns from decomposition until alignment. Measured on a 150-run subset of a 1,236-run DIA-NN report, the ion level peaked at a 41.3 GB memory footprint for 7.4 GB of final layers. Three things multiplied the footprint:
+**Decision, 24 Oct 2026: layers stay long until they are widened, last.** It replaces the earlier decision that "the identity model uses explicit columns rather than temporary integer IDs", under which every layer was a wide raw table keyed by raw var-key columns from decomposition until alignment. Measured on a 150-run subset of a 1,236-run DIA-NN report, the peptidoform-ion level peaked at a 41.3 GB memory footprint for 7.4 GB of final layers. Three things multiplied the footprint:
 
 - every layer was read as text and pivoted wide as text: 16 B per dense cell, while 89% of the cells are empty at full size;
 - a reorder join copied each wide layer again;
 - duplicate rows were widened before they collapsed: one protein had 2,671 rows in one run.
 
-Now each layer stays long rows of integer positions. Presence, duplicate resolution and value parsing run on those rows, and only the parsed values are widened, one layer at a time. Raw and final key columns still define identity on the small axis frames; integer row numbers are only how layer rows point at axis rows. Parsed results stay long as well: a `FinalLayerTable` holds its stored cells at final positions (`var_pos`, `obs_pos`, `value`) with its `height` and observation `labels`, and `wide()` builds the matrix on request. Writers widen one layer at a time, so a level's layers are never all wide together; on a 150-run subset this moved the ion level's write peak from 21.8 GB to the size of one layer and its array.
+Now each layer stays long rows of integer positions. Presence, duplicate resolution and value parsing run on those rows, and only the parsed values are widened, one layer at a time. Raw and final key columns still define identity on the small axis frames; integer row numbers are only how layer rows point at axis rows. Parsed results stay long as well: a `FinalLayerTable` holds its stored cells at final positions (`var_pos`, `obs_pos`, `value`) with its `height` and observation `labels`, and `wide()` builds the matrix on request. Writers widen one layer at a time, so a level's layers are never all wide together; on a 150-run subset this moved the peptidoform-ion level's write peak from 21.8 GB to the size of one layer and its array.
 
 This algorithm is derived from each effective rule. AlphaDIA, DIA-NN, FragPipe, MaxQuant,
 Spectronaut, WOMBAT-P, and the other packaged documents exercise the same code. Vendor- or
@@ -407,7 +407,7 @@ Every value that can affect final identity must be in the raw-key closure. Paylo
 
 ### 3.2 Generic examples, not special cases
 
-The AlphaDIA v1.10 ion declaration is one readable example:
+The AlphaDIA v1.10 peptidoform-ion declaration is one readable example:
 
 ```python
 AxisKeyPlan(
@@ -599,7 +599,7 @@ packed_value_sources = (
 ```
 
 For a cell `Fragment.Quant.Raw = "1200;900;450"`, positional separation emits three scalar rows
-labelled `frag_0`, `frag_1`, and `frag_2`. Measured on a 50-run subset of a DIA-NN 1.8 report (3.4 M precursor rows, 20.3 M fragment rows), moving the row numbers before the explode lowered the fragment level's peak footprint from 11.1 GB to 8.7 GB.
+labelled `frag_0`, `frag_1`, and `frag_2`. Measured on a 50-run subset of a DIA-NN 1.8 report (3.4 M precursor rows, 20.3 M fragment rows), moving the row numbers before the explode lowered the peptidoform-fragment level's peak footprint from 11.1 GB to 8.7 GB.
 
 ## 5. Parser algorithm
 
@@ -805,7 +805,7 @@ NumPy matrices. The target is an atomic directory dataset:
 target.parquet/
     manifest.json
     levels/
-        ion/
+        peptidoform_ion/
             obs.parquet
             var.parquet
             layers/
@@ -859,7 +859,7 @@ class ParsedLevels:
 ```
 
 `MuDataWriter` constructs one stateless `AnnDataWriter` and reuses it in canonical level order. It calls `to_anndata_for_level()` for each `ParsedLevel`, prefixes only the AnnData
-storage `var_names` (`ion:`, `pfm:`, `pep:`, `prt:`, `frg:`) unless configured with `var_name_prefix=False`, constructs `MuData(modalities,
+storage `var_names` (`pfi:`, `pfm:`, `pep:`, `prt:`, `pff:`) unless configured with `var_name_prefix=False`, constructs `MuData(modalities,
 axis=0)`, writes shared provenance to
 `mdata.uns["apb"]["parse"]`, and
 atomically writes `.h5mu`. The authored unprefixed key remains an ordinary modality `.var` column.
@@ -1276,12 +1276,12 @@ One or several detected levels:
 parser = ParseRuleCompiler.detect(
     report_path,
     parameter_source,
-    requested_levels=("ion",),
+    requested_levels=("peptidoform_ion",),
     checks="standard",
 ).compile()
 
 parsed = parser.parse()
-write_parsed_levels(parsed, Path("ion.h5ad"))
+write_parsed_levels(parsed, Path("peptidoform_ion.h5ad"))
 ```
 
 The constructor owns physical source binding, parameter-parser selection, typed parameter parsing, packaged-rule detection, and canonical level selection. `compile()` returns a `ParserCollection` over retained parsers; repeated calls do not repeat detection, projection or source resolution. The collection exposes `parse()` only; persistence remains `write_parsed_levels(parsed, target)` and no storage declaration enters compilation.
@@ -1359,7 +1359,7 @@ keys explicitly:
 | `ParsedLevel` | introduces no new identity; directly composes final values |
 
 The inline comments below are literal examples of field values. Their names come from one
-AlphaDIA-like ion rule only to make the values readable; compiled rules supply the actual names.
+AlphaDIA-like peptidoform-ion rule only to make the values readable; compiled rules supply the actual names.
 
 ```python
 class LevelSourceTable:
@@ -1607,7 +1607,7 @@ class ParsedLevel:
 @dataclass(slots=True)
 class ParsedLevels:
     levels: dict[ParsedLevelName, ParsedLevel]
-    # {"ion": ion_level, "protein": protein_level}
+    # {"peptidoform_ion": ion_level, "protein": protein_level}
 
     uns: dict[str, JsonValue]
     # shared parse provenance, distinct from each ParsedLevel.uns
@@ -2417,9 +2417,9 @@ For delimited text, `text_sources` includes:
 
 A physical source used by several roles is text when any role requires lexical preservation. A layer source is read as a native number only when the rule reduces it (`sum`, `min`, `max`, or a `keep_best` summed layer); every other layer is text for its value parser. Parquet keeps its physical schema and bypasses text-dialect parsing.
 
-`categorical_sources` is the subset of text read as `pl.Categorical`: the obs and var raw keys and payload, minus packed columns, layer sources, and the sources of var columns resolved by number (`min`, `max`, `keep_best`) together with their ranking column, which cast every row. A run path repeated on every row then costs four bytes instead of its text: on a 150-run DIA-NN report (9 M rows) the ion level's read fell from 7.2 GB to 3.7 GB footprint. Every consumer of these columns casts to text first or compares codes (axis coercers and computers, `unique`, `group_by`, joins within one read), so no Categorical reaches a parsed result. `LevelReadPlan.union` keeps a column categorical only where every level reading it says so. `LevelSourceTable` nulls a blank category the way it nulls blank text, finding the blank texts among the column's distinct values rather than casting the column.
+`categorical_sources` is the subset of text read as `pl.Categorical`: the obs and var raw keys and payload, minus packed columns, layer sources, and the sources of var columns resolved by number (`min`, `max`, `keep_best`) together with their ranking column, which cast every row. A run path repeated on every row then costs four bytes instead of its text: on a 150-run DIA-NN report (9 M rows) the peptidoform-ion level's read fell from 7.2 GB to 3.7 GB footprint. Every consumer of these columns casts to text first or compares codes (axis coercers and computers, `unique`, `group_by`, joins within one read), so no Categorical reaches a parsed result. `LevelReadPlan.union` keeps a column categorical only where every level reading it says so. `LevelSourceTable` nulls a blank category the way it nulls blank text, finding the blank texts among the column's distinct values rather than casting the column.
 
-`converted_sources` is the subset of text a delimited reader turns into numbers while reading: the sources of plain numeric layers without `missing_tokens`, minus lexical sources. The streaming scan reads them as text and applies `as_numbers`, the parser's own conversion, in the same plan, so a column's text exists one chunk at a time; a flag per column marks a value with text but no number, or the text `NaN`. A flagged column is read again as text, so the parser counts its unreadable tokens and keeps its `NaN` exactly as for any text layer; every converted column holds only numbers and nulls, which the value parsers, duplicate policies and diagnostics already accept, as for summed layers. On the 150-run DIA-NN ion level the read of Categorical keys and the 17 layers fell from 3.4 GB to 2.0 GB footprint. `LevelReadPlan.union` keeps a column converted only where every level reading it says so. Polars has no record of failed conversions (a strict read stops at the first, `ignore_errors` hides them), which is why the reader converts rather than reading numbers directly.
+`converted_sources` is the subset of text a delimited reader turns into numbers while reading: the sources of plain numeric layers without `missing_tokens`, minus lexical sources. The streaming scan reads them as text and applies `as_numbers`, the parser's own conversion, in the same plan, so a column's text exists one chunk at a time; a flag per column marks a value with text but no number, or the text `NaN`. A flagged column is read again as text, so the parser counts its unreadable tokens and keeps its `NaN` exactly as for any text layer; every converted column holds only numbers and nulls, which the value parsers, duplicate policies and diagnostics already accept, as for summed layers. On the 150-run DIA-NN peptidoform-ion level the read of Categorical keys and the 17 layers fell from 3.4 GB to 2.0 GB footprint. `LevelReadPlan.union` keeps a column converted only where every level reading it says so. Polars has no record of failed conversions (a strict read stops at the first, `ignore_errors` hides them), which is why the reader converts rather than reading numbers directly.
 
 For delimited input, `text_sources` and `native_numeric_sources` are disjoint and their union is
 exactly `projected_columns`. A plain numeric source is native only when its resolved number format
@@ -2525,7 +2525,7 @@ Parquet uses `scan_parquet(...).select(...).collect()` and retains its physical 
 - every projected delimited column has an explicit text or native-numeric read dtype, and converted text becomes numbers inside the scan;
 - stable distinct and `group_by` operations use `maintain_order=True` when output order matters;
 - the row-number joins use `nulls_equal=True` and `maintain_order="left"` and read only the raw key columns;
-- an aggregation or join over the whole read touches only the columns it needs, lazily or after a `select`: the read arrives in thousands of chunks, and an eager `group_by` rechunks every column first, layers included (2.3 GB at 150 runs of the TPCPA ion level);
+- an aggregation or join over the whole read touches only the columns it needs, lazily or after a `select`: the read arrives in thousands of chunks, and an eager `group_by` rechunks every column first, layers included (2.3 GB at 150 runs of the TPCPA peptidoform-ion level);
 - a per-row value mapping on a long column uses elementwise `is_in` and `when`, not `replace` with a mapping, which joins the column against it: `as_numbers` with `replace` read the 150-run TPCPA ion layers in 7.7 GB, elementwise in 2.7 GB;
 - key columns normalize `NaN` versus null according to the declared logical type before equality
   and collision checks;
@@ -2708,8 +2708,8 @@ Every effective level must compile both axis plans. Tests assert:
 - modification sources enter the closure when normalized sequence output is consumed;
 - no result depends on a vendor-name or level-name branch.
 
-Representative fixtures include AlphaDIA ion, DIA-NN protein, DIA-NN fragment, Spectronaut
-fragment, WOMBAT-P or Sage peptidoform, an injective `coalesce`, and a colliding `coalesce`.
+Representative fixtures include AlphaDIA peptidoform ion, DIA-NN protein, DIA-NN peptidoform
+fragment, Spectronaut peptidoform fragment, WOMBAT-P or Sage peptidoform, an injective `coalesce`, and a colliding `coalesce`.
 
 #### G.4 Decomposition and duplicate tests
 

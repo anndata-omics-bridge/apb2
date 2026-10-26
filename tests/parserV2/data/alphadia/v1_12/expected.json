@@ -7,7 +7,7 @@
     "input_file_secondary.tsv.gz"
   ],
   "levels": {
-    "ion": {
+    "peptidoform_ion": {
       "observations": 6,
       "variables": 458,
       "layers": [

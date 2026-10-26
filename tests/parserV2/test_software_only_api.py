@@ -37,10 +37,13 @@ def test_software_only_api_preserves_parsed_values_and_rule_provenance() -> None
     assert folder is not None
     record = json.loads((folder / "expected.json").read_text())
     with_parameters = ParseRuleCompiler.detect(
-        source, folder / record["params"], software="fragpipe", requested_levels=("ion",)
+        source,
+        folder / record["params"],
+        software="fragpipe",
+        requested_levels=("peptidoform_ion",),
     )
     without_parameters = ParseRuleCompiler.from_software(
-        source, software="fragpipe", requested_levels=("ion",)
+        source, software="fragpipe", requested_levels=("peptidoform_ion",)
     )
 
     expected_result = with_parameters.compile().parse()
@@ -48,10 +51,10 @@ def test_software_only_api_preserves_parsed_values_and_rule_provenance() -> None
     assert input_files(expected_result.uns)[0]["file_name"] == record["params"]
     assert [file["role"] for file in input_files(actual_result.uns)] == ["table"]
     assert "search_parameters" not in parse_section(actual_result.uns, "provenance")
-    expected = expected_result.levels["ion"]
-    actual = actual_result.levels["ion"]
-    assert actual.obs.frame.height == record["levels"]["ion"]["observations"]
-    assert actual.var.frame.height == record["levels"]["ion"]["variables"]
+    expected = expected_result.levels["peptidoform_ion"]
+    actual = actual_result.levels["peptidoform_ion"]
+    assert actual.obs.frame.height == record["levels"]["peptidoform_ion"]["observations"]
+    assert actual.var.frame.height == record["levels"]["peptidoform_ion"]["variables"]
     assert_frame_equal(actual.obs.frame, expected.obs.frame)
     assert_frame_equal(actual.var.frame, expected.var.frame)
     assert actual.primary_layer_name == expected.primary_layer_name
@@ -64,7 +67,9 @@ def test_software_only_api_preserves_parsed_values_and_rule_provenance() -> None
         _ = without_parameters.parameters
     # The constructor used by the CLI retains its existing parameter requirement.
     with pytest.raises(RuleUnavailableError):
-        ParseRuleCompiler.detect(source, None, software="fragpipe", requested_levels=("ion",))
+        ParseRuleCompiler.detect(
+            source, None, software="fragpipe", requested_levels=("peptidoform_ion",)
+        )
 
 
 def test_software_only_api_accepts_pb_custom() -> None:
@@ -73,8 +78,8 @@ def test_software_only_api_accepts_pb_custom() -> None:
         .compile()
         .parse()
     )
-    assert set(parsed.levels) == {"ion"}
-    assert parsed.levels["ion"].var.frame.height == 8493
+    assert set(parsed.levels) == {"peptidoform_ion"}
+    assert parsed.levels["peptidoform_ion"].var.frame.height == 8493
 
 
 @pytest.mark.parametrize("software", ["", "unrecognized", "fragpipe"])
@@ -86,7 +91,7 @@ def test_software_hint_must_identify_the_result_producer(software: str) -> None:
 @pytest.mark.parametrize("version", ["v1_7", "v1_8", "v2"])
 def test_diann_version_is_selected_by_declared_columns(version: str) -> None:
     compiler = ParseRuleCompiler.from_software(
-        _sample(f"diann/{version}"), software="diann", requested_levels=("ion",)
+        _sample(f"diann/{version}"), software="diann", requested_levels=("peptidoform_ion",)
     )
     assert compiler.detection.levels[0].document.path.parent.name == version
 
@@ -105,14 +110,14 @@ def test_software_only_detection_compiles_each_level_once(
 
     monkeypatch.setattr(PhysicalTable, "parser", record)
     compiler = ParseRuleCompiler.from_software(
-        _sample("diann/v1_8"), software="diann", requested_levels=("ion", "protein")
+        _sample("diann/v1_8"), software="diann", requested_levels=("peptidoform_ion", "protein")
     )
     compiler.compile()
 
-    assert sorted(compiled) == ["ion", "protein"]
+    assert sorted(compiled) == ["peptidoform_ion", "protein"]
 
 
-@pytest.mark.parametrize("level", ["ion", "peptidoform"])
+@pytest.mark.parametrize("level", ["peptidoform_ion", "peptidoform"])
 def test_requested_level_does_not_invent_sage_charge_evidence(level: QuantificationLevel) -> None:
     with pytest.raises(RuleUnavailableError, match="combine_charge_states"):
         ParseRuleCompiler.from_software(_sample("sage"), software="sage", requested_levels=(level,))
@@ -120,9 +125,9 @@ def test_requested_level_does_not_invent_sage_charge_evidence(level: Quantificat
 
 def test_diann_v2_dia_defaults_to_precursor_normalised() -> None:
     compiler = ParseRuleCompiler.from_software(
-        _sample("diann/v2"), software="diann", requested_levels=("ion",)
+        _sample("diann/v2"), software="diann", requested_levels=("peptidoform_ion",)
     )
-    parsed = compiler.compile().parse().levels["ion"]
+    parsed = compiler.compile().parse().levels["peptidoform_ion"]
     assert parsed.primary_layer_name == "Precursor_Normalised"
 
 
@@ -132,8 +137,10 @@ def test_diann_v2_dda_column_selects_ms1_normalised(tmp_path: Path) -> None:
         pl.lit(0.01).alias("Ms1.Q.Value")
     ).write_parquet(source)
 
-    compiler = ParseRuleCompiler.from_software(source, software="diann", requested_levels=("ion",))
-    parsed = compiler.compile().parse().levels["ion"]
+    compiler = ParseRuleCompiler.from_software(
+        source, software="diann", requested_levels=("peptidoform_ion",)
+    )
+    parsed = compiler.compile().parse().levels["peptidoform_ion"]
     assert compiler.detection.levels[0].document.path.parent.name == "v2"
     assert parsed.primary_layer_name == "Ms1_Normalised"
 
@@ -177,7 +184,7 @@ def test_spectronaut_19_keeps_its_rule_with_a_comment_column(tmp_path: Path) -> 
 @pytest.mark.parametrize("version", ["v1_10", "v1_12", "v2"])
 def test_alphadia_version_is_selected_by_declared_columns(version: str) -> None:
     compiler = ParseRuleCompiler.from_software(
-        _sample(f"alphadia/{version}"), software="AlphaDIA", requested_levels=("ion",)
+        _sample(f"alphadia/{version}"), software="AlphaDIA", requested_levels=("peptidoform_ion",)
     )
 
     assert compiler.detection.levels[0].document.path.parent.name == version
@@ -198,10 +205,10 @@ def test_only_requested_levels_require_search_evidence(monkeypatch: pytest.Monke
     assert parsed.levels["protein"].var.frame.height > 0
     ion = (
         ParseRuleCompiler.from_software(
-            _sample("diann/v2"), software="diann", requested_levels=("ion",)
+            _sample("diann/v2"), software="diann", requested_levels=("peptidoform_ion",)
         )
         .compile()
         .parse()
-        .levels["ion"]
+        .levels["peptidoform_ion"]
     )
     assert ion.primary_layer_name == "Precursor_Normalised"

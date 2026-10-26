@@ -27,18 +27,18 @@ def identify(headers: Mapping[str, tuple[str, ...]]) -> dict[str, str]:
     if not any(column.startswith("raw_abundance_") for column in ions):
         return {}
     if _KEY in ions and _KEY in headers.get(_PROTEIN_SETS, ()):
-        return {"ion": _IONS, "protein": _PROTEIN_SETS}
-    return {"ion": _IONS}
+        return {"peptidoform_ion": _IONS, "protein": _PROTEIN_SETS}
+    return {"peptidoform_ion": _IONS}
 
 
 def join(tables: Mapping[str, pl.DataFrame]) -> pl.DataFrame:
     """Add each ion row's protein-set columns; ions without protein sets are only namespaced.
 
     The ion sheet lists a shared peptide once per protein set, so a row is one ion in one
-    protein set and stays one: the ion rule picks an ion's protein set by its score, and the
+    protein set and stays one: the peptidoform-ion rule picks an ion's protein set by its score, and the
     protein level reads every set's own columns from the rows of its ions.
     """
-    ions = _prefix(tables["ion"], "ion")
+    ions = _prefix(tables["peptidoform_ion"], "peptidoform_ion")
     proteins = tables.get("protein")
     if proteins is None:
         return ions
@@ -46,7 +46,7 @@ def join(tables: Mapping[str, pl.DataFrame]) -> pl.DataFrame:
         raise ValueError(f"MSAngel {_PROTEIN_SETS!r} has missing or duplicate {_KEY}")
     joined = ions.join(
         _prefix(proteins, "protein"),
-        left_on=f"ion.{_KEY}",
+        left_on=f"peptidoform_ion.{_KEY}",
         right_on=f"protein.{_KEY}",
         how="left",
         coalesce=False,
@@ -54,12 +54,12 @@ def join(tables: Mapping[str, pl.DataFrame]) -> pl.DataFrame:
         maintain_order="left",
     )
     unmatched = joined.filter(
-        pl.col(f"ion.{_KEY}").is_not_null() & pl.col(f"protein.{_KEY}").is_null()
+        pl.col(f"peptidoform_ion.{_KEY}").is_not_null() & pl.col(f"protein.{_KEY}").is_null()
     )
     if unmatched.height:
         raise ValueError(
             f"MSAngel: {unmatched.height} ion rows name a protein set {_PROTEIN_SETS!r} lacks, "
-            f"e.g. {unmatched.get_column(f'ion.{_KEY}').head(3).to_list()}"
+            f"e.g. {unmatched.get_column(f'peptidoform_ion.{_KEY}').head(3).to_list()}"
         )
     return joined
 

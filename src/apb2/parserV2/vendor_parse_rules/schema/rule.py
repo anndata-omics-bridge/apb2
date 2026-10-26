@@ -112,8 +112,10 @@ class LongRule(_RuleCore):
 
     @model_validator(mode="after")
     def _column_consistency(self) -> LongRule:
-        if self.fragments is not None and self.quantification_level != "fragment":
-            raise ValueError("fragments are valid only for quantification_level='fragment'")
+        if self.fragments is not None and self.quantification_level != "peptidoform_fragment":
+            raise ValueError(
+                "fragments are valid only for quantification_level='peptidoform_fragment'"
+            )
         if self.measurements.sample_layer is not None:
             raise ValueError(
                 "measurements.sample_layer is valid only for wide rules; long observations "
@@ -330,16 +332,16 @@ def _check_computed_column(
         _check_sequence_column(rule, column)
         return
     if isinstance(column, ProformaIon):
-        if rule.quantification_level not in {"ion", "fragment"}:
+        if rule.quantification_level not in {"peptidoform_ion", "peptidoform_fragment"}:
             raise ValueError("how='proforma_ion' is valid only for ion or fragment rules")
         source_types = {entry.name: entry.type for entry in var if entry.source is not None}
         if source_types.get(column.inputs[1]) != "integer":
             raise ValueError("how='proforma_ion' requires an integer charge source")
-        if rule.quantification_level == "ion" and column.name not in rule.axis.var_keys:
+        if rule.quantification_level == "peptidoform_ion" and column.name not in rule.axis.var_keys:
             raise ValueError("computed ProForma ion must be an axis.var_keys member")
         return
     if isinstance(column, ProformaFragment):
-        if rule.quantification_level != "fragment":
+        if rule.quantification_level != "peptidoform_fragment":
             raise ValueError("how='proforma_fragment' is valid only for fragment rules")
         if column.name not in rule.axis.var_keys:
             raise ValueError("computed ProForma fragment must be an axis.var_keys member")

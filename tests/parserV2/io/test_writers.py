@@ -109,7 +109,7 @@ def level(
 
 def one(parsed: ParsedLevel) -> ParsedLevels:
     """Wrap one level as the one-level result the writers persist."""
-    return ParsedLevels(levels={"ion": parsed}, uns={})
+    return ParsedLevels(levels={"peptidoform_ion": parsed}, uns={})
 
 
 def manifest_of(target: Path) -> dict[str, JsonValue]:
@@ -140,10 +140,10 @@ def test_a_parquet_dataset_round_trips_every_value_and_dtype(tmp_path: Path) -> 
     parsed.layers["Kind"].semantics = CategoricalLayerSemantics(
         categories=(("MS/MS", 1), ("MBR", 2))
     )
-    target = tmp_path / "ion"
+    target = tmp_path / "peptidoform_ion"
 
     ParquetLevelsWriter().write(one(parsed), target)
-    restored = ParquetReader().read(target).levels["ion"]
+    restored = ParquetReader().read(target).levels["peptidoform_ion"]
 
     assert restored.obs.frame.equals(parsed.obs.frame)
     assert restored.var.frame.schema == parsed.var.frame.schema
@@ -168,16 +168,16 @@ def test_the_manifest_states_what_every_file_is(tmp_path: Path) -> None:
             "Q Value": pl.DataFrame({"Feature": ["F1"], "Charge": [2], "obs_0": [0.01]}),
         },
     )
-    target = tmp_path / "ion"
+    target = tmp_path / "peptidoform_ion"
 
     ParquetLevelsWriter().write(one(parsed), target)
     manifest = manifest_of(target)
 
     assert manifest["format_version"] == "9"
-    assert manifest["level_order"] == ["ion"]
+    assert manifest["level_order"] == ["peptidoform_ion"]
     levels = manifest["levels"]
     assert isinstance(levels, dict)
-    ion = levels["ion"]
+    ion = levels["peptidoform_ion"]
     assert isinstance(ion, dict)
     assert ion["primary_layer"] == "Intensity"
     assert ion["layer_order"] == ["Intensity", "Q Value"]
@@ -196,7 +196,7 @@ def test_the_manifest_states_what_every_file_is(tmp_path: Path) -> None:
         "role": "measurement",
         "semantics": {"kind": "quantitative", "logical_type": "number"},
     }
-    assert (target / "levels" / "ion" / "layers" / "Q_Value.parquet").is_file()
+    assert (target / "levels" / "peptidoform_ion" / "layers" / "Q_Value.parquet").is_file()
 
 
 def test_a_layer_name_is_mapped_to_a_file_name_never_interpolated(tmp_path: Path) -> None:
@@ -209,18 +209,18 @@ def test_a_layer_name_is_mapped_to_a_file_name_never_interpolated(tmp_path: Path
             "Intensity": pl.DataFrame({"Feature": ["F1"], "obs_0": [3.0]}),
         },
     )
-    target = tmp_path / "ion"
+    target = tmp_path / "peptidoform_ion"
 
     ParquetLevelsWriter().write(one(parsed), target)
     manifest = manifest_of(target)
     levels = manifest["levels"]
     assert isinstance(levels, dict)
-    ion = levels["ion"]
+    ion = levels["peptidoform_ion"]
     assert isinstance(ion, dict)
     layers = ion["layers"]
 
     assert isinstance(layers, dict)
-    layer_directory = target / "levels" / "ion" / "layers"
+    layer_directory = target / "levels" / "peptidoform_ion" / "layers"
     files = sorted(path.name for path in layer_directory.iterdir())
     assert files == ["Intensity.parquet", "escape.parquet", "escape_1.parquet"]
     assert not (tmp_path / "escape.parquet").exists()
@@ -231,19 +231,19 @@ def test_a_layer_name_is_mapped_to_a_file_name_never_interpolated(tmp_path: Path
 
 
 def test_writing_over_an_existing_dataset_leaves_only_the_new_one(tmp_path: Path) -> None:
-    target = tmp_path / "ion"
+    target = tmp_path / "peptidoform_ion"
     ParquetLevelsWriter().write(one(level()), target)
-    layer_directory = target / "levels" / "ion" / "layers"
+    layer_directory = target / "levels" / "peptidoform_ion" / "layers"
     (layer_directory / "Stale.parquet").write_bytes(b"stale")
 
     ParquetLevelsWriter().write(one(level()), target)
 
     assert sorted(path.name for path in layer_directory.iterdir()) == ["Intensity.parquet"]
-    assert sorted(path.name for path in tmp_path.iterdir()) == ["ion"]
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["peptidoform_ion"]
 
 
 def test_a_target_that_is_not_a_directory_is_refused(tmp_path: Path) -> None:
-    target = tmp_path / "ion"
+    target = tmp_path / "peptidoform_ion"
     target.write_text("not a dataset", encoding="utf-8")
 
     with pytest.raises(InvalidResultError, match="not a directory"):
@@ -255,7 +255,7 @@ def test_a_target_that_is_not_a_directory_is_refused(tmp_path: Path) -> None:
 def test_a_failure_part_way_through_leaves_the_previous_dataset_intact(
     tmp_path: Path,
 ) -> None:
-    target = tmp_path / "ion"
+    target = tmp_path / "peptidoform_ion"
     ParquetLevelsWriter().write(one(level()), target)
     before = (target / MANIFEST_NAME).read_bytes()
     broken = level(
@@ -268,7 +268,7 @@ def test_a_failure_part_way_through_leaves_the_previous_dataset_intact(
         ParquetLevelsWriter().write(one(broken), target)
 
     assert (target / MANIFEST_NAME).read_bytes() == before
-    assert sorted(path.name for path in tmp_path.iterdir()) == ["ion"]
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["peptidoform_ion"]
 
 
 def test_the_parquet_writer_imports_no_encoder_backend() -> None:
@@ -645,7 +645,7 @@ def write_h5ad(parsed: ParsedLevel, target: Path) -> None:
 def test_an_auxiliary_layer_cannot_be_the_primary_matrix(tmp_path: Path) -> None:
     parsed = level()
     parsed.layers["Intensity"].role = AuxiliaryLayerRole()
-    target = tmp_path / "ion.h5ad"
+    target = tmp_path / "peptidoform_ion.h5ad"
 
     with pytest.raises(InvalidResultError, match=r"primary layer.*is auxiliary"):
         write_h5ad(parsed, target)
@@ -723,7 +723,7 @@ def test_the_parser_owned_anndata_writer_validates_layer_key_alignment(tmp_path:
         semantic_roles=parsed.layers["Intensity"].semantic_roles,
         semantics=parsed.layers["Intensity"].semantics,
     )
-    target = tmp_path / "ion.h5ad"
+    target = tmp_path / "peptidoform_ion.h5ad"
 
     with pytest.raises(InvalidResultError, match="rows"):
         write_h5ad(parsed, target)
@@ -735,7 +735,7 @@ def test_the_written_object_is_observations_by_variables_with_the_primary_layer_
     tmp_path: Path,
 ) -> None:
     parsed = level()
-    target = tmp_path / "ion.h5ad"
+    target = tmp_path / "peptidoform_ion.h5ad"
 
     write_h5ad(parsed, target)
     stored = anndata.read_h5ad(target)
@@ -757,7 +757,7 @@ def test_the_primary_layer_is_stored_only_in_x(
         },
         var=pl.DataFrame({"Feature": ["F1"]}),
     )
-    target = tmp_path / "ion.h5ad"
+    target = tmp_path / "peptidoform_ion.h5ad"
 
     write_h5ad(parsed, target)
     stored = anndata.read_h5ad(target)
@@ -771,13 +771,13 @@ def test_h5ad_namespaces_have_one_scientific_owner_and_one_storage_descriptor(
     tmp_path: Path,
 ) -> None:
     parsed = level()
-    target = tmp_path / "ion.h5ad"
+    target = tmp_path / "peptidoform_ion.h5ad"
 
     write_h5ad(parsed, target)
     stored = anndata.read_h5ad(target)
 
     assert set(stored.uns[NAMESPACE]) == {PARSE_NAMESPACE, STORAGE_NAMESPACE}
-    apb = stored.uns["ion"][NAMESPACE]
+    apb = stored.uns["peptidoform_ion"][NAMESPACE]
     assert set(apb) == {PARSE_NAMESPACE, "roles", STORAGE_NAMESPACE}
     storage = json.loads(apb[STORAGE_NAMESPACE])
     assert storage["layers"] == [
@@ -800,7 +800,7 @@ def test_every_authored_key_stays_an_ordinary_column_beside_the_storage_index(
         var=pl.DataFrame({"Feature": ["F1", "F2"], "Gene": ["G1", "G2"]}),
         obs=pl.DataFrame({"Run": ["A", "B"], "Fraction": ["1", "2"]}),
     )
-    target = tmp_path / "ion.h5ad"
+    target = tmp_path / "peptidoform_ion.h5ad"
 
     write_h5ad(parsed, target)
     stored = anndata.read_h5ad(target)
@@ -819,7 +819,7 @@ def test_a_single_nonstring_key_becomes_a_typed_storage_string(tmp_path: Path) -
             "Intensity": pl.DataFrame({"Charge": [2, 3], "obs_0": [1.0, 2.0], "obs_1": [3.0, 4.0]})
         },
     )
-    target = tmp_path / "ion.h5ad"
+    target = tmp_path / "peptidoform_ion.h5ad"
 
     write_h5ad(parsed, target)
     stored = anndata.read_h5ad(target)
@@ -844,7 +844,7 @@ def test_a_multi_column_key_index_survives_embedded_separators(tmp_path: Path) -
             )
         },
     )
-    target = tmp_path / "ion.h5ad"
+    target = tmp_path / "peptidoform_ion.h5ad"
 
     write_h5ad(parsed, target)
     stored = anndata.read_h5ad(target)
@@ -878,7 +878,7 @@ def test_bulk_axis_conversion_preserves_scalar_spelling_and_json_escaping() -> N
         layers={"Intensity": keys.with_columns(obs_0=pl.lit(1.0), obs_1=pl.lit(2.0))},
     )
     with pytest.warns(pl.exceptions.PolarsInefficientMapWarning):
-        converted = AnnDataWriter().to_anndata_for_level(parsed, "ion").var
+        converted = AnnDataWriter().to_anndata_for_level(parsed, "peptidoform_ion").var
     expected = [
         json.dumps(
             [
@@ -907,7 +907,7 @@ def test_bulk_axis_conversion_preserves_empty_typed_columns() -> None:
             "Intensity": frame.select("key").with_columns(obs_0=pl.lit(1.0), obs_1=pl.lit(2.0))
         },
     )
-    converted = AnnDataWriter().to_anndata_for_level(parsed, "ion").var
+    converted = AnnDataWriter().to_anndata_for_level(parsed, "peptidoform_ion").var
     assert isinstance(converted, pd.DataFrame)
     assert converted.empty
     assert converted.dtypes.astype(str).tolist() == ["string", "boolean", "Int64", "float64"]
@@ -945,7 +945,7 @@ def test_axis_dtypes_are_normalized_to_what_hdf5_accepts(tmp_path: Path) -> None
             }
         )
     )
-    target = tmp_path / "ion.h5ad"
+    target = tmp_path / "peptidoform_ion.h5ad"
 
     write_h5ad(parsed, target)
     stored = anndata.read_h5ad(target)
@@ -976,7 +976,7 @@ def test_only_repeated_axis_strings_are_dictionary_encoded(tmp_path: Path) -> No
             )
         },
     )
-    target = tmp_path / "ion.h5ad"
+    target = tmp_path / "peptidoform_ion.h5ad"
 
     write_h5ad(parsed, target)
     stored = anndata.read_h5ad(target)
@@ -998,12 +998,12 @@ def test_only_repeated_axis_strings_are_dictionary_encoded(tmp_path: Path) -> No
 
 def test_the_provenance_is_written_under_the_parse_tool_namespace(tmp_path: Path) -> None:
     parsed = level(uns={"result": {"unknown_mod_tokens": ["Mystery@M"]}})
-    target = tmp_path / "ion.h5ad"
+    target = tmp_path / "peptidoform_ion.h5ad"
 
     write_h5ad(parsed, target)
     stored = anndata.read_h5ad(target)
 
-    parse_namespace = stored.uns["ion"][NAMESPACE][PARSE_NAMESPACE]
+    parse_namespace = stored.uns["peptidoform_ion"][NAMESPACE][PARSE_NAMESPACE]
     assert parse_namespace["provenance"]["software_name"] == "Synthetic"
     assert list(parse_namespace["result"]["unknown_mod_tokens"]) == ["Mystery@M"]
 
@@ -1011,7 +1011,7 @@ def test_the_provenance_is_written_under_the_parse_tool_namespace(tmp_path: Path
 def test_a_failed_write_leaves_the_previous_file_and_no_scratch_behind(
     tmp_path: Path,
 ) -> None:
-    target = tmp_path / "ion.h5ad"
+    target = tmp_path / "peptidoform_ion.h5ad"
     parsed = level()
     write_h5ad(parsed, target)
     before = target.read_bytes()
@@ -1030,14 +1030,18 @@ def test_a_failed_write_leaves_the_previous_file_and_no_scratch_behind(
         write_h5ad(broken, target)
 
     assert target.read_bytes() == before
-    assert sorted(path.name for path in tmp_path.iterdir()) == ["ion.h5ad"]
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["peptidoform_ion.h5ad"]
 
 
 def test_mudata_writer_materializes_each_canonical_level(
     tmp_path: Path,
 ) -> None:
     ion = level(
-        uns={"hierarchy": "lfq", "software_name": "Synthetic", "quantification_level": "ion"},
+        uns={
+            "hierarchy": "lfq",
+            "software_name": "Synthetic",
+            "quantification_level": "peptidoform_ion",
+        },
     )
     protein = level(
         var=pl.DataFrame({"Protein": ["P1"]}),
@@ -1049,7 +1053,7 @@ def test_mudata_writer_materializes_each_canonical_level(
 
     MuDataWriter().write(
         ParsedLevels(
-            levels={"ion": ion, "protein": protein},
+            levels={"peptidoform_ion": ion, "protein": protein},
             uns={
                 "produced_by": "apb2",
                 "rule_selection_method": "rule_config",
@@ -1059,14 +1063,17 @@ def test_mudata_writer_materializes_each_canonical_level(
     )
 
     stored = mudata.read_h5mu(target)
-    assert list(stored.mod) == ["ion", "protein"]
-    assert stored["ion"].shape == (2, 2)
+    assert list(stored.mod) == ["peptidoform_ion", "protein"]
+    assert stored["peptidoform_ion"].shape == (2, 2)
     assert stored["protein"].shape == (2, 1)
-    assert list(stored["ion"].var_names) == ["ion:F1", "ion:F2"]
+    assert list(stored["peptidoform_ion"].var_names) == ["pfi:F1", "pfi:F2"]
     assert list(stored["protein"].var_names) == ["prt:P1"]
-    assert list(stored["ion"].var["Feature"].astype("string")) == ["F1", "F2"]
+    assert list(stored["peptidoform_ion"].var["Feature"].astype("string")) == ["F1", "F2"]
     assert stored.uns[NAMESPACE][PARSE_NAMESPACE]["rule_selection_method"] == "rule_config"
-    assert stored["ion"].uns[NAMESPACE][PARSE_NAMESPACE]["quantification_level"] == "ion"
+    assert (
+        stored["peptidoform_ion"].uns[NAMESPACE][PARSE_NAMESPACE]["quantification_level"]
+        == "peptidoform_ion"
+    )
 
 
 def test_mudata_writer_accepts_one_level_but_rejects_no_levels(tmp_path: Path) -> None:
@@ -1074,11 +1081,11 @@ def test_mudata_writer_accepts_one_level_but_rejects_no_levels(tmp_path: Path) -
     writer = MuDataWriter()
 
     writer.write(
-        ParsedLevels(levels={"ion": ion}, uns={"produced_by": "apb2"}),
-        tmp_path / "ion.h5mu",
+        ParsedLevels(levels={"peptidoform_ion": ion}, uns={"produced_by": "apb2"}),
+        tmp_path / "peptidoform_ion.h5mu",
     )
 
-    assert list(mudata.read_h5mu(tmp_path / "ion.h5mu").mod) == ["ion"]
+    assert list(mudata.read_h5mu(tmp_path / "peptidoform_ion.h5mu").mod) == ["peptidoform_ion"]
     with pytest.raises(MuDataLevelError, match="no parsed levels"):
         MuDataWriter().write(
             ParsedLevels(levels={}, uns={}),
@@ -1114,7 +1121,7 @@ def test_one_array_is_allocated_for_each_encoded_layer(
         var=pl.DataFrame({"Feature": ["F1"]}),
     )
 
-    write_h5ad(parsed, tmp_path / "ion.h5ad")
+    write_h5ad(parsed, tmp_path / "peptidoform_ion.h5ad")
 
     assert allocated == [(1, 2), (1, 2)]
 
@@ -1137,7 +1144,7 @@ def test_the_h5_writer_widens_each_layer_once_and_writes_it_into_the_file(
             "QValue": pl.DataFrame({"obs_0": [0.01, None], "obs_1": [0.02, 0.03]}),
         }
     )
-    target = tmp_path / "ion.h5ad"
+    target = tmp_path / "peptidoform_ion.h5ad"
 
     write_h5ad(parsed, target)
 

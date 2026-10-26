@@ -107,7 +107,7 @@ def test_the_packaged_fragment_level_parses_its_own_export() -> None:
     data = committed_sample(pair.sample_key)
     assert data is not None
     facade = ParseRuleFacade(
-        load_rule_document(pair.parser_v2_path), "fragment", evidence_for(pair)
+        load_rule_document(pair.parser_v2_path), "peptidoform_fragment", evidence_for(pair)
     )
 
     parsed = (
@@ -137,14 +137,14 @@ def test_each_level_reads_only_its_own_columns_from_one_shared_source() -> None:
         ExplicitRuleCompiler(
             document,
             source,
-            ("ion", "protein"),
+            ("peptidoform_ion", "protein"),
             evidence_for(pair),
             checks="standard",
         )
         .compile()
         .parse()
     )
-    ion = parsed.levels["ion"]
+    ion = parsed.levels["peptidoform_ion"]
     protein = parsed.levels["protein"]
 
     assert ion.var.key_columns == ("ProForma_ion",)
@@ -218,7 +218,7 @@ def test_a_gate_reached_through_the_outer_boundary_selects_the_level() -> None:
         Parameters(software_name="Sage", acquisition_method="DDA", combine_charge_states=False)
     )
 
-    for evidence, expected in ((combined, "peptidoform"), (separate, "ion")):
+    for evidence, expected in ((combined, "peptidoform"), (separate, "peptidoform_ion")):
         source = SingleFile(path=data)
         compiler = ExplicitRuleCompiler(
             document,
@@ -238,11 +238,15 @@ def test_an_override_reached_through_the_outer_boundary_swaps_the_primary_layer(
     dia = search_parameter_evidence(Parameters(software_name="DIA-NN", acquisition_method="DIA"))
 
     assert (
-        ParseRuleFacade(document, "ion", dda).working_parameters.measurements.primary_layer_name
+        ParseRuleFacade(
+            document, "peptidoform_ion", dda
+        ).working_parameters.measurements.primary_layer_name
         == "Ms1_Normalised"
     )
     assert (
-        ParseRuleFacade(document, "ion", dia).working_parameters.measurements.primary_layer_name
+        ParseRuleFacade(
+            document, "peptidoform_ion", dia
+        ).working_parameters.measurements.primary_layer_name
         == "Precursor_Normalised"
     )
 
@@ -250,7 +254,9 @@ def test_an_override_reached_through_the_outer_boundary_swaps_the_primary_layer(
 def test_the_provenance_of_a_parsed_level_names_the_rule_it_came_from() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "alphapept")
     data = pair.required_data_path()
-    facade = ParseRuleFacade(load_rule_document(pair.parser_v2_path), "ion", evidence_for(pair))
+    facade = ParseRuleFacade(
+        load_rule_document(pair.parser_v2_path), "peptidoform_ion", evidence_for(pair)
+    )
 
     parsed: ParsedLevel = (
         PhysicalTable(make_vendor_file(data)).parser(facade, "standard").parse_with_timings()[0]
@@ -261,5 +267,5 @@ def test_the_provenance_of_a_parsed_level_names_the_rule_it_came_from() -> None:
     assert set(provenance).isdisjoint({"software_name", "quantification_level", "schema_version"})
     rule = json.loads(str(provenance["rule_json"]))
     assert rule["software_name"] == "AlphaPept"
-    assert rule["quantification_level"] == "ion"
+    assert rule["quantification_level"] == "peptidoform_ion"
     assert rule["schema_version"] == "0.9"

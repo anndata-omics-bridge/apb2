@@ -4,7 +4,7 @@
   "params": "param_0..txt",
   "sample_rows": 500,
   "levels": {
-    "fragment": {
+    "peptidoform_fragment": {
       "observations": 2,
       "variables": 1529,
       "layers": [
@@ -13,7 +13,7 @@
         "Fragment_Quant_Corrected"
       ]
     },
-    "ion": {
+    "peptidoform_ion": {
       "observations": 2,
       "variables": 256,
       "layers": [

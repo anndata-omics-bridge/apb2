@@ -89,7 +89,7 @@ def test_the_serialization_covers_every_source_decision_without_provenance() -> 
         "layer_contract",
     }
     assert set(decoded["read"]) == {field.name for field in dataclasses.fields(plan.read)}
-    assert decoded["level"] == "ion"
+    assert decoded["level"] == "peptidoform_ion"
     assert decoded["duplicate_mode"] == "error"
 
 
@@ -195,7 +195,7 @@ def test_a_compiled_parser_stores_the_plan_beside_the_rule_it_came_from(tmp_path
 
     provenance = parsed.uns["provenance"]
     assert isinstance(provenance, dict)
-    assert json.loads(str(provenance[PLAN_JSON_KEY]))["level"] == "ion"
+    assert json.loads(str(provenance[PLAN_JSON_KEY]))["level"] == "peptidoform_ion"
     assert "rule_json" in provenance
 
 
@@ -227,13 +227,15 @@ def test_the_plan_reaches_the_parse_namespace_of_a_written_h5ad(tmp_path: Path) 
     parser = PhysicalTable(make_vendor_file(written(tmp_path))).parser(
         synthetic.facade(document), "standard"
     )
-    target = tmp_path / "ion.h5ad"
+    target = tmp_path / "peptidoform_ion.h5ad"
 
     write_level(parser.parse_with_timings()[0], target)
 
     stored = anndata.read_h5ad(target)
-    plan = json.loads(stored.uns["ion"][NAMESPACE][PARSE_NAMESPACE]["provenance"][PLAN_JSON_KEY])
-    assert plan["level"] == "ion"
+    plan = json.loads(
+        stored.uns["peptidoform_ion"][NAMESPACE][PARSE_NAMESPACE]["provenance"][PLAN_JSON_KEY]
+    )
+    assert plan["level"] == "peptidoform_ion"
     assert plan["read"]["projected_columns"] == ["Sample", "Feature", "Quantity"]
 
 
@@ -244,13 +246,13 @@ def test_the_plan_reaches_the_manifest_of_a_written_parquet_dataset(tmp_path: Pa
     parser = PhysicalTable(make_vendor_file(written(tmp_path))).parser(
         synthetic.facade(document), "standard"
     )
-    target = tmp_path / "ion.parquet"
+    target = tmp_path / "peptidoform_ion.parquet"
 
     write_level(parser.parse_with_timings()[0], target)
 
     manifest = json.loads((target / MANIFEST_NAME).read_text(encoding="utf-8"))
-    parse = manifest["levels"]["ion"]["apb"]["parse"]
-    assert json.loads(parse["provenance"][PLAN_JSON_KEY])["level"] == "ion"
+    parse = manifest["levels"]["peptidoform_ion"]["apb"]["parse"]
+    assert json.loads(parse["provenance"][PLAN_JSON_KEY])["level"] == "peptidoform_ion"
 
 
 def test_reading_results_does_not_reinterpret_old_rule_or_plan_provenance(tmp_path: Path) -> None:
@@ -262,7 +264,7 @@ def test_reading_results_does_not_reinterpret_old_rule_or_plan_provenance(tmp_pa
     )
     parsed = parser.parse_with_timings()[0]
     old_rule = (
-        '{"schema_version":"0.7","quantification_level":"ion",'
+        '{"schema_version":"0.7","quantification_level":"peptidoform_ion",'
         '"modifications":{"output_column":"proforma_sequence"}}'
     )
     provenance = parsed.uns["provenance"]
@@ -270,7 +272,7 @@ def test_reading_results_does_not_reinterpret_old_rule_or_plan_provenance(tmp_pa
     provenance["rule_json"] = old_rule
     old_plan = json.dumps(
         {
-            "level": "ion",
+            "level": "peptidoform_ion",
             "raw_value_presence": [{"kind": "null_only", "layer_name": "Quantity"}],
             "layer_values": [
                 {
@@ -286,7 +288,7 @@ def test_reading_results_does_not_reinterpret_old_rule_or_plan_provenance(tmp_pa
     provenance[PLAN_JSON_KEY] = old_plan
     target = tmp_path / "old-provenance.h5ad"
     write_level(parsed, target)
-    restored = H5adReader().read(target).levels["ion"]
+    restored = H5adReader().read(target).levels["peptidoform_ion"]
     stored = restored.uns["provenance"]
     assert isinstance(stored, dict)
     assert stored["rule_json"] == old_rule

@@ -78,7 +78,9 @@ def base(operations: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def document(declaration: dict[str, Any], level: dict[str, Any] | None = None) -> RuleDocument:
-    return synthetic.document(shape="long", base=declaration, levels={"ion": level or {}})
+    return synthetic.document(
+        shape="long", base=declaration, levels={"peptidoform_ion": level or {}}
+    )
 
 
 def frame() -> pl.DataFrame:
@@ -292,7 +294,7 @@ def test_invalid_dependencies_and_references_fail_before_reading(
     declaration = base([NORMALIZE])
     declaration["columns"]["var"][-1][field] = value
     with pytest.raises(ValidationError, match=match):
-        document(declaration).declared("ion")
+        document(declaration).declared("peptidoform_ion")
 
 
 def test_forward_references_and_cycles_are_not_silently_reordered() -> None:
@@ -300,7 +302,7 @@ def test_forward_references_and_cycles_are_not_silently_reordered() -> None:
     declaration["columns"]["var"][-2]["inputs"] = ["ProForma_peptidoform"]
     declaration["columns"]["var"][-1]["inputs"] = ["ProForma_peptide"]
     with pytest.raises(ValidationError, match="undeclared"):
-        document(declaration).declared("ion")
+        document(declaration).declared("peptidoform_ion")
 
 
 @pytest.mark.parametrize("operation", [STRIP, NORMALIZE])
@@ -310,7 +312,7 @@ def test_operation_rejects_incompatible_syntax(operation: dict[str, Any]) -> Non
         "parser": "site_list" if operation == STRIP else "plain_sequence",
     }
     with pytest.raises(ValidationError, match="syntax"):
-        document(declaration).declared("ion")
+        document(declaration).declared("peptidoform_ion")
 
 
 def test_named_definitions_are_replaced_whole_after_base_composition(tmp_path: Path) -> None:
@@ -327,7 +329,7 @@ def test_named_definitions_are_replaced_whole_after_base_composition(tmp_path: P
         },
     }
     built = document(declaration, level)
-    effective = built.declared("ion").declaration
+    effective = built.declared("peptidoform_ion").declaration
     assert [entry.token for entry in effective.modification_maps["basic_modification_map"]] == [
         "new"
     ]
@@ -337,7 +339,7 @@ def test_named_definitions_are_replaced_whole_after_base_composition(tmp_path: P
     ]
     level["sequence_syntax"]["vendor_sequence"].pop("token_pattern")
     with pytest.raises(ValidationError, match="token_pattern"):
-        document(declaration, level).declared("ion")
+        document(declaration, level).declared("peptidoform_ion")
 
 
 @pytest.mark.parametrize("pattern", [r"\[([^\]]+)\]", r"\[(?P<site>[^\]]+)\]", r"\[[^\]]+\]"])
@@ -346,7 +348,7 @@ def test_a_token_pattern_names_every_group_after_its_site(pattern: str) -> None:
         "sequence_syntax": {"vendor_sequence": {"parser": "token_regex", "token_pattern": pattern}}
     }
     with pytest.raises(ValidationError, match="must name every capturing group"):
-        document(base([NORMALIZE]), level).declared("ion")
+        document(base([NORMALIZE]), level).declared("peptidoform_ion")
 
 
 def test_memoization_is_local_to_each_operation() -> None:
@@ -459,4 +461,4 @@ def test_stripping_does_not_accept_normalization_only_fields(field: str) -> None
     declaration = base([STRIP])
     declaration["columns"]["var"][-1][field] = NORMALIZE.get(field, False)
     with pytest.raises(ValidationError, match="extra_forbidden"):
-        document(declaration).declared("ion")
+        document(declaration).declared("peptidoform_ion")

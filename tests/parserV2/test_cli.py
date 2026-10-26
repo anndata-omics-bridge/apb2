@@ -41,7 +41,7 @@ _DOCUMENT = {
                     "layers": [{"name": "Abundance", "source": "Intensity"}],
                 },
             },
-            "levels": {"ion": {}},
+            "levels": {"peptidoform_ion": {}},
         }
     ],
 }
@@ -67,7 +67,7 @@ def test_strict_makes_an_effectively_empty_layer_a_conversion_error(
 
     exit_code = convert(
         report,
-        "ion",
+        "peptidoform_ion",
         ConvertCliOptions(rule_config=rule_config, output=tmp_path / "out", strict=strict),
     )
 
@@ -90,7 +90,7 @@ def test_convert_diann_with_software_and_no_params(tmp_path: Path) -> None:
 
     exit_code = convert(
         source,
-        "ion",
+        "peptidoform_ion",
         ConvertCliOptions(software="DIA-NN", output=tmp_path / "diann"),
     )
 
@@ -125,7 +125,7 @@ _MULTILEVEL_DOCUMENT = {
                 },
             },
             "levels": {
-                "ion": {},
+                "peptidoform_ion": {},
                 "protein": {"axis": {"var_keys": ["protein"]}},
             },
         }
@@ -145,14 +145,14 @@ def test_convert_with_rule_config_writes_h5ad(tmp_path: Path) -> None:
 
     exit_code = convert(
         report,
-        "ion",
+        "peptidoform_ion",
         ConvertCliOptions(rule_config=rule_config, output=tmp_path / "out"),
     )
 
     assert exit_code == 0
     written = anndata.read_h5ad(tmp_path / "out.h5ad")
     assert written.shape == (2, 2)
-    level = written.uns["ion"][NAMESPACE][PARSE_NAMESPACE]["provenance"]
+    level = written.uns["peptidoform_ion"][NAMESPACE][PARSE_NAMESPACE]["provenance"]
     assert "rule_selection_method" not in level
     assert json.loads(str(level["rule_json"]))["software_name"] == "CliTest"
     representation = json.loads(sidecar_path(tmp_path / "out.h5ad").read_text())
@@ -172,7 +172,7 @@ def test_convert_writes_optional_separate_timing_file(tmp_path: Path) -> None:
     assert (
         convert(
             report,
-            "ion",
+            "peptidoform_ion",
             ConvertCliOptions(
                 rule_config=rule_config,
                 output=tmp_path / "out",
@@ -189,12 +189,12 @@ def test_convert_writes_optional_separate_timing_file(tmp_path: Path) -> None:
     assert document["operation"] == "convert"
     assert [phase["name"] for phase in document["phases"]] == ["compile", "read", "parse", "write"]
     assert all(phase["seconds"] >= 0 for phase in document["phases"])
-    assert [level["level"] for level in document["levels"]] == ["ion"]
+    assert [level["level"] for level in document["levels"]] == ["peptidoform_ion"]
     assert "timings" not in anndata.read_h5ad(tmp_path / "out.h5ad").uns
     assert (
         convert(
             report,
-            "ion",
+            "peptidoform_ion",
             ConvertCliOptions(
                 rule_config=rule_config,
                 output=tmp_path / "again",
@@ -219,10 +219,10 @@ def test_convert_without_a_level_writes_every_rule_level_as_mudata(tmp_path: Pat
 
     assert exit_code == 0
     written = mudata.read_h5mu(tmp_path / "out.h5mu")
-    assert list(written.mod) == ["ion", "protein"]
-    assert list(written.mod) == ["ion", "protein"]
+    assert list(written.mod) == ["peptidoform_ion", "protein"]
+    assert list(written.mod) == ["peptidoform_ion", "protein"]
     representation = json.loads(sidecar_path(tmp_path / "out.h5mu").read_text())
-    assert [level["name"] for level in representation["levels"]] == ["ion", "protein"]
+    assert [level["name"] for level in representation["levels"]] == ["peptidoform_ion", "protein"]
 
 
 @pytest.mark.parametrize("storage_format", ["parquet", "duckdb"])
@@ -246,7 +246,7 @@ def test_convert_without_a_level_uses_selected_storage_writer(
 
     target = tmp_path / f"out.{storage_format}"
     assert exit_code == 0
-    assert list(read_parsed_levels(target).levels) == ["ion", "protein"]
+    assert list(read_parsed_levels(target).levels) == ["peptidoform_ion", "protein"]
     assert sidecar_path(target).is_file()
 
 
@@ -262,7 +262,7 @@ def test_convert_without_a_level_keeps_one_compatible_level_in_mudata(tmp_path: 
     )
 
     assert exit_code == 0
-    assert list(mudata.read_h5mu(tmp_path / "out.h5mu").mod) == ["ion"]
+    assert list(mudata.read_h5mu(tmp_path / "out.h5mu").mod) == ["peptidoform_ion"]
 
 
 def test_convert_with_rule_config_does_not_embed_the_parameter_record(tmp_path: Path) -> None:
@@ -274,7 +274,7 @@ def test_convert_with_rule_config_does_not_embed_the_parameter_record(tmp_path: 
 
     exit_code = convert(
         report,
-        "ion",
+        "peptidoform_ion",
         ConvertCliOptions(
             params=parameters,
             software="WOMBAT-P",
@@ -285,7 +285,7 @@ def test_convert_with_rule_config_does_not_embed_the_parameter_record(tmp_path: 
 
     assert exit_code == 0
     stored = anndata.read_h5ad(tmp_path / "out.h5ad")
-    namespace = stored.uns["ion"][NAMESPACE][PARSE_NAMESPACE]["provenance"]
+    namespace = stored.uns["peptidoform_ion"][NAMESPACE][PARSE_NAMESPACE]["provenance"]
     assert "search_parameters" not in namespace
     assert "search_parameters_path" not in namespace
 
@@ -299,12 +299,12 @@ def test_convert_accepts_a_dotted_basename_and_appends_its_own_suffix(tmp_path: 
 
     exit_code = convert(
         report,
-        "ion",
-        ConvertCliOptions(rule_config=rule_config, output=tmp_path / "ion.apb2"),
+        "peptidoform_ion",
+        ConvertCliOptions(rule_config=rule_config, output=tmp_path / "peptidoform_ion.apb2"),
     )
 
     assert exit_code == 0
-    assert (tmp_path / "ion.apb2.h5ad").is_file()
+    assert (tmp_path / "peptidoform_ion.apb2.h5ad").is_file()
 
 
 def test_convert_rejects_output_that_already_carries_the_appended_suffix(
@@ -315,7 +315,7 @@ def test_convert_rejects_output_that_already_carries_the_appended_suffix(
 
     exit_code = convert(
         report,
-        "ion",
+        "peptidoform_ion",
         ConvertCliOptions(output=tmp_path / "out.h5ad"),
     )
 
@@ -357,7 +357,7 @@ def test_convert_incompatible_source_fails(tmp_path: Path) -> None:
 
     exit_code = convert(
         report,
-        "ion",
+        "peptidoform_ion",
         ConvertCliOptions(rule_config=rule_config, output=tmp_path / "out"),
     )
 
@@ -374,7 +374,7 @@ def test_convert_invalid_parameters_fail(tmp_path: Path) -> None:
 
     exit_code = convert(
         report,
-        "ion",
+        "peptidoform_ion",
         ConvertCliOptions(
             params=parameters,
             software="wombatp",
@@ -402,7 +402,7 @@ def test_convert_reports_an_expected_writer_failure(
     assert (
         convert(
             report,
-            "ion",
+            "peptidoform_ion",
             ConvertCliOptions(rule_config=rule_config, output=tmp_path / "out"),
         )
         == 1
@@ -425,6 +425,6 @@ def test_convert_does_not_hide_an_unexpected_failure(
     with pytest.raises(RuntimeError, match="implementation defect"):
         convert(
             report,
-            "ion",
+            "peptidoform_ion",
             ConvertCliOptions(rule_config=rule_config, output=tmp_path / "out"),
         )

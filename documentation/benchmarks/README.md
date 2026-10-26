@@ -80,7 +80,7 @@ criterion.
 Correctness was checked after every pair. The 6 observation rows, 72,804 variable rows, all 1 obs
 and 11 var metadata columns, the five named layers, and `X` agree after alignment by authored keys.
 That is 2,620,944 equal matrix cells. This establishes the result for this one representative
-DIA-NN v1 ion workload; it is not yet a claim about other DIA-NN versions, levels, or vendors.
+DIA-NN v1 peptidoform-ion workload; it is not yet a claim about other DIA-NN versions, levels, or vendors.
 
 The complete machine-readable record is
 [`results/diann_v1_ion_2026-08-23.json`](results/diann_v1_ion_2026-08-23.json).
@@ -110,7 +110,7 @@ uv sync --group dev
 .venv/bin/python documentation/benchmarks/long_table_conversion.py --table path/to/input_file.tsv
 ```
 
-Column names default to a Spectronaut ion-level export; override `--obs-key`, `--var-keys`,
+Column names default to a Spectronaut peptidoform-ion-level export; override `--obs-key`, `--var-keys`,
 `--layers`, `--carry`, and `--filter-column` for another vendor. `--repeats` sets the timed
 runs per variant (one warm-up per variant runs first and is discarded).
 
@@ -136,7 +136,7 @@ that grows and a Parquet file with 124 267 columns would be pathological.
 ### Result, 2026-08-21
 
 `apb/test_data_download/json_dir/Results_quant_ion_DIA_diaPASEF/77d349e2ce7f189e0b80d55a6bbeebde58b539c2/input_file.tsv`
-— a Spectronaut diaPASEF ion-level export, 695 MiB, 719 230 rows x 71 columns, 9 columns read,
+— a Spectronaut diaPASEF peptidoform-ion-level export, 695 MiB, 719 230 rows x 71 columns, 9 columns read,
 scattered into a 6 x 124 267 matrix per layer. pandas 3.0.5, polars 1.43.2, DuckDB 1.5.5,
 pyarrow 25.0.1, Python 3.13, 14 cores / 48 GB, warm page cache, median of 3 timed runs after a
 discarded warm-up.
@@ -239,7 +239,7 @@ therefore reported rather than thresholded.
 
 ```bash
 .venv/bin/python documentation/benchmarks/parser_v2_stages.py stages RULES DATA \
-    --level ion --output parquet
+    --level peptidoform_ion --output parquet
 .venv/bin/python documentation/benchmarks/parser_v2_stages.py scaling
 ```
 

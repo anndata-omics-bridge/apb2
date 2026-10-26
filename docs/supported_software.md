@@ -32,13 +32,13 @@ This table has one row per packaged rule document.
 
 `--software` uses lower-case software names; DIA-NN accepts both `diann` and `dia-nn`, WOMBAT-P both `wombatp` and `wombat-p`. The parameter-parser registry applies only to parameter-bearing rules; `pb_custom` is selected directly.
 
-MaxQuant uses two table groups: evidence → ion (`Raw_File`), with each row's protein group looked up in proteinGroups.txt when present, and joined modification-specific peptide, peptide and protein exports → higher levels (`Experiment`). All nonempty subsets work from a vendor-result directory. A complete one-to-one run/experiment mapping aligns observations; fractionated or unmapped inputs produce separate results. See [conversion and output naming](conversion.md#output-naming).
+MaxQuant uses two table groups: evidence → `peptidoform_ion` (`Raw_File`), with each row's protein group looked up in proteinGroups.txt when present, and joined modification-specific peptide, peptide and protein exports → higher levels (`Experiment`). All nonempty subsets work from a vendor-result directory. A complete one-to-one run/experiment mapping aligns observations; fractionated or unmapped inputs produce separate results. See [conversion and output naming](conversion.md#output-naming).
 
 ## Quantification levels by rule
 
 A check mark means that the linked rule document can convert that level. APB2 recognizes five level names. The `peptide` level comes only from MaxQuant `peptides.txt`, which is a wide table of per-experiment intensities rather than a per-run ion table.
 
-| Rule document | Ion | Peptidoform | Peptide | Protein | Fragment |
+| Rule document | Peptidoform ion | Peptidoform | Peptide | Protein | Peptidoform fragment |
 | --- | :---: | :---: | :---: | :---: | :---: |
 | [AlphaDIA 1.10](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/alphadia/v1_10/rules.json) | ✓ | — | — | — | — |
 | [AlphaDIA 1.12](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/alphadia/v1_12/rules.json) | ✓ | — | — | — | — |

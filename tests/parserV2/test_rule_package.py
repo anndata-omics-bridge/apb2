@@ -52,39 +52,39 @@ _LEVEL_CASES = [
 ]
 _DOCUMENT_CASES = [pytest.param(pair, id=pair.key) for pair in document_pairs()]
 _NON_PRIMARY_ABUNDANCE: dict[tuple[str, QuantificationLevel], tuple[str, ...]] = {
-    ("alphapept", "ion"): (
+    ("alphapept", "peptidoform_ion"): (
         "MS1_Int_Sum_Apex",
         "MS1_Int_Sum_Area",
         "MS1_Int_Max_Apex",
         "MS1_Int_Max_Area",
     ),
-    ("diann/v1_8", "ion"): ("Ms1_Normalised", "Precursor_Quantity", "Ms1_Area"),
+    ("diann/v1_8", "peptidoform_ion"): ("Ms1_Normalised", "Precursor_Quantity", "Ms1_Area"),
     ("diann/v1_8", "protein"): ("PG_Normalised", "PG_Quantity", "Genes_MaxLFQ"),
-    ("diann/v1_7", "ion"): ("Precursor_Quantity", "Ms1_Area"),
+    ("diann/v1_7", "peptidoform_ion"): ("Precursor_Quantity", "Ms1_Area"),
     ("diann/v1_7", "protein"): ("PG_Quantity", "PG_MaxLFQ", "Genes_MaxLFQ"),
-    ("diann/v2", "ion"): ("Ms1_Normalised", "Precursor_Quantity", "Ms1_Area"),
+    ("diann/v2", "peptidoform_ion"): ("Ms1_Normalised", "Precursor_Quantity", "Ms1_Area"),
     ("diann/v2", "protein"): ("Genes_MaxLFQ",),
     ("maxquant_wide", "peptide"): ("LFQ_Intensity",),
     ("maxquant_wide", "protein"): ("LFQ_Intensity", "iBAQ"),
-    ("msangel", "ion"): ("Raw_Abundance",),
+    ("msangel", "peptidoform_ion"): ("Raw_Abundance",),
     ("msangel", "protein"): ("Raw_Abundance",),
-    ("spectronaut", "ion"): (
+    ("spectronaut", "peptidoform_ion"): (
         "EG_ReferenceQuantity_Settings",
         "EG_TargetQuantity_Settings",
         "EG_TotalQuantity_Settings",
     ),
-    ("spectronaut/v21", "ion"): (
+    ("spectronaut/v21", "peptidoform_ion"): (
         "EG_ReferenceQuantity_Settings",
         "EG_TargetQuantity_Settings",
         "EG_TotalQuantity_Settings",
     ),
-    ("spectronaut/v15", "ion"): (
+    ("spectronaut/v15", "peptidoform_ion"): (
         "EG_TargetQuantity_Settings",
         "EG_TotalQuantity_Settings",
         "FG_MS1RawQuantity",
         "FG_MS2RawQuantity",
     ),
-    ("spectronaut/v15", "fragment"): ("F_PeakHeight",),
+    ("spectronaut/v15", "peptidoform_fragment"): ("F_PeakHeight",),
 }
 
 
@@ -111,7 +111,7 @@ def test_only_a_protein_list_column_declares_a_separator() -> None:
 def test_entry_shaped_columns_project_roles_and_runtime_selections(tmp_path: Path) -> None:
     payload = _document_payload()
     payload["tables"][0]["base"]["measurements"]["layers"][0]["roles"] = ["abundance"]
-    payload["tables"][0]["levels"]["ion"]["columns"]["var"] = [
+    payload["tables"][0]["levels"]["peptidoform_ion"]["columns"]["var"] = [
         {
             "name": "feature",
             "source": "Feature",
@@ -121,7 +121,7 @@ def test_entry_shaped_columns_project_roles_and_runtime_selections(tmp_path: Pat
     ]
 
     document = make_rule_document(tmp_path / "rules.json", payload)
-    working = ParseRuleFacade(document, "ion", NO_EVIDENCE).working_parameters
+    working = ParseRuleFacade(document, "peptidoform_ion", NO_EVIDENCE).working_parameters
 
     assert working.var.required_selections[0].logical_type == "protein_list"
     assert working.column_roles == {
@@ -210,12 +210,12 @@ def test_keep_best_sums_only_declared_layers_other_than_its_ranking(
     document = make_rule_document(tmp_path / "rules.json", payload)
 
     with pytest.raises((ValidationError, ValueError), match=message):
-        ParseRuleFacade(document, "ion", NO_EVIDENCE)
+        ParseRuleFacade(document, "peptidoform_ion", NO_EVIDENCE)
 
 
 def test_one_role_cannot_name_two_columns(tmp_path: Path) -> None:
     payload = _document_payload()
-    columns = payload["tables"][0]["levels"]["ion"]["columns"]["var"]
+    columns = payload["tables"][0]["levels"]["peptidoform_ion"]["columns"]["var"]
     columns[0]["roles"] = ["protein_assignment"]
     columns.append({"name": "protein", "source": "Protein", "roles": ["protein_assignment"]})
 
@@ -323,12 +323,12 @@ def test_packaged_integer_measurements_are_exactly_the_declared_counts() -> None
     }
 
     assert actual == {
-        ("fragpipe", "ion", "Spectral_Count"),
-        ("maxquant_wide", "ion", "MS_MS_Count"),
-        ("msangel", "ion", "PSM_Count"),
+        ("fragpipe", "peptidoform_ion", "Spectral_Count"),
+        ("maxquant_wide", "peptidoform_ion", "MS_MS_Count"),
+        ("msangel", "peptidoform_ion", "PSM_Count"),
         ("msangel", "protein", "PSM_Count"),
         ("msangel", "protein", "Peptides_Count"),
-        ("prolinestudio", "ion", "PSM_Count"),
+        ("prolinestudio", "peptidoform_ion", "PSM_Count"),
         ("spectronaut", "protein", "PG_RunEvidenceCount"),
         ("spectronaut/v21", "protein", "PG_RunEvidenceCount"),
         ("wombat", "peptidoform", "Number_Of_Psms"),
@@ -372,13 +372,13 @@ def test_maxquant_prepares_evidence_apart_from_the_wide_higher_level_join() -> N
     pair = next(candidate for candidate in document_pairs() if candidate.key == "maxquant_wide")
     wide = load_rule_document(pair.parser_v2_path)
 
-    ion = wide.declared("ion")
+    ion = wide.declared("peptidoform_ion")
     assert ion.input.extensions == [".txt"]
     roles = {column.name: column.roles for column in ion.declaration.columns.var}
-    assert wide.preparation("ion") == "maxquant_evidence"
+    assert wide.preparation("peptidoform_ion") == "maxquant_evidence"
     assert roles["Protein_IDs"] == ["protein_assignment"]
     assert roles["Proteins"] == ["fasta_accessions"]
-    assert wide.table_levels == (("ion",), ("peptidoform", "peptide", "protein"))
+    assert wide.table_levels == (("peptidoform_ion",), ("peptidoform", "peptide", "protein"))
     for level in ("peptidoform", "peptide", "protein"):
         assert wide.preparation(level) == "maxquant_wide"
         assert wide.declared(level).declaration.shape == "wide"
@@ -388,10 +388,10 @@ def test_maxquant_prepares_evidence_apart_from_the_wide_higher_level_join() -> N
 def test_peaks_declares_the_persisted_sample_annotation_matching_policy() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "peaks")
     document = load_rule_document(pair.parser_v2_path)
-    effective = document.declared("ion").declaration
+    effective = document.declared("peptidoform_ion").declaration
     provenance = ParseRuleFacade.from_declared_rule(
         document,
-        "ion",
+        "peptidoform_ion",
     ).working_parameters.provenance
 
     assert effective.sample_annotation is not None
@@ -430,7 +430,7 @@ def test_file_backed_run_names_declare_exact_basename_matching(key: str) -> None
     }
 
 
-@pytest.mark.parametrize("level", ["ion", "protein"])
+@pytest.mark.parametrize("level", ["peptidoform_ion", "protein"])
 def test_msangel_measurements_canonicalize_the_dda_run_prefix(level: QuantificationLevel) -> None:
     """Sources carry the preparation's sheet prefix, ``ion.`` or ``protein.``."""
     pair = next(candidate for candidate in document_pairs() if candidate.key == "msangel")
@@ -450,24 +450,28 @@ def test_msangel_measurements_canonicalize_the_dda_run_prefix(level: Quantificat
 @pytest.mark.parametrize(
     ("document_key", "level", "protein_assignment", "fasta_accessions"),
     [
-        pytest.param("diann/v1_8", "ion", "Protein_Group", "Protein_Ids", id="diann-v1_8-ion"),
+        pytest.param(
+            "diann/v1_8", "peptidoform_ion", "Protein_Group", "Protein_Ids", id="diann-v1_8-ion"
+        ),
         pytest.param(
             "diann/v1_8", "protein", "Protein_Group", "Protein_Group", id="diann-v1_8-protein"
         ),
-        pytest.param("diann/v2", "ion", "Protein_Group", "Protein_Ids", id="diann-v2-ion"),
+        pytest.param(
+            "diann/v2", "peptidoform_ion", "Protein_Group", "Protein_Ids", id="diann-v2-ion"
+        ),
         pytest.param(
             "diann/v2", "protein", "Protein_Group", "Protein_Group", id="diann-v2-protein"
         ),
         pytest.param(
             "spectronaut",
-            "ion",
+            "peptidoform_ion",
             "PG_ProteinGroups",
             "PG_ProteinAccessions",
             id="spectronaut-ion",
         ),
         pytest.param(
             "spectronaut",
-            "fragment",
+            "peptidoform_fragment",
             "PG_ProteinGroups",
             "PG_ProteinAccessions",
             id="spectronaut-fragment",
@@ -479,18 +483,28 @@ def test_msangel_measurements_canonicalize_the_dda_run_prefix(level: Quantificat
             "PG_ProteinAccessions",
             id="spectronaut-protein",
         ),
-        pytest.param("alphadia/v2", "ion", "Protein_Group", "Proteins", id="alphadia-v2-ion"),
+        pytest.param(
+            "alphadia/v2", "peptidoform_ion", "Protein_Group", "Proteins", id="alphadia-v2-ion"
+        ),
         pytest.param(
             "alphadia/v2", "protein", "Protein_Group", "Protein_Group", id="alphadia-v2-protein"
         ),
-        pytest.param("maxquant_wide", "ion", "Protein_IDs", "Proteins", id="maxquant-wide-ion"),
+        pytest.param(
+            "maxquant_wide", "peptidoform_ion", "Protein_IDs", "Proteins", id="maxquant-wide-ion"
+        ),
         pytest.param(
             "maxquant_wide", "protein", "Protein_IDs", "Protein_IDs", id="maxquant-wide-protein"
         ),
-        pytest.param("msangel", "ion", "Same_Set_Proteins", "Proteins", id="msangel-ion"),
+        pytest.param(
+            "msangel", "peptidoform_ion", "Same_Set_Proteins", "Proteins", id="msangel-ion"
+        ),
         pytest.param("msangel", "protein", "Same_Set_Proteins", "Proteins", id="msangel-protein"),
         pytest.param(
-            "prolinestudio", "ion", "Same_Set_Proteins", "Proteins", id="prolinestudio-ion"
+            "prolinestudio",
+            "peptidoform_ion",
+            "Same_Set_Proteins",
+            "Proteins",
+            id="prolinestudio-ion",
         ),
     ],
 )
@@ -514,14 +528,16 @@ def test_alphadia_v1_10_genes_are_both_assignment_and_fasta_identifiers() -> Non
     # AlphaDIA 1.10 exports no accession column; ``genes`` holds UniProt entry names.
     pair = next(candidate for candidate in document_pairs() if candidate.key == "alphadia/v1_10")
     document = load_rule_document(pair.parser_v2_path)
-    roles = ParseRuleFacade(document, "ion", NO_EVIDENCE).working_parameters.column_roles
+    roles = ParseRuleFacade(
+        document, "peptidoform_ion", NO_EVIDENCE
+    ).working_parameters.column_roles
 
     assert roles == {"protein_assignment": "Genes", "fasta_accessions": "Genes"}
 
 
 def test_spectronaut_fragment_exposes_its_parent_ion_identity() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "spectronaut")
-    fragment = load_rule_document(pair.parser_v2_path).declared("fragment").declaration
+    fragment = load_rule_document(pair.parser_v2_path).declared("peptidoform_fragment").declaration
 
     computed = {column.name: column for column in computed_columns(fragment.columns.var)}
 
@@ -537,28 +553,28 @@ def test_sage_gates_its_two_levels_on_combine_charge_states() -> None:
     separate = SearchParameterEvidence(acquisition_method="DDA", combine_charge_states=False)
     combined = SearchParameterEvidence(acquisition_method="DDA", combine_charge_states=True)
 
-    assert document.rule("ion", separate).declaration.axis.var_keys == ["ProForma_ion"]
+    assert document.rule("peptidoform_ion", separate).declaration.axis.var_keys == ["ProForma_ion"]
     assert document.rule("peptidoform", combined).declaration.axis.var_keys == [
         "ProForma_peptidoform"
     ]
     with pytest.raises(RuleNotApplicable, match="combine_charge_states"):
-        document.rule("ion", combined)
+        document.rule("peptidoform_ion", combined)
     with pytest.raises(RuleNotApplicable, match="combine_charge_states"):
         document.rule("peptidoform", separate)
     with pytest.raises(RuleNotApplicable, match="combine_charge_states"):
-        document.rule("ion", NO_EVIDENCE)
+        document.rule("peptidoform_ion", NO_EVIDENCE)
 
 
 def test_diann_v2_swaps_only_the_primary_layer_for_dda_evidence() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v2")
     document = load_rule_document(pair.parser_v2_path)
 
-    dda = document.rule("ion", DDA).declaration
-    dia = document.rule("ion", DIA).declaration
+    dda = document.rule("peptidoform_ion", DDA).declaration
+    dia = document.rule("peptidoform_ion", DIA).declaration
 
     assert dda.measurements.primary_layer == "Ms1_Normalised"
     assert dia.measurements.primary_layer == "Precursor_Normalised"
-    assert document.declared("ion").declaration.measurements.primary_layer == (
+    assert document.declared("peptidoform_ion").declaration.measurements.primary_layer == (
         "Precursor_Normalised"
     )
     # Everything except which layer is primary -- and therefore which layer promotion made
@@ -602,7 +618,11 @@ def _document_payload() -> dict[str, Any]:
                         "layers": [{"name": "quantity", "source": "Quantity"}],
                     },
                 },
-                "levels": {"ion": {"columns": {"var": [{"name": "feature", "source": "Feature"}]}}},
+                "levels": {
+                    "peptidoform_ion": {
+                        "columns": {"var": [{"name": "feature", "source": "Feature"}]}
+                    }
+                },
             }
         ],
     }
@@ -610,15 +630,15 @@ def _document_payload() -> dict[str, Any]:
 
 def _declared(payload: dict[str, Any], tmp_path: Path) -> None:
     document = make_rule_document(tmp_path / "rules.json", payload)
-    document.declared("ion")
+    document.declared("peptidoform_ion")
 
 
 def _ranked_by(by: str, ranking: list[dict[str, Any]]) -> MutatePayload:
     """Declare ``ranking`` and a var column taking its value from the row ``by`` ranks best."""
     column = {"name": "set", "source": "Set", "duplicates": {"mode": "keep_best", "by": by}}
-    return lambda payload: payload["tables"][0]["levels"]["ion"]["columns"]["var"].extend(
-        [*ranking, column]
-    )
+    return lambda payload: payload["tables"][0]["levels"]["peptidoform_ion"]["columns"][
+        "var"
+    ].extend([*ranking, column])
 
 
 def test_the_reference_payload_is_valid_so_every_rejection_below_is_the_change(
@@ -636,7 +656,7 @@ def test_every_column_and_layer_takes_a_note_and_a_var_column_its_duplicates(
     for flag in base["columns"]["var"]:
         flag["note"] = "the vendor marks no such rows"
     base["measurements"]["layers"][0]["note"] = "a value per run and feature"
-    payload["tables"][0]["levels"]["ion"]["columns"]["var"].append(
+    payload["tables"][0]["levels"]["peptidoform_ion"]["columns"]["var"].append(
         {
             "name": "global_q",
             "source": "Global Q",
@@ -702,7 +722,7 @@ def test_factor_layers_do_not_acquire_a_numeric_type() -> None:
             id="keep_all_as_raw_table",
         ),
         pytest.param(
-            lambda payload: payload["tables"][0]["levels"]["ion"].update(
+            lambda payload: payload["tables"][0]["levels"]["peptidoform_ion"].update(
                 {
                     "search_parameter_overrides": [
                         {
@@ -716,7 +736,7 @@ def test_factor_layers_do_not_acquire_a_numeric_type() -> None:
             id="override-x_layer",
         ),
         pytest.param(
-            lambda payload: payload["tables"][0]["levels"]["ion"].update(
+            lambda payload: payload["tables"][0]["levels"]["peptidoform_ion"].update(
                 {"requires_search_parameters": {"software_version": "1.0"}}
             ),
             "software_version",
@@ -758,28 +778,30 @@ def test_factor_layers_do_not_acquire_a_numeric_type() -> None:
             id="obs-duplicates",
         ),
         pytest.param(
-            lambda payload: payload["tables"][0]["levels"]["ion"]["columns"]["var"][0].update(
-                {"duplicates": {"mode": "keep_first"}}
-            ),
+            lambda payload: payload["tables"][0]["levels"]["peptidoform_ion"]["columns"]["var"][
+                0
+            ].update({"duplicates": {"mode": "keep_first"}}),
             "resolve no duplicates",
             id="var-key-duplicates",
         ),
         pytest.param(
-            lambda payload: payload["tables"][0]["levels"]["ion"]["columns"]["var"].append(
-                {"name": "gene", "source": "Gene", "duplicates": {"mode": "min"}}
-            ),
+            lambda payload: payload["tables"][0]["levels"]["peptidoform_ion"]["columns"][
+                "var"
+            ].append({"name": "gene", "source": "Gene", "duplicates": {"mode": "min"}}),
             "numeric column",
             id="min-on-text",
         ),
         pytest.param(
-            lambda payload: payload["tables"][0]["levels"]["ion"]["columns"]["var"].append(
-                {"name": "q", "source": "Q", "type": "number", "duplicates": {"mode": "sum"}}
-            ),
+            lambda payload: payload["tables"][0]["levels"]["peptidoform_ion"]["columns"][
+                "var"
+            ].append({"name": "q", "source": "Q", "type": "number", "duplicates": {"mode": "sum"}}),
             "keep_first",
             id="var-sum",
         ),
         pytest.param(
-            lambda payload: payload["tables"][0]["levels"]["ion"]["columns"]["var"].extend(
+            lambda payload: payload["tables"][0]["levels"]["peptidoform_ion"]["columns"][
+                "var"
+            ].extend(
                 [
                     {"name": "q", "source": "Q", "type": "number", "duplicates": {"mode": "min"}},
                     {"name": "q_copy", "source": "Q", "type": "number"},
@@ -789,21 +811,23 @@ def test_factor_layers_do_not_acquire_a_numeric_type() -> None:
             id="one-source-two-modes",
         ),
         pytest.param(
-            lambda payload: payload["tables"][0]["levels"]["ion"]["columns"]["var"].append(
-                {"name": "set", "source": "Set", "duplicates": {"mode": "keep_best"}}
-            ),
+            lambda payload: payload["tables"][0]["levels"]["peptidoform_ion"]["columns"][
+                "var"
+            ].append({"name": "set", "source": "Set", "duplicates": {"mode": "keep_best"}}),
             "'by' names the ranking column",
             id="keep-best-without-by",
         ),
         pytest.param(
-            lambda payload: payload["tables"][0]["levels"]["ion"]["columns"]["var"].append(
-                {"name": "set", "source": "Set", "duplicates": {"by": "score"}}
-            ),
+            lambda payload: payload["tables"][0]["levels"]["peptidoform_ion"]["columns"][
+                "var"
+            ].append({"name": "set", "source": "Set", "duplicates": {"by": "score"}}),
             "'by' names the ranking column",
             id="by-without-keep-best",
         ),
         pytest.param(
-            lambda payload: payload["tables"][0]["levels"]["ion"]["columns"]["var"].append(
+            lambda payload: payload["tables"][0]["levels"]["peptidoform_ion"]["columns"][
+                "var"
+            ].append(
                 {
                     "name": "q",
                     "source": "Q",
@@ -830,7 +854,9 @@ def test_factor_layers_do_not_acquire_a_numeric_type() -> None:
             ]
         ),
         pytest.param(
-            lambda payload: payload["tables"][0]["levels"]["ion"]["columns"]["var"].extend(
+            lambda payload: payload["tables"][0]["levels"]["peptidoform_ion"]["columns"][
+                "var"
+            ].extend(
                 [
                     {"name": "score", "source": "Score", "type": "number"},
                     {"name": "rank", "source": "Rank", "type": "number"},
@@ -899,11 +925,11 @@ def test_rule_validates_the_declaration_before_using_gates_or_overrides(
     tmp_path: Path,
 ) -> None:
     payload = _document_payload()
-    payload["tables"][0]["levels"]["ion"].update(invalid_level_declaration)
+    payload["tables"][0]["levels"]["peptidoform_ion"].update(invalid_level_declaration)
     document = make_rule_document(tmp_path / "rules.json", payload)
 
     with pytest.raises(ValidationError):
-        document.rule("ion", DDA)
+        document.rule("peptidoform_ion", DDA)
 
 
 @pytest.mark.parametrize("mode", ["sum", "max"])
@@ -918,7 +944,7 @@ def test_numeric_reduction_requires_layers_no_encoder_would_later_change(
 
     document = make_rule_document(tmp_path / "rules.json", payload)
     with pytest.raises(ValueError, match=f"{mode} duplicates"):
-        ParseRuleFacade(document, "ion", NO_EVIDENCE)
+        ParseRuleFacade(document, "peptidoform_ion", NO_EVIDENCE)
 
 
 def test_an_unknown_extension_is_rejected(tmp_path: Path) -> None:
@@ -937,7 +963,7 @@ def test_detection_candidates_are_declared_only_when_detection_is_enabled(
 
     document = make_rule_document(tmp_path / "rules.json", payload)
 
-    assert document.declared("ion").input.delimiter is not None
+    assert document.declared("peptidoform_ion").input.delimiter is not None
 
 
 # -------------------------------------------------------------------------- fragment rules
@@ -945,7 +971,7 @@ def test_detection_candidates_are_declared_only_when_detection_is_enabled(
 
 def test_the_packaged_fragment_level_separates_before_it_decomposes() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1_8")
-    rule = load_rule_document(pair.parser_v2_path).declared("fragment").declaration
+    rule = load_rule_document(pair.parser_v2_path).declared("peptidoform_fragment").declaration
     fragments = rule.fragments
 
     assert fragments is not None
@@ -959,7 +985,7 @@ def test_the_packaged_fragment_level_separates_before_it_decomposes() -> None:
 def test_a_fragment_label_output_colliding_with_a_source_is_refused(tmp_path: Path) -> None:
     payload = _document_payload()
     payload["tables"][0]["levels"] = {
-        "fragment": {
+        "peptidoform_fragment": {
             "columns": {"var": [{"name": "feature", "source": "Feature"}]},
             "fragments": {
                 "label_strategy": "positional",
@@ -971,13 +997,13 @@ def test_a_fragment_label_output_colliding_with_a_source_is_refused(tmp_path: Pa
     document = make_rule_document(tmp_path / "rules.json", payload)
 
     with pytest.raises(ValueError, match="label_output"):
-        ParseRuleFacade(document, "fragment", NO_EVIDENCE)
+        ParseRuleFacade(document, "peptidoform_fragment", NO_EVIDENCE)
 
 
 def test_a_column_labeled_fragment_label_may_not_be_selected(tmp_path: Path) -> None:
     payload = _document_payload()
     payload["tables"][0]["levels"] = {
-        "fragment": {
+        "peptidoform_fragment": {
             "columns": {
                 "var": [
                     {"name": "feature", "source": "Feature"},
@@ -994,13 +1020,13 @@ def test_a_column_labeled_fragment_label_may_not_be_selected(tmp_path: Path) -> 
     document = make_rule_document(tmp_path / "rules.json", payload)
 
     with pytest.raises(ValueError, match="label source"):
-        ParseRuleFacade(document, "fragment", NO_EVIDENCE)
+        ParseRuleFacade(document, "peptidoform_fragment", NO_EVIDENCE)
 
 
 def test_column_labeled_recognition_requires_its_packed_label_column() -> None:
     payload = _document_payload()
     payload["tables"][0]["levels"] = {
-        "fragment": {
+        "peptidoform_fragment": {
             "columns": {"var": [{"name": "feature", "source": "Feature"}]},
             "fragments": {
                 "label_strategy": "column",
@@ -1010,7 +1036,9 @@ def test_column_labeled_recognition_requires_its_packed_label_column() -> None:
         }
     }
     document = make_rule_document(Path("rules.json"), payload)
-    working = ParseRuleFacade.from_declared_rule(document, "fragment").working_parameters
+    working = ParseRuleFacade.from_declared_rule(
+        document, "peptidoform_fragment"
+    ).working_parameters
 
     assert working.accepts_header(("Sample", "Feature", "Quantity", "Info"))
     assert not working.accepts_header(("Sample", "Feature", "Quantity"))
@@ -1049,7 +1077,7 @@ def test_the_input_policy_publishes_its_delimiter_and_number_alternatives() -> N
 
 def test_the_layer_union_still_distinguishes_numeric_from_factor() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "fragpipe")
-    rule = load_rule_document(pair.parser_v2_path).declared("ion").declaration
+    rule = load_rule_document(pair.parser_v2_path).declared("peptidoform_ion").declaration
     by_name = {layer.name: layer for layer in rule.measurements.layers}
 
     assert isinstance(by_name["Match_Type"], FactorLayer)
@@ -1059,7 +1087,7 @@ def test_the_layer_union_still_distinguishes_numeric_from_factor() -> None:
 
 def test_the_regex_value_pattern_survived_the_migration() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "peaks")
-    rule = load_rule_document(pair.parser_v2_path).declared("ion").declaration
+    rule = load_rule_document(pair.parser_v2_path).declared("peptidoform_ion").declaration
     ascore = next(layer for layer in rule.measurements.layers if layer.name == "AScore")
 
     assert isinstance(ascore, NumericLayer)
@@ -1107,7 +1135,7 @@ def test_packaged_levels_declare_reachable_hierarchy_identities(
 @pytest.mark.parametrize("dtype", ["integer", "number", "boolean"])
 def test_rule_var_roles_reject_non_string_types(dtype: str, tmp_path: Path) -> None:
     payload = _document_payload()
-    payload["tables"][0]["levels"]["ion"]["columns"]["var"][0].update(
+    payload["tables"][0]["levels"]["peptidoform_ion"]["columns"]["var"][0].update(
         {"type": dtype, "roles": ["protein_assignment"]}
     )
     with pytest.raises(ValidationError, match="string"):

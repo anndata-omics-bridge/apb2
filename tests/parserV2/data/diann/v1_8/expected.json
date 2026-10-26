@@ -4,7 +4,7 @@
   "params": "param_0..txt",
   "sample_rows": 500,
   "levels": {
-    "fragment": {
+    "peptidoform_fragment": {
       "observations": 2,
       "variables": 3356,
       "layers": [
@@ -12,7 +12,7 @@
         "Fragment_Correlations"
       ]
     },
-    "ion": {
+    "peptidoform_ion": {
       "observations": 2,
       "variables": 281,
       "layers": [

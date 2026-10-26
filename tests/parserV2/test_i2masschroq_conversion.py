@@ -41,7 +41,7 @@ def test_i2masschroq_peptide_is_stripped_and_peptidoform_is_the_vendor_proforma(
         checks="standard",
     )
 
-    var = read_parsed_levels(target).levels["ion"].var.frame
+    var = read_parsed_levels(target).levels["peptidoform_ion"].var.frame
     assert sorted(var["ProForma_peptidoform"]) == sorted(sequences)
     assert var["ProForma_ion"].to_list() == [f"{s}/2" for s in var["ProForma_peptidoform"]]
     assert dict(zip(var["ProForma_peptidoform"], var["ProForma_peptide"], strict=True)) == {

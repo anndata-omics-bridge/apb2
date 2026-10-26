@@ -202,7 +202,7 @@ def test_projected_columns_stay_in_physical_header_order(
 
 def test_the_alphadia_wide_ion_level_resolves_exactly_as_specified() -> None:
     path = Path("src/apb2/parserV2/vendor_parse_rules/documents/alphadia/v1_10/rules.json")
-    facade = ParseRuleFacade(load_rule_document(path), "ion", _EVIDENCES[0])
+    facade = ParseRuleFacade(load_rule_document(path), "peptidoform_ion", _EVIDENCES[0])
     header = (
         "sequence",
         "mods",
@@ -286,7 +286,7 @@ def test_the_alphadia_wide_ion_level_resolves_exactly_as_specified() -> None:
 
 def test_the_diann_fragment_level_separates_packed_values_before_decomposing() -> None:
     path = Path("src/apb2/parserV2/vendor_parse_rules/documents/diann/v1_8/rules.json")
-    facade = ParseRuleFacade(load_rule_document(path), "fragment", _EVIDENCES[0])
+    facade = ParseRuleFacade(load_rule_document(path), "peptidoform_fragment", _EVIDENCES[0])
     header = (
         "Run",
         "Modified.Sequence",
@@ -349,7 +349,7 @@ def test_a_var_column_resolved_by_number_stays_text_and_plain_layers_are_convert
 
 def test_a_modification_derived_key_pulls_every_source_that_can_change_it() -> None:
     path = Path("src/apb2/parserV2/vendor_parse_rules/documents/alphadia/v2/rules.json")
-    facade = ParseRuleFacade(load_rule_document(path), "ion", _EVIDENCES[0])
+    facade = ParseRuleFacade(load_rule_document(path), "peptidoform_ion", _EVIDENCES[0])
     modifications = tuple(
         column.operation
         for column in facade.working_parameters.var.computed
@@ -372,10 +372,12 @@ def _peptidoform_normalizer(rule: str) -> TokenRegexNormalizer:
     path = Path("src/apb2/parserV2/vendor_parse_rules/documents") / rule
     document = load_rule_document(path)
     facade = next(
-        ParseRuleFacade(document, "ion", evidence)
+        ParseRuleFacade(document, "peptidoform_ion", evidence)
         for evidence in _EVIDENCES
-        if evidence.observed(document.declared("ion").declaration.requires_search_parameters)
-        == document.declared("ion").declaration.requires_search_parameters
+        if evidence.observed(
+            document.declared("peptidoform_ion").declaration.requires_search_parameters
+        )
+        == document.declared("peptidoform_ion").declaration.requires_search_parameters
     )
     column = next(
         column
@@ -466,7 +468,7 @@ def test_a_character_neither_residue_nor_token_fails_the_row(
 
 def test_a_token_regex_rule_resolves_its_accessions_at_projection() -> None:
     path = Path("src/apb2/parserV2/vendor_parse_rules/documents/maxquant_wide/rules.json")
-    facade = ParseRuleFacade(load_rule_document(path), "ion", _EVIDENCES[0])
+    facade = ParseRuleFacade(load_rule_document(path), "peptidoform_ion", _EVIDENCES[0])
     column = next(
         column
         for column in facade.working_parameters.var.computed
@@ -497,7 +499,7 @@ def test_a_directly_selected_key_is_its_own_input() -> None:
 
 def test_a_multi_column_key_keeps_every_authored_component_in_order() -> None:
     path = Path("src/apb2/parserV2/vendor_parse_rules/documents/spectronaut/rules.json")
-    facade = ParseRuleFacade(load_rule_document(path), "fragment", _EVIDENCES[0])
+    facade = ParseRuleFacade(load_rule_document(path), "peptidoform_fragment", _EVIDENCES[0])
     header = (
         "R.FileName",
         "R.Condition",
@@ -540,7 +542,7 @@ def test_a_multi_column_key_keeps_every_authored_component_in_order() -> None:
 
 def test_payload_metadata_is_retained_without_becoming_identity() -> None:
     path = Path("src/apb2/parserV2/vendor_parse_rules/documents/alphadia/v1_12/rules.json")
-    facade = ParseRuleFacade(load_rule_document(path), "ion", _EVIDENCES[0])
+    facade = ParseRuleFacade(load_rule_document(path), "peptidoform_ion", _EVIDENCES[0])
     header = (
         "run",
         "sequence",
@@ -1206,7 +1208,7 @@ def test_a_reducing_rule_needs_layer_values_this_source_delivers_as_numbers(mode
 
 def test_a_missing_modification_source_makes_the_level_incompatible() -> None:
     path = Path("src/apb2/parserV2/vendor_parse_rules/documents/diann/v1_8/rules.json")
-    facade = ParseRuleFacade(load_rule_document(path), "ion", _EVIDENCES[0])
+    facade = ParseRuleFacade(load_rule_document(path), "peptidoform_ion", _EVIDENCES[0])
     header = (
         "Run",
         "Stripped.Sequence",
@@ -1237,7 +1239,9 @@ def test_the_facade_exposes_only_resolution_and_header_only_construction() -> No
 
 def test_the_facade_retains_no_rule_model_after_construction() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1_8")
-    facade = ParseRuleFacade(load_rule_document(pair.parser_v2_path), "ion", _EVIDENCES[0])
+    facade = ParseRuleFacade(
+        load_rule_document(pair.parser_v2_path), "peptidoform_ion", _EVIDENCES[0]
+    )
 
     assert not _contains_model(facade.working_parameters)
     assert not _contains_model(facade.resolve_source(delimited(pair.header())))
@@ -1246,7 +1250,9 @@ def test_the_facade_retains_no_rule_model_after_construction() -> None:
 
 def test_a_resolved_plan_carries_every_field_the_compiler_destructures() -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "alphapept")
-    facade = ParseRuleFacade(load_rule_document(pair.parser_v2_path), "ion", _EVIDENCES[0])
+    facade = ParseRuleFacade(
+        load_rule_document(pair.parser_v2_path), "peptidoform_ion", _EVIDENCES[0]
+    )
 
     resolved = facade.resolve_source(delimited(pair.header()))
 
@@ -1275,7 +1281,7 @@ def test_a_proforma_ion_computer_reads_the_peptidoform_and_the_typed_charge() ->
     pair = next(candidate for candidate in document_pairs() if candidate.key == "sage")
     facade = ParseRuleFacade(
         load_rule_document(pair.parser_v2_path),
-        "ion",
+        "peptidoform_ion",
         SearchParameterEvidence(acquisition_method="DDA", combine_charge_states=False),
     )
 

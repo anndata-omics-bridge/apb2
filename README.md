@@ -4,7 +4,7 @@
 [![PyPI](https://img.shields.io/pypi/v/apb2.svg)](https://pypi.org/project/apb2/)
 
 APB2 is a [rules-driven framework](https://anndata-omics-bridge.github.io/apb2/rule-based/) for converting outputs from proteomics
-software into AnnData or MuData. It supports ion, peptidoform, peptide, protein, and fragment
+software into AnnData or MuData. It supports peptidoform-ion, peptidoform, peptide, protein, and peptidoform-fragment
 quantification levels and can also store the parsed data in Parquet or DuckDB.
 
 “Rules-driven” means that declarative rule documents describe each vendor table: which columns
@@ -63,7 +63,7 @@ Text vendor tables may be gzipped, as `report.tsv.gz` or `evidence.txt.gz` insid
 
 `--software` selects the parameter-file grammar and restricts result recognition to that vendor and its declared quantification software. For FragPipe parameters with DIA-NN output, pass `--software fragpipe`. Omit the hint for recognition across parameter-bearing rules; mismatches and ambiguity are errors, not a fallback to unrelated rules.
 
-ProteoBench Custom uploads have no parameter file: `apb2 convert custom.txt ion --software pb_custom --output results/custom`.
+ProteoBench Custom uploads have no parameter file: `apb2 convert custom.txt peptidoform_ion --software pb_custom --output results/custom`.
 
 ```bash
 apb2 convert DATA LEVEL --params PARAMETER_FILE [--software VENDOR] [--output BASENAME]
@@ -82,7 +82,7 @@ apb2 convert DATA LEVEL --rule-config RULES_JSON [--params PARAMETER_FILE] \
   [--software VENDOR] [--output BASENAME]
 ```
 
-`LEVEL` is one of `ion`, `peptidoform`, `peptide`, `protein`, or `fragment`. MaxQuant accepts any nonempty subset of evidence, modification-specific peptide, peptide and protein-group exports. Evidence stays out of the higher-level join and takes its protein group from proteinGroups.txt when present; an omitted level converts every available level. `--format` selects `hdf5`, `parquet`, or `duckdb`. HDF5 uses `.h5ad` with an explicit level and `.h5mu` otherwise. Complete one-to-one observation aliases are aligned; fractionated or unmapped resolutions produce separate outputs such as `result.raw_file.h5mu` and `result.experiment.h5mu`. See [output naming](https://anndata-omics-bridge.github.io/apb2/conversion/#output-naming). `--strict` makes an effectively empty layer a conversion error instead of leaving it out with a finding in the parse record. `--timings-output PATH` optionally writes a separate versioned JSON file containing internal compile, read, parse and write durations plus per-level read/parse durations; it does not enter the APB result or its scientific representation. The command performs conversion only; FASTA annotation and protein inference are outside Parser V2.
+`LEVEL` is one of `peptidoform_ion`, `peptidoform`, `peptide`, `protein`, or `peptidoform_fragment`. MaxQuant accepts any nonempty subset of evidence, modification-specific peptide, peptide and protein-group exports. Evidence stays out of the higher-level join and takes its protein group from proteinGroups.txt when present; an omitted level converts every available level. `--format` selects `hdf5`, `parquet`, or `duckdb`. HDF5 uses `.h5ad` with an explicit level and `.h5mu` otherwise. Complete one-to-one observation aliases are aligned; fractionated or unmapped resolutions produce separate outputs such as `result.raw_file.h5mu` and `result.experiment.h5mu`. See [output naming](https://anndata-omics-bridge.github.io/apb2/conversion/#output-naming). `--strict` makes an effectively empty layer a conversion error instead of leaving it out with a finding in the parse record. `--timings-output PATH` optionally writes a separate versioned JSON file containing internal compile, read, parse and write durations plus per-level read/parse durations; it does not enter the APB result or its scientific representation. The command performs conversion only; FASTA annotation and protein inference are outside Parser V2.
 
 ### Reformat a parsed result
 

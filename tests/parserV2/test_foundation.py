@@ -178,7 +178,11 @@ def test_a_parsed_level_composes_final_values_and_nothing_new() -> None:
             key_columns=("ProForma_ion",),
         ),
         primary_layer_name="Intensity",
-        uns={"hierarchy": "lfq", "software_name": "AlphaDIA", "quantification_level": "ion"},
+        uns={
+            "hierarchy": "lfq",
+            "software_name": "AlphaDIA",
+            "quantification_level": "peptidoform_ion",
+        },
         layers={
             "Intensity": FinalLayerTable.from_wide(
                 layer_name="Intensity",
@@ -232,9 +236,9 @@ def test_a_working_configuration_derives_presence_and_canonical_values() -> None
         value=PlainNumericLayerDeclaration(missing_values=(0.0,)),
     )
     working = WorkingParseConfiguration(
-        level="ion",
+        level="peptidoform_ion",
         software_name="AlphaDIA",
-        hierarchy=LevelHierarchy("lfq", (("ion", "feature"),)),
+        hierarchy=LevelHierarchy("lfq", (("peptidoform_ion", "feature"),)),
         input=InputContract(
             file_name=None,
             formats=(
@@ -389,7 +393,7 @@ def test_invalid_measurements_are_rejected_at_the_authored_boundary(
             },
             "measurements": {"primary_layer": primary, "layers": layers},
         },
-        levels={"ion": {}},
+        levels={"peptidoform_ion": {}},
     )
     with pytest.raises(ValueError, match=message):
         synthetic.facade(document)
@@ -425,7 +429,7 @@ def test_invalid_sample_layers_are_rejected_at_the_authored_boundary(
                 "layers": [{"name": "Quantity", "source": source}],
             },
         },
-        levels={"ion": {}},
+        levels={"peptidoform_ion": {}},
     )
     with pytest.raises(ValueError, match=message):
         synthetic.facade(document)

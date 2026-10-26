@@ -45,7 +45,7 @@ def _level(frame: pl.DataFrame, key: str) -> ParsedLevel:
 def _parsed(experiments: list[str | None], samples: list[str]) -> ParsedLevels:
     return ParsedLevels(
         levels={
-            "ion": _level(
+            "peptidoform_ion": _level(
                 pl.DataFrame({"Raw_File": ["raw_z", "raw_a"], "Experiment": experiments}),
                 "Raw_File",
             ),
@@ -99,7 +99,7 @@ def test_nonbijective_or_incomplete_mapping_stays_separate(
 ) -> None:
     parsed = _parsed(experiments, samples)
     groups = parsed.observation_groups()
-    assert [list(group.levels) for group in groups] == [["ion"], ["protein"]]
+    assert [list(group.levels) for group in groups] == [["peptidoform_ion"], ["protein"]]
     for group in groups:
         for name, level in group.levels.items():
             assert level is parsed.levels[name]
@@ -114,9 +114,9 @@ def test_separate_groups_keep_only_the_links_within_them() -> None:
             "membership",
             pl.DataFrame(
                 {
-                    "source": ["ion", "members"],
+                    "source": ["peptidoform_ion", "members"],
                     "row": [0, 0],
-                    "target": ["protein", "ion"],
+                    "target": ["protein", "peptidoform_ion"],
                     "column": [0, 0],
                     "value": [1.0, 1.0],
                 }
@@ -127,7 +127,7 @@ def test_separate_groups_keep_only_the_links_within_them() -> None:
     ion, protein = parsed.observation_groups()
 
     links = ion.feature_relations["membership"].coordinates
-    assert links.select("source", "target").rows() == [("members", "ion")]
+    assert links.select("source", "target").rows() == [("members", "peptidoform_ion")]
     assert "membership" not in protein.feature_relations, "no link lies within the protein group"
 
 
@@ -142,7 +142,7 @@ def test_every_separate_group_keeps_the_root_parse_provenance() -> None:
 
 def test_missing_relationship_cannot_be_inferred_from_matching_labels() -> None:
     parsed = _parsed(["A", "B"], ["raw_z", "raw_a"])
-    ion = parsed.levels["ion"]
+    ion = parsed.levels["peptidoform_ion"]
     ion.obs.frame = ion.obs.frame.drop("Experiment")
     assert len(parsed.observation_groups()) == 2
 
@@ -158,5 +158,5 @@ def test_authored_metadata_is_never_overwritten_by_alignment() -> None:
 
 def test_single_identity_preserves_original_result() -> None:
     parsed = _parsed(["A", "B"], ["A", "B"])
-    del parsed.levels["ion"]
+    del parsed.levels["peptidoform_ion"]
     assert parsed.observation_groups() == (parsed,)

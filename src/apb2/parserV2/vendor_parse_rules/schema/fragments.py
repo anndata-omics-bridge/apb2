@@ -1,4 +1,4 @@
-"""Packed-fragment declarations for long fragment-level sources."""
+"""Packed-fragment declarations for long peptidoform-fragment-level sources."""
 
 from __future__ import annotations
 

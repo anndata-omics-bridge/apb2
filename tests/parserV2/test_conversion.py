@@ -73,7 +73,7 @@ def _parameter_file(pair: PackagedDocument) -> Path:
 
 
 _MAXQUANT_TABLES: tuple[tuple[QuantificationLevel, str, str], ...] = (
-    ("ion", "maxquant", "evidence.txt"),
+    ("peptidoform_ion", "maxquant", "evidence.txt"),
     (
         "peptidoform",
         "maxquant_modificationspecificpeptides",
@@ -99,7 +99,7 @@ def _maxquant_folder(
     for level, _fixture, file_name in _MAXQUANT_TABLES:
         if level not in levels:
             continue
-        role = "evidence" if level == "ion" else level
+        role = "evidence" if level == "peptidoform_ion" else level
         tables[role].write_csv(destination / file_name, separator="\t")
     return destination
 
@@ -265,7 +265,7 @@ def test_packaged_conversion_without_a_level_writes_every_compatible_modality(
 
     stored = mudata.read_h5mu(target)
     assert list(stored.mod) == [summary.level for summary in result.levels]
-    assert set(stored.mod) >= {"ion", "protein"}
+    assert set(stored.mod) >= {"peptidoform_ion", "protein"}
     assert "search_parameters" in stored.uns[NAMESPACE][PARSE_NAMESPACE]["provenance"]
     assert all(
         "search_parameters" not in modality.uns[NAMESPACE][PARSE_NAMESPACE]
@@ -287,7 +287,7 @@ def test_maxquant_folder_converts_all_tables_in_canonical_order(
 ) -> None:
     folder = _maxquant_folder(
         tmp_path / "maxquant",
-        ("ion", "peptidoform", "peptide", "protein"),
+        ("peptidoform_ion", "peptidoform", "peptide", "protein"),
     )
     target = tmp_path / f"all{suffix}"
 
@@ -299,7 +299,7 @@ def test_maxquant_folder_converts_all_tables_in_canonical_order(
         checks="standard",
     )
 
-    expected = ["ion", "peptidoform", "peptide", "protein"]
+    expected = ["peptidoform_ion", "peptidoform", "peptide", "protein"]
     assert [summary.level for summary in result.levels] == expected
     assert result.outputs == (
         target.with_name(f"all.raw_file{suffix}"),
@@ -317,10 +317,10 @@ def test_maxquant_folder_converts_all_tables_in_canonical_order(
 @pytest.mark.parametrize(
     ("available", "expected"),
     (
-        (("ion", "peptide", "protein"), ("ion", "peptide", "protein")),
-        (("ion", "peptide"), ("ion", "peptide")),
-        (("ion", "protein"), ("ion", "protein")),
-        (("ion",), ("ion",)),
+        (("peptidoform_ion", "peptide", "protein"), ("peptidoform_ion", "peptide", "protein")),
+        (("peptidoform_ion", "peptide"), ("peptidoform_ion", "peptide")),
+        (("peptidoform_ion", "protein"), ("peptidoform_ion", "protein")),
+        (("peptidoform_ion",), ("peptidoform_ion",)),
     ),
 )
 def test_maxquant_folder_detection_skips_missing_tables(
@@ -337,7 +337,7 @@ def test_maxquant_folder_detection_skips_missing_tables(
 
 
 def test_maxquant_folder_explicit_level_decomposes_only_requested_level(tmp_path: Path) -> None:
-    folder = _maxquant_folder(tmp_path / "maxquant", ("ion", "peptide", "protein"))
+    folder = _maxquant_folder(tmp_path / "maxquant", ("peptidoform_ion", "peptide", "protein"))
     target = tmp_path / "peptide.h5ad"
 
     result = convert_from_packaged_rules(
@@ -354,7 +354,7 @@ def test_maxquant_folder_explicit_level_decomposes_only_requested_level(tmp_path
 
 
 def test_maxquant_folder_missing_explicit_level_names_expected_table(tmp_path: Path) -> None:
-    folder = _maxquant_folder(tmp_path / "maxquant", ("ion",))
+    folder = _maxquant_folder(tmp_path / "maxquant", ("peptidoform_ion",))
     target = tmp_path / "peptide.h5ad"
 
     with pytest.raises(ConversionError, match="level 'peptide' is unavailable"):
@@ -372,7 +372,7 @@ def test_maxquant_folder_missing_explicit_level_names_expected_table(tmp_path: P
 
 
 def test_maxquant_folder_malformed_present_table_aborts_before_write(tmp_path: Path) -> None:
-    folder = _maxquant_folder(tmp_path / "maxquant", ("ion",))
+    folder = _maxquant_folder(tmp_path / "maxquant", ("peptidoform_ion",))
     (folder / "peptides.txt").write_text("not\ta\tMaxQuant\theader\n", encoding="utf-8")
     target = tmp_path / "all.h5mu"
 
@@ -390,7 +390,7 @@ def test_maxquant_folder_malformed_present_table_aborts_before_write(tmp_path: P
 
 
 def test_maxquant_folder_per_level_parse_failure_aborts_before_write(tmp_path: Path) -> None:
-    folder = _maxquant_folder(tmp_path / "maxquant", ("ion", "peptide"))
+    folder = _maxquant_folder(tmp_path / "maxquant", ("peptidoform_ion", "peptide"))
     peptide_table = folder / "peptides.txt"
     lines = peptide_table.read_text(encoding="utf-8").splitlines()
     peptide_table.write_text("\n".join((*lines, lines[1], "")), encoding="utf-8")
@@ -410,13 +410,13 @@ def test_maxquant_folder_per_level_parse_failure_aborts_before_write(tmp_path: P
 
 
 def test_explicit_rule_config_binds_its_one_document_from_a_folder(tmp_path: Path) -> None:
-    folder = _maxquant_folder(tmp_path / "maxquant", ("ion", "peptide"))
-    target = tmp_path / "ion.h5ad"
+    folder = _maxquant_folder(tmp_path / "maxquant", ("peptidoform_ion", "peptide"))
+    target = tmp_path / "peptidoform_ion.h5ad"
     document = next(pair for pair in document_pairs() if pair.key == "maxquant_wide")
 
     result = conversion_application.convert_from_rule_config(
         data=folder,
-        level="ion",
+        level="peptidoform_ion",
         output=target,
         rule_config=document.parser_v2_path,
         parameters_path=None,
@@ -424,8 +424,8 @@ def test_explicit_rule_config_binds_its_one_document_from_a_folder(tmp_path: Pat
         checks="standard",
     )
 
-    assert [summary.level for summary in result.levels] == ["ion"]
-    assert list(formats.read_parsed_levels(target).levels) == ["ion"]
+    assert [summary.level for summary in result.levels] == ["peptidoform_ion"]
+    assert list(formats.read_parsed_levels(target).levels) == ["peptidoform_ion"]
 
 
 @pytest.mark.parametrize(
@@ -459,7 +459,7 @@ def test_parameter_parser_selection_precedence(
     with pytest.raises(_StopAfterParserSelection):
         convert_from_packaged_rules(
             data=_diann_v2().required_data_path(),
-            level="ion",
+            level="peptidoform_ion",
             output=tmp_path / "out.h5ad",
             parameters_path=parameters,
             software=software,
@@ -526,7 +526,7 @@ def test_unexpected_subsystem_failure_remains_visible(
     with pytest.raises(RuntimeError, match="implementation defect"):
         conversion_application.convert_from_rule_config(
             data=_diann_v2().required_data_path(),
-            level="ion",
+            level="peptidoform_ion",
             output=tmp_path / "out.h5ad",
             rule_config=_diann_v2().parser_v2_path,
             parameters_path=None,
@@ -616,9 +616,9 @@ def test_diann_v1_9_parquet_produces_available_levels(tmp_path: Path) -> None:
         checks="standard",
     )
 
-    assert [level.level for level in result.levels] == ["ion", "protein"]
+    assert [level.level for level in result.levels] == ["peptidoform_ion", "protein"]
     assert "Ms1_Normalised" in result.levels[0].layer_names
-    assert list(formats.read_parsed_levels(target).levels) == ["ion", "protein"]
+    assert list(formats.read_parsed_levels(target).levels) == ["peptidoform_ion", "protein"]
 
 
 def test_spectronaut_v21_selects_its_dedicated_rule() -> None:
@@ -650,7 +650,7 @@ def test_source_only_rule_recognition_never_inspects_data_rows(
     assert guess_packaged_software(SingleFile(path=data)) == "spectronaut"
 
 
-def test_diann_fragments_take_their_labels_from_fragment_info_when_present(
+def test_diann_fragments_take_their_labels_from_peptidoform_fragment_info_when_present(
     tmp_path: Path,
 ) -> None:
     """FragPipe's DIA-NN reports carry ``Fragment.Info``; DIA-NN's own reports do not."""
@@ -676,9 +676,12 @@ def test_diann_fragments_take_their_labels_from_fragment_info_when_present(
 
     def fragments(path: Path) -> list[str]:
         compiler = ParseRuleCompiler.detect(
-            path, folder / "param_0..txt", software="diann", requested_levels=("fragment",)
+            path,
+            folder / "param_0..txt",
+            software="diann",
+            requested_levels=("peptidoform_fragment",),
         )
-        level = compiler.compile().parse().levels["fragment"]
+        level = compiler.compile().parse().levels["peptidoform_fragment"]
         return level.var.frame.get_column("ProForma_fragment").to_list()
 
     positional = fragments(source)

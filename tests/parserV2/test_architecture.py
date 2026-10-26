@@ -317,7 +317,7 @@ def test_no_runtime_module_compares_a_vendor_or_a_level(path: Path) -> None:
         "Spectronaut",
         "WOMBAT-P",
     }
-    levels = {"ion", "peptidoform", "peptide", "protein", "fragment"}
+    levels = {"peptidoform_ion", "peptidoform", "peptide", "protein", "peptidoform_fragment"}
 
     assert not vendors & literals
     assert not levels & literals

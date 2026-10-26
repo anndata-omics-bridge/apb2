@@ -21,7 +21,7 @@ def _sample() -> Path:
 
 
 def test_pb_custom_hint_selects_parameter_free_packaged_rule() -> None:
-    compiler = ParseRuleCompiler.detect(_sample(), None, ("ion",), software="pb_custom")
+    compiler = ParseRuleCompiler.detect(_sample(), None, ("peptidoform_ion",), software="pb_custom")
 
     assert compiler.detection.software == "pbcustom"
     assert compiler.detection.version is None
@@ -34,7 +34,12 @@ def test_pb_custom_hint_selects_parameter_free_packaged_rule() -> None:
 def test_pb_custom_cli_conversion_without_params(tmp_path: Path) -> None:
     output = tmp_path / "converted"
 
-    assert convert(_sample(), "ion", ConvertCliOptions(software="pb_custom", output=output)) == 0
+    assert (
+        convert(
+            _sample(), "peptidoform_ion", ConvertCliOptions(software="pb_custom", output=output)
+        )
+        == 0
+    )
 
     result = anndata.read_h5ad(tmp_path / "converted.h5ad")
     assert result.shape == (6, 8493)

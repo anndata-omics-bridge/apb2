@@ -106,7 +106,7 @@ def document(
 
 def facade(
     built: RuleDocument,
-    level: QuantificationLevel = "ion",
+    level: QuantificationLevel = "peptidoform_ion",
     evidence: SearchParameterEvidence = NO_EVIDENCE,
 ) -> ParseRuleFacade:
     return ParseRuleFacade(built, level, evidence)
@@ -142,7 +142,7 @@ def long_document(
                 "layers": layers or [{"name": "Quantity", "source": "Quantity"}],
             },
         },
-        levels={"ion": {}},
+        levels={"peptidoform_ion": {}},
     )
 
 
@@ -171,5 +171,5 @@ def wide_document(
                 "layers": layers,
             },
         },
-        levels={"ion": {}},
+        levels={"peptidoform_ion": {}},
     )

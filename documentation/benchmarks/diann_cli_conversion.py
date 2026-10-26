@@ -61,7 +61,7 @@ class Tool:
     @property
     def output_basename(self) -> Path:
         """Extensionless basename passed to either converter."""
-        return self.output_directory / "ion"
+        return self.output_directory / "peptidoform_ion"
 
     @property
     def output_file(self) -> Path:
@@ -142,7 +142,7 @@ def _command(tool: Tool, data: Path, parameters: Path) -> tuple[str, ...]:
         str(tool.executable),
         "convert",
         str(data),
-        "ion",
+        "peptidoform_ion",
         "--params",
         str(parameters),
         "--software",
@@ -335,7 +335,7 @@ def _metadata(data: Path, parameters: Path, tools: tuple[Tool, ...]) -> dict[str
         "data": str(data),
         "data_bytes": data.stat().st_size,
         "parameters": str(parameters),
-        "level": "ion",
+        "level": "peptidoform_ion",
         "software": "diann",
         "commands": {tool.name: list(_command(tool, data, parameters))[2:] for tool in tools},
     }

@@ -91,7 +91,7 @@ def report(title: str, measurements: Iterable[Measurement]) -> None:
 def stages(
     rules: Path,
     data: Path,
-    level: QuantificationLevel = "ion",
+    level: QuantificationLevel = "peptidoform_ion",
     output: Literal["parquet", "anndata"] = "parquet",
     repeats: int = 3,
 ) -> None:

@@ -4,7 +4,16 @@
   "params": null,
   "sample_rows": 250,
   "levels": {
-    "ion": {
+    "peptidoform_fragment": {
+      "observations": 1,
+      "variables": 250,
+      "layers": [
+        "F_PeakArea",
+        "F_PeakHeight",
+        "F_InterferenceScore"
+      ]
+    },
+    "peptidoform_ion": {
       "observations": 1,
       "variables": 43,
       "layers": [
@@ -28,15 +37,6 @@
       "variables": 9,
       "layers": [
         "PG_Quantity"
-      ]
-    },
-    "fragment": {
-      "observations": 1,
-      "variables": 250,
-      "layers": [
-        "F_PeakArea",
-        "F_PeakHeight",
-        "F_InterferenceScore"
       ]
     }
   }

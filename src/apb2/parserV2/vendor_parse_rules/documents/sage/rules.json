@@ -127,7 +127,7 @@
         }
       },
       "levels": {
-        "ion": {
+        "peptidoform_ion": {
           "requires_search_parameters": {
             "combine_charge_states": false
           },

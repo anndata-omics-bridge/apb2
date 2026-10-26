@@ -41,13 +41,13 @@ def test_peaks_fdr_does_not_filter_and_is_recorded_only_as_a_search_parameter(
             checks="standard",
         )
         assert result.version is None
-        assert [level.level for level in result.levels] == ["ion"]
+        assert [level.level for level in result.levels] == ["peptidoform_ion"]
         targets.append(target)
 
     first_result = read_parsed_levels(targets[0])
     second_result = read_parsed_levels(targets[1])
-    first = first_result.levels["ion"]
-    second = second_result.levels["ion"]
+    first = first_result.levels["peptidoform_ion"]
+    second = second_result.levels["peptidoform_ion"]
     assert first.obs.frame.height == 6
     assert first.var.frame.height > 0
     assert_frame_equal(first.obs.frame, second.obs.frame)
@@ -73,7 +73,7 @@ def test_peaks_retains_the_minus_10lgp_identification_score(tmp_path: Path) -> N
         checks="standard",
     )
 
-    var = read_parsed_levels(target).levels["ion"].var.frame
+    var = read_parsed_levels(target).levels["peptidoform_ion"].var.frame
     source = pl.read_csv(data).get_column("-10LgP")
     assert var.schema["Minus_10LgP"] == pl.Float64
     assert_series_equal(
@@ -118,7 +118,7 @@ def test_peaks_samples_come_from_run_mz_columns_not_group_averages(tmp_path: Pat
         checks="standard",
     )
 
-    level = read_parsed_levels(target).levels["ion"]
+    level = read_parsed_levels(target).levels["peptidoform_ion"]
     assert level.obs.frame.get_column("sample").to_list() == list(runs)
     assert set(level.layers) == {"Normalized_Area", "Sample_Mz", "Sample_RT_Mean"}
     assert level.layers["Normalized_Area"].wide().width == len(runs)

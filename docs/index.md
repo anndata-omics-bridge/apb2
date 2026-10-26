@@ -2,7 +2,7 @@
 
 APB2 (anndata proteomics bridge) is a [rules-driven framework](rule-based.md) for converting
 [outputs from proteomics software](supported_software.md#packaged-vendor-table-rules) into AnnData
-or MuData. It supports ion, peptidoform, peptide, protein, and fragment quantification levels and
+or MuData. It supports peptidoform-ion, peptidoform, peptide, protein, and peptidoform-fragment quantification levels and
 can also store the parsed data in Parquet or DuckDB.
 
 “Rules-driven” means that declarative rule documents describe each vendor table: which columns
@@ -53,7 +53,7 @@ APB2 result + sample annotation
 Convert one quantification level to AnnData:
 
 ```bash
-apb2 convert report.tsv ion --params search-parameters.txt --output results/ion
+apb2 convert report.tsv peptidoform_ion --params search-parameters.txt --output results/peptidoform_ion
 ```
 
 Omit the level to write every compatible level, and select the storage writer directly:
@@ -103,7 +103,7 @@ from apb2.api import ParseRuleCompiler
 compiler = ParseRuleCompiler.detect(
     Path("report.tsv"),
     Path("search-parameters.txt"),
-    requested_levels=("ion",),
+    requested_levels=("peptidoform_ion",),
     software="spectronaut",
 )
 parsed_levels = compiler.compile().parse()
@@ -123,12 +123,12 @@ from apb2.api import ParseRuleCompiler, write_parsed_levels
 parser = ParseRuleCompiler.detect(
     Path("report.tsv"),
     Path("search-parameters.txt"),
-    requested_levels=("ion",),
+    requested_levels=("peptidoform_ion",),
     checks="standard",
 ).compile()
 
 parsed = parser.parse()
-write_parsed_levels(parsed, Path("results/ion.h5ad"))
+write_parsed_levels(parsed, Path("results/peptidoform_ion.h5ad"))
 ```
 
 ### Read and write results

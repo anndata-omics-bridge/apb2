@@ -60,7 +60,7 @@ def _payload() -> dict[str, Any]:
         "file_version": "1",
         "software_name": "Synthetic",
         "software_version_pattern": "^1$",
-        "tables": [_table("protein", "proteins.tsv"), _table("ion", "ions.tsv")],
+        "tables": [_table("protein", "proteins.tsv"), _table("peptidoform_ion", "ions.tsv")],
     }
 
 
@@ -83,10 +83,10 @@ def test_table_local_shapes_and_merges_cannot_leak() -> None:
     table["base"]["measurements"]["layers"][0]["source"] = "^Intensity (?P<sample>.+)$"
     document = make_rule_document(Path("rules.json"), payload)
 
-    assert document.levels == ("protein", "ion")
-    assert document.table_levels == (("protein",), ("ion",))
-    assert document.declared("ion").input.file_name == "ions.tsv"
-    assert document.declared("ion").declaration.shape == "long"
+    assert document.levels == ("protein", "peptidoform_ion")
+    assert document.table_levels == (("protein",), ("peptidoform_ion",))
+    assert document.declared("peptidoform_ion").input.file_name == "ions.tsv"
+    assert document.declared("peptidoform_ion").declaration.shape == "long"
     assert document.declared("protein").input.file_name == "proteins.tsv"
     assert document.declared("protein").declaration.shape == "wide"
 
@@ -174,7 +174,7 @@ def test_declared_filename_selects_only_its_table_despite_identical_headers(tmp_
     selected = select_document_levels(
         document, source, LEVELS, KnownParameters(UNKNOWN_SEARCH_PARAMETERS)
     )
-    assert [item.level for item in selected] == ["ion"]
+    assert [item.level for item in selected] == ["peptidoform_ion"]
     assert (
         select_document_levels(
             document, source, ("protein",), KnownParameters(UNKNOWN_SEARCH_PARAMETERS)
@@ -194,7 +194,7 @@ def test_a_gzipped_declared_filename_selects_its_table_by_its_unzipped_name(
         document, SingleFile(path=path), LEVELS, KnownParameters(UNKNOWN_SEARCH_PARAMETERS)
     )
 
-    assert [item.level for item in selected] == ["ion"]
+    assert [item.level for item in selected] == ["peptidoform_ion"]
 
 
 def test_renamed_file_rejects_ambiguous_groups_but_explicit_level_resolves(tmp_path: Path) -> None:
@@ -224,11 +224,18 @@ def test_explicit_multitable_conversion_round_trips_in_canonical_order(
         software=None,
         checks="standard",
     )
-    assert [item.level for item in summary.levels] == ["ion", "protein"]
+    assert [item.level for item in summary.levels] == ["peptidoform_ion", "protein"]
     result = read_parsed_levels(target)
-    assert list(result.levels) == ["ion", "protein"]
-    assert result.levels["ion"].obs.frame.height == result.levels["protein"].obs.frame.height == 1
-    expected_values: tuple[tuple[QuantificationLevel, int], ...] = (("ion", 11), ("protein", 22))
+    assert list(result.levels) == ["peptidoform_ion", "protein"]
+    assert (
+        result.levels["peptidoform_ion"].obs.frame.height
+        == result.levels["protein"].obs.frame.height
+        == 1
+    )
+    expected_values: tuple[tuple[QuantificationLevel, int], ...] = (
+        ("peptidoform_ion", 11),
+        ("protein", 22),
+    )
     for level, expected in expected_values:
         values = result.levels[level].layers["Quantity"].wide().get_column("obs_0")
         assert values.cast(pl.Float64).to_list() == [expected]
@@ -264,8 +271,11 @@ def test_integer_measurements_round_trip_with_canonical_integer_dtype(
         ("integer", "Int64"),
     ]
     result = read_parsed_levels(target)
-    assert list(result.levels) == ["ion", "protein"]
-    expected_values: tuple[tuple[QuantificationLevel, int], ...] = (("ion", 11), ("protein", 22))
+    assert list(result.levels) == ["peptidoform_ion", "protein"]
+    expected_values: tuple[tuple[QuantificationLevel, int], ...] = (
+        ("peptidoform_ion", 11),
+        ("protein", 22),
+    )
     for level, expected in expected_values:
         values = result.levels[level].layers["Quantity"].wide().get_column("obs_0")
         assert values.cast(pl.Float64).to_list() == [expected]
@@ -313,13 +323,13 @@ def test_explicit_requested_missing_table_has_focused_error(tmp_path: Path) -> N
         )
 
 
-@pytest.mark.parametrize("level", ["ion", "protein"])
+@pytest.mark.parametrize("level", ["peptidoform_ion", "protein"])
 def test_packaged_filename_selection_matches_explicit_selection(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, level: QuantificationLevel
 ) -> None:
     rule = _rule_file(tmp_path)
     monkeypatch.setattr("apb2.parserV2.detect_document.PACKAGED", (rule,))
-    name = "ions.tsv" if level == "ion" else "proteins.tsv"
+    name = "ions.tsv" if level == "peptidoform_ion" else "proteins.tsv"
     source = SingleFile(path=_source(tmp_path / name))
     parameters = Parameters(software_name="Synthetic", software_version="1")
     detected = detect_rule_documents(parameters, source, LEVELS)
@@ -332,4 +342,4 @@ def test_folder_skips_absent_tables_without_losing_the_available_one(tmp_path: P
     selected = select_document_levels(
         document, Folder(path=tmp_path), LEVELS, KnownParameters(UNKNOWN_SEARCH_PARAMETERS)
     )
-    assert [item.level for item in selected] == ["ion"]
+    assert [item.level for item in selected] == ["peptidoform_ion"]

@@ -53,7 +53,7 @@
         }
       },
       "levels": {
-        "ion": {
+        "peptidoform_ion": {
           "axis": {
             "var_keys": [
               "ProForma_ion"

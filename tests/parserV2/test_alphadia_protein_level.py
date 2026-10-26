@@ -14,7 +14,9 @@ from parserV2.fixtures import committed_dir, committed_sample
 RULE = Path("src/apb2/parserV2/vendor_parse_rules/documents/alphadia/v2/rules.json")
 
 
-def test_the_protein_group_q_value_moves_from_ion_to_the_protein_level(tmp_path: Path) -> None:
+def test_the_protein_group_q_value_moves_from_peptidoform_ion_to_the_protein_level(
+    tmp_path: Path,
+) -> None:
     """One protein-group q-value per group, quantified by ``pg.intensity``."""
     data = committed_sample("alphadia/v2")
     folder = committed_dir("alphadia/v2")
@@ -35,7 +37,7 @@ def test_the_protein_group_q_value_moves_from_ion_to_the_protein_level(tmp_path:
     source = pl.read_parquet(data).select("pg.name", "pg.qval").unique()
     joined = protein.var.frame.join(source, left_on="Protein_Group", right_on="pg.name")
 
-    assert "Protein_Group_QValue" not in parsed.levels["ion"].var.frame.columns
+    assert "Protein_Group_QValue" not in parsed.levels["peptidoform_ion"].var.frame.columns
     assert protein.primary_layer_name == "PG_Intensity"
     assert protein.var.frame.height == source.height
     assert_series_equal(
@@ -62,7 +64,7 @@ def test_ion_and_protein_levels_share_the_protein_identity_column(tmp_path: Path
     )
 
     parsed = read_parsed_levels(target)
-    ion, protein = parsed.levels["ion"], parsed.levels["protein"]
+    ion, protein = parsed.levels["peptidoform_ion"], parsed.levels["protein"]
     assert ion.var.roles["protein_assignment"] == "Protein_Group"
     assert ion.var.roles["fasta_accessions"] == "Proteins"
     assert protein.var.key_columns == ("Protein_Group",)

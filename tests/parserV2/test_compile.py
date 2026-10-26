@@ -216,9 +216,9 @@ def test_every_computed_column_declaration_names_one_computer(
             },
             "modification_maps": {"basic": [{"token": "ox", "accession": "UNIMOD:35"}]},
         },
-        levels={"fragment": {}},
+        levels={"peptidoform_fragment": {}},
     )
-    facade = ParseRuleFacade(document, "fragment", synthetic.NO_EVIDENCE)
+    facade = ParseRuleFacade(document, "peptidoform_fragment", synthetic.NO_EVIDENCE)
     computer = facade.working_parameters.var.computed[0]
 
     assert isinstance(computer, expected)
@@ -343,7 +343,7 @@ def test_source_resolution_constructs_the_separator_and_long_decomposer(
             },
         },
         levels={
-            "fragment": {
+            "peptidoform_fragment": {
                 "fragments": {
                     "label_strategy": label_strategy,
                     "value_columns": ["Quantity"],
@@ -352,7 +352,7 @@ def test_source_resolution_constructs_the_separator_and_long_decomposer(
             }
         },
     )
-    strategy = synthetic.facade(document, "fragment").resolve_source(
+    strategy = synthetic.facade(document, "peptidoform_fragment").resolve_source(
         DelimitedSourceEvidence(("Sample", "Feature", "Quantity", "Info"), "\t", '"', "utf8", DOT)
     )
     decomposer = strategy.decomposer
@@ -394,7 +394,7 @@ def test_an_optional_label_column_labels_by_position_when_the_source_lacks_it(
             },
         },
         levels={
-            "fragment": {
+            "peptidoform_fragment": {
                 "fragments": {
                     "label_strategy": "column",
                     "value_columns": ["Quantity"],
@@ -404,7 +404,7 @@ def test_an_optional_label_column_labels_by_position_when_the_source_lacks_it(
             }
         },
     )
-    facade = synthetic.facade(document, "fragment")
+    facade = synthetic.facade(document, "peptidoform_fragment")
 
     assert facade.working_parameters.accepts_header(header) == (expected is not None)
     if expected is None:
@@ -473,7 +473,7 @@ def test_one_level_compiles_into_a_complete_parser(tmp_path: Path) -> None:
     parsed = parser.parse_with_timings()[0]
 
     assert isinstance(parser, Parser)
-    assert parser.level == "ion"
+    assert parser.level == "peptidoform_ion"
     assert parsed.obs.frame.to_dicts() == [{"sample": "A"}]
     assert parsed.layers["Quantity"].wide().get_column("obs_0").to_list() == [1.5]
 
@@ -517,7 +517,7 @@ def test_compilation_injects_the_detected_number_notation_into_axis_coercers(
                             "layers": [{"name": "Quantity", "source": "Quantity"}],
                         },
                     },
-                    "levels": {"ion": {}},
+                    "levels": {"peptidoform_ion": {}},
                 }
             ],
         },
@@ -587,14 +587,14 @@ def test_several_levels_return_one_collection_in_canonical_order() -> None:
     parser = ExplicitRuleCompiler(
         document,
         source,
-        ("protein", "ion"),
+        ("protein", "peptidoform_ion"),
         synthetic.NO_EVIDENCE,
         checks="standard",
     ).compile()
     parsed = parser.parse()
 
-    assert list(parsed.levels) == ["ion", "protein"]
-    assert LEVELS.index("ion") < LEVELS.index("protein")
+    assert list(parsed.levels) == ["peptidoform_ion", "protein"]
+    assert LEVELS.index("peptidoform_ion") < LEVELS.index("protein")
 
 
 def test_each_detection_selection_is_compiled_exactly_once(
@@ -617,14 +617,14 @@ def test_each_detection_selection_is_compiled_exactly_once(
     compiler = ExplicitRuleCompiler(
         document,
         source,
-        ("ion", "protein"),
+        ("peptidoform_ion", "protein"),
         synthetic.NO_EVIDENCE,
         checks="standard",
     )
     compiler.compile()
     compiler.compile()
 
-    assert sorted(compiled) == ["ion", "protein"], "only requested levels are compiled"
+    assert sorted(compiled) == ["peptidoform_ion", "protein"], "only requested levels are compiled"
 
 
 def test_levels_of_one_file_read_it_once_per_parse(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -641,14 +641,16 @@ def test_levels_of_one_file_read_it_once_per_parse(monkeypatch: pytest.MonkeyPat
     sample = committed_sample("diann/v1_8")
     assert sample is not None
     collection = ExplicitRuleCompiler(
-        document, SingleFile(path=sample), ("ion", "protein"), synthetic.NO_EVIDENCE
+        document, SingleFile(path=sample), ("peptidoform_ion", "protein"), synthetic.NO_EVIDENCE
     ).compile()
     first = collection.parse()
     second = collection.parse()
 
     assert len(reads) == 2, "one read of the union per parse"
     assert {"Modified.Sequence", "PG.MaxLFQ"} <= set(reads[0])
-    assert first.levels["ion"].var.frame.equals(second.levels["ion"].var.frame)
+    assert first.levels["peptidoform_ion"].var.frame.equals(
+        second.levels["peptidoform_ion"].var.frame
+    )
 
 
 def test_collection_parser_has_no_persistence_api() -> None:
@@ -658,7 +660,7 @@ def test_collection_parser_has_no_persistence_api() -> None:
     parser = ExplicitRuleCompiler(
         document,
         source,
-        ("ion", "protein"),
+        ("peptidoform_ion", "protein"),
         synthetic.NO_EVIDENCE,
         checks="standard",
     ).compile()
@@ -681,7 +683,7 @@ def test_an_incompatible_level_does_not_poison_the_compatible_ones() -> None:
     ).compile()
 
     # The cached export carries no fragment columns; the other two levels still compile.
-    assert list(parser.parse().levels) == ["ion", "protein"]
+    assert list(parser.parse().levels) == ["peptidoform_ion", "protein"]
 
 
 def test_an_empty_selection_fails_explicitly() -> None:
@@ -720,7 +722,7 @@ def test_duplicate_selections_fail_before_compilation() -> None:
         ExplicitRuleCompiler(
             document,
             source,
-            ("ion", "ion"),
+            ("peptidoform_ion", "peptidoform_ion"),
             synthetic.NO_EVIDENCE,
             checks="standard",
         )

@@ -13,19 +13,19 @@ apb2 convert DATA LEVEL --params PARAMETER_FILE [--software VENDOR] [--output BA
 For example:
 
 ```bash
-apb2 convert report.tsv ion \
+apb2 convert report.tsv peptidoform_ion \
     --params search-parameters.txt \
     --software spectronaut \
-    --output results/ion
+    --output results/peptidoform_ion
 ```
 
 APB2 appends `.h5ad` to the output basename. `LEVEL` is one of:
 
-- `ion`
+- `peptidoform_ion`
 - `peptidoform`
 - `peptide`
 - `protein`
-- `fragment`
+- `peptidoform_fragment`
 
 The [support matrix](supported_software.md#quantification-levels-by-rule) shows which packaged rule documents currently produce each level.
 
@@ -36,7 +36,7 @@ Without `--software`, APB2 recognizes the input across parameter-bearing package
 For a result without search parameters, pass its result-producer name to select a packaged rule from the file columns:
 
 ```bash
-apb2 convert report.parquet ion --software DIA-NN --output results/ion
+apb2 convert report.parquet peptidoform_ion --software DIA-NN --output results/peptidoform_ion
 ```
 
 APB2 reads the file format from the source extension; no separate DIA/DDA or Parquet/text switch is needed. DIA-NN 2.x uses declared MS1 columns to select its DDA primary layer, with the DIA layer as its declared default. If the file does not identify one rule or a required search setting cannot be inferred, conversion fails explicitly. A compound workflow must name the result producer, for example `DIA-NN` rather than `FragPipe` when DIA-NN produced the quantification table.
@@ -44,7 +44,7 @@ APB2 reads the file format from the source extension; no separate DIA/DDA or Par
 ProteoBench Custom ion uploads use the same route:
 
 ```bash
-apb2 convert CustomFormat_DDA_quant_ions_test.txt ion --software pb_custom --output results/custom
+apb2 convert CustomFormat_DDA_quant_ions_test.txt peptidoform_ion --software pb_custom --output results/custom
 ```
 
 The Custom rule accepts the wide table with `Sequence`, `Proteins`, `Charge`, `Modified sequence`, and one quantitative column per run. Search settings that are not established by the file remain unavailable; for example, Sage's charge-combination setting still requires a parameter file.
@@ -76,8 +76,8 @@ MaxQuant accepts any nonempty subset of its four exports. Evidence becomes ions 
 AlphaDIA matrix and precursor metadata are one directory input:
 
 ```bash
-apb2 convert alphadia-results ion \
-    --params parameters.txt --software alphadia --output results/ion
+apb2 convert alphadia-results peptidoform_ion \
+    --params parameters.txt --software alphadia --output results/peptidoform_ion
 ```
 
 AlphaDIA 1.12 joins matrix values with precursor metadata; it never substitutes secondary intensities. Ambiguous roles, missing required inputs and conflicting identities fail before writing. Preparation runs once per selected table group and records its duration and estimated frame size in that group's `input_preparation` provenance; each file it read, with its rows and header, appears in the root `input_files`. Direct evidence has no preparation provenance. DIA-NN is unchanged.
@@ -87,19 +87,19 @@ AlphaDIA 1.12 joins matrix values with precursor metadata; it never substitutes 
 Use a schema-0.9 rule document directly when rule selection is owned by the caller:
 
 ```bash
-apb2 convert report.tsv ion \
+apb2 convert report.tsv peptidoform_ion \
     --rule-config rules.json \
-    --output results/ion
+    --output results/peptidoform_ion
 ```
 
 Parameter evidence remains optional on this route:
 
 ```bash
-apb2 convert report.tsv ion \
+apb2 convert report.tsv peptidoform_ion \
     --rule-config rules.json \
     --params search-parameters.txt \
     --software spectronaut \
-    --output results/ion
+    --output results/peptidoform_ion
 ```
 
 `--software` selects the parameter-file grammar independently of an explicit rule document. When omitted, the document's software selects that grammar. Explicit documents bypass packaged rule recognition.
@@ -118,7 +118,7 @@ A column or layer that carries no information is not created; each level's `pars
 Add `--strict` to make an effectively empty layer a conversion error instead:
 
 ```bash
-apb2 convert report.tsv ion --params parameters.txt --strict
+apb2 convert report.tsv peptidoform_ion --params parameters.txt --strict
 ```
 
 Strictness changes validation policy only. It does not select a different parser.

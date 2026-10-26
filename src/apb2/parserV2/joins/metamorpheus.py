@@ -1,4 +1,4 @@
-"""Bring MetaMorpheus (FlashLFQ) peaks close to ion level: drop ambiguous and random-RT peaks."""
+"""Bring MetaMorpheus (FlashLFQ) peaks close to peptidoform-ion level: drop ambiguous and random-RT peaks."""
 
 from __future__ import annotations
 

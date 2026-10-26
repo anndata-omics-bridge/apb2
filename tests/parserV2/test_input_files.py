@@ -32,7 +32,9 @@ def _expected(
 def test_a_gzipped_table_read_by_two_levels_is_recorded_once() -> None:
     path = DATA_DIR / "diann/v1_8/sample.txt.gz"
     parsed = (
-        ParseRuleCompiler.from_software(path, "diann", requested_levels=("ion", "protein"))
+        ParseRuleCompiler.from_software(
+            path, "diann", requested_levels=("peptidoform_ion", "protein")
+        )
         .compile()
         .parse()
     )
@@ -44,7 +46,9 @@ def test_a_gzipped_table_read_by_two_levels_is_recorded_once() -> None:
 def test_a_parquet_table_records_its_schema_and_rows() -> None:
     path = DATA_DIR / "diann/v2/sample.parquet"
     parsed = (
-        ParseRuleCompiler.from_software(path, "diann", requested_levels=("ion",)).compile().parse()
+        ParseRuleCompiler.from_software(path, "diann", requested_levels=("peptidoform_ion",))
+        .compile()
+        .parse()
     )
 
     assert input_files(parsed.uns) == [_expected(path, pl.read_parquet(path), "none", "parquet")]
@@ -54,7 +58,9 @@ def test_a_parquet_table_records_its_schema_and_rows() -> None:
 def test_input_files_survive_every_result_format(tmp_path: Path, suffix: str) -> None:
     path = DATA_DIR / "diann/v2/sample.parquet"
     parsed = (
-        ParseRuleCompiler.from_software(path, "diann", requested_levels=("ion",)).compile().parse()
+        ParseRuleCompiler.from_software(path, "diann", requested_levels=("peptidoform_ion",))
+        .compile()
+        .parse()
     )
     target = tmp_path / f"ion{suffix}"
 

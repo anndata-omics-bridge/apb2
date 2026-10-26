@@ -1,5 +1,11 @@
 # Changes
 
+## 2026-10-26
+
+- **Breaking:** the levels `ion` and `fragment` are renamed `peptidoform_ion` and `peptidoform_fragment`. A fragment is an ion too, and so is a metabolite ion; PSI-MS calls the precursor a peptidoform ion (`MS:1003051`). The change covers `hierarchies.json` (`lfq`, `psm`), every packaged rule's `levels` keys, `ParsedLevels` keys, MuData modalities, stored level names and the `apb2 convert` `LEVEL` argument. `ProForma_ion` and `ProForma_fragment` keep their names. There is no alias; results written before this change are reconverted
+  - **h5mu var-name prefixes:** `pfi:` and `pff:` replace `ion:` and `frg:`
+  - **MSAngel:** the preparation's ion-sheet role is `peptidoform_ion`, so its prepared columns read `peptidoform_ion.<column>`
+
 ## 2026-10-23
 
 - **Breaking:** MSAngel converts a protein level, and the ion `protein_assignment` of MSAngel and ProlineStudio is `Same_Set_Proteins`, not `Proteins`. Proline's ion sheet lists a shared peptide once per protein set; each protein column now comes from the set with the highest `protein_set_score` (`keep_best`), not from whichever row came first, and these ions are no longer `var_disagreements` (2,435 in MSAngel 2a5ef619, 2,202 in ProlineStudio 6ed9da37).

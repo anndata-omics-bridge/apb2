@@ -92,7 +92,7 @@ def write_parsed_levels(parsed: ParsedLevels, target: Path, var_name_prefix: boo
 
     ``var_name_prefix`` applies to ``.h5mu``: ``False`` keeps each modality's var index as
     written, named after a single String key, instead of prefixing it with the level
-    (``ion:``, ``prt:``). The other formats prefix nothing.
+    (``pfi:``, ``prt:``). The other formats prefix nothing.
     """
     result_format = result_format_for(target)
     writer = (

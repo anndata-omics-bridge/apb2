@@ -8,8 +8,8 @@ Every result has one root part and one part per level, in every format:
 
 | Format | Root part | Level part |
 |---|---|---|
-| h5mu | `mdata.uns["apb"]` | `mdata.mod["ion"].uns["apb"]` |
-| h5ad | `adata.uns["apb"]` | `adata.uns["ion"]["apb"]` |
+| h5mu | `mdata.uns["apb"]` | `mdata.mod["peptidoform_ion"].uns["apb"]` |
+| h5ad | `adata.uns["apb"]` | `adata.uns["peptidoform_ion"]["apb"]` |
 | Parquet, DuckDB | collection `apb` | per-level `apb` |
 | JSON sidecar | `root.apb` | `levels[].apb` |
 

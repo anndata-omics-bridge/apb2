@@ -12,7 +12,7 @@ MaxQuant's [document](../src/apb2/parserV2/vendor_parse_rules/documents/maxquant
 
 | Input file | Shape | Level |
 | --- | --- | --- |
-| `evidence.txt` | long | ion |
+| `evidence.txt` | long | peptidoform_ion |
 | `modificationSpecificPeptides.txt` | wide | peptidoform |
 | `peptides.txt` | wide | peptide |
 | `proteinGroups.txt` | wide | protein |
@@ -110,7 +110,7 @@ P2	b	21
 }
 ```
 
-`hierarchy` names a level hierarchy from [hierarchies.json](../src/apb2/parserV2/vendor_parse_rules/schema/hierarchies.json), and every level the document declares must belong to it. Quantification tables use `lfq`, which runs from fragment to protein and identifies a `protein` feature by its `protein_assignment` column; `psm` and `ptm_site` cover PSM and modification-site tables.
+`hierarchy` names a level hierarchy from [hierarchies.json](../src/apb2/parserV2/vendor_parse_rules/schema/hierarchies.json), and every level the document declares must belong to it. Quantification tables use `lfq`, which runs from `peptidoform_fragment` to `protein` and identifies a `protein` feature by its `protein_assignment` column; `psm` and `ptm_site` cover PSM and modification-site tables.
 
 Convert it with:
 

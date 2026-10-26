@@ -98,7 +98,7 @@ def _parsed() -> ParsedLevels:
         varp={},
         uns={
             "hierarchy": "lfq",
-            "quantification_level": "ion",
+            "quantification_level": "peptidoform_ion",
             "source_file": "vendor.tsv",
         },
         metadata={
@@ -106,7 +106,7 @@ def _parsed() -> ParsedLevels:
         },
     )
     return ParsedLevels(
-        levels={"ion": level},
+        levels={"peptidoform_ion": level},
         uns={"produced_by": "apb2"},
         annotation_tables={
             "proteins": AnnotationTable(
@@ -121,7 +121,7 @@ def _parsed() -> ParsedLevels:
                     {
                         "source": ["proteins"],
                         "row": [0],
-                        "target": ["ion"],
+                        "target": ["peptidoform_ion"],
                         "column": [1],
                         "value": [1.0],
                     }
@@ -160,7 +160,7 @@ def _empty_level() -> ParsedLevel:
 
 def _factor_result() -> ParsedLevels:
     parsed = _parsed()
-    level = parsed.levels["ion"]
+    level = parsed.levels["peptidoform_ion"]
     level.uns["plan_json"] = _factor_plan()
     level.layers["Status"] = FinalLayerTable.from_wide(
         layer_name="Status",
@@ -179,7 +179,7 @@ def _factor_result() -> ParsedLevels:
             missing_code=-1,
         ),
     )
-    return ParsedLevels(levels={"ion": level}, uns={})
+    return ParsedLevels(levels={"peptidoform_ion": level}, uns={})
 
 
 def test_version_four_representation_is_structured_bounded_and_deterministic(
@@ -198,7 +198,7 @@ def test_version_four_representation_is_structured_bounded_and_deterministic(
         "size_bytes": 17,
     }
     level = document["levels"][0]
-    assert level["name"] == "ion"
+    assert level["name"] == "peptidoform_ion"
     assert level["dimensions"] == {"observations": 2, "variables": 4}
     assert level["observations"] == {
         "total_count": 2,
@@ -259,7 +259,7 @@ def test_version_four_representation_is_structured_bounded_and_deterministic(
     assert document["annotation_tables"][0]["row_count"] == 2
     assert document["feature_relations"][0]["coordinates"]["row_count"] == 1
     assert document["feature_relations"][0]["blocks"] == [
-        {"source": "proteins", "target": "ion", "links": 1}
+        {"source": "proteins", "target": "peptidoform_ion", "links": 1}
     ]
 
     serialized = json.dumps(document, allow_nan=False)
@@ -278,7 +278,7 @@ def test_multiple_levels_and_empty_axes_have_a_complete_json_shape(tmp_path: Pat
 
     document: dict[str, Any] = project_result(parsed, artifact)
 
-    assert [level["name"] for level in document["levels"]] == ["ion", "protein"]
+    assert [level["name"] for level in document["levels"]] == ["peptidoform_ion", "protein"]
     empty = document["levels"][1]
     assert empty["dimensions"] == {"observations": 2, "variables": 0}
     assert empty["observations"] == document["levels"][0]["observations"]
@@ -291,19 +291,19 @@ def test_multiple_levels_and_empty_axes_have_a_complete_json_shape(tmp_path: Pat
 
 def test_levels_preserve_authored_order_without_a_declared_hierarchy() -> None:
     parsed = _parsed()
-    ion = parsed.levels["ion"]
-    parsed.levels = {"protein": _empty_level(), "ion": ion}
+    ion = parsed.levels["peptidoform_ion"]
+    parsed.levels = {"protein": _empty_level(), "peptidoform_ion": ion}
 
     document: dict[str, Any] = project_result(parsed)
 
-    assert [level["name"] for level in document["levels"]] == ["protein", "ion"]
+    assert [level["name"] for level in document["levels"]] == ["protein", "peptidoform_ion"]
 
 
 def test_enum_axis_categories_and_nonfinite_descriptors_do_not_leak_into_json(
     tmp_path: Path,
 ) -> None:
     parsed = _parsed()
-    level = parsed.levels["ion"]
+    level = parsed.levels["peptidoform_ion"]
     level.obs.frame = level.obs.frame.with_columns(
         pl.Series("state", ["private-a", "private-b"]).cast(pl.Enum(["private-a", "private-b"]))
     )
@@ -338,7 +338,7 @@ def test_known_embedded_json_containers_are_projected_recursively_without_mutati
     )
     plan_text = json.dumps(
         {
-            "level": "ion",
+            "level": "peptidoform_ion",
             "canonicalization": {
                 "layer_values": [
                     {
@@ -359,7 +359,7 @@ def test_known_embedded_json_containers_are_projected_recursively_without_mutati
             "provenance": {"rule_json": rule_text},
         }
     )
-    level = parsed.levels["ion"]
+    level = parsed.levels["peptidoform_ion"]
     level.uns.update({"rule_json": rule_text, "plan_json": plan_text})
     parsed.annotation_tables["proteins"].metadata.update(
         {
@@ -381,7 +381,7 @@ def test_known_embedded_json_containers_are_projected_recursively_without_mutati
         "resource_paths": ["a.json", "b.json"],
     }
     assert projected_level["apb"]["parse"]["plan_json"] == {
-        "level": "ion",
+        "level": "peptidoform_ion",
         "canonicalization": {
             "layer_values": [
                 {
@@ -544,7 +544,7 @@ def test_quantitative_sidecar_preserves_declared_integer_semantics(tmp_path: Pat
 
 def test_corrupt_stored_plan_changes_no_layer_semantics(tmp_path: Path) -> None:
     parsed = _factor_result()
-    parsed.levels["ion"].uns["plan_json"] = "not json"
+    parsed.levels["peptidoform_ion"].uns["plan_json"] = "not json"
     artifact = tmp_path / "corrupt-plan.parquet"
     artifact.mkdir()
 
@@ -579,7 +579,7 @@ def test_factor_semantics_survive_h5_read_projection_and_rewrite(tmp_path: Path)
     }
     assert "statistics" not in status
 
-    layers = restored.levels["ion"].layers
+    layers = restored.levels["peptidoform_ion"].layers
     layers["Status"] = FinalLayerTable.from_wide(
         layers["Status"].layer_name,
         layers["Status"].wide().with_columns(pl.Series("obs_0", [1, 2, 1, -1], dtype=pl.Int64)),
@@ -591,7 +591,9 @@ def test_factor_semantics_survive_h5_read_projection_and_rewrite(tmp_path: Path)
     write_parsed_levels(restored, second)
 
     rewritten = read_parsed_levels(second)
-    assert rewritten.levels["ion"].layers["Status"].wide().get_column("obs_0").to_list() == [
+    assert rewritten.levels["peptidoform_ion"].layers["Status"].wide().get_column(
+        "obs_0"
+    ).to_list() == [
         1,
         2,
         1,
@@ -647,7 +649,7 @@ def test_observation_identifiers_and_layer_summaries_share_one_fixed_cap(
     artifact.mkdir()
 
     document: dict[str, Any] = project_result(
-        ParsedLevels(levels={"ion": level}, uns={}),
+        ParsedLevels(levels={"peptidoform_ion": level}, uns={}),
         artifact,
     )
     projected_level = document["levels"][0]

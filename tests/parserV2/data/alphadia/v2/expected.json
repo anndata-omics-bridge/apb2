@@ -4,7 +4,7 @@
   "params": "param_0..txt",
   "sample_rows": 500,
   "levels": {
-    "ion": {
+    "peptidoform_ion": {
       "observations": 1,
       "variables": 500,
       "layers": [

@@ -517,7 +517,7 @@ class ParsedLevels:
     """One or more parsed levels on one shared observation axis."""
 
     levels: dict[ParsedLevelName, ParsedLevel]
-    # {"ion": ion_parsed_level, "protein": protein_parsed_level}
+    # {"peptidoform_ion": ion_parsed_level, "protein": protein_parsed_level}
 
     uns: dict[str, JsonValue]
     # The root parse record: {"provenance": {"search_parameters": {...}}} when a parameter file

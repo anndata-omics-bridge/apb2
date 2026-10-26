@@ -86,7 +86,7 @@ from parserV2.synthetic import parse_table
 
 DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
 DOT_NUMBERS = NumericTextFormat(decimal_mark=".", thousands_marks=())
-ION_HIERARCHY = LevelHierarchy("lfq", (("ion", "feature"),))
+ION_HIERARCHY = LevelHierarchy("lfq", (("peptidoform_ion", "feature"),))
 NO_ROLES = SemanticRoles({}, {})
 
 
@@ -173,7 +173,7 @@ def parser_for(
     return Parser(
         input_reader=Reader(),
         strategy=ParseStrategy(
-            level="ion",
+            level="peptidoform_ion",
             decomposer=config,
             obs=obs_plan,
             var=var_plan,
@@ -274,7 +274,7 @@ def test_parse_runs_its_collaborators_in_the_documented_order() -> None:
     parser = Parser(
         input_reader=Reader(),
         strategy=ParseStrategy(
-            level="ion",
+            level="peptidoform_ion",
             decomposer=Decomposer(),
             obs=SIMPLE_OBS_PLAN,
             var=replace(
@@ -853,7 +853,7 @@ def test_the_parser_holds_only_configured_behaviour() -> None:
         "roles",
         "provenance",
     }
-    assert parser.level == "ion"
+    assert parser.level == "peptidoform_ion"
     assert not hasattr(parser, "_output")
     assert not hasattr(parser, "_rule")
     assert not hasattr(parser, "_registry")
@@ -897,7 +897,7 @@ def test_a_computed_column_of_the_wrong_length_fails_at_the_boundary() -> None:
     parser = Parser(
         input_reader=_ReaderOf(SIMPLE_FRAME),
         strategy=ParseStrategy(
-            level="ion",
+            level="peptidoform_ion",
             decomposer=LongSourceDecomposer(
                 primary_layer_name="Intensity",
                 layer_sources=(LongRawLayerSource(name="Intensity", source_column="intensity"),),
@@ -950,7 +950,7 @@ def _strategy(
     var_plan: AxisRuntimePlan = SIMPLE_VAR_PLAN,
 ) -> ParseStrategy:
     return ParseStrategy(
-        level="ion",
+        level="peptidoform_ion",
         decomposer=decomposer,
         obs=obs_plan,
         var=var_plan,

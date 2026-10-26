@@ -56,7 +56,7 @@
         }
       },
       "levels": {
-        "ion": {
+        "peptidoform_ion": {
           "axis": {
             "var_keys": [
               "ProForma_ion"
@@ -67,7 +67,7 @@
             "layers": [
               {
                 "name": "Abundance",
-                "source": "^ion\\.abundance_(?:DDA_)?(?P<sample>.+)$",
+                "source": "^peptidoform_ion\\.abundance_(?:DDA_)?(?P<sample>.+)$",
                 "roles": [
                   "abundance"
                 ],
@@ -77,7 +77,7 @@
               },
               {
                 "name": "Raw_Abundance",
-                "source": "^ion\\.raw_abundance_(?:DDA_)?(?P<sample>.+)$",
+                "source": "^peptidoform_ion\\.raw_abundance_(?:DDA_)?(?P<sample>.+)$",
                 "required": true,
                 "roles": [
                   "abundance"
@@ -88,20 +88,20 @@
               },
               {
                 "name": "Best_Score",
-                "source": "^ion\\.best_score_(?:DDA_)?(?P<sample>.+)$"
+                "source": "^peptidoform_ion\\.best_score_(?:DDA_)?(?P<sample>.+)$"
               },
               {
                 "name": "PSM_Count",
-                "source": "^ion\\.psm_count_(?:DDA_)?(?P<sample>.+)$",
+                "source": "^peptidoform_ion\\.psm_count_(?:DDA_)?(?P<sample>.+)$",
                 "type": "integer"
               },
               {
                 "name": "Elution_Time",
-                "source": "^ion\\.elution_time_(?:DDA_)?(?P<sample>.+)$"
+                "source": "^peptidoform_ion\\.elution_time_(?:DDA_)?(?P<sample>.+)$"
               },
               {
                 "name": "Corrected_Time",
-                "source": "^ion\\.corrected_time_(?:DDA_)?(?P<sample>.+)$"
+                "source": "^peptidoform_ion\\.corrected_time_(?:DDA_)?(?P<sample>.+)$"
               }
             ]
           },
@@ -109,20 +109,20 @@
             "var": [
               {
                 "name": "Sequence",
-                "source": "ion.sequence"
+                "source": "peptidoform_ion.sequence"
               },
               {
                 "name": "Modifications",
-                "source": "ion.modifications"
+                "source": "peptidoform_ion.modifications"
               },
               {
                 "name": "Charge",
-                "source": "ion.master_quant_peptide_ion_charge",
+                "source": "peptidoform_ion.master_quant_peptide_ion_charge",
                 "type": "integer"
               },
               {
                 "name": "Protein_Set_Score",
-                "source": "ion.protein_set_score",
+                "source": "peptidoform_ion.protein_set_score",
                 "type": "number",
                 "duplicates": {
                   "mode": "max"
@@ -131,7 +131,7 @@
               },
               {
                 "name": "Same_Set_Proteins",
-                "source": "ion.samesets_accessions",
+                "source": "peptidoform_ion.samesets_accessions",
                 "roles": [
                   "protein_assignment"
                 ],
@@ -143,7 +143,7 @@
               },
               {
                 "name": "Subset_Proteins",
-                "source": "ion.subsets_accessions",
+                "source": "peptidoform_ion.subsets_accessions",
                 "required": false,
                 "duplicates": {
                   "mode": "keep_best",
@@ -252,7 +252,7 @@
                 "roles": [
                   "protein_assignment"
                 ],
-                "note": "Identifies the protein set one-to-one; the ion level assigns each ion this string"
+                "note": "Identifies the protein set one-to-one; the peptidoform-ion level assigns each ion this string"
               },
               {
                 "name": "Subset_Proteins",

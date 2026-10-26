@@ -4,7 +4,7 @@
   "params": null,
   "sample_rows": 240,
   "levels": {
-    "ion": {
+    "peptidoform_ion": {
       "observations": 5,
       "variables": 178,
       "layers": [

@@ -232,4 +232,6 @@ def test_hint_preserves_malformed_named_table_diagnostics(tmp_path: Path) -> Non
     source = tmp_path / "evidence.txt"
     source.write_text("wrong\tcolumns\n1\t2\n")
     with pytest.raises(ConversionError, match=r"evidence\.txt lacks the columns for evidence"):
-        ParseRuleCompiler.detect(source, parameters, software="maxquant", requested_levels=("ion",))
+        ParseRuleCompiler.detect(
+            source, parameters, software="maxquant", requested_levels=("peptidoform_ion",)
+        )
