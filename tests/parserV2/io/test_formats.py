@@ -32,6 +32,8 @@ from apb2.parserV2.parse_quant.data.parsed import (
     QuantitativeLayerSemantics,
     VarFinal,
 )
+from apb2.parserV2.parse_quant.io import anndata_reader, parquet_reader
+from apb2.parserV2.parse_quant.io import duckdb as duckdb_io
 from apb2.parserV2.parse_quant.io.anndata_writer import GZIP_LEVEL
 from apb2.parserV2.parse_quant.io.duckdb import METADATA_TABLE
 from apb2.parserV2.parse_quant.io.errors import InvalidResultError, UnsupportedResultFormatError
@@ -1349,3 +1351,81 @@ def test_result_requires_same_observation_values_and_order(tmp_path: Path) -> No
     parsed.levels["protein"].obs.frame = parsed.levels["protein"].obs.frame.reverse()
     with pytest.raises(InvalidResultError, match="share the observation axis"):
         write_parsed_levels(parsed, tmp_path / "invalid.h5mu")
+
+
+ALL_FORMATS = [
+    (ResultFormat.H5MU, ".h5mu"),
+    (ResultFormat.PARQUET, ".parquet"),
+    (ResultFormat.DUCKDB, ".duckdb"),
+]
+
+
+def _members_of_proteins() -> ParsedLevels:
+    """The annotated result, with a second relation linking only the table and the proteins."""
+    parsed = annotated_result()
+    parsed.feature_relations["members_of_proteins"] = FeatureRelation(
+        coordinates=pl.DataFrame(
+            {
+                "source": ["protein_group_members"] * 2,
+                "row": [0, 2],
+                "target": ["protein"] * 2,
+                "column": [0, 1],
+                "value": [1.0, 1.0],
+            }
+        ),
+    )
+    return parsed
+
+
+@pytest.mark.parametrize(("result_format", "suffix"), ALL_FORMATS)
+def test_one_level_is_read_alone_with_its_tables_and_own_relations(
+    result_format: ResultFormat, suffix: str, tmp_path: Path
+) -> None:
+    target = tmp_path / f"annotated{suffix}"
+    writer_for(result_format).write(_members_of_proteins(), target)
+    everything = read_parsed_levels(target)
+
+    protein = read_parsed_levels(target, "protein")
+
+    assert list(protein.levels) == ["protein"]
+    _assert_layer_mapping(protein.levels["protein"].layers, everything.levels["protein"].layers)
+    assert_frame_equal(protein.levels["protein"].var.frame, everything.levels["protein"].var.frame)
+    assert list(protein.annotation_tables) == ["protein_group_members"]
+    # The membership relation also links ions, which were not read.
+    assert list(protein.feature_relations) == ["members_of_proteins"]
+
+
+@pytest.mark.parametrize(("result_format", "suffix"), ALL_FORMATS)
+def test_reading_a_level_a_result_lacks_names_the_levels_it_has(
+    result_format: ResultFormat, suffix: str, tmp_path: Path
+) -> None:
+    target = tmp_path / f"rich{suffix}"
+    writer_for(result_format).write(rich_result(), target)
+
+    with pytest.raises(InvalidResultError, match="no level 'peptidoform_fragment'"):
+        read_parsed_levels(target, "peptidoform_fragment")
+
+
+def test_an_h5ad_result_refuses_a_level_it_does_not_hold(tmp_path: Path) -> None:
+    target = tmp_path / "ion.h5ad"
+    one = ParsedLevels(levels={"peptidoform_ion": rich_result().levels["peptidoform_ion"]}, uns={})
+    writer_for(ResultFormat.H5AD).write(one, target)
+
+    assert list(read_parsed_levels(target, "peptidoform_ion").levels) == ["peptidoform_ion"]
+    with pytest.raises(InvalidResultError, match="not 'protein'"):
+        read_parsed_levels(target, "protein")
+
+
+@pytest.mark.parametrize(("result_format", "suffix"), ALL_FORMATS)
+def test_a_matrix_read_one_feature_at_a_time_is_the_matrix_read_at_once(
+    result_format: ResultFormat, suffix: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / f"rich{suffix}"
+    writer_for(result_format).write(rich_result(), target)
+    at_once = read_parsed_levels(target)
+
+    for module in (anndata_reader, parquet_reader, duckdb_io):
+        monkeypatch.setattr(module, "READ_BLOCK_BYTES", 1)
+    in_slabs = read_parsed_levels(target)
+
+    _assert_result_equal(in_slabs, at_once)

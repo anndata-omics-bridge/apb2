@@ -11,6 +11,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
     CategoricalLayerSemantics,
     FinalLayerSemantics,
     FinalLayerTable,
+    MeasurementLayerRole,
     QuantitativeLayerSemantics,
 )
 
@@ -83,3 +84,34 @@ def test_a_layer_misses_cells_unless_it_fills_them_with_a_code() -> None:
 
     assert LayerBlocks(quantitative).has_missing()
     assert not LayerBlocks(categorical).has_missing()
+
+
+@pytest.mark.parametrize("semantics", SEMANTICS)
+@pytest.mark.parametrize("step", [1, 2, 6])
+def test_a_layer_stored_from_row_blocks_is_the_layer_from_wide(
+    semantics: FinalLayerSemantics, step: int
+) -> None:
+    wide = _layer(ordered=False, semantics=semantics).wide()
+    blocks = [wide.slice(start, step) for start in range(0, wide.height, step)]
+
+    stored = LayerBlocks.stored(
+        "L", blocks, labels=LABELS, role=MeasurementLayerRole(), semantics=semantics
+    )
+
+    expected = FinalLayerTable.from_wide("L", wide, semantics=semantics)
+    assert stored.height == expected.height
+    assert stored.wide().equals(expected.wide())
+    assert stored.cells.sort(VAR_POS, OBS_POS).equals(expected.cells.sort(VAR_POS, OBS_POS))
+    assert stored.cells.get_column(VAR_POS).is_sorted()
+
+
+def test_a_layer_without_observations_is_stored_without_cells() -> None:
+    stored = LayerBlocks.stored(
+        "L",
+        [pl.DataFrame(), pl.DataFrame()],
+        labels=(),
+        role=MeasurementLayerRole(),
+        semantics=QuantitativeLayerSemantics(),
+    )
+
+    assert stored.cells.schema == FinalLayerTable.from_wide("L", pl.DataFrame()).cells.schema

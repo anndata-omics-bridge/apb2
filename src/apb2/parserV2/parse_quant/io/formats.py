@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Protocol
 
 from apb2.parserV2.parse_quant.data.parsed import (
+    ParsedLevelName,
     ParsedLevels,
 )
 from apb2.parserV2.parse_quant.data.step_log import logged_step
@@ -21,9 +22,9 @@ from apb2.parserV2.parse_quant.io.parquet_writer import ParquetLevelsWriter
 
 
 class ParsedLevelsReader(Protocol):
-    """Read one physical APB2 result into its storage-neutral value."""
+    """Read one physical APB2 result, or one level of it, into its storage-neutral value."""
 
-    def read(self, source: Path, /) -> ParsedLevels: ...
+    def read(self, source: Path, level: ParsedLevelName | None = None, /) -> ParsedLevels: ...
 
 
 class ParsedLevelsWriter(Protocol):
@@ -82,9 +83,21 @@ def result_format_for(path: Path, /) -> ResultFormat:
         ) from error
 
 
-def read_parsed_levels(source: Path) -> ParsedLevels:
-    """Read a result after inferring its format from the source path."""
-    return reader_for(result_format_for(source)).read(source)
+def read_parsed_levels(source: Path, level: ParsedLevelName | None = None) -> ParsedLevels:
+    """Read a result, or one of its levels, after inferring its format from the source path.
+
+    Args:
+        source: An h5ad, h5mu, Parquet or DuckDB result.
+        level: The one level to read; ``None`` reads every level. Annotation tables are read
+            either way; a feature relation only when every level it links is read.
+
+    Returns:
+        The stored result, or only the named level of it.
+
+    Raises:
+        ResultIOError: The result cannot be read, or has no such level.
+    """
+    return reader_for(result_format_for(source)).read(source, level)
 
 
 def write_parsed_levels(parsed: ParsedLevels, target: Path, var_name_prefix: bool = True) -> None:

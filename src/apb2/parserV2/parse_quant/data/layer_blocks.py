@@ -9,16 +9,24 @@ holds exactly the values ``wide()`` would give at its rows and columns.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 
 import polars as pl
 
 from apb2.parserV2.parse_quant.data.layer_columns import OBS_POS, VALUE, VAR_POS, ObservationGrid
-from apb2.parserV2.parse_quant.data.parsed import FinalLayerTable, layer_fill
+from apb2.parserV2.parse_quant.data.parsed import (
+    FinalLayerRole,
+    FinalLayerSemantics,
+    FinalLayerTable,
+    layer_fill,
+)
 
 BLOCK_BYTES = 1 << 30
 """About how many bytes of wide values one block holds."""
+
+READ_BLOCK_BYTES = 256 << 20
+"""About how many bytes of a stored matrix a reader takes at a time; a block's cells cost more."""
 
 _CELL_BYTES = 8
 
@@ -90,6 +98,55 @@ class LayerBlocks:
                 block.get_column(VALUE),
                 layer_fill(layer.semantics),
             )
+
+    @staticmethod
+    def stored(
+        layer_name: str,
+        blocks: Iterable[pl.DataFrame],
+        *,
+        labels: tuple[str, ...],
+        role: FinalLayerRole,
+        semantics: FinalLayerSemantics,
+    ) -> FinalLayerTable:
+        """A layer from consecutive blocks of its wide rows, as ``from_wide`` of all of them.
+
+        Each block keeps the cells that do not hold the fill, sorted by ``var_pos`` and
+        ``obs_pos``, one column at a time: unpivoting a block would give every cell a label
+        string first.
+        """
+        fill = layer_fill(semantics)
+        parts: list[pl.DataFrame] = []
+        height = 0
+        for block in blocks:
+            columns: list[pl.DataFrame] = []
+            for position, column in enumerate(block.get_columns()):
+                kept = (
+                    column.is_not_null()
+                    if fill is None
+                    else column.is_null() | (column != fill).fill_null(value=True)
+                )
+                columns.append(
+                    pl.DataFrame(
+                        [
+                            pl.int_range(height, height + block.height, dtype=pl.UInt32, eager=True)
+                            .filter(kept)
+                            .alias(VAR_POS),
+                            pl.repeat(position, int(kept.sum()), dtype=pl.UInt32, eager=True).alias(
+                                OBS_POS
+                            ),
+                            column.filter(kept).alias(VALUE),
+                        ]
+                    )
+                )
+            if columns:
+                parts.append(pl.concat(columns, how="vertical_relaxed").sort(VAR_POS, OBS_POS))
+            height += block.height
+        cells = (
+            pl.concat(parts, how="vertical_relaxed")
+            if parts
+            else pl.DataFrame(schema={VAR_POS: pl.UInt32, OBS_POS: pl.UInt32, VALUE: pl.Null})
+        )
+        return FinalLayerTable(layer_name, cells, height, labels, role=role, semantics=semantics)
 
     def has_missing(self) -> bool:
         """Whether the wide matrix holds a null: an empty cell of a layer filled by null."""

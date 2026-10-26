@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from pathlib import Path
 from typing import cast
 
 import polars as pl
+import pyarrow.parquet as pq
 
+from apb2.parserV2.parse_quant.data.layer_blocks import READ_BLOCK_BYTES, LayerBlocks
 from apb2.parserV2.parse_quant.data.parsed import (
     AnnotationTable,
     FeatureRelation,
@@ -31,6 +33,7 @@ from apb2.parserV2.parse_quant.io.metadata import (
     layer_semantics_from_metadata,
     object_mapping,
     read_hierarchy,
+    relations_among,
     restore_level_roles,
     restore_table_schema,
     string_list,
@@ -51,7 +54,7 @@ class ParquetReader:
 
     __slots__ = ()
 
-    def read(self, source: Path, /) -> ParsedLevels:
+    def read(self, source: Path, level: ParsedLevelName | None = None, /) -> ParsedLevels:
         if not source.is_dir():
             raise InvalidResultError(f"{source} is not an APB2 Parquet result directory")
         manifest_path = source / MANIFEST_NAME
@@ -67,12 +70,19 @@ class ParquetReader:
             raise InvalidResultError(f"{source} is not {FORMAT} version {FORMAT_VERSION}")
         order = string_list(manifest.get("level_order"), "level order")
         level_entries = object_mapping(manifest.get("levels"), "levels")
+        if level is not None and level not in order:
+            raise InvalidResultError(
+                f"Parquet result {source} has no level {level!r}; it has {order}"
+            )
         levels: dict[ParsedLevelName, ParsedLevel] = {}
         for name in order:
             if not name:
                 raise InvalidResultError(f"unknown quantification level {name!r}")
-            level = _read_level(source, object_mapping(level_entries.get(name), f"level {name!r}"))
-            levels[name] = level
+            if level is not None and name != level:
+                continue
+            levels[name] = _read_level(
+                source, object_mapping(level_entries.get(name), f"level {name!r}")
+            )
         if set(order) != set(level_entries):
             raise InvalidResultError("level order and level metadata name different levels")
         uns, metadata = unpack_shared_scope(manifest.get("apb"), "root APB metadata")
@@ -84,7 +94,7 @@ class ParquetReader:
             uns=uns,
             metadata=metadata,
             annotation_tables=annotation_tables,
-            feature_relations=feature_relations,
+            feature_relations=relations_among(feature_relations, {*levels, *annotation_tables}),
             export_uns=json_object(manifest.get("export_uns"), "root export_uns"),
         )
         validate_parsed_levels(parsed)
@@ -131,9 +141,10 @@ def _read_layers(directory: Path, level: object) -> dict[str, FinalLayerTable]:
     result: dict[str, FinalLayerTable] = {}
     for name in order:
         entry = object_mapping(entries.get(name), f"layer {name!r}")
-        result[name] = FinalLayerTable.from_wide(
+        result[name] = LayerBlocks.stored(
             name,
-            _read_table(directory / "layers", entry),
+            _read_batches(directory / "layers", entry),
+            labels=tuple(string_list(entry.get("columns"), f"layer {name!r} columns")),
             role=layer_role_from_metadata(entry, f"layer {name!r}"),
             semantics=layer_semantics_from_metadata(entry.get("semantics"), f"layer {name!r}"),
         )
@@ -214,6 +225,20 @@ def _read_table(directory: Path, metadata: object) -> pl.DataFrame:
             f"cannot read result table {directory / file_name}: {error}"
         ) from error
     return restore_table_schema(frame, table)
+
+
+def _read_batches(directory: Path, metadata: object) -> Iterator[pl.DataFrame]:
+    """One layer table a batch of rows at a time, each with its recorded schema."""
+    table = object_mapping(metadata, "table metadata")
+    path = directory / _physical_name(table.get("file"), "table file")
+    columns = string_list(table.get("columns"), "table columns")
+    try:
+        file = pq.ParquetFile(path)
+    except OSError as error:
+        raise InvalidResultError(f"cannot read result table {path}: {error}") from error
+    rows = max(READ_BLOCK_BYTES // max(len(columns) * 8, 1), 1)
+    for batch in file.iter_batches(batch_size=rows):
+        yield restore_table_schema(cast(pl.DataFrame, pl.from_arrow(batch)), table)
 
 
 def _physical_name(value: object, role: str) -> str:

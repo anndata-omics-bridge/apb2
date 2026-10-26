@@ -13,7 +13,7 @@ from typing import cast
 import duckdb
 import polars as pl
 
-from apb2.parserV2.parse_quant.data.layer_blocks import LayerBlocks
+from apb2.parserV2.parse_quant.data.layer_blocks import READ_BLOCK_BYTES, LayerBlocks
 from apb2.parserV2.parse_quant.data.parsed import (
     AnnotationTable,
     FeatureRelation,
@@ -34,6 +34,7 @@ from apb2.parserV2.parse_quant.io.metadata import (
     level_scope,
     object_mapping,
     read_hierarchy,
+    relations_among,
     restore_level_roles,
     restore_table_schema,
     shared_scope,
@@ -178,7 +179,7 @@ class DuckDBReader:
 
     __slots__ = ()
 
-    def read(self, source: Path, /) -> ParsedLevels:
+    def read(self, source: Path, level: ParsedLevelName | None = None, /) -> ParsedLevels:
         if not source.is_file():
             raise InvalidResultError(f"{source} is not an APB2 DuckDB result file")
         try:
@@ -187,7 +188,7 @@ class DuckDBReader:
                 if len(rows) != 1 or not isinstance(rows[0][0], str):
                     raise InvalidResultError("DuckDB result has no single metadata record")
                 manifest = object_mapping(json.loads(rows[0][0]), "DuckDB manifest")
-                result = self._read_manifest(connection, manifest)
+                result = self._read_manifest(connection, manifest, source, level)
         except (duckdb.Error, json.JSONDecodeError) as error:
             raise InvalidResultError(f"cannot read APB2 DuckDB result {source}: {error}") from error
         validate_parsed_levels(result)
@@ -197,16 +198,24 @@ class DuckDBReader:
         self,
         connection: duckdb.DuckDBPyConnection,
         manifest: dict[str, object] | object,
+        source: Path,
+        level: ParsedLevelName | None,
     ) -> ParsedLevels:
         root = object_mapping(manifest, "DuckDB manifest")
         if root.get("format") != FORMAT or root.get("format_version") != FORMAT_VERSION:
             raise InvalidResultError(f"database is not {FORMAT} version {FORMAT_VERSION}")
         order = string_list(root.get("level_order"), "level order")
         entries = object_mapping(root.get("levels"), "levels")
+        if level is not None and level not in order:
+            raise InvalidResultError(
+                f"DuckDB result {source} has no level {level!r}; it has {order}"
+            )
         levels: dict[ParsedLevelName, ParsedLevel] = {}
         for name in order:
             if not name:
                 raise InvalidResultError(f"unknown quantification level {name!r}")
+            if level is not None and name != level:
+                continue
             levels[name] = self._read_level(
                 connection,
                 object_mapping(entries.get(name), f"level {name!r}"),
@@ -214,13 +223,16 @@ class DuckDBReader:
         if set(order) != set(entries):
             raise InvalidResultError("level order and level metadata name different levels")
         uns, metadata = unpack_shared_scope(root.get("apb"), "root APB metadata")
+        annotation_tables = self._read_annotation_tables(connection, root)
         return ParsedLevels(
             hierarchy=read_hierarchy(metadata),
             levels=levels,
             uns=uns,
             metadata=metadata,
-            annotation_tables=self._read_annotation_tables(connection, root),
-            feature_relations=self._read_feature_relations(connection, root),
+            annotation_tables=annotation_tables,
+            feature_relations=relations_among(
+                self._read_feature_relations(connection, root), {*levels, *annotation_tables}
+            ),
             export_uns=json_object(root.get("export_uns"), "root export_uns"),
         )
 
@@ -317,9 +329,10 @@ class DuckDBReader:
         result: dict[str, FinalLayerTable] = {}
         for name in order:
             entry = object_mapping(entries.get(name), f"layer {name!r}")
-            result[name] = FinalLayerTable.from_wide(
+            result[name] = LayerBlocks.stored(
                 name,
-                self._read_table(connection, entry),
+                self._read_batches(connection, entry),
+                labels=tuple(string_list(entry.get("columns"), f"layer {name!r} columns")),
                 role=layer_role_from_metadata(entry, f"layer {name!r}"),
                 semantics=layer_semantics_from_metadata(entry.get("semantics"), f"layer {name!r}"),
             )
@@ -346,6 +359,21 @@ class DuckDBReader:
         if set(order) != set(entries):
             raise InvalidResultError(f"{slot} order and metadata name different values")
         return result
+
+    @staticmethod
+    def _read_batches(
+        connection: duckdb.DuckDBPyConnection,
+        metadata: object,
+    ) -> Iterator[pl.DataFrame]:
+        """One layer table a batch of rows at a time, each with its recorded schema."""
+        table = object_mapping(metadata, "table metadata")
+        name = string_value(table.get("file"), "physical table")
+        if not _PHYSICAL_TABLE.fullmatch(name):
+            raise InvalidResultError(f"unsafe physical DuckDB table name {name!r}")
+        columns = string_list(table.get("columns"), "table columns")
+        rows = max(READ_BLOCK_BYTES // max(len(columns) * 8, 1), 1)
+        for batch in connection.table(name).fetch_record_batch(rows):
+            yield restore_table_schema(cast(pl.DataFrame, pl.from_arrow(batch)), table)
 
     @staticmethod
     def _read_table(

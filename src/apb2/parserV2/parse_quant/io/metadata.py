@@ -11,6 +11,7 @@ import polars as pl
 from apb2.parserV2.parse_quant.data.parsed import (
     AuxiliaryLayerRole,
     CategoricalLayerSemantics,
+    FeatureRelation,
     FinalLayerRole,
     FinalLayerSemantics,
     JsonValue,
@@ -373,6 +374,21 @@ def _string_list(value: object, role: str) -> list[str]:
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         raise InvalidResultError(f"{role} is not a list of text values")
     return cast(list[str], value)
+
+
+def relations_among(
+    relations: Mapping[str, FeatureRelation], read: Iterable[str], /
+) -> dict[str, FeatureRelation]:
+    """The feature relations whose every source and target was read; a level read alone keeps
+    only relations within itself and its annotation tables."""
+    names = frozenset(read)
+    return {
+        name: relation
+        for name, relation in relations.items()
+        if relation.coordinates.select(
+            pl.col("source").is_in(names).all() & pl.col("target").is_in(names).all()
+        ).item()
+    }
 
 
 def restore_level_roles(parsed: ParsedLevel) -> ParsedLevel:
