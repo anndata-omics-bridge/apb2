@@ -73,6 +73,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
     LevelReadPlan,
     LevelSourceTable,
 )
+from apb2.parserV2.parse_quant.parking import LayerParking
 
 _EXAMPLE_LIMIT = 5
 
@@ -103,7 +104,7 @@ class ParserCollection:
     table, once per file, to the root ``input_files``.
     """
 
-    __slots__ = ("_hierarchy", "_parsers", "_provenance", "_read")
+    __slots__ = ("_hierarchy", "_parking", "_parsers", "_provenance", "_read")
 
     def __init__(
         self,
@@ -125,18 +126,25 @@ class ParserCollection:
             raise ValueError("parser levels must declare one shared hierarchy")
         order = self._hierarchy.level_names
         self._parsers = tuple(sorted(parsers, key=lambda parser: order.index(parser.level)))
+        self._parking = LayerParking()
 
     def parse(self) -> ParsedLevels:
         """Parse every compiled level once and assemble the canonical collection."""
         return self.parse_with_timings()[0]
 
     def parse_with_timings(self) -> tuple[ParsedLevels, tuple[LevelParseTimings, ...]]:
-        """Parse once while measuring each bound read and strategy execution."""
+        """Parse once while measuring each bound read and strategy execution.
+
+        Each level's layer cells are parked once it is parsed, so the next level's parse
+        reuses their memory; see ``parking.py``.
+        """
         levels: dict[QuantificationLevel, ParsedLevel] = {}
         timings: list[LevelParseTimings] = []
         tables: dict[Path, InputTable] = {}
         for parser in self._parsers:
             parsed_level, timing, read = parser.parse_with_timings()
+            with logged_step("parse.park", level=parser.level):
+                self._parking.park(parsed_level)
             levels[parser.level] = parsed_level
             timings.append(timing)
             for table in read:

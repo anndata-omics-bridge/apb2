@@ -217,6 +217,7 @@ def test_packaged_conversion_logs_each_step_start_and_end(tmp_path: Path) -> Non
         "parse.var",
         "parse.layers",
         "parse.validate",
+        "parse.park",
         "write",
     ]
     for step in steps:
