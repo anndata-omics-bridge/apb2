@@ -284,6 +284,7 @@ def test_diagnostics_and_errors_include_rows_discarded_after_identity_validation
         ("inputs", ["Modified_Sequence", "Alternative"], "requires 1 inputs"),
         ("syntax", "missing", "missing syntax"),
         ("modification_map", "missing", "missing map"),
+        ("name", "ProForma_peptidoform_unlocalized", "requires embedded_site_list"),
     ],
 )
 def test_invalid_dependencies_and_references_fail_before_reading(

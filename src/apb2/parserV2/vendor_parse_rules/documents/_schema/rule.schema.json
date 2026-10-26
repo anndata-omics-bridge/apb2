@@ -1273,8 +1273,11 @@
           "type": "string"
         },
         "name": {
-          "const": "ProForma_peptidoform",
           "default": "ProForma_peptidoform",
+          "enum": [
+            "ProForma_peptidoform",
+            "ProForma_peptidoform_unlocalized"
+          ],
           "title": "Name",
           "type": "string"
         },

@@ -2,6 +2,9 @@
 
 ## 2026-10-26
 
+- MaxQuant's peptidoform level writes `ProForma_peptidoform_unlocalized`, such as `[UNIMOD:35][UNIMOD:35]?PEPTMIDEMK` for `PEPTMIDEMK` with `2 Oxidation (M)`. `modificationSpecificPeptides.txt` names modifications with counts and candidate residues, never positions, so positional isomers share a row and no localized `ProForma_peptidoform` can be written for it
+  - **Rule schema:** `proforma_sequence` may be named `ProForma_peptidoform_unlocalized`, which requires `embedded_site_list` syntax; for it, a site of residues only goes to ProForma's unknown-position group. `entry_pattern` may capture a `count`, and an entry it matches without a `token`, such as `Unmodified`, adds no modification
+  - **Runtime:** the three normalizers share one recorder of labels and unknown tokens; modification locations name their label position, so unknown tokens key on it and `render_proforma` takes them by position, not by index
 - **Breaking:** the levels `ion` and `fragment` are renamed `peptidoform_ion` and `peptidoform_fragment`. A fragment is an ion too, and so is a metabolite ion; PSI-MS calls the precursor a peptidoform ion (`MS:1003051`). The change covers `hierarchies.json` (`lfq`, `psm`), every packaged rule's `levels` keys, `ParsedLevels` keys, MuData modalities, stored level names and the `apb2 convert` `LEVEL` argument. `ProForma_ion` and `ProForma_fragment` keep their names. There is no alias; results written before this change are reconverted
   - **h5mu var-name prefixes:** `pfi:` and `pff:` replace `ion:` and `frg:`
   - **MSAngel:** the preparation's ion-sheet role is `peptidoform_ion`, so its prepared columns read `peptidoform_ion.<column>`

@@ -33,6 +33,7 @@ from apb2.parserV2.vendor_parse_rules.schema.base import (
     SchemaVersion,
 )
 from apb2.parserV2.vendor_parse_rules.schema.base_modifications import (
+    EmbeddedSiteListSyntax,
     ModificationMap,
     PlainSequenceSyntax,
     SequenceSyntax,
@@ -306,6 +307,8 @@ def _check_sequence_column(
         return
     if isinstance(syntax, PlainSequenceSyntax):
         raise ValueError("proforma_sequence does not accept plain_sequence syntax")
+    if column.name.endswith("_unlocalized") and not isinstance(syntax, EmbeddedSiteListSyntax):
+        raise ValueError(f"{column.name} requires embedded_site_list syntax")
     arity = (
         1
         if isinstance(syntax, TokenRegexSyntax)

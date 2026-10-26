@@ -616,6 +616,44 @@ def test_an_embedded_site_must_point_to_the_declared_residue() -> None:
         embedded_site_list().transform(("PEPMIDE", "Oxidation (M3)"))
 
 
+def maxquant_names(*, unlocalized: bool = True) -> EmbeddedSiteListNormalizer:
+    """MaxQuant's ``Modifications``: counted names and candidate residues, no positions."""
+    return replace(
+        embedded_site_list(),
+        delimiter=",",
+        entry_pattern=r"^(?:(?P<count>\d+) )?(?P<token>.+) \((?P<site>[^()]+)\)$|^Unmodified$",
+        unlocalized=unlocalized,
+    )
+
+
+@pytest.mark.parametrize(
+    ("sequence", "modifications", "expected", "unknown_tokens"),
+    [
+        ("PEPTMIDEMK", "Unmodified", "PEPTMIDEMK", ()),
+        ("PEPTMIDEMK", "2 Oxidation (M)", "[UNIMOD:35][UNIMOD:35]?PEPTMIDEMK", ()),
+        (
+            "PEPTMIDEMK",
+            "Acetyl (Protein N-term),Oxidation (M)",
+            "[UNIMOD:35]?[UNIMOD:1]-PEPTMIDEMK",
+            (),
+        ),
+        ("PEPTSIDEMK", "Phospho (STY)", "[Phospho]?PEPTSIDEMK", ("Phospho",)),
+    ],
+)
+def test_unlocalized_names_go_to_the_unknown_position_group(
+    sequence: str, modifications: str, expected: str, unknown_tokens: tuple[str, ...]
+) -> None:
+    result = maxquant_names().transform((sequence, modifications))
+
+    assert result.value == expected
+    assert result.unknown_tokens == unknown_tokens
+
+
+def test_a_site_without_a_position_is_refused_unless_unlocalized() -> None:
+    with pytest.raises(PackedSiteMismatchError, match="unrecognized embedded modification site"):
+        maxquant_names(unlocalized=False).transform(("PEPTMIDEMK", "Oxidation (M)"))
+
+
 def test_a_modification_after_the_last_residue_belongs_to_that_residue() -> None:
     """DIA-NN writes carbamidomethylated C-terminal cysteine as ``…C(UniMod:4)``."""
     result = token_regex().transform(("PEPTIDEM(ox)",))

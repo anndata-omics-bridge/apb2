@@ -404,6 +404,42 @@
                 ],
                 "how": "contaminant",
                 "equals": "+"
+              },
+              {
+                "name": "ProForma_peptidoform_unlocalized",
+                "inputs": [
+                  "ProForma_peptide",
+                  "Modifications"
+                ],
+                "how": "proforma_sequence",
+                "syntax": "modification_names",
+                "modification_map": "modification_names_map",
+                "case_sensitive": false,
+                "unknown_policy": "preserve",
+                "note": "Modifications names each modification with its count and candidate residues, such as '2 Oxidation (M)', never a position; the level is keyed by it, so positional isomers share a row"
+              }
+            ]
+          },
+          "sequence_syntax": {
+            "modification_names": {
+              "parser": "embedded_site_list",
+              "delimiter": ",",
+              "entry_pattern": "^(?:(?P<count>\\d+) )?(?P<token>.+ \\((?P<site>[^()]+)\\))$|^Unmodified$"
+            }
+          },
+          "modification_maps": {
+            "modification_names_map": [
+              {
+                "token": "Acetyl (Protein N-term)",
+                "accession": "UNIMOD:1"
+              },
+              {
+                "token": "Oxidation (M)",
+                "accession": "UNIMOD:35"
+              },
+              {
+                "token": "Carbamidomethyl (C)",
+                "accession": "UNIMOD:4"
               }
             ]
           }

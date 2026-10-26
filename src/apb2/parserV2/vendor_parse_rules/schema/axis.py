@@ -71,7 +71,9 @@ class ProformaSequence(ComputedColumnBase):
     """Normalize all declared logical inputs using named syntax and a token map."""
 
     how: Literal["proforma_sequence"]
-    name: Literal["ProForma_peptidoform"] = "ProForma_peptidoform"
+    name: Literal["ProForma_peptidoform", "ProForma_peptidoform_unlocalized"] = (
+        "ProForma_peptidoform"
+    )
     inputs: list[str] = Field(min_length=1, max_length=3)
     syntax: str
     modification_map: str

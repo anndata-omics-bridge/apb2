@@ -588,6 +588,7 @@ class ParseRuleFacade:
                 case_sensitive=column.case_sensitive,
                 unknown_policy=column.unknown_policy,
                 entries=entries,
+                unlocalized=column.name == "ProForma_peptidoform_unlocalized",
             )
         assert isinstance(syntax, TokenRegexSyntax)
         return TokenRegexNormalizer(
