@@ -627,7 +627,9 @@ def test_each_detection_selection_is_compiled_exactly_once(
     assert sorted(compiled) == ["peptidoform_ion", "protein"], "only requested levels are compiled"
 
 
-def test_levels_of_one_file_read_it_once_per_parse(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_each_level_of_one_file_reads_only_its_own_columns(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1_8")
     document = load_rule_document(pair.parser_v2_path)
     reads: list[tuple[str, ...]] = []
@@ -646,8 +648,12 @@ def test_levels_of_one_file_read_it_once_per_parse(monkeypatch: pytest.MonkeyPat
     first = collection.parse()
     second = collection.parse()
 
-    assert len(reads) == 2, "one read of the union per parse"
-    assert {"Modified.Sequence", "PG.MaxLFQ"} <= set(reads[0])
+    assert len(reads) == 4, "one read per level per parse"
+    ion, protein = (set(columns) for columns in reads[:2])
+    assert "Modified.Sequence" in ion
+    assert "PG.MaxLFQ" not in ion
+    assert "PG.MaxLFQ" in protein
+    assert "Precursor.Quantity" not in protein
     assert first.levels["peptidoform_ion"].var.frame.equals(
         second.levels["peptidoform_ion"].var.frame
     )

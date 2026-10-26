@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-from collections.abc import Collection, Sequence
+from collections.abc import Collection
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -389,21 +389,6 @@ class LevelReadPlan:
     categorical_sources: frozenset[str] = frozenset()
     converted_sources: frozenset[str] = frozenset()
 
-    @classmethod
-    def union(cls, plans: Sequence[LevelReadPlan]) -> LevelReadPlan:
-        """One plan reading every column of several, each with the dtype they agree on.
-
-        A column is categorical, or converted, only when every plan reading it says so;
-        otherwise it is text, which every consumer of either also accepts.
-        """
-        return cls(
-            tuple(dict.fromkeys(name for plan in plans for name in plan.projected_columns)),
-            frozenset[str]().union(*(plan.text_sources for plan in plans)),
-            frozenset[str]().union(*(plan.native_numeric_sources for plan in plans)),
-            _agreed(plans, [plan.categorical_sources for plan in plans]),
-            _agreed(plans, [plan.converted_sources for plan in plans]),
-        )
-
     def casts(self) -> tuple[pl.Expr, ...]:
         """The casts a reader of native-typed input applies: numbers and categorical keys."""
         return tuple(
@@ -414,20 +399,6 @@ class LevelReadPlan:
             )
             if columns
         )
-
-    def disagrees(self, other: LevelReadPlan) -> bool:
-        """Whether one plan reads a column as a number that the other reads as written."""
-        mine = frozenset(self.projected_columns) - self.native_numeric_sources
-        theirs = frozenset(other.projected_columns) - other.native_numeric_sources
-        return bool(self.native_numeric_sources & theirs or other.native_numeric_sources & mine)
-
-
-def _agreed(plans: Sequence[LevelReadPlan], chosen: Sequence[frozenset[str]]) -> frozenset[str]:
-    """The columns each plan projecting them chose, of the sets ``chosen`` lists per plan."""
-    agreed = frozenset[str]().union(*chosen)
-    for plan, columns in zip(plans, chosen, strict=True):
-        agreed -= frozenset(plan.projected_columns) - columns
-    return agreed
 
 
 @dataclass(frozen=True, slots=True)
