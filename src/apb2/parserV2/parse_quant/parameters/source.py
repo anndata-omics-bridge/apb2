@@ -15,7 +15,7 @@ from __future__ import annotations
 import hashlib
 import re
 from collections.abc import Collection
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
@@ -381,6 +381,8 @@ class LevelReadPlan:
     ``converted_sources`` are text sources of plain numeric layers; a delimited reader turns
     them into numbers while reading, and keeps a column as text when any of its values needs
     the text.
+    ``missing_tokens`` maps a native numeric source to the text its layer declares missing,
+    such as ``-``; those cells are read as null, every other value still casts strictly.
     """
 
     projected_columns: tuple[str, ...]
@@ -388,17 +390,31 @@ class LevelReadPlan:
     native_numeric_sources: frozenset[str]
     categorical_sources: frozenset[str] = frozenset()
     converted_sources: frozenset[str] = frozenset()
+    missing_tokens: dict[str, tuple[str, ...]] = field(default_factory=dict[str, tuple[str, ...]])
 
     def casts(self) -> tuple[pl.Expr, ...]:
         """The casts a reader of native-typed input applies: numbers and categorical keys."""
-        return tuple(
-            pl.col(sorted(columns)).cast(dtype)
-            for columns, dtype in (
-                (self.native_numeric_sources, pl.Float64()),
-                (self.categorical_sources, pl.Categorical()),
-            )
-            if columns
+        plain = self.native_numeric_sources - self.missing_tokens.keys()
+        return (
+            *(
+                pl.col(sorted(columns)).cast(dtype)
+                for columns, dtype in (
+                    (plain, pl.Float64()),
+                    (self.categorical_sources, pl.Categorical()),
+                )
+                if columns
+            ),
+            *(self.tokened_number(name, ".") for name in sorted(self.missing_tokens)),
         )
+
+    def tokened_number(self, name: str, decimal_mark: str) -> pl.Expr:
+        """One native numeric source read from text: declared tokens null, the rest strict."""
+        text = pl.col(name).cast(pl.String)
+        written = (
+            text if decimal_mark == "." else text.str.replace_all(decimal_mark, ".", literal=True)
+        )
+        missing = text.str.strip_chars().is_in(self.missing_tokens[name])
+        return pl.when(missing).then(None).otherwise(written).cast(pl.Float64).alias(name)
 
 
 @dataclass(frozen=True, slots=True)

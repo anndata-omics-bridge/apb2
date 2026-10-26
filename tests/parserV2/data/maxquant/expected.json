@@ -11,6 +11,10 @@
         "Intensity",
         "MS_MS_Count",
         "Retention_Time",
+        "Retention_Length",
+        "Calibrated_Retention_Time",
+        "Calibrated_Retention_Time_Start",
+        "Calibrated_Retention_Time_Finish",
         "Score",
         "PEP"
       ]

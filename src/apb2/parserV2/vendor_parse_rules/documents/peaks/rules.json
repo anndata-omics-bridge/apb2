@@ -142,6 +142,13 @@
                 "type": "number"
               },
               {
+                "name": "RT_Mean",
+                "source": "RT mean",
+                "type": "number",
+                "required": false,
+                "note": "The feature's retention time across all samples, one value per feature; the per-sample values are the Sample_RT_Mean layer"
+              },
+              {
                 "name": "RT_Range",
                 "source": "RT range"
               },

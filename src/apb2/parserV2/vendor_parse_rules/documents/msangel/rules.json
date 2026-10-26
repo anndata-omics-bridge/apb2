@@ -130,6 +130,20 @@
                 "note": "Proline's score of the protein set a row lists the ion under; a shared peptide has one row per set, and the ion keeps its best set's score"
               },
               {
+                "name": "Master_Ion_Elution_Time",
+                "source": "peptidoform_ion.master_quant_peptide_ion_elution_time",
+                "type": "number",
+                "required": false,
+                "note": "The master ion's elution time on the aligned time scale, one value per ion: it lies within seconds of the median of the per-run corrected_time values"
+              },
+              {
+                "name": "Master_Elution_Time",
+                "source": "peptidoform_ion.master_elution_time",
+                "type": "number",
+                "required": false,
+                "note": "One value per ion, minutes from Master_Ion_Elution_Time and close to the earliest run's elution_time; Proline does not document which time it is"
+              },
+              {
                 "name": "Same_Set_Proteins",
                 "source": "peptidoform_ion.samesets_accessions",
                 "roles": [

@@ -77,6 +77,32 @@
                 "missing_values": [
                   "<=0"
                 ]
+              },
+              {
+                "name": "MS2_Retention_Time",
+                "source": "MS2 Retention Time",
+                "note": "Time of the MS/MS scan that identified the peptide, not the apex of its MS1 peak"
+              },
+              {
+                "name": "Peak_RT_Start",
+                "source": "Peak RT Start",
+                "missing_tokens": [
+                  "-"
+                ]
+              },
+              {
+                "name": "Peak_RT_Apex",
+                "source": "Peak RT Apex",
+                "missing_tokens": [
+                  "-"
+                ]
+              },
+              {
+                "name": "Peak_RT_End",
+                "source": "Peak RT End",
+                "missing_tokens": [
+                  "-"
+                ]
               }
             ]
           },

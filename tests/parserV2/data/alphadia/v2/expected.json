@@ -11,7 +11,9 @@
         "Precursor_Intensity",
         "QValue",
         "Proba",
-        "RT_Observed"
+        "RT_Observed",
+        "RT_Calibrated",
+        "RT_Library"
       ]
     },
     "protein": {

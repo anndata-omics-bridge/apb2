@@ -138,6 +138,39 @@
                 "source": "EG.ApexRT"
               },
               {
+                "name": "EG_StartRT",
+                "source": "EG.StartRT"
+              },
+              {
+                "name": "EG_EndRT",
+                "source": "EG.EndRT"
+              },
+              {
+                "name": "EG_FWHM",
+                "source": "EG.FWHM"
+              },
+              {
+                "name": "EG_PeakWidth",
+                "source": "EG.PeakWidth"
+              },
+              {
+                "name": "EG_StartiRT",
+                "source": "EG.StartiRT"
+              },
+              {
+                "name": "EG_EndiRT",
+                "source": "EG.EndiRT"
+              },
+              {
+                "name": "EG_FWHM_iRT",
+                "source": "EG.FWHM (iRT)"
+              },
+              {
+                "name": "EG_MeanApexRT",
+                "source": "EG.MeanApexRT",
+                "note": "Differs between runs for the same precursor, so a layer; equal to EG.ApexRT in most rows"
+              },
+              {
                 "name": "EG_iRTEmpirical",
                 "source": "EG.iRTEmpirical"
               },

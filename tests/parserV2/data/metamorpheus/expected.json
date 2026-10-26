@@ -8,7 +8,11 @@
       "observations": 5,
       "variables": 178,
       "layers": [
-        "Intensity"
+        "Intensity",
+        "MS2_Retention_Time",
+        "Peak_RT_Start",
+        "Peak_RT_Apex",
+        "Peak_RT_End"
       ]
     }
   }

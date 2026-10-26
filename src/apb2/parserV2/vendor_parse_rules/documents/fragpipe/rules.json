@@ -85,6 +85,18 @@
                 "source": "^(?P<sample>.+?)(?:_[12])? Apex Retention Time$"
               },
               {
+                "name": "Retention_Time_Start",
+                "source": "^(?P<sample>.+?)(?:_[12])? Retention Time Start$"
+              },
+              {
+                "name": "Retention_Time_End",
+                "source": "^(?P<sample>.+?)(?:_[12])? Retention Time End$"
+              },
+              {
+                "name": "Retention_Time_FWHM",
+                "source": "^(?P<sample>.+?)(?:_[12])? Retention Time FWHM$"
+              },
+              {
                 "name": "Match_Type",
                 "source": "^(?P<sample>.+?)(?:_[12])? Match Type$",
                 "encoding_mode": "factor",

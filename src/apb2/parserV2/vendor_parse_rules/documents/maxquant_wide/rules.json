@@ -81,6 +81,23 @@
                 "source": "evidence.Retention time"
               },
               {
+                "name": "Retention_Length",
+                "source": "evidence.Retention length"
+              },
+              {
+                "name": "Calibrated_Retention_Time",
+                "source": "evidence.Calibrated retention time",
+                "note": "Retention time after MaxQuant aligns the runs for matching between runs; equal to Retention_Time when no calibration was applied"
+              },
+              {
+                "name": "Calibrated_Retention_Time_Start",
+                "source": "evidence.Calibrated retention time start"
+              },
+              {
+                "name": "Calibrated_Retention_Time_Finish",
+                "source": "evidence.Calibrated retention time finish"
+              },
+              {
                 "name": "Score",
                 "source": "evidence.Score"
               },
@@ -360,6 +377,13 @@
               {
                 "name": "Retention_Time",
                 "source": "peptidoform.Retention time",
+                "type": "number",
+                "required": false
+              },
+              {
+                "name": "Calibrated_Retention_Time",
+                "source": "peptidoform.Calibrated retention time",
+                "type": "number",
                 "required": false
               },
               {

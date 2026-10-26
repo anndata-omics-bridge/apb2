@@ -239,13 +239,19 @@ class DelimitedInputReader:
         Converted columns are read as text and turned into numbers in the same streaming
         plan, so their text exists one chunk at a time. A converted column holding a value
         that needs its text — a token no number reads, or the text ``NaN`` — is read again as
-        text, so it reaches the parser exactly as an unconverted layer does.
+        text, so it reaches the parser exactly as an unconverted layer does. A native numeric
+        column whose layer declares missing tokens is read as text and cast here, the tokens
+        as null.
         """
         columns = self.plan.projected_columns
         converted = tuple(name for name in columns if name in self.plan.converted_sources)
         flags = _flag_names(len(converted), self.evidence.columns)
         notation = self.evidence.number_format
         numbers = {name: as_numbers(pl.col(name), pl.String(), notation) for name in converted}
+        numbers |= {
+            name: self.plan.tokened_number(name, notation.decimal_mark)
+            for name in self.plan.missing_tokens
+        }
         frame = (
             self._scan(columns)
             .select(
@@ -284,7 +290,12 @@ class DelimitedInputReader:
         """
         overrides: dict[str, pl.DataType] = {name: pl.String() for name in self.plan.text_sources}
         overrides.update({name: pl.Categorical() for name in self.plan.categorical_sources})
-        overrides.update({name: pl.Float64() for name in self.plan.native_numeric_sources})
+        overrides.update(
+            {
+                name: pl.String() if name in self.plan.missing_tokens else pl.Float64()
+                for name in self.plan.native_numeric_sources
+            }
+        )
         decimal_comma = self.evidence.number_format.decimal_mark == ","
         encoding = self.evidence.encoding
         if encoding in ("utf8", "utf8-lossy"):

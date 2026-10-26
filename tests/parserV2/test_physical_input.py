@@ -407,6 +407,49 @@ def test_a_converted_layer_of_a_transcoded_file_is_read_as_numbers(tmp_path: Pat
     assert frame.get_column("Quantity").to_list() == [2.5]
 
 
+def tokened_plan(*columns: str) -> LevelReadPlan:
+    """A number-reducing rule's plan: Quantity is read as numbers and declares ``-`` missing."""
+    return replace(plan(*columns, numeric=("Quantity",)), missing_tokens={"Quantity": ("-",)})
+
+
+def read_tokened(
+    tmp_path: Path, rows: str, contract: DelimitedFormatContract = TSV
+) -> pl.DataFrame:
+    path = write(tmp_path / "tokened.tsv", "Sample\tFeature\tQuantity\n" + rows)
+    evidence = delimited_input.detected_evidence(
+        make_vendor_file(path), contract, accepts_sample_and_feature
+    )
+    reader = delimited_input.DelimitedInputReader(
+        make_vendor_file(path), evidence, tokened_plan("Sample", "Feature", "Quantity")
+    )
+    return reader.read().frame
+
+
+def test_a_native_numeric_layer_reads_its_declared_tokens_as_null(tmp_path: Path) -> None:
+    point = read_tokened(tmp_path, "A\tF\t1.5\nB\tG\t-\nC\tH\t\n")
+    comma = read_tokened(tmp_path, "A\tF\t1,5\nB\tG\t-\n", TEXT)
+
+    assert point.schema["Quantity"] == pl.Float64
+    assert point.get_column("Quantity").to_list() == [1.5, None, None]
+    assert comma.get_column("Quantity").to_list() == [1.5, None]
+
+
+def test_a_native_numeric_layer_still_rejects_undeclared_text(tmp_path: Path) -> None:
+    with pytest.raises(pl.exceptions.InvalidOperationError, match="n/a"):
+        read_tokened(tmp_path, "A\tF\t-\nB\tG\tn/a\n")
+
+
+def test_native_typed_input_casts_declared_tokens_to_null() -> None:
+    """Prepared, Parquet and workbook frames take the same casts as delimited input."""
+    frame = pl.DataFrame({"Quantity": ["2.5", " - ", None]})
+
+    cast = frame.with_columns(tokened_plan("Quantity").casts())
+
+    assert cast.get_column("Quantity").to_list() == [2.5, None, None]
+    with pytest.raises(pl.exceptions.InvalidOperationError, match="n/a"):
+        pl.DataFrame({"Quantity": ["n/a"]}).with_columns(tokened_plan("Quantity").casts())
+
+
 def test_a_read_returns_the_projection_in_plan_order(tmp_path: Path) -> None:
     path = write(tmp_path / "order.tsv", "Sample\tFeature\tQuantity\nA\tF\t1.5\n")
     evidence = delimited_input.detected_evidence(

@@ -464,7 +464,8 @@ class SourcePlanResolver:
         A measurement column is read natively only when the rule sums its values, because
         summing needs numbers and the schema already checked that those layers are plain. Every
         other measurement is text: real exports write ``-`` or ``NA`` in a column a rule calls
-        numeric, which an eager numeric read cannot survive. A delimited file still converts
+        numeric, which an eager numeric read cannot survive; a column read natively turns its
+        layer's declared ``missing_tokens`` into null first. A delimited file still converts
         the text of plain numeric layers while reading it (``converted_sources``), and keeps a
         column as text where a value needs it, so the parser sees what text would have given.
 
@@ -501,11 +502,13 @@ class SourcePlanResolver:
             # Parquet and prepared frames keep their own types. Only text layers that a
             # number-reducing rule must add up are read as numbers, as delimited input does.
             text = frozenset(name for name, dtype in evidence.dtypes if dtype == pl.String)
+            native = (reduced - lexical) & text
             return LevelReadPlan(
                 projected_columns=projected,
                 text_sources=frozenset(),
-                native_numeric_sources=(reduced - lexical) & text,
+                native_numeric_sources=native,
                 categorical_sources=keyed & text,
+                missing_tokens=self._missing_tokens(layers, native),
             )
         native = (
             frozenset()
@@ -525,7 +528,20 @@ class SourcePlanResolver:
             native_numeric_sources=native,
             categorical_sources=keyed & text,
             converted_sources=converted,
+            missing_tokens=self._missing_tokens(layers, native),
         )
+
+    @staticmethod
+    def _missing_tokens(
+        layers: _ResolvedLayers, native: frozenset[str]
+    ) -> dict[str, tuple[str, ...]]:
+        """The declared missing-value text of each source read natively as numbers."""
+        return {
+            source: layer.value.missing_tokens
+            for layer in layers.retained
+            if isinstance(layer.value, PlainNumericLayerDeclaration) and layer.value.missing_tokens
+            for source in sorted(layers.sources_of((layer.name,)) & native)
+        }
 
     @staticmethod
     def _plain_numeric_sources(layers: _ResolvedLayers) -> frozenset[str]:

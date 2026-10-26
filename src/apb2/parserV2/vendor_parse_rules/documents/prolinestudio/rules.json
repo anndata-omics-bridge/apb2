@@ -117,6 +117,20 @@
               "note": "Whether Proline quantifies the ion under its protein set, from that set's row; for some shared peptides it quantifies another set"
             },
             {
+              "name": "Master_Ion_Elution_Time",
+              "source": "master_quant_peptide_ion_elution_time",
+              "type": "number",
+              "required": false,
+              "note": "The master ion's elution time on the aligned time scale, one value per ion: it lies within seconds of the median of the per-run corrected_time values"
+            },
+            {
+              "name": "Master_Elution_Time",
+              "source": "master_elution_time",
+              "type": "number",
+              "required": false,
+              "note": "One value per ion, minutes from Master_Ion_Elution_Time and close to the earliest run's elution_time; Proline does not document which time it is"
+            },
+            {
               "name": "Proteins",
               "inputs": [
                 "Same_Set_Proteins",

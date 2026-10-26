@@ -94,6 +94,21 @@
                 "source": "rt_observed"
               },
               {
+                "name": "RT_Calibrated",
+                "source": "rt_calibrated",
+                "note": "The library RT calibrated into this run: where AlphaDIA expects the precursor to elute, not where it was observed"
+              },
+              {
+                "name": "RT_Library",
+                "source": "rt_library",
+                "note": "The spectral library RT; a layer because AlphaDIA writes it with run-to-run differences of up to 0.03 s"
+              },
+              {
+                "name": "Cycle_FWHM",
+                "source": "cycle_fwhm",
+                "note": "Peak width at half maximum, counted in DIA cycles rather than time"
+              },
+              {
                 "name": "Mz_Observed",
                 "source": "mz_observed",
                 "note": "Measured in each run: differs across runs, unlike mz_library, so a layer."

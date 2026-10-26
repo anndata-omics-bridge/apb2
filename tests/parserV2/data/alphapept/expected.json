@@ -16,6 +16,9 @@
         "Score",
         "Q_Value",
         "Retention_Time",
+        "Retention_Time_Start",
+        "Retention_Time_End",
+        "Retention_Time_Calibrated",
         "FWHM",
         "N_Fragments_Matched"
       ]

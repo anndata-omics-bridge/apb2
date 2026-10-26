@@ -137,7 +137,21 @@
               },
               {
                 "name": "Retention_Time",
-                "source": "rt"
+                "source": "rt",
+                "note": "Equal to rt_apex, the apex of the feature's MS1 peak, which is not kept twice"
+              },
+              {
+                "name": "Retention_Time_Start",
+                "source": "rt_start"
+              },
+              {
+                "name": "Retention_Time_End",
+                "source": "rt_end"
+              },
+              {
+                "name": "Retention_Time_Calibrated",
+                "source": "rt_calib",
+                "note": "The apex after AlphaPept aligns the runs for matching between runs"
               },
               {
                 "name": "FWHM",
