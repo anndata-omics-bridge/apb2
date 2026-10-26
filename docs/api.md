@@ -19,6 +19,14 @@ The initial categories are `DDA` and `DIA`; a rule can belong to both. Each vari
 
 `packaged_rule_declarations()` maps each packaged `(rule, level)`, with `rule` named as `RuleVariant.rule` names it, to every distinct `rule_json` text that conversion can store for that level, one per declaration some search-parameter evidence selects.
 
+## Schema constants
+
+```python
+from apb2.api import FIXED_COLUMNS, VAR_ROLES
+```
+
+`FIXED_COLUMNS` names the columns APB2 writes under the same name for every vendor: `ProForma_peptide`, `ProForma_peptidoform`, `ProForma_ion`, `ProForma_fragment`, `apb_Decoy` and `apb_Contaminant`. Which of them a level carries depends on its rule. `VAR_ROLES` is the set of roles a rule may give a var column (`fasta_accessions`, `protein_assignment`). apb-catalog's `apb` set gives each of them a kind and checks that none lacks one.
+
 ## Convert vendor results
 
 Use the public compiler when another package needs canonical parsed values:

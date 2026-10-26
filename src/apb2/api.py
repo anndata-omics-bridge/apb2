@@ -30,7 +30,9 @@ from apb2.parserV2.vendor_parse_rules.catalog import (
     get_rules,
     packaged_rule_declarations,
 )
+from apb2.parserV2.vendor_parse_rules.schema.axis import FIXED_COLUMNS
 from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
+from apb2.parserV2.vendor_parse_rules.schema.roles import VAR_ROLES
 
 
 def canonical_modification_names() -> Mapping[str, str]:
@@ -39,6 +41,8 @@ def canonical_modification_names() -> Mapping[str, str]:
 
 
 __all__ = [
+    "FIXED_COLUMNS",
+    "VAR_ROLES",
     "AnnotationCompiler",
     "AnnotationError",
     "AnnotationResult",

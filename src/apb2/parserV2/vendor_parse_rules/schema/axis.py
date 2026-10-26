@@ -151,6 +151,16 @@ class ContaminantFlag(_Flag):
 FLAG_COLUMNS = ("apb_Decoy", "apb_Contaminant")
 """The vendor markings every rule declares on its var axis, exactly once each."""
 
+FIXED_COLUMNS = (
+    "ProForma_peptide",
+    "ProForma_peptidoform",
+    "ProForma_peptidoform_unlocalized",
+    "ProForma_ion",
+    "ProForma_fragment",
+    *FLAG_COLUMNS,
+)
+"""The column names APB2 fixes for every vendor: the ProForma identifiers and the flags."""
+
 
 type ComputedColumn = Annotated[
     Coalesce

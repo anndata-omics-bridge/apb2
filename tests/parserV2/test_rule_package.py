@@ -6,11 +6,12 @@ import json
 import re
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args
 
 import pytest
 from pydantic import ValidationError
 
+from apb2 import api
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.vendor_parse_rules.document import (
     RuleNotApplicable,
@@ -18,7 +19,17 @@ from apb2.parserV2.vendor_parse_rules.document import (
     make_rule_document,
 )
 from apb2.parserV2.vendor_parse_rules.loader import PACKAGED, load_rule_document
-from apb2.parserV2.vendor_parse_rules.schema.axis import SourcedColumn, computed_columns
+from apb2.parserV2.vendor_parse_rules.schema.axis import (
+    FIXED_COLUMNS,
+    ContaminantFlag,
+    DecoyFlag,
+    ProformaFragment,
+    ProformaIon,
+    ProformaSequence,
+    SourcedColumn,
+    StrippedSequence,
+    computed_columns,
+)
 from apb2.parserV2.vendor_parse_rules.schema.base import (
     SCHEMA_VERSION,
     QuantificationLevel,
@@ -32,7 +43,7 @@ from apb2.parserV2.vendor_parse_rules.schema.measurements import (
     RegexValuePattern,
     layer_required,
 )
-from apb2.parserV2.vendor_parse_rules.schema.roles import ROLE_CONFIG
+from apb2.parserV2.vendor_parse_rules.schema.roles import ROLE_CONFIG, VAR_ROLES
 from apb2.parserV2.vendor_parse_rules.schema.rule import (
     LongRule,
     WideRule,
@@ -137,6 +148,25 @@ def test_role_configuration_owns_the_role_vocabulary() -> None:
         "var": frozenset({"fasta_accessions", "protein_assignment"}),
         "layer": frozenset({"abundance"}),
     } == ROLE_CONFIG
+
+
+def test_var_roles_are_the_var_owners_roles() -> None:
+    assert ROLE_CONFIG["var"] == VAR_ROLES
+    assert api.VAR_ROLES is VAR_ROLES
+
+
+def test_fixed_columns_are_the_names_the_schema_fixes() -> None:
+    fixed = (
+        StrippedSequence,
+        ProformaSequence,
+        ProformaIon,
+        ProformaFragment,
+        DecoyFlag,
+        ContaminantFlag,
+    )
+    names = [name for model in fixed for name in get_args(model.model_fields["name"].annotation)]
+    assert tuple(names) == FIXED_COLUMNS
+    assert api.FIXED_COLUMNS is FIXED_COLUMNS
 
 
 def test_entry_role_is_rejected_on_an_unconfigured_owner(tmp_path: Path) -> None:

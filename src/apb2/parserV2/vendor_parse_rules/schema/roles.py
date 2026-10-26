@@ -16,5 +16,8 @@ ROLE_CONFIG = TypeAdapter(dict[RoleOwner, frozenset[str]]).validate_json(
 )
 """The semantic roles permitted on each declaration owner."""
 
+VAR_ROLES = ROLE_CONFIG["var"]
+"""The semantic roles a rule may give a var column."""
+
 _ROLE_NAMES = sorted({role for roles in ROLE_CONFIG.values() for role in roles})
 type SemanticRole = Annotated[str, WithJsonSchema({"type": "string", "enum": _ROLE_NAMES})]
