@@ -10,6 +10,7 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
+from apb2.parserV2.parse_quant import decomposition as decomposition_module
 from apb2.parserV2.parse_quant.data.layer_columns import ObservationGrid, observation_labels
 from apb2.parserV2.parse_quant.data.raw import (
     DISAGREEING_VALUES,
@@ -25,6 +26,7 @@ from apb2.parserV2.parse_quant.decomposition import (
     DelimitedFragmentSourceDecomposer,
     LongSourceDecomposer,
     WideSourceDecomposer,
+    _FragmentKeys,  # pyright: ignore[reportPrivateUsage]
 )
 from apb2.parserV2.parse_quant.duplicates import (
     ExtremeFeatureValue,
@@ -519,9 +521,14 @@ def test_the_wide_observation_axis_comes_from_the_primary_layer_alone() -> None:
 # ---------------------------------------------------------------------- packed fragments
 
 
-def positional(*packed: str, delimiter: str = ";") -> PositionalFragmentTableSeparator:
+def positional(
+    *packed: str, delimiter: str = ";", converted: frozenset[str] = frozenset()
+) -> PositionalFragmentTableSeparator:
     return PositionalFragmentTableSeparator(
-        label_output="fragment_label", delimiter=delimiter, packed_value_sources=packed
+        label_output="fragment_label",
+        delimiter=delimiter,
+        packed_value_sources=packed,
+        converted_sources=converted,
     )
 
 
@@ -529,8 +536,8 @@ def separated(
     separator: PositionalFragmentTableSeparator | ColumnLabeledFragmentTableSeparator,
     table: LevelSourceTable,
 ) -> pl.DataFrame:
-    """Both separation steps, with nothing between them."""
-    return separator.exploded(separator.listed(table.frame))
+    """The explode, with the label spelled out as the fragment axis spells it."""
+    return separator.labelled(separator.exploded(table.frame))
 
 
 def test_positional_separation_labels_each_scalar_by_its_index() -> None:
@@ -589,7 +596,55 @@ def test_parallel_packed_cells_of_different_length_are_a_vendor_defect() -> None
     table = LevelSourceTable(frame=pl.DataFrame({"Quant": ["1;2"], "Corr": ["1;2;3"]}))
 
     with pytest.raises(PackedLengthError, match="different numbers"):
-        positional("Quant", "Corr").listed(table.frame)
+        positional("Quant", "Corr").token_counts(table.frame)
+
+
+def test_token_counts_count_scalars_as_the_split_does() -> None:
+    frame = pl.DataFrame({"Quant": ["10;20;", "  10 ; 20  ", "10;;30", ";5", None, " ; "]})
+
+    counts = positional("Quant").token_counts(frame)
+
+    assert counts.to_list() == [2, 2, 3, 2, 0, 0]
+
+
+def test_a_converted_packed_column_explodes_as_numbers() -> None:
+    table = LevelSourceTable(frame=pl.DataFrame({"Quant": ["1200;;4.5e2;", "7"]}))
+
+    rows = separated(positional("Quant", converted=frozenset({"Quant"})), table)
+
+    assert rows.schema["Quant"] == pl.Float64
+    assert rows.get_column("Quant").to_list() == [1200.0, None, 450.0, 7.0]
+    assert rows.get_column("fragment_label").to_list() == ["frag_0", "frag_1", "frag_2", "frag_0"]
+
+
+@pytest.mark.parametrize("token", ["n/a", "NaN"])
+def test_a_converted_column_needing_its_text_explodes_as_text(token: str) -> None:
+    """A token no number reads, or the text NaN, keeps the whole column text for the parser."""
+    table = LevelSourceTable(
+        frame=pl.DataFrame({"Quant": [f"10;{token}", "30"], "Corr": ["0.5;0.25", "1"]})
+    )
+    converted = frozenset({"Quant", "Corr"})
+
+    rows = separated(positional("Quant", "Corr", converted=converted), table)
+
+    assert rows.get_column("Quant").to_list() == ["10", token, "30"]
+    assert rows.get_column("Corr").to_list() == [0.5, 0.25, 1.0]
+    assert rows.columns == ["Quant", "Corr", "fragment_label"]
+
+
+def test_a_decimal_comma_file_converts_its_packed_numbers() -> None:
+    separator = PositionalFragmentTableSeparator(
+        label_output="fragment_label",
+        delimiter=";",
+        packed_value_sources=("Quant",),
+        converted_sources=frozenset({"Quant"}),
+        notation=NumericTextFormat(decimal_mark=",", thousands_marks=(".",)),
+    )
+    table = LevelSourceTable(frame=pl.DataFrame({"Quant": ["1.200,5;0,25"]}))
+
+    rows = separated(separator, table)
+
+    assert rows.get_column("Quant").to_list() == [1200.5, 0.25]
 
 
 def test_column_labelled_separation_takes_the_token_before_the_first_slash() -> None:
@@ -605,14 +660,16 @@ def test_column_labelled_separation_takes_the_token_before_the_first_slash() -> 
         )
     )
 
-    rows = separated(config, table)
+    exploded = config.exploded(table.frame)
+    rows = config.labelled(exploded)
 
+    assert exploded.schema["fragment_label"] == pl.Categorical
     assert rows.columns == ["Seq", "Quant", "fragment_label"]
     assert rows.get_column("fragment_label").to_list() == ["b4-unknown^1", "y3^1"]
 
 
 def test_fragments_get_their_row_numbers_before_the_explode() -> None:
-    """The explode multiplies integers, the payload and the packed values, never key text."""
+    """The explode multiplies integers and the packed values, never key or payload text."""
     exploded_columns: list[str] = []
     inner = positional("Quant")
 
@@ -620,12 +677,15 @@ def test_fragments_get_their_row_numbers_before_the_explode() -> None:
         label_output = inner.label_output
         packed_sources = inner.packed_sources
 
-        def listed(self, frame: pl.DataFrame, /) -> pl.DataFrame:
-            return inner.listed(frame)
+        def token_counts(self, frame: pl.DataFrame, /) -> pl.Series:
+            return inner.token_counts(frame)
 
-        def exploded(self, frame: pl.DataFrame, /) -> pl.DataFrame:
-            exploded_columns.extend(frame.columns)
-            return inner.exploded(frame)
+        def exploded(self, rows: pl.DataFrame, /) -> pl.DataFrame:
+            exploded_columns.extend(rows.columns)
+            return inner.exploded(rows)
+
+        def labelled(self, fragments: pl.DataFrame, /) -> pl.DataFrame:
+            return inner.labelled(fragments)
 
     obs, var = axis(("Run",)), axis(("Seq", "fragment_label"), ("Gene",))
     composed = DelimitedFragmentSourceDecomposer(
@@ -642,12 +702,47 @@ def test_fragments_get_their_row_numbers_before_the_explode() -> None:
 
     raw = composed.decompose(table)
 
-    assert not {"Run", "Seq"} & set(exploded_columns)
-    assert {"Gene", "Quant"} <= set(exploded_columns)
+    assert not {"Run", "Seq", "Gene"} & set(exploded_columns)
+    assert "Quant" in exploded_columns
     assert raw.var.frame.to_dicts() == [
         {"Seq": "P", "fragment_label": "frag_0", "Gene": "G"},
         {"Seq": "P", "fragment_label": "frag_1", "Gene": "G"},
     ]
+
+
+def test_a_fragment_takes_its_precursor_payload_and_disagreements() -> None:
+    """The payload is resolved once per precursor; each fragment reports its disagreement."""
+    obs, var = axis(("Run",)), axis(("Seq", "fragment_label"), ("Gene",))
+    composed = DelimitedFragmentSourceDecomposer(
+        separator=positional("Quant"),
+        long_decomposer=long_decomposer(
+            ("Fragment_Quant", "Quant"), primary="Fragment_Quant", obs=obs, var=var
+        ),
+    )
+    table = LevelSourceTable(
+        frame=pl.DataFrame(
+            {
+                "Run": ["A", "B", "A"],
+                "Seq": ["P", "P", "Q"],
+                "Gene": ["G1", "G2", "H"],
+                "Quant": ["1", "3;4", "5"],
+            }
+        )
+    )
+
+    raw = composed.decompose(table)
+
+    assert raw.var.frame.to_dicts() == [
+        {"Seq": "P", "fragment_label": "frag_0", "Gene": "G1"},
+        {"Seq": "P", "fragment_label": "frag_1", "Gene": "G1"},
+        {"Seq": "Q", "fragment_label": "frag_0", "Gene": "H"},
+    ]
+    disagreements = raw.var.disagreements["Gene"]
+    assert disagreements.select("Seq", "fragment_label").rows() == [
+        ("P", "frag_0"),
+        ("P", "frag_1"),
+    ]
+    assert disagreements.get_column(DISAGREEING_VALUES).to_list() == [["G1", "G2"]] * 2
 
 
 def test_the_fragment_decomposer_reuses_the_ordinary_long_implementation() -> None:
@@ -676,6 +771,27 @@ def test_the_fragment_decomposer_reuses_the_ordinary_long_implementation() -> No
         ("P", "frag_0", "B", "30"),
         ("P", "frag_1", "B", "40"),
     ]
+
+
+def test_a_run_whose_rows_hold_no_fragment_is_not_an_observation() -> None:
+    obs, var = axis(("Run",)), axis(("Seq", "fragment_label"))
+    composed = DelimitedFragmentSourceDecomposer(
+        separator=positional("Quant", converted=frozenset({"Quant"})),
+        long_decomposer=long_decomposer(
+            ("Fragment_Quant", "Quant"), primary="Fragment_Quant", obs=obs, var=var
+        ),
+    )
+    table = LevelSourceTable(
+        frame=pl.DataFrame(
+            {"Run": ["A", "B", "C"], "Seq": ["P", "Q", "P"], "Quant": ["", "1", "2"]}
+        )
+    )
+
+    raw = composed.decompose(table)
+
+    assert raw.obs.frame.get_column("Run").to_list() == ["B", "C"]
+    assert raw.var.frame.get_column("Seq").to_list() == ["Q", "P"]
+    assert cells_of(raw, "Fragment_Quant") == [("Q", "frag_0", "B", 1.0), ("P", "frag_0", "C", 2.0)]
 
 
 # -------------------------------------------------------------------------- storage labels
@@ -726,3 +842,41 @@ def test_a_composite_var_key_names_one_raw_var_row() -> None:
 
     assert raw.var.frame.rows() == [("F1", "2"), ("F1", "3")]
     assert raw.layers[0].rows.get_column(VAR_ROW).to_list() == [0, 1, 0]
+
+
+@pytest.mark.parametrize("slice_rows", [3, 1_000])
+@pytest.mark.parametrize("categorical", [False, True])
+def test_fragment_keys_give_the_axis_and_rows_a_join_gives(
+    monkeypatch: pytest.MonkeyPatch, slice_rows: int, categorical: bool
+) -> None:
+    """First appearance and each scalar's row, without hashing the scalars, in slices."""
+    monkeypatch.setattr(decomposition_module, "_FRAGMENT_SLICE_ROWS", slice_rows)
+    labels = ["y3", None, "b2", "y3", "b2", None, "y1", "y3", "y1", "b2"]
+    exploded = pl.DataFrame(
+        {
+            "_precursor_row": pl.Series([2, 0, 2, 1, 0, 0, 1, 2, 1, 2], dtype=pl.UInt32),
+            "fragment_label": pl.Series(
+                labels if categorical else [None if v is None else len(v) for v in labels],
+                dtype=pl.Categorical if categorical else pl.UInt16,
+            ),
+        }
+    )
+    keys = ("_precursor_row", "fragment_label")
+    expected_axis = exploded.select(keys).unique(maintain_order=True)
+    expected_rows = (
+        exploded.join(
+            expected_axis.with_row_index("_row"),
+            on=list(keys),
+            how="left",
+            nulls_equal=True,
+            maintain_order="left",
+        )
+        .get_column("_row")
+        .to_list()
+    )
+
+    axis, rows = _FragmentKeys.of(exploded, *keys).axis(exploded, precursors=3)
+
+    assert axis.rows() == expected_axis.rows()
+    assert axis.schema == expected_axis.schema
+    assert rows.to_list() == expected_rows

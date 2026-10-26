@@ -18,6 +18,7 @@ import polars as pl
 import pytest
 
 from apb2.parserV2.parse_quant.contracts import DuplicatePolicy, LayerValueParser
+from apb2.parserV2.parse_quant.data import raw as raw_module
 from apb2.parserV2.parse_quant.data.errors import ConversionError
 from apb2.parserV2.parse_quant.data.layer_columns import ObservationGrid
 from apb2.parserV2.parse_quant.data.raw import OBS_POS, VALUE, VAR_POS, LongLayer
@@ -452,6 +453,26 @@ def test_split_sets_apart_the_rows_that_repeat_a_cell() -> None:
     assert unique_once.rows is once.rows, "a layer without repeats is passed on as it is"
     assert nothing.rows.height == 0
     assert nothing.rows.schema == once.rows.schema
+
+
+@pytest.mark.parametrize("block_rows", [1, 3, 1_000])
+def test_a_large_layer_finds_its_repeats_one_var_range_at_a_time(
+    monkeypatch: pytest.MonkeyPatch, block_rows: int
+) -> None:
+    """Checked range by range, the repeated rows are exactly those of one whole-layer check."""
+    monkeypatch.setattr(raw_module, "_REPEAT_BLOCK_ROWS", block_rows)
+    rows = pl.DataFrame(
+        {
+            VAR_POS: [5, 0, 9, 5, 2, 9, 9, 0, 7],
+            OBS_POS: [1, 0, 3, 1, 2, 3, 0, 1, 7],
+            VALUE: list(range(9)),
+        },
+        schema={VAR_POS: pl.UInt32, OBS_POS: pl.UInt32, VALUE: pl.Int64},
+    )
+
+    repeated = LongLayer("L", rows).repeats()
+
+    assert repeated.to_list() == [True, False, True, True, False, True, False, False, False]
 
 
 def test_the_declared_mode_selects_one_stateless_policy() -> None:

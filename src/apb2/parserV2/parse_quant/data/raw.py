@@ -13,6 +13,7 @@ work on these long rows; a layer becomes wide only when it is widened, last.
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
+from itertools import pairwise
 
 import polars as pl
 
@@ -26,6 +27,9 @@ VAR_ROW = "var_row"
 
 OBS_ROW = "obs_row"
 """A long row's row in the raw obs axis frame."""
+
+_REPEAT_BLOCK_ROWS = 32_000_000
+"""About how many placed rows one repeated-cell check hashes at a time: about 1.7 GB."""
 
 
 @dataclass(slots=True)
@@ -81,8 +85,34 @@ class LongLayer:
     # pl.DataFrame({"sequence": ["PEPMIDE", "OTHER"], "charge": ["2", "3"]})
 
     def repeats(self) -> pl.Series:
-        """Which placed rows share their cell with another row."""
-        return self.rows.select(VAR_POS, OBS_POS).is_duplicated()
+        """Which placed rows share their cell with another row.
+
+        Rows sharing a cell share its ``var_pos``, so a large layer is checked one ``var_pos``
+        range at a time, each on one UInt64 cell key: hashing both position columns of a
+        fragment layer at once (54 M rows at 150 runs) took 9 GB, more than the rows; one range
+        of 32 M rows takes about 1.7 GB.
+        """
+        cell = pl.col(VAR_POS).cast(pl.UInt64) * (1 << 32) + pl.col(OBS_POS).cast(pl.UInt64)
+        blocks = -(-self.rows.height // _REPEAT_BLOCK_ROWS)
+        if blocks <= 1:
+            return self.rows.select(cell.is_duplicated()).to_series()
+        edges = pl.linear_space(
+            0, self.rows.select(pl.col(VAR_POS).max() + 1).item(), blocks + 1, eager=True
+        ).ceil()
+        repeated = pl.repeat(value=False, n=self.rows.height, eager=True)
+        indexed = self.rows.lazy().select(VAR_POS, OBS_POS).with_row_index("_row")
+        for start, stop in pairwise(edges):
+            within = (pl.col(VAR_POS) >= start) & (pl.col(VAR_POS) < stop)
+            found = (
+                indexed.filter(within)
+                .filter(cell.is_duplicated())
+                .select("_row")
+                .collect()
+                .to_series()
+            )
+            if found.len():
+                repeated = repeated.scatter(found, values=True)
+        return repeated
 
     def split(self) -> tuple[LongLayer, LongLayer]:
         """The placed rows alone in their cell, and those that repeat a cell."""

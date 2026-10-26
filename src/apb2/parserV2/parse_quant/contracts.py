@@ -46,10 +46,12 @@ class SourceDecomposer(Protocol):
 
 
 class FragmentTableSeparator(Protocol):
-    """Turn one packed-fragment table into scalar-long rows, in two steps.
+    """Turn one packed-fragment table into scalar-long rows.
 
-    ``listed`` splits the packed columns and drops the rows that hold no scalar; ``exploded``
-    gives each scalar its row and the ``label_output`` column, keeping every other column.
+    ``token_counts`` gives each row's scalar count and rejects misaligned packed cells;
+    ``exploded`` drops the rows that hold no scalar and gives each scalar its row and the
+    ``label_output`` column, keeping every other non-packed column; ``labelled`` turns the
+    label carried through the explode into its text on the fragment axis.
     """
 
     @property
@@ -58,9 +60,11 @@ class FragmentTableSeparator(Protocol):
     @property
     def packed_sources(self) -> tuple[str, ...]: ...
 
-    def listed(self, frame: pl.DataFrame, /) -> pl.DataFrame: ...
+    def token_counts(self, frame: pl.DataFrame, /) -> pl.Series: ...
 
-    def exploded(self, frame: pl.DataFrame, /) -> pl.DataFrame: ...
+    def exploded(self, rows: pl.DataFrame, /) -> pl.DataFrame: ...
+
+    def labelled(self, fragments: pl.DataFrame, /) -> pl.DataFrame: ...
 
 
 class AxisValueCoercer(Protocol):

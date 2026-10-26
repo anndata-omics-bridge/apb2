@@ -174,7 +174,7 @@ flowchart TB
     SOURCE["LevelSourceTable<br/>projected physical columns<br/>eager Polars DataFrame"]
     LONG(["LongSourceDecomposer.decompose()"])
     WIDE(["WideSourceDecomposer.decompose()"])
-    SEP(["FragmentTableSeparator.listed()<br/>packed cells become lists"])
+    SEP(["FragmentTableSeparator.token_counts()<br/>axes on the rows holding fragments"])
     SCALAR(["row numbers on the precursor rows,<br/>then FragmentTableSeparator.exploded()"])
     REUSE(["LongSourceDecomposer.raw_level()<br/>same layers as direct long"])
     RAW["RawLevel<br/>ObsRaw + VarRaw + LongLayers"]
@@ -539,7 +539,7 @@ reach the decomposer.
 
 ### 4.3 Delimiter-packed fragments
 
-Packed fragments are separated in two steps, and the key text is replaced by row numbers between them, so the explode multiplies integers rather than strings:
+Packed fragments are separated in one streaming explode, after the axes and the row numbers are built on the precursor rows, so the explode multiplies integers and numbers rather than strings:
 
 ```python
 class FragmentTableSeparator(Protocol):
@@ -547,8 +547,9 @@ class FragmentTableSeparator(Protocol):
     def label_output(self) -> str: ...
     @property
     def packed_sources(self) -> tuple[str, ...]: ...
-    def listed(self, frame: pl.DataFrame, /) -> pl.DataFrame: ...
-    def exploded(self, frame: pl.DataFrame, /) -> pl.DataFrame: ...
+    def token_counts(self, frame: pl.DataFrame, /) -> pl.Series: ...
+    def exploded(self, rows: pl.DataFrame, /) -> pl.DataFrame: ...
+    def labelled(self, fragments: pl.DataFrame, /) -> pl.DataFrame: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -557,24 +558,24 @@ class DelimitedFragmentSourceDecomposer:
     long_decomposer: LongSourceDecomposer
 
     def decompose(self, table: LevelSourceTable, /) -> RawLevel:
-        listed = self.separator.listed(table.frame)
-        # obs axis and obs_row, and the precursor (var keys without the label) and its row,
-        # both joined on the listed precursor rows
+        holding = table.frame.select(axis_columns).filter(self.separator.token_counts(frame) > 0)
+        # obs axis, and the precursor axis (var keys without the label) with the var payload
+        # policies, both on the rows that hold fragments
         exploded = self.separator.exploded(
-            listed.select(precursor_row, obs_row, *var_payload, *packed_sources)
+            pl.DataFrame([precursor_row, obs_row, *packed_columns])
         )
-        # fragment axis: one row per (precursor_row, label) with the var payload policies,
-        # var_row joined on those two columns, precursor key columns restored afterwards
+        # fragment axis: one row per (precursor_row, label) in order of first appearance,
+        # var_row joined on those two columns, the precursor's key and payload columns joined
         return self.long_decomposer.raw_level(exploded, obs_frame, var, var_row, obs_row)
 ```
 
-`listed()` splits the packed columns and drops the rows that hold no scalar; `exploded()` gives each scalar its row and the `label_output` column, nulls empty scalars and drops the packed label column. Only the var payload travels through the explode as text, because each fragment resolves it over its own rows. The fragment axis keeps the order of first appearance in the exploded rows, as before, and its frame and disagreement frames carry the raw var key columns in their declared order.
+`token_counts()` counts each row's scalars without splitting and rejects misaligned packed cells; `exploded()` drops the rows that hold no scalar, gives each scalar its row and the `label_output` column, nulls empty scalars and drops the packed label column; `labelled()` spells the label on the fragment axis. No key or payload text travels through the explode: the var payload is resolved once per precursor, each fragment takes its precursor's value, and a precursor's disagreement is reported for each of its fragments. The fragment axis keeps the order of first appearance in the exploded rows, and its frame and disagreement frames carry the raw var key columns in their declared order.
 
 The two separator implementations are:
 
-- `PositionalFragmentTableSeparator`, which emits `frag_0`, `frag_1`, ...;
-- `ColumnLabeledFragmentTableSeparator`, which emits the configured token derived from the packed
-  label source.
+- `PositionalFragmentTableSeparator`, which carries the list position as `UInt16` and emits `frag_0`, `frag_1`, ... on the fragment axis;
+- `ColumnLabeledFragmentTableSeparator`, which carries the configured token derived from the packed
+  label source as a Categorical and emits it as text on the fragment axis.
 
 The separator preserves authored `packed_value_sources` order, validates parallel packed lengths,
 and keeps scalar values as Polars values. It does not build axes, normalize modifications, decode
@@ -585,7 +586,7 @@ The scalar split retains current vendor semantics: null or whitespace-only packe
 zero tokens; outer whitespace and every token's surrounding whitespace are removed; trailing
 delimiter terminators are removed before splitting; and an interior empty token remains an empty
 scalar at its aligned position. Column-labelled separation derives `label_output` from the trimmed
-label token before the first `/`. A column-labelled declaration with `label_required: false` accepts a source without its label column and labels that source's scalars by position; DIA-NN 1.8 and 1.9 declare `Fragment.Info` this way, which FragPipe's DIA-NN reports carry and DIA-NN's own reports do not. The separator performs no numeric conversion.
+label token before the first `/`. A column-labelled declaration with `label_required: false` accepts a source without its label column and labels that source's scalars by position; DIA-NN 1.8 and 1.9 declare `Fragment.Info` this way, which FragPipe's DIA-NN reports carry and DIA-NN's own reports do not. A packed column of a plain numeric layer without missing tokens (`converted_sources`) is read as numbers inside its lists, with the file's number notation, before the explode; if any of its tokens has text no number reads, or is the text `NaN`, the column is exploded as text instead, so the parser sees what text would have given, as the delimited reader does for a scalar column.
 
 The ordered `packed_value_sources` are physical vendor column names, not layer names and not cell
 values. They are not inferred from `measurements.layers`, because the current schema does not
@@ -599,7 +600,7 @@ packed_value_sources = (
 ```
 
 For a cell `Fragment.Quant.Raw = "1200;900;450"`, positional separation emits three scalar rows
-labelled `frag_0`, `frag_1`, and `frag_2`. Measured on a 50-run subset of a DIA-NN 1.8 report (3.4 M precursor rows, 20.3 M fragment rows), moving the row numbers before the explode lowered the peptidoform-fragment level's peak footprint from 11.1 GB to 8.7 GB.
+labelled `frag_0`, `frag_1`, and `frag_2`. Measured on a 50-run subset of a DIA-NN 1.8 report (3.4 M precursor rows, 20.3 M fragment rows), moving the row numbers before the explode lowered the peptidoform-fragment level's peak footprint from 11.1 GB to 8.7 GB. Exploding numbers instead of text, keying the fragment axis by one integer instead of joining on two columns, and checking repeated cells one `var_pos` range at a time lowered it again on 26 Oct 2026: at 150 runs (9.0 M precursor rows, 54 M scalars) from 18.0 GB to 9.3 GB, at 50 runs from 6.6 GB to 4.7 GB.
 
 ## 5. Parser algorithm
 

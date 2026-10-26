@@ -244,13 +244,14 @@ class WideSourceDecomposer:
 
 @dataclass(frozen=True, slots=True)
 class DelimitedFragmentSourceDecomposer:
-    """Precursor rows packing fragment lists: row numbers first, then the explode.
+    """Precursor rows packing fragment lists: axes and row numbers first, then the explode.
 
     The run and precursor keys are joined to their axes on the precursor rows, so the explode
-    multiplies two integers instead of the key text; only the var payload, which a fragment's
-    own rows resolve, travels through it as text. The fragment axis is one row per (precursor,
-    label), and its precursor key columns are restored afterwards. Everything else is the long
-    decomposer's: its plans, its value policies and its layers.
+    multiplies two integers and the scalars, never key or payload text. The var payload is a
+    precursor's: its value policies run once per precursor on the rows that hold fragments, and
+    each fragment of the precursor takes the result. The fragment axis is one row per
+    (precursor, label) in order of first appearance, its precursor key columns restored
+    afterwards. Everything else is the long decomposer's: its plans and its layers.
     """
 
     separator: FragmentTableSeparator
@@ -259,46 +260,132 @@ class DelimitedFragmentSourceDecomposer:
     def decompose(self, table: LevelSourceTable, /) -> RawLevel:
         long = self.long_decomposer
         label = self.separator.label_output
-        listed = self.separator.listed(table.frame)
-        obs_frame = _axis_frame(listed, long.obs)
+        frame = table.frame
         precursor_keys = tuple(key for key in long.var.keys.raw_key_columns if key != label)
-        precursors = listed.select(precursor_keys).unique(maintain_order=True)
-        carried = (*long.var.payload_sources, *self.separator.packed_sources, label)
-        precursor, obs_row = _free("_precursor_row", carried), _free("_obs_row", carried)
-        exploded = self.separator.exploded(
-            listed.select(
-                _row_numbers(listed, precursors, precursor_keys).alias(precursor),
-                _row_numbers(listed, obs_frame, long.obs.keys.raw_key_columns).alias(obs_row),
+        # Only the axis columns are filtered, so the packed text is never copied.
+        axis_columns = dict.fromkeys(
+            (
+                *long.obs.keys.raw_key_columns,
+                *long.obs.payload_sources,
+                *precursor_keys,
                 *long.var.payload_sources,
-                *self.separator.packed_sources,
             )
         )
-        fragment_keys = (precursor, label)
-        var = _var_raw(
-            exploded,
+        holding = frame.select(list(axis_columns)).filter(self.separator.token_counts(frame) > 0)
+        obs_frame = _axis_frame(holding, long.obs)
+        precursors = _var_raw(
+            holding,
             AxisSourcePlan(
-                keys=replace(long.var.keys, raw_key_columns=fragment_keys),
+                keys=replace(long.var.keys, raw_key_columns=precursor_keys),
                 payload_sources=long.var.payload_sources,
             ),
             long.var_values,
         )
-        var_row = _row_numbers(exploded, var.frame, fragment_keys)
-        named = precursors.with_row_index(precursor)
+        del holding
+        carried = (*long.var.payload_sources, *self.separator.packed_sources, label)
+        precursor, obs_row = _free("_precursor_row", carried), _free("_obs_row", carried)
+        exploded = self.separator.exploded(
+            pl.DataFrame(
+                [
+                    _row_numbers(frame, precursors.frame, precursor_keys).alias(precursor),
+                    _row_numbers(frame, obs_frame, long.obs.keys.raw_key_columns).alias(obs_row),
+                    *frame.select(self.separator.packed_sources).get_columns(),
+                ]
+            )
+        )
+        fragments, var_row = _FragmentKeys.of(exploded, precursor, label).axis(
+            exploded, precursors.frame.height
+        )
+        named = precursors.frame.with_row_index(precursor)
         keys = long.var.keys.raw_key_columns
+        var_frame = _with_precursor_keys(self.separator.labelled(fragments), named, precursor, keys)
         return long.raw_level(
             exploded,
             obs_frame,
             VarRaw(
-                frame=_with_precursor_keys(var.frame, named, precursor, keys),
+                frame=var_frame,
                 raw_key_columns=keys,
                 disagreements={
-                    source: _with_precursor_keys(frame, named, precursor, keys)
-                    for source, frame in var.disagreements.items()
+                    source: var_frame.select(keys).join(
+                        disagreeing,
+                        on=list(precursor_keys),
+                        how="inner",
+                        nulls_equal=True,
+                        maintain_order="left",
+                    )
+                    for source, disagreeing in precursors.disagreements.items()
                 },
             ),
             var_row,
             exploded.get_column(obs_row),
         )
+
+
+_FRAGMENT_SLICE_ROWS = 32_000_000
+"""Exploded rows keyed at a time: one slice's UInt64 keys take about 256 MB."""
+
+
+@dataclass(frozen=True, slots=True)
+class _FragmentKeys:
+    """One integer per (precursor row, label): precursor row times the label count, plus a code.
+
+    A fragment's identity is two small columns, so its axis needs no hash over every scalar:
+    first appearance is the order of the distinct keys, and each scalar's ``var_row`` is a
+    lookup into a dense table of one slot per possible key. A two-column join over the 54 M
+    scalars of a 150-run DIA-NN report took 4 GB on top of them. The label code is its index
+    among the distinct labels; the last code is a missing label.
+    """
+
+    precursor: str
+    label: str
+    labels: pl.Series
+    codes: pl.Series
+
+    @classmethod
+    def of(cls, exploded: pl.DataFrame, precursor: str, label: str) -> _FragmentKeys:
+        """The distinct labels in order of appearance, and each physical label's code."""
+        labels = exploded.get_column(label).drop_nulls().unique(maintain_order=True)
+        physical = labels.to_physical()
+        size = labels.len() and physical.to_frame().select(pl.first().max() + 1).item()
+        codes = pl.repeat(None, size, dtype=pl.UInt32, eager=True).scatter(
+            physical, pl.int_range(0, labels.len(), dtype=pl.UInt32, eager=True)
+        )
+        return cls(precursor, label, labels, codes)
+
+    @property
+    def width(self) -> int:
+        """Codes per precursor: one per distinct label, and one for a missing label."""
+        return self.labels.len() + 1
+
+    def axis(self, exploded: pl.DataFrame, precursors: int) -> tuple[pl.DataFrame, pl.Series]:
+        """The fragment axis in order of first appearance, and each scalar's row in it."""
+        slices = [
+            exploded.slice(offset, _FRAGMENT_SLICE_ROWS)
+            for offset in range(0, exploded.height, _FRAGMENT_SLICE_ROWS)
+        ]
+        first = pl.concat(
+            [self._keys(part).unique(maintain_order=True) for part in slices],
+            how="vertical",
+        ).unique(maintain_order=True)
+        rows = pl.int_range(0, first.len(), dtype=pl.UInt32, eager=True)
+        lookup = pl.repeat(None, precursors * self.width, dtype=pl.UInt32, eager=True).scatter(
+            first, rows
+        )
+        var_row = pl.concat([lookup.gather(self._keys(part)) for part in slices], how="vertical")
+        missing = pl.Series([None], dtype=self.labels.dtype)
+        fragments = pl.DataFrame(
+            [
+                (first // self.width).cast(pl.UInt32).alias(self.precursor),
+                pl.concat([self.labels, missing]).gather(first % self.width).alias(self.label),
+            ]
+        )
+        return fragments, var_row
+
+    def _keys(self, rows: pl.DataFrame) -> pl.Series:
+        code = self.codes.gather(rows.get_column(self.label).to_physical())
+        return rows.get_column(self.precursor).cast(pl.UInt64) * self.width + code.fill_null(
+            self.width - 1
+        ).cast(pl.UInt64)
 
 
 def _free(name: str, taken: tuple[str, ...]) -> str:
@@ -311,6 +398,6 @@ def _free(name: str, taken: tuple[str, ...]) -> str:
 def _with_precursor_keys(
     frame: pl.DataFrame, precursors: pl.DataFrame, precursor: str, keys: tuple[str, ...]
 ) -> pl.DataFrame:
-    """A frame keyed by precursor row number, with the precursor's raw key columns instead."""
+    """A frame keyed by precursor row number, with the precursor's columns instead."""
     restored = frame.join(precursors, on=precursor, how="left", maintain_order="left")
     return restored.select(*keys, pl.exclude(precursor, *keys))

@@ -305,14 +305,18 @@ def test_the_diann_fragment_level_separates_packed_values_before_decomposing() -
     )
     decomposition = resolved.decomposer
     assert isinstance(decomposition, DelimitedFragmentSourceDecomposer)
+    packed = ("Fragment.Quant.Raw", "Fragment.Correlations")
+    # Both packed layers are plain numbers: the separator reads them as numbers in the lists.
     assert decomposition.separator == PositionalFragmentTableSeparator(
         label_output="fragment_label",
         delimiter=";",
-        packed_value_sources=("Fragment.Quant.Raw", "Fragment.Correlations"),
+        packed_value_sources=packed,
+        converted_sources=frozenset(packed),
+        notation=NumericTextFormat(decimal_mark=".", thousands_marks=()),
     )
     assert isinstance(decomposition.long_decomposer, LongSourceDecomposer)
     assert decomposition.long_decomposer.primary_layer_name == "Fragment_Quant_Raw"
-    # The label the separator synthesizes is identity, so its tokens must survive as text.
+    # The packed cells are read as text; the separator, not the reader, splits and converts.
     assert "Fragment.Quant.Raw" in resolved.read.text_sources
     assert resolved.read.converted_sources == frozenset()
     # Keys and payload are read as Categorical; packed columns stay text to be split.

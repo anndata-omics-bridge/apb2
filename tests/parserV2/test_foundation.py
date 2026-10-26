@@ -508,11 +508,14 @@ class _Separator:
     label_output = "fragment_label"
     packed_sources: tuple[str, ...] = ("a",)
 
-    def listed(self, frame: pl.DataFrame, /) -> pl.DataFrame:
-        return frame
+    def token_counts(self, frame: pl.DataFrame, /) -> pl.Series:
+        return pl.Series([1] * frame.height, dtype=pl.UInt32)
 
-    def exploded(self, frame: pl.DataFrame, /) -> pl.DataFrame:
-        return frame
+    def exploded(self, rows: pl.DataFrame, /) -> pl.DataFrame:
+        return rows
+
+    def labelled(self, fragments: pl.DataFrame, /) -> pl.DataFrame:
+        return fragments
 
 
 class _Coercer:
@@ -549,7 +552,9 @@ def test_the_intended_collaborators_satisfy_their_client_owned_contracts() -> No
     policy: DuplicatePolicy = _Policy()
 
     assert reader.read().frame.height == 1
-    assert separator.exploded(separator.listed(pl.DataFrame({"a": [1]}))).height == 1
+    packed = pl.DataFrame({"a": [1]})
+    assert separator.token_counts(packed).to_list() == [1]
+    assert separator.labelled(separator.exploded(packed)).height == 1
     frame = pl.DataFrame({"x": [1]})
     assert frame.select(coercer.coerce(frame, name="x", source="x")).to_series().to_list() == [1]
     assert computer.inputs == ("ProForma_peptidoform", "Charge")

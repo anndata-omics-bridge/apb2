@@ -144,7 +144,7 @@ class SourcePlanResolver:
             feature_value_policy(source, mode, numbers) for source, mode in var_modes.items()
         )
         decomposer, decomposition_json = self._decomposition(
-            layers, obs_source, var_source, var_values, present
+            layers, obs_source, var_source, var_values, present, numbers
         )
         validator = LayerContractValidator(
             primary_layer_name=working.measurements.primary_layer_name,
@@ -514,14 +514,8 @@ class SourcePlanResolver:
             else reduced - lexical
         )
         text = frozenset(projected) - native
-        plain = (
-            layer.name
-            for layer in layers.retained
-            if isinstance(layer.value, PlainNumericLayerDeclaration)
-            and not layer.value.missing_tokens
-        )
         converted = (
-            layers.sources_of(plain) & (text - lexical)
+            self._plain_numeric_sources(layers) & (text - lexical)
             if isinstance(evidence, DelimitedSourceEvidence)
             else frozenset[str]()
         )
@@ -533,6 +527,16 @@ class SourcePlanResolver:
             converted_sources=converted,
         )
 
+    @staticmethod
+    def _plain_numeric_sources(layers: _ResolvedLayers) -> frozenset[str]:
+        """The columns of plain numeric layers without missing tokens: readable as numbers."""
+        return layers.sources_of(
+            layer.name
+            for layer in layers.retained
+            if isinstance(layer.value, PlainNumericLayerDeclaration)
+            and not layer.value.missing_tokens
+        )
+
     def _decomposition(
         self,
         layers: _ResolvedLayers,
@@ -540,6 +544,7 @@ class SourcePlanResolver:
         var: AxisSourcePlan,
         var_values: tuple[FeatureValuePolicy, ...],
         present: frozenset[str],
+        numbers: NumericTextFormat,
     ) -> tuple[SourceDecomposer, dict[str, object]]:
         """Construct the physical-shape strategy and record its source decisions."""
         layout = self._configuration.source_layout
@@ -558,7 +563,7 @@ class SourcePlanResolver:
         }
         if isinstance(layout, LongSourceLayout):
             return long, long_json
-        separator, separator_json = self._separator(layout, layers, present)
+        separator, separator_json = self._separator(layout, layers, present, numbers)
         return DelimitedFragmentSourceDecomposer(separator, long), {
             "kind": "delimited_fragment",
             "separator": separator_json,
@@ -570,8 +575,13 @@ class SourcePlanResolver:
         layout: PositionalFragmentLayout | ColumnLabeledFragmentLayout,
         layers: _ResolvedLayers,
         present: frozenset[str],
+        numbers: NumericTextFormat,
     ) -> tuple[FragmentTableSeparator, dict[str, object]]:
-        """Keep the retained packed sources in authored order; drop what is absent."""
+        """Keep the retained packed sources in authored order; drop what is absent.
+
+        A packed column of a plain numeric layer is read as numbers inside its lists
+        (``converted_sources``), as a delimited reader converts such a scalar column.
+        """
         packed = tuple(
             column for column in layout.packed_value_sources if column in layers.source_columns
         )
@@ -580,22 +590,32 @@ class SourcePlanResolver:
                 f"{self._label()} carries none of the packed fragment columns "
                 f"{list(layout.packed_value_sources)}"
             )
+        converted = self._plain_numeric_sources(layers) & frozenset(packed)
         # An optional label column the source lacks leaves the scalars labelled by position.
         if isinstance(layout, ColumnLabeledFragmentLayout) and layout.label_source in present:
             return ColumnLabeledFragmentTableSeparator(
-                layout.label_source, layout.label_output, layout.delimiter, packed
+                layout.label_source,
+                layout.label_output,
+                layout.delimiter,
+                packed,
+                converted,
+                numbers,
             ), {
                 "kind": "column",
                 "label_source": layout.label_source,
                 "label_output": layout.label_output,
                 "delimiter": layout.delimiter,
                 "packed_value_sources": packed,
+                "converted_sources": sorted(converted),
             }
-        return PositionalFragmentTableSeparator(layout.label_output, layout.delimiter, packed), {
+        return PositionalFragmentTableSeparator(
+            layout.label_output, layout.delimiter, packed, converted, numbers
+        ), {
             "kind": "positional",
             "label_output": layout.label_output,
             "delimiter": layout.delimiter,
             "packed_value_sources": packed,
+            "converted_sources": sorted(converted),
         }
 
     def _require_aggregatable(
