@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -12,6 +13,7 @@ from typing import cast
 import duckdb
 import polars as pl
 
+from apb2.parserV2.parse_quant.data.layer_blocks import LayerBlocks
 from apb2.parserV2.parse_quant.data.parsed import (
     AnnotationTable,
     FeatureRelation,
@@ -56,14 +58,28 @@ class _TableWriter:
     serial: int = 0
 
     def write(self, frame: pl.DataFrame, /) -> dict[str, JsonValue]:
+        return self.write_blocks(iter((frame,)))
+
+    def write_blocks(self, blocks: Iterator[pl.DataFrame], /) -> dict[str, JsonValue]:
+        """One table from consecutive blocks of its rows: the first creates it."""
         name = f"data_{self.serial:06d}"
         self.serial += 1
-        self.connection.register(_REGISTERED_FRAME, frame)
-        try:
-            self.connection.execute(f"CREATE TABLE {name} AS SELECT * FROM {_REGISTERED_FRAME}")
-        finally:
-            self.connection.unregister(_REGISTERED_FRAME)
-        return table_metadata(frame, name)
+        first: pl.DataFrame | None = None
+        for block in blocks:
+            statement = (
+                f"CREATE TABLE {name} AS SELECT * FROM {_REGISTERED_FRAME}"
+                if first is None
+                else f"INSERT INTO {name} SELECT * FROM {_REGISTERED_FRAME}"
+            )
+            self.connection.register(_REGISTERED_FRAME, block)
+            try:
+                self.connection.execute(statement)
+            finally:
+                self.connection.unregister(_REGISTERED_FRAME)
+            first = block.clear() if first is None else first
+        if first is None:
+            raise ValueError("a table needs at least one block")
+        return table_metadata(first, name)
 
 
 class DuckDBWriter:
@@ -138,7 +154,7 @@ class DuckDBWriter:
             "layer_order": list(parsed.layers),
             "layers": {
                 name: {
-                    **tables.write(layer.wide()),
+                    **tables.write_blocks(block for _start, block in LayerBlocks(layer).rows()),
                     "role": layer.role.persisted_name(),
                     "semantics": layer_semantics_metadata(layer.semantics),
                 }

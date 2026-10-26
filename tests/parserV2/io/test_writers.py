@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Literal
 
 import anndata
+import h5py
 import mudata
 import numpy as np
 import pandas as pd
@@ -17,6 +18,7 @@ import polars as pl
 import pytest
 
 from apb2.parserV2.parse_quant.contracts import LayerValueParser
+from apb2.parserV2.parse_quant.data import layer_blocks
 from apb2.parserV2.parse_quant.data.errors import ConversionError
 from apb2.parserV2.parse_quant.data.layer_columns import ObservationGrid
 from apb2.parserV2.parse_quant.data.parsed import (
@@ -32,6 +34,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
 )
 from apb2.parserV2.parse_quant.data.raw import OBS_POS, VALUE, VAR_POS, LongLayer
 from apb2.parserV2.parse_quant.errors import LayerContractError, LayerValueError
+from apb2.parserV2.parse_quant.io import anndata_writer
 from apb2.parserV2.parse_quant.io.anndata_writer import (
     AnnDataWriter,
     H5adWriter,
@@ -1101,9 +1104,10 @@ def test_mudata_writer_is_not_configured_per_level(
     assert not hasattr(MuDataWriter(), "level_writers")
 
 
-def test_one_array_is_allocated_for_each_encoded_layer(
+def test_the_h5_writer_fills_each_layer_one_block_of_feature_rows_at_a_time(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """No layer's whole matrix exists: each array is one block of feature rows of one layer."""
     allocated: list[tuple[int, ...]] = []
     original = pl.DataFrame.to_numpy
 
@@ -1112,47 +1116,58 @@ def test_one_array_is_allocated_for_each_encoded_layer(
         allocated.append(result.shape)
         return result
 
+    def unwidened(self: FinalLayerTable) -> pl.DataFrame:
+        raise AssertionError(f"{self.layer_name} was widened whole")
+
     monkeypatch.setattr(pl.DataFrame, "to_numpy", counting)
+    monkeypatch.setattr(FinalLayerTable, "wide", unwidened)
+    monkeypatch.setattr(anndata_writer, "_CHUNK_FEATURES", 2)
+    # Two observations of 8 bytes: 32 bytes are two feature rows, one chunk wide.
+    monkeypatch.setattr(layer_blocks, "BLOCK_BYTES", 32)
     parsed = level(
         layers={
-            "Intensity": pl.DataFrame({"Feature": ["F1"], "obs_0": [1.0], "obs_1": [2.0]}),
-            "QValue": pl.DataFrame({"Feature": ["F1"], "obs_0": [0.1], "obs_1": [0.2]}),
+            "Intensity": pl.DataFrame({"obs_0": [1.0, 2.0, 3.0], "obs_1": [4.0, None, 6.0]}),
+            "QValue": pl.DataFrame({"obs_0": [0.01, None, 0.03], "obs_1": [0.02, 0.03, None]}),
         },
-        var=pl.DataFrame({"Feature": ["F1"]}),
-    )
-
-    write_h5ad(parsed, tmp_path / "peptidoform_ion.h5ad")
-
-    assert allocated == [(1, 2), (1, 2)]
-
-
-def test_the_h5_writer_widens_each_layer_once_and_writes_it_into_the_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Only one layer's wide frame and its array exist at a time: none is built ahead."""
-    widened: list[str] = []
-    original = FinalLayerTable.wide
-
-    def counted(self: FinalLayerTable) -> pl.DataFrame:
-        widened.append(self.layer_name)
-        return original(self)
-
-    monkeypatch.setattr(FinalLayerTable, "wide", counted)
-    parsed = level(
-        layers={
-            "Intensity": pl.DataFrame({"obs_0": [1.0, 2.0], "obs_1": [3.0, None]}),
-            "QValue": pl.DataFrame({"obs_0": [0.01, None], "obs_1": [0.02, 0.03]}),
-        }
+        var=pl.DataFrame({"Feature": ["F1", "F2", "F3"]}),
     )
     target = tmp_path / "peptidoform_ion.h5ad"
 
-    write_h5ad(parsed, target)
+    H5adWriter().write(one(parsed), target)
 
-    assert sorted(widened) == ["Intensity", "QValue"]
+    assert [shape for shape in allocated if shape != (1, 1)] == [(2, 2), (1, 2), (2, 2), (1, 2)]
     stored = anndata.read_h5ad(target)
-    np.testing.assert_array_equal(np.asarray(stored.X), np.array([[1.0, 2.0], [3.0, np.nan]]))
+    np.testing.assert_array_equal(
+        np.asarray(stored.X), np.array([[1.0, 2.0, 3.0], [4.0, np.nan, 6.0]])
+    )
     # anndata 0.13 lists X among the layers under the key None.
     (physical,) = [name for name, _matrix in stored.layers.items() if name is not None]
     np.testing.assert_array_equal(
-        np.asarray(stored.layers[physical]), np.array([[0.01, np.nan], [0.02, 0.03]])
+        np.asarray(stored.layers[physical]), np.array([[0.01, np.nan, 0.03], [0.02, 0.03, np.nan]])
     )
+    with h5py.File(target, "r") as file:
+        dataset = file["X"]
+        assert isinstance(dataset, h5py.Dataset)
+        assert dict(dataset.attrs) == {"encoding-type": "array", "encoding-version": "0.2.0"}
+        assert dataset.chunks == (2, 2)
+
+
+@pytest.mark.parametrize("values", [[1, 2, 3], [1, None, 3]])
+def test_an_integer_layer_keeps_the_dtype_its_whole_matrix_has(
+    tmp_path: Path, values: list[int | None]
+) -> None:
+    """Missing cells make the whole array float, as ``to_numpy`` of the whole frame did."""
+    parsed = level(
+        obs=pl.DataFrame({"Run": ["A"]}),
+        var=pl.DataFrame({"Feature": ["F1", "F2", "F3"]}),
+        layers={"Intensity": pl.DataFrame({"obs_0": values}, schema={"obs_0": pl.Int64})},
+    )
+    target = tmp_path / "peptidoform_ion.h5ad"
+
+    H5adWriter().write(one(parsed), target)
+
+    with h5py.File(target, "r") as file:
+        dataset = file["X"]
+        assert isinstance(dataset, h5py.Dataset)
+        expected = pl.DataFrame({"obs_0": values}, schema={"obs_0": pl.Int64}).to_numpy().dtype
+        assert dataset.dtype == expected

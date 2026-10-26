@@ -100,7 +100,7 @@ The identity model keeps identity in explicit key columns; layer rows reach axis
 - a reorder join copied each wide layer again;
 - duplicate rows were widened before they collapsed: one protein had 2,671 rows in one run.
 
-Now each layer stays long rows of integer positions. Presence, duplicate resolution and value parsing run on those rows, and only the parsed values are widened, one layer at a time. Raw and final key columns still define identity on the small axis frames; integer row numbers are only how layer rows point at axis rows. Parsed results stay long as well: a `FinalLayerTable` holds its stored cells at final positions (`var_pos`, `obs_pos`, `value`) with its `height` and observation `labels`, and `wide()` builds the matrix on request. Writers widen one layer at a time, so a level's layers are never all wide together; on a 150-run subset this moved the peptidoform-ion level's write peak from 21.8 GB to the size of one layer and its array.
+Now each layer stays long rows of integer positions. Presence, duplicate resolution and value parsing run on those rows, and only the parsed values are widened, one layer at a time. Raw and final key columns still define identity on the small axis frames; integer row numbers are only how layer rows point at axis rows. Parsed results stay long as well: a `FinalLayerTable` holds its stored cells at final positions (`var_pos`, `obs_pos`, `value`) with its `height` and observation `labels`, and `wide()` builds the matrix on request. Writers widen one layer at a time, so a level's layers are never all wide together; on a 150-run subset this moved the peptidoform-ion level's write peak from 21.8 GB to the size of one layer and its array. Since 26 Oct 2026 they widen one block of about 1 GB of one layer at a time (`LayerBlocks`, `data/layer_blocks.py`), and the JSON sidecar summarizes one block of observation columns at a time: a DIA-NN fragment layer of 2.8 M features and 1,236 runs is 27.6 GB wide. Every parsed level's cells are parked as they are parsed (`LayerParking`, `parking.py`): written once to an uncompressed Arrow IPC file, memory-mapped back and the file unlinked, so they stay an ordinary `pl.DataFrame` but the levels of one conversion no longer add up in memory.
 
 This algorithm is derived from each effective rule. AlphaDIA, DIA-NN, FragPipe, MaxQuant,
 Spectronaut, WOMBAT-P, and the other packaged documents exercise the same code. Vendor- or
@@ -794,7 +794,7 @@ The result-I/O `ParquetLevelsWriter` persists:
 
 - `parsed.obs.frame` plus `parsed.obs.key_columns` metadata;
 - `parsed.var.frame` plus `parsed.var.key_columns` metadata;
-- every layer's `wide()` frame, built one layer at a time, plus layer-role and semantics metadata;
+- every layer's wide frame, one row group per block of feature rows (`LayerBlocks.rows()`), plus layer-role and semantics metadata;
 - `primary_layer_name`, per-level `uns`, and shared `ParsedLevels.uns`;
 - every `obsm`/`varm` aligned frame; and
 - every `obsp`/`varp` sparse-coordinate frame.
@@ -825,22 +825,20 @@ mapping. `ParquetReader` accepts this APB2 dataset only; a vendor `.parquet` fil
 
 ### 6.2 AnnData
 
-`AnnDataWriter` owns physical representation, not scientific value parsing. `to_anndata_for_level()` builds an AnnData without matrices (axes, aligned and pairwise slots, storage metadata); the writer stores it and then writes the matrices into the open file, one layer at a time:
+`AnnDataWriter` owns physical representation, not scientific value parsing. `to_anndata_for_level()` builds an AnnData without matrices (axes, aligned and pairwise slots, storage metadata); the writer stores it and then writes the matrices into the open file, one block of one layer at a time:
 
 ```python
 def _write_matrices(group: h5py.Group, parsed: ParsedLevel) -> None:
     layer_names = safe_names(parsed.layers, prefix="layer", suffix="")
     layers = group["layers"]
     for name, layer in parsed.layers.items():
-        matrix = layer.wide().to_numpy().T
-        compressed = {"compression": "gzip", "compression_opts": GZIP_LEVEL} if matrix.size else {}
         if name == parsed.primary_layer_name:
-            write_elem(group, "X", matrix, dataset_kwargs=compressed)
+            _DenseMatrix(layer).write(group, "X")
         else:
-            write_elem(layers, layer_names[name], matrix, dataset_kwargs=compressed)
+            _DenseMatrix(layer).write(layers, layer_names[name])
 ```
 
-The group is the file root for h5ad and `mod/<level>` for h5mu, where `write_elem` replaces the null `X` MuData writes for a modality without one. The primary layer is stored only in `X`; other matrices use safe names in `layers`. `AnnDataWriter.to_anndata_for_level()` and `_write_namespaces()` persist each level part and the root part below `uns["apb"]`, each with its own `storage` descriptor; an h5ad keeps its level part below `uns[<level>]["apb"]`. `_write_atomically()` publishes the completed result.
+`_DenseMatrix` creates the dataset `anndata.io.write_elem` would create for the whole NumPy array — the dtype `to_numpy()` gives the whole wide frame, `encoding-type` `array`, `encoding-version` `0.2.0`, gzip at the file's level — and fills it one block of feature columns at a time, its chunks one block wide. The group is the file root for h5ad and `mod/<level>` for h5mu, where the writer replaces the null `X` MuData writes for a modality without one. The primary layer is stored only in `X`; other matrices use safe names in `layers`. `AnnDataWriter.to_anndata_for_level()` and `_write_namespaces()` persist each level part and the root part below `uns["apb"]`, each with its own `storage` descriptor; an h5ad keeps its level part below `uns[<level>]["apb"]`. `_write_atomically()` publishes the completed result.
 
 The shared `_make_axis_frame()` I/O helper converts Polars through Arrow to pandas, preserves supported nullable/categorical representations, and retains every authored key as an ordinary column. One string key can serve directly as the storage index; other keys use a collision-free canonical JSON array of typed scalar pairs. Storage labels never enter parsing joins or identity.
 

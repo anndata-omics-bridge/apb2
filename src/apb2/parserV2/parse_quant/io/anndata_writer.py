@@ -7,22 +7,25 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Literal, Protocol, cast
+from typing import Any, Literal, Protocol, cast
 
 import h5py
+import numpy as np
 import pandas as pd
 import polars as pl
 import polars.selectors as cs
 import pyarrow as pa
 from anndata import AnnData
 from anndata import settings as anndata_settings
-from anndata.io import write_elem
 from mudata import MuData
 from scipy import sparse
 
+from apb2.parserV2.parse_quant.data.layer_blocks import LayerBlocks
+from apb2.parserV2.parse_quant.data.layer_columns import VALUE
 from apb2.parserV2.parse_quant.data.parsed import (
     AnnotationTable,
     FeatureRelation,
+    FinalLayerTable,
     JsonValue,
     ParsedLevel,
     ParsedLevelName,
@@ -355,7 +358,7 @@ def represent_layer_values(
         raise InvalidResultError(f"level has no layer {layer_name!r}") from error
     return represent_semantics(
         layer.semantics,
-        layer.wide(),
+        LayerBlocks(layer).columns,
         observation_limit=observation_limit,
     )
 
@@ -537,21 +540,60 @@ def _write_namespaces(
 
 
 def _write_matrices(group: h5py.Group, parsed: ParsedLevel) -> None:
-    """Write a stored level's ``X`` and layers, building one wide matrix at a time.
+    """Write a stored level's ``X`` and layers, one block of one layer at a time.
 
-    The names and placement are those ``_level_storage_metadata`` records; compression is the
-    file's own, which ``write_elem`` does not inherit.
+    The names and placement are those ``_level_storage_metadata`` records.
     """
     layer_names = safe_names(parsed.layers, prefix="layer", suffix="")
     layers = cast(h5py.Group, group["layers"])
     for name, layer in parsed.layers.items():
-        matrix = layer.wide().to_numpy().T
-        compressed = {"compression": "gzip", "compression_opts": GZIP_LEVEL} if matrix.size else {}
         if name == parsed.primary_layer_name:
-            write_elem(group, "X", matrix, dataset_kwargs=compressed)
+            _DenseMatrix(layer).write(group, "X")
         else:
-            write_elem(layers, layer_names[name], matrix, dataset_kwargs=compressed)
-        del matrix
+            _DenseMatrix(layer).write(layers, layer_names[name])
+
+
+@dataclass(frozen=True, slots=True)
+class _DenseMatrix:
+    """One layer as AnnData's dense ``(n_obs, n_var)`` array, written in feature-column slabs.
+
+    The dataset is the one ``anndata.io.write_elem`` writes for a NumPy array — same dtype,
+    same ``encoding-type`` and ``encoding-version``, gzip at the file's level, which
+    ``write_elem`` would not inherit — but it is filled one block of feature columns at a time,
+    so no layer's whole matrix is ever in memory. Chunks span a block's width exactly, so each
+    slab writes whole chunks.
+    """
+
+    layer: FinalLayerTable
+
+    def write(self, parent: h5py.Group, key: str) -> None:
+        blocks = LayerBlocks(self.layer)
+        shape = (len(self.layer.labels), self.layer.height)
+        if key in parent:  # MuData writes a null X first; write_elem replaces it the same way
+            del parent[key]
+        chunks = (min(shape[0], _CHUNK_OBSERVATIONS), min(shape[1], _CHUNK_FEATURES))
+        options = (
+            {"chunks": chunks, "compression": "gzip", "compression_opts": GZIP_LEVEL}
+            if shape[0] * shape[1]
+            else {}
+        )
+        dataset = parent.create_dataset(key, shape=shape, dtype=self._dtype(blocks), **options)
+        dataset.attrs["encoding-type"] = "array"
+        dataset.attrs["encoding-version"] = "0.2.0"
+        step = max(blocks.row_step // _CHUNK_FEATURES, 1) * _CHUNK_FEATURES
+        for start, block in blocks.rows(step):
+            if block.height:
+                dataset[:, start : start + block.height] = block.to_numpy().T
+
+    def _dtype(self, blocks: LayerBlocks) -> np.dtype[Any]:
+        """The dtype ``to_numpy`` gives the whole wide frame: a missing cell makes ints float."""
+        value = self.layer.cells.schema[VALUE]
+        probe = pl.Series(VALUE, [None] if blocks.has_missing() else [], dtype=value)
+        return probe.to_frame().to_numpy().dtype
+
+
+_CHUNK_FEATURES = 4096
+_CHUNK_OBSERVATIONS = 64
 
 
 class _HDF5Write(Protocol):

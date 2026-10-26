@@ -238,7 +238,7 @@ class FinalLayerTable:
             self.cells.get_column(VAR_POS),
             self.cells.get_column(OBS_POS),
             self.cells.get_column(VALUE),
-            _fill(self.semantics),
+            layer_fill(self.semantics),
         )
 
     def quantitative_values(self) -> pl.DataFrame:
@@ -269,7 +269,7 @@ class FinalLayerTable:
         columns of different numeric types share their supertype.
         """
         semantics = semantics or QuantitativeLayerSemantics()
-        fill = _fill(semantics)
+        fill = layer_fill(semantics)
         labels = tuple(values.columns)
         if not labels:
             cells = pl.DataFrame(schema={VAR_POS: pl.UInt32, OBS_POS: pl.UInt32, VALUE: pl.Null})
@@ -295,7 +295,7 @@ class FinalLayerTable:
         )
 
 
-def _fill(semantics: FinalLayerSemantics) -> int | None:
+def layer_fill(semantics: FinalLayerSemantics) -> int | None:
     """What a cell no row names holds: the missing code of a category, else null."""
     return semantics.missing_code if isinstance(semantics, CategoricalLayerSemantics) else None
 

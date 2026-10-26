@@ -8,8 +8,10 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import polars as pl
+import pyarrow.parquet as pq
 from loguru import logger
 
+from apb2.parserV2.parse_quant.data.layer_blocks import LayerBlocks
 from apb2.parserV2.parse_quant.data.parsed import (
     AnnotationTable,
     FeatureRelation,
@@ -115,14 +117,33 @@ def _write_layers(layers: Mapping[str, FinalLayerTable], directory: Path) -> dic
     names = safe_names(layers, prefix="layer", suffix=".parquet")
     result: dict[str, JsonValue] = {}
     for name, layer in layers.items():
-        values = layer.wide()
-        values.write_parquet(directory / names[name])
+        values = _write_layer(layer, directory / names[name])
         result[name] = {
             **table_metadata(values, names[name]),
             "role": layer.role.persisted_name(),
             "semantics": layer_semantics_metadata(layer.semantics),
         }
     return result
+
+
+def _write_layer(layer: FinalLayerTable, path: Path) -> pl.DataFrame:
+    """One layer's wide table, one row group per block of feature rows; its empty frame.
+
+    No layer's whole matrix is in memory: a DIA-NN fragment layer is 27.6 GB wide.
+    """
+    writer: pq.ParquetWriter | None = None
+    schema = pl.DataFrame()
+    try:
+        for _start, block in LayerBlocks(layer).rows():
+            table = block.to_arrow()
+            if writer is None:
+                writer = pq.ParquetWriter(path, table.schema, compression="zstd")
+                schema = block.clear()
+            writer.write_table(table)
+    finally:
+        if writer is not None:
+            writer.close()
+    return schema
 
 
 def _write_named_frames(
