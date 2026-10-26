@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import math
 import re
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
@@ -113,14 +114,11 @@ type ModificationLabels = dict[LabelPosition, list[str]]
 def render_proforma(
     stripped: str,
     labels: ModificationLabels,
-    unknown_tokens: dict[int, str],
+    unknown_tokens: dict[LabelPosition, str],
 ) -> str:
     """Render known labels first, then the last preserved unknown at each position."""
     labels = {position: list(tags) for position, tags in labels.items()}
-    for index, token in unknown_tokens.items():
-        position: LabelPosition = (
-            "N-term" if index == -1 else "C-term" if index == len(stripped) else index
-        )
+    for position, token in unknown_tokens.items():
         labels.setdefault(position, []).append(token)
     nterm, cterm = labels.get("N-term", []), labels.get("C-term", [])
     out: list[str] = []
@@ -145,20 +143,15 @@ class ResidueLocation:
     sequence_index: int
     residue: str
 
+    @property
+    def label_position(self) -> LabelPosition:
+        return self.sequence_index
+
     def target_position(self) -> str:
         return "Anywhere"
 
     def matches_residue(self, target: str) -> bool:
         return target == self.residue
-
-    def record_label(self, labels: ModificationLabels, label: str) -> None:
-        labels.setdefault(self.sequence_index, []).append(label)
-
-    def record_unknown_token(
-        self, unknown_tokens: dict[int, str], raw_token: str, sequence_length: int
-    ) -> None:
-        del sequence_length
-        unknown_tokens[self.sequence_index] = raw_token
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,19 +161,15 @@ class TerminalLocation:
     position: Literal["N-term", "C-term"]
     adjacent_residue: str
 
+    @property
+    def label_position(self) -> LabelPosition:
+        return self.position
+
     def target_position(self) -> str:
         return self.position
 
     def matches_residue(self, target: str) -> bool:
         return target == self.adjacent_residue
-
-    def record_label(self, labels: ModificationLabels, label: str) -> None:
-        labels.setdefault(self.position, []).append(label)
-
-    def record_unknown_token(
-        self, unknown_tokens: dict[int, str], raw_token: str, sequence_length: int
-    ) -> None:
-        unknown_tokens[_terminal_index(self.position, sequence_length)] = raw_token
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,6 +178,10 @@ class TerminalOnlyLocation:
 
     position: Literal["N-term", "C-term"]
 
+    @property
+    def label_position(self) -> LabelPosition:
+        return self.position
+
     def target_position(self) -> str:
         return self.position
 
@@ -196,21 +189,8 @@ class TerminalOnlyLocation:
         del target
         return False
 
-    def record_label(self, labels: ModificationLabels, label: str) -> None:
-        labels.setdefault(self.position, []).append(label)
-
-    def record_unknown_token(
-        self, unknown_tokens: dict[int, str], raw_token: str, sequence_length: int
-    ) -> None:
-        unknown_tokens[_terminal_index(self.position, sequence_length)] = raw_token
-
 
 type ModificationLocation = ResidueLocation | TerminalLocation | TerminalOnlyLocation
-
-
-def _terminal_index(position: Literal["N-term", "C-term"], sequence_length: int) -> int:
-    """The index a terminal token occupies: before, or just past, the sequence."""
-    return -1 if position == "N-term" else sequence_length
 
 
 # ------------------------------------------------------------------------- matching one token
@@ -274,8 +254,7 @@ def _apply_unknown_policy(
     policy: UnknownModificationPolicy,
     raw_token: str,
     location: ModificationLocation,
-    stripped_length: int,
-    unknown_tokens: dict[int, str],
+    unknown_tokens: dict[LabelPosition, str],
     unknown_token_list: list[str],
 ) -> None:
     """Apply the declared unknown-token policy to one unmatched token."""
@@ -284,7 +263,7 @@ def _apply_unknown_policy(
     if policy == "drop":
         return
     unknown_token_list.append(raw_token)
-    location.record_unknown_token(unknown_tokens, raw_token, stripped_length)
+    unknown_tokens[location.label_position] = raw_token
 
 
 # -------------------------------------------------------------------------- inline token regex
@@ -349,8 +328,8 @@ class TokenRegexNormalizer:
         sequence = _without_markers(modified_sequence, self.marker_pattern).strip(_TERM_MARKERS)
         residues, pending = _tokenize(sequence, pattern, self.token_position)
         stripped = "".join(residues)
-        labels: ModificationLabels = {}
-        unknown_tokens: dict[int, str] = {}
+        labels: ModificationLabels = defaultdict(list)
+        unknown_tokens: dict[LabelPosition, str] = {}
         unknown_token_list: list[str] = []
         for token in pending:
             location = token.location(stripped)
@@ -358,13 +337,12 @@ class TokenRegexNormalizer:
                 self.entries, token.raw_token, location, case_sensitive=self.case_sensitive
             )
             if entry is not None:
-                location.record_label(labels, entry.accession or entry.name)
+                labels[location.label_position].append(entry.accession or entry.name)
                 continue
             _apply_unknown_policy(
                 self.unknown_policy,
                 token.raw_token,
                 location,
-                len(stripped),
                 unknown_tokens,
                 unknown_token_list,
             )
@@ -416,8 +394,8 @@ class SiteListNormalizer:
             (entry.token if self.case_sensitive else entry.token.lower()): entry
             for entry in self.entries
         }
-        labels: ModificationLabels = {}
-        unknown_tokens: dict[int, str] = {}
+        labels: ModificationLabels = defaultdict(list)
+        unknown_tokens: dict[LabelPosition, str] = {}
         unknown_token_list: list[str] = []
         for raw_token, raw_site in zip(tokens, raw_sites, strict=True):
             if not _INTEGER_SITE.fullmatch(raw_site.strip()):
@@ -428,13 +406,12 @@ class SiteListNormalizer:
             key = raw_token if self.case_sensitive else raw_token.lower()
             entry = by_token.get(key)
             if entry is not None:
-                location.record_label(labels, entry.accession or entry.name)
+                labels[location.label_position].append(entry.accession or entry.name)
                 continue
             _apply_unknown_policy(
                 self.unknown_policy,
                 raw_token,
                 location,
-                len(stripped),
                 unknown_tokens,
                 unknown_token_list,
             )
@@ -482,8 +459,8 @@ class EmbeddedSiteListNormalizer:
         sequence, modifications = row
         stripped = "".join(_residues(sequence, sequence.strip(_TERM_MARKERS)))
         pattern = re.compile(self.entry_pattern)
-        labels: ModificationLabels = {}
-        unknown_tokens: dict[int, str] = {}
+        labels: ModificationLabels = defaultdict(list)
+        unknown_tokens: dict[LabelPosition, str] = {}
         unknown_token_list: list[str] = []
         for raw_entry in modifications.split(self.delimiter):
             if not raw_entry.strip():
@@ -502,13 +479,12 @@ class EmbeddedSiteListNormalizer:
                 case_sensitive=self.case_sensitive,
             )
             if entry is not None:
-                location.record_label(labels, entry.accession or entry.name)
+                labels[location.label_position].append(entry.accession or entry.name)
                 continue
             _apply_unknown_policy(
                 self.unknown_policy,
                 raw_token,
                 location,
-                len(stripped),
                 unknown_tokens,
                 unknown_token_list,
             )

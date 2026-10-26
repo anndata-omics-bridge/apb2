@@ -659,7 +659,7 @@ def test_known_labels_precede_last_unknown_without_losing_diagnostics() -> None:
 
 def test_rendering_keeps_terminal_labels_separate_from_negative_residue_indices() -> None:
     labels: ModificationLabels = {"N-term": ["N"], "C-term": ["C"], -1: ["ignored"], 0: ["M"]}
-    assert render_proforma("PEP", labels, {-1: "unknown"}) == "[N][unknown]-P[M]EP-[C]"
+    assert render_proforma("PEP", labels, {"N-term": "unknown"}) == "[N][unknown]-P[M]EP-[C]"
     assert labels["N-term"] == ["N"]
 
 
