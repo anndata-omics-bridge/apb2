@@ -638,6 +638,13 @@ def maxquant_names(*, unlocalized: bool = True) -> EmbeddedSiteListNormalizer:
             (),
         ),
         ("PEPTSIDEMK", "Phospho (STY)", "[Phospho]?PEPTSIDEMK", ("Phospho",)),
+        ("PEPTSIDEMK", "2 Phospho (STY)", "[Phospho][Phospho]?PEPTSIDEMK", ("Phospho",)),
+        (
+            "PEPTNSIDEK",
+            "Deamidation (NQ),Phospho (STY)",
+            "[Deamidation][Phospho]?PEPTNSIDEK",
+            ("Deamidation", "Phospho"),
+        ),
     ],
 )
 def test_unlocalized_names_go_to_the_unknown_position_group(
@@ -686,18 +693,18 @@ def test_two_modifications_on_one_residue_concatenate() -> None:
     assert result.value == "PEPM[UNIMOD:35][UNIMOD:1]IDE"
 
 
-def test_known_labels_precede_last_unknown_without_losing_diagnostics() -> None:
+def test_known_labels_precede_every_unknown_without_losing_diagnostics() -> None:
     config = site_list()
     result = replace(config, entries=(*config.entries, ACETYL)).transform(
         ("PEPMIDE", "mystery;ac;first;Oxidation@M;last;tail", "0;0;4;4;4;8")
     )
-    assert result.value == "[UNIMOD:1][mystery]-PEPM[UNIMOD:35][last]IDE-[tail]"
+    assert result.value == "[UNIMOD:1][mystery]-PEPM[UNIMOD:35][first][last]IDE-[tail]"
     assert result.unknown_tokens == ("mystery", "first", "last", "tail")
 
 
 def test_rendering_keeps_terminal_labels_separate_from_negative_residue_indices() -> None:
     labels: ModificationLabels = {"N-term": ["N"], "C-term": ["C"], -1: ["ignored"], 0: ["M"]}
-    assert render_proforma("PEP", labels, {"N-term": "unknown"}) == "[N][unknown]-P[M]EP-[C]"
+    assert render_proforma("PEP", labels, {"N-term": ["unknown"]}) == "[N][unknown]-P[M]EP-[C]"
     assert labels["N-term"] == ["N"]
 
 

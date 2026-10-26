@@ -286,8 +286,7 @@
         "peptidoform": {
           "axis": {
             "var_keys": [
-              "ProForma_peptide",
-              "Modifications"
+              "ProForma_peptidoform_unlocalized"
             ]
           },
           "measurements": {
@@ -416,7 +415,7 @@
                 "modification_map": "modification_names_map",
                 "case_sensitive": false,
                 "unknown_policy": "preserve",
-                "note": "Modifications names each modification with its count and candidate residues, such as '2 Oxidation (M)', never a position; the level is keyed by it, so positional isomers share a row"
+                "note": "Modifications names each modification with its count and candidate residues, such as '2 Oxidation (M)', never a position, so positional isomers share a row; this string identifies the row"
               }
             ]
           },

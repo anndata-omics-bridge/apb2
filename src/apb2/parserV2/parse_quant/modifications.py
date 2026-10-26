@@ -115,12 +115,12 @@ type ModificationLabels = dict[LabelPosition, list[str]]
 def render_proforma(
     stripped: str,
     labels: ModificationLabels,
-    unknown_tokens: dict[LabelPosition, str],
+    unknown_tokens: ModificationLabels,
 ) -> str:
-    """Render known labels first, then the last preserved unknown at each position."""
+    """Render known labels first, then every preserved unknown token at each position."""
     labels = {position: list(tags) for position, tags in labels.items()}
-    for position, token in unknown_tokens.items():
-        labels.setdefault(position, []).append(token)
+    for position, tokens in unknown_tokens.items():
+        labels.setdefault(position, []).extend(tokens)
     nterm, cterm = labels.get("N-term", []), labels.get("C-term", [])
     out: list[str] = []
     if unlocalized := labels.get("?"):
@@ -278,7 +278,7 @@ class _Resolution:
 
     policy: UnknownModificationPolicy
     labels: ModificationLabels = field(default_factory=lambda: defaultdict(list))
-    unknown_tokens: dict[LabelPosition, str] = field(default_factory=dict[LabelPosition, str])
+    unknown_tokens: ModificationLabels = field(default_factory=lambda: defaultdict(list))
     unknown_token_list: list[str] = field(default_factory=list[str])
 
     def record(
@@ -294,7 +294,7 @@ class _Resolution:
             raise UnknownModificationError(f"unknown modification token: {raw_token!r}")
         elif self.policy == "preserve":
             self.unknown_token_list.append(raw_token)
-            self.unknown_tokens[location.label_position] = raw_token
+            self.unknown_tokens[location.label_position].extend([raw_token] * count)
 
     def value(self, stripped: str) -> SequenceValue:
         rendered = render_proforma(stripped, self.labels, self.unknown_tokens)
