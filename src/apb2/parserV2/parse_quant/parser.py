@@ -45,6 +45,7 @@ from apb2.parserV2.parse_quant.data.layer_columns import (
     ObservationGrid,
     observation_labels,
 )
+from apb2.parserV2.parse_quant.data.parking import LayerParking
 from apb2.parserV2.parse_quant.data.parsed import (
     FinalLayerTable,
     JsonValue,
@@ -73,7 +74,6 @@ from apb2.parserV2.parse_quant.parameters.source import (
     LevelReadPlan,
     LevelSourceTable,
 )
-from apb2.parserV2.parse_quant.parking import LayerParking
 
 _EXAMPLE_LIMIT = 5
 
@@ -136,7 +136,7 @@ class ParserCollection:
         """Parse once while measuring each bound read and strategy execution.
 
         Each level's layer cells are parked once it is parsed, so the next level's parse
-        reuses their memory; see ``parking.py``.
+        reuses their memory; see ``data/parking.py``.
         """
         levels: dict[QuantificationLevel, ParsedLevel] = {}
         timings: list[LevelParseTimings] = []

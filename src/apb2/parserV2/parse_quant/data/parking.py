@@ -2,7 +2,9 @@
 
 Every level of one conversion is parsed before any is written, because observation alignment
 needs every level's observations. Kept in memory, the levels' long cells add up: a DIA-NN
-report's fragment, ion and protein levels together exceeded 80 GB where each alone fits.
+report's fragment, ion and protein levels together exceeded 80 GB where each alone fits. The
+result readers park each level they read for the same reason: a 1,236-run DIA-NN result read
+back whole took 36 GB.
 Parking writes each layer's ``cells`` once to an uncompressed Arrow IPC file and maps it back:
 the cells stay an ordinary ``pl.DataFrame``, so every reader of a ``FinalLayerTable`` works
 unchanged, but their pages belong to the file, which the system can drop and read again, and

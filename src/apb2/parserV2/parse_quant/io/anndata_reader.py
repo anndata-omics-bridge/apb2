@@ -25,6 +25,7 @@ from anndata.io import read_elem
 from scipy import sparse
 
 from apb2.parserV2.parse_quant.data.layer_blocks import READ_BLOCK_BYTES, LayerBlocks
+from apb2.parserV2.parse_quant.data.parking import LayerParking
 from apb2.parserV2.parse_quant.data.parsed import (
     AnnotationTable,
     FeatureRelation,
@@ -87,6 +88,7 @@ class H5adReader:
             level_name, parsed_level = _read_level(
                 stored, file, level_metadata, _scientific_namespace(level_part, level_metadata)
             )
+            LayerParking().park(parsed_level)
         if level_name != name:
             raise InvalidResultError(f"h5ad level {name!r} contains metadata for {level_name!r}")
         shared_uns, shared_metadata = _shared_scope(_scientific_namespace(stored.uns, metadata))
@@ -138,6 +140,7 @@ class H5muReader:
                     raise InvalidResultError(
                         f"h5mu modality {name!r} contains metadata for {level_name!r}"
                     )
+                LayerParking().park(parsed_level)
                 levels[level_name] = parsed_level
             shared_uns, shared_metadata = _shared_scope(
                 _scientific_namespace(envelope.uns, metadata)

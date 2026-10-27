@@ -14,6 +14,7 @@ import duckdb
 import polars as pl
 
 from apb2.parserV2.parse_quant.data.layer_blocks import READ_BLOCK_BYTES, LayerBlocks
+from apb2.parserV2.parse_quant.data.parking import LayerParking
 from apb2.parserV2.parse_quant.data.parsed import (
     AnnotationTable,
     FeatureRelation,
@@ -220,6 +221,7 @@ class DuckDBReader:
                 connection,
                 object_mapping(entries.get(name), f"level {name!r}"),
             )
+            LayerParking().park(levels[name])
         if set(order) != set(entries):
             raise InvalidResultError("level order and level metadata name different levels")
         uns, metadata = unpack_shared_scope(root.get("apb"), "root APB metadata")

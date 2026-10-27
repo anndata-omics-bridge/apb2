@@ -7,13 +7,13 @@ from pathlib import Path
 import polars as pl
 
 from apb2.parserV2.parse_quant.data.layer_columns import OBS_POS, VALUE, VAR_POS
+from apb2.parserV2.parse_quant.data.parking import LayerParking
 from apb2.parserV2.parse_quant.data.parsed import (
     FinalLayerTable,
     ObsFinal,
     ParsedLevel,
     VarFinal,
 )
-from apb2.parserV2.parse_quant.parking import LayerParking
 
 
 def _level(cells: pl.DataFrame) -> ParsedLevel:

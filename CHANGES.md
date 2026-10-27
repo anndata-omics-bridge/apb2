@@ -1,5 +1,9 @@
 # Changes
 
+## 2026-10-27
+
+- Every result reader parks each level it reads (`LayerParking`, now `data/parking.py`): the layer cells move to an unlinked, memory-mapped Arrow file and stay an ordinary sorted `pl.DataFrame`. Reading back the 1,236-run TPCPA DIA-NN result held 36 GB of process memory before, so two results could not be compared on a 48 GB machine. Reading needs temporary disk space the size of the cells
+
 ## 2026-10-26
 
 - MaxQuant's peptidoform level writes `ProForma_peptidoform_unlocalized`, such as `[UNIMOD:35][UNIMOD:35]?PEPTMIDEMK` for `PEPTMIDEMK` with `2 Oxidation (M)`. `modificationSpecificPeptides.txt` names modifications with counts and candidate residues, never positions, so positional isomers share a row and no localized `ProForma_peptidoform` can be written for it

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import anndata
@@ -509,6 +509,45 @@ def test_measurement_and_auxiliary_roles_round_trip_through_every_result_format(
 
     assert isinstance(restored.layers["Intensity"].role, MeasurementLayerRole)
     assert isinstance(restored.layers["Status"].role, AuxiliaryLayerRole)
+
+
+@dataclass
+class _RecordingParking:
+    parked: list[ParsedLevel]
+
+    def park(self, level: ParsedLevel, /) -> None:
+        self.parked.append(level)
+
+
+@pytest.mark.parametrize(
+    ("result_format", "suffix", "module", "levels"),
+    [
+        (ResultFormat.H5AD, ".h5ad", anndata_reader, ("peptidoform_ion",)),
+        (ResultFormat.H5MU, ".h5mu", anndata_reader, ("peptidoform_ion", "protein")),
+        (ResultFormat.PARQUET, ".parquet", parquet_reader, ("peptidoform_ion", "protein")),
+        (ResultFormat.DUCKDB, ".duckdb", duckdb_io, ("peptidoform_ion", "protein")),
+    ],
+)
+def test_every_reader_parks_each_level_it_reads(
+    result_format: ResultFormat,
+    suffix: str,
+    module: object,
+    levels: tuple[str, ...],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = rich_result()
+    parsed = replace(source, levels={name: source.levels[name] for name in levels})
+    target = tmp_path / f"parked{suffix}"
+    writer_for(result_format).write(parsed, target)
+    recorder = _RecordingParking([])
+    monkeypatch.setattr(module, "LayerParking", lambda: recorder)
+
+    restored = reader_for(result_format).read(target)
+
+    assert [id(level) for level in recorder.parked] == [
+        id(level) for level in restored.levels.values()
+    ]
 
 
 def test_parquet_metadata_without_a_layer_role_is_rejected(tmp_path: Path) -> None:
