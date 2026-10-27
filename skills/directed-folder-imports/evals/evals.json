@@ -1,0 +1,44 @@
+{
+  "skill_name": "directed-folder-imports",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Our Python package grew without an architecture. Under src/shop, orders/service.py imports shop/app.py and notifications/email.py; notifications/email.py imports orders/model.py; shop/helpers.py is used only by orders. Please inspect the project, propose a safe migration plan, implement it after approval, and enforce the result in CI.",
+      "expected_output": "An evidence-first migration that moves orders-owned code inward, removes upward and cyclic sibling imports, limits every child to one direct sibling dependency through ownership or parent composition, preserves public behavior, and adds scoped Import Linter contracts plus verification.",
+      "files": [],
+      "expectations": [
+        "Inspects the existing import graph, public APIs, tests, and worktree before moving files.",
+        "Places genuine orders-notifications composition in the parent when a direct edge would create a reverse edge or second sibling dependency.",
+        "Moves helpers.py into orders because it has one owner.",
+        "Does not introduce shared/utils carpets or compatibility forwarding modules by default.",
+        "Adds Import Linter to the normal project check and uses focused tests only for extra invariants."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Can Ruff enforce that src/acme/rules never imports src/acme/parsing, neither child imports acme/compiler.py, and only compiler.py can import both? If not, set up the right linter and explain how we can adopt it without fixing our whole legacy tree in one pull request.",
+      "expected_output": "A precise distinction between Ruff and architecture linting, with scoped exhaustive Import Linter contracts, a focused authorized-composer test, and incremental adoption rather than blanket ignores.",
+      "files": [],
+      "expectations": [
+        "States that Ruff cannot express the complete arbitrary folder graph.",
+        "Uses an exhaustive layers contract for the declared sibling direction and a focused check for at most one direct sibling target.",
+        "Uses a focused test for the exact modules allowed to know both children.",
+        "Scopes initial enforcement to migrated code and rejects blanket exclusions.",
+        "Wires lint-imports into an existing lint/check or CI command without an unnecessary wrapper."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Review this proposed Python tree: core/domain, core/adapters, core/shared, and core/facade.py. domain imports shared DTOs; adapters import domain Protocols; domain calls adapters for persistence; facade imports all three. I want strict parent-down imports like APB2 and no sibling imports. Tell me what is structurally wrong and give a smaller corrected tree.",
+      "expected_output": "A review that notices the proposed siblings are not independent, rejects shared as an ownership-free fix, assigns client-owned capabilities, and uses the parent to translate/inject without overbuilding folders.",
+      "files": [],
+      "expectations": [
+        "Identifies both domain-to-adapters and adapters-to-domain as forbidden sideways dependencies.",
+        "Questions or removes the generic shared child rather than blessing it automatically.",
+        "Keeps genuine composition in a parent module and injects a narrow consumer-owned capability.",
+        "Reduces or merges folders when the proposed component boundaries are not real.",
+        "Provides allowed and forbidden import arrows for the corrected tree."
+      ]
+    }
+  ]
+}

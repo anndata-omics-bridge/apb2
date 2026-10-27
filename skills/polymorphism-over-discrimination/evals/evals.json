@@ -1,0 +1,52 @@
+{
+  "skill_name": "polymorphism-over-discrimination",
+  "testbed": "apb/src/anndata_proteomics",
+  "notes": "Three evals chosen to probe different failure modes: recall on a package with real findings, PRECISION on a package that should yield almost nothing, and whether the skill steers authored code rather than only reviews.",
+  "evals": [
+    {
+      "id": 0,
+      "name": "recall-workflows-fasta",
+      "prompt": "Can you look over apb/src/anndata_proteomics/workflows/fasta.py and workflows/conversion.py and tell me if the design is OK? The _resolve_cleavage / _resolve_minimum_length / _resolve_maximum_length trio has bugged me for a while, it feels repetitive but I can't articulate why. Don't change any code, just tell me what you find and what you'd do instead.",
+      "expected_output": "Identifies that the three _resolve_* functions branch over the same case set (CleavageSelection / MinimumLengthSelection / MaximumLengthSelection unions + ProteinSearchParameterState), that StoredCleavageOrTrypsin and friends are empty classes whose docstrings state the behaviour implemented in the free functions, and proposes a resolve() method per selection type. Bonus: notices `params.parameters.X is not None` inside the same `if` is a legitimate absence check, not part of the finding.",
+      "files": [],
+      "assertions": [
+        "Identifies the three _resolve_* functions as branching over the same case set",
+        "Names at least two of the selection unions",
+        "Points out the Stored*OrDefault classes are empty, with no methods",
+        "Proposes a method on each selection type, with code",
+        "Separates the isinstance half of the compound condition from the `is not None` half",
+        "Respects read-only: no apb/ file modified"
+      ]
+    },
+    {
+      "id": 1,
+      "name": "precision-params-parsers",
+      "prompt": "apb/src/anndata_proteomics/params/model.py has 29 isinstance calls in it and the params/parsers/ directory is full of them too. My colleague says that's a code smell and we should refactor to polymorphism. Is he right? Have a look and give me a straight answer.",
+      "expected_output": "Answers NO for the bulk of them: these are pydantic validators coercing `value: object` from vendor files, i.e. foreign types at a parse boundary that cannot be given methods. Should NOT propose refactoring params/parsers/. May legitimately note MassTolerance._validate_shape as having the validator shape while explaining it is a DTO with no consumer branching on .mode, so not worth doing. A report that recommends refactoring the parsers is a failure.",
+      "files": [],
+      "assertions": [
+        "Gives a clear NO for the bulk of the isinstance calls",
+        "Explains it as foreign types at a parse boundary",
+        "Does NOT recommend refactoring params/parsers/",
+        "Any MassTolerance mention framed as DTO / low priority, not work to do",
+        "Short and decisive rather than padded",
+        "Respects read-only: no apb/ file modified"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "authoring-add-feather",
+      "prompt": "we're getting .feather files from a collaborator now. i need apb to read them. where do i add it? apb/src/anndata_proteomics/readers/",
+      "expected_output": "Notices the {.csv,.tsv,.txt,.parquet} set is enumerated in at least three places (EXTENSION_TO_READER, EXTENSION_TO_STRING_PRESERVING_READER + the .parquet special case, and read_table_columns' hand-written if/elif chain), plus the six delimiter-binding wrappers in readers/tabular.py. Should say adding .feather naively means editing 3-4 places and propose making the format a type so it becomes one entry. A bare 'add it to these three places' answer is the baseline behaviour we are trying to beat.",
+      "files": [],
+      "assertions": [
+        "Answers the literal question: where .feather must be registered today",
+        "Counts the extension set as enumerated in >=3 places",
+        "Identifies tabular.py's six delimiter-binding wrappers",
+        "Proposes making the format a type so a format becomes one entry",
+        "Does not stop at 'add it in these three places'",
+        "Respects read-only: no apb/ file modified"
+      ]
+    }
+  ]
+}
