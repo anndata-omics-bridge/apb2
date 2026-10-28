@@ -43,7 +43,7 @@ def cached_cases() -> list[tuple[str, str, ParameterInput]]:
             source = _ROOT / row["vendor_parameter_file_path"]
             if row.get("status") != "ok" or not _has_parser(slug) or not source.is_file():
                 continue
-            cases.append((f"{slug}/{row['intermediate_hash'][:8]}", slug, source))
+            cases.append((f"{slug}/{row['intermediate_hash']}", slug, source))
     return sorted(cases)
 
 
