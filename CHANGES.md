@@ -2,6 +2,7 @@
 
 ## 2026-10-28
 
+- A delimited table in a non-UTF-8 encoding, such as windows-1252, is transcoded to a temporary UTF-8 copy chunk by chunk and streamed like any UTF-8 table; the copy is removed after the read. Polars' eager reader decoded the whole file in memory before: Spectronaut LargeFC (11.1 GB, one windows-1252 dash in `EG.Label` on every row) peaked at a 44 GB footprint for one level. Reading needs temporary disk the size of the decompressed file
 - MaxQuant peptides carry their protein group. With proteinGroups.txt, the peptide level's `protein_assignment` is the new `Protein_IDs`, the `Protein IDs` of the group the peptide joins, which holds its leading razor protein, so peptides name the protein level's keys as ions already do; with peptides.txt alone, `Protein_IDs` is `Leading_Razor_Protein`. In the entrapment fixture (MaxQuant 2.8.1.0), all 43,807 peptides join exactly one group, the one holding their razor protein
   - **Breaking:** `Leading_Razor_Protein` keeps its values but loses the role; prolfquapp's export of MaxQuant peptides now names the group in `protein_Id`
 

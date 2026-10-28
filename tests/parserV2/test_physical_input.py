@@ -8,6 +8,7 @@ decided before the read, so a lexical token cannot be reinterpreted on the way i
 from __future__ import annotations
 
 import gzip
+import tempfile
 from dataclasses import replace
 from pathlib import Path
 from zipfile import ZipFile
@@ -405,6 +406,35 @@ def test_a_converted_layer_of_a_transcoded_file_is_read_as_numbers(tmp_path: Pat
     assert evidence.encoding == "windows-1252"
     assert frame.get_column("Label").to_list() == ["x — y"]
     assert frame.get_column("Quantity").to_list() == [2.5]
+
+
+def test_a_gzipped_transcoded_file_streams_through_a_removed_utf8_copy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "legacy.tsv.gz"
+    text = "Sample\tFeature\tLabel\tQuantity\nA\tF\tx — y\t2.5\nB\tG\tz\tNaN\n"
+    path.write_bytes(gzip.compress(text.encode("cp1252")))
+    legacy = replace(TSV, encoding_candidates=("utf8", "windows-1252"))
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(scratch))
+    evidence = delimited_input.detected_evidence(
+        make_vendor_file(path), legacy, accepts_sample_and_feature
+    )
+
+    frame = (
+        delimited_input.DelimitedInputReader(
+            make_vendor_file(path),
+            evidence,
+            plan("Sample", "Feature", "Label", "Quantity", converted=("Quantity",)),
+        )
+        .read()
+        .frame
+    )
+
+    assert frame.get_column("Label").to_list() == ["x — y", "z"]
+    assert frame.get_column("Quantity").to_list() == ["2.5", "NaN"]
+    assert list(scratch.iterdir()) == []
 
 
 def tokened_plan(*columns: str) -> LevelReadPlan:

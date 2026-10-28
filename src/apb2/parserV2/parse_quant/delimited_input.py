@@ -14,8 +14,11 @@ same scan. Nothing is left to inference.
 from __future__ import annotations
 
 import codecs
+import os
 import re
-from collections.abc import Callable
+import tempfile
+from collections.abc import Callable, Generator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -188,6 +191,7 @@ def _resolved_number_format(
 
 
 _ENCODING_PROBE_BYTES = 8 * 1024 * 1024
+_TRANSCODE_CHARS = 16 * 1024 * 1024
 
 
 def _resolved_encoding(file: VendorFile, contract: DelimitedFormatContract) -> TextEncoding:
@@ -252,8 +256,26 @@ class DelimitedInputReader:
             name: self.plan.tokened_number(name, notation.decimal_mark)
             for name in self.plan.missing_tokens
         }
+        with self._utf8_source() as (path, encoding):
+            frame = self._read(path, encoding, columns, converted, flags, numbers)
+        file_format = _FORMATS.get(self.evidence.delimiter, "delimited")
+        table = InputTable(
+            InputFile(self.file.path, "table", file_format), self.evidence.columns, frame.height
+        )
+        return LevelSourceTable(frame, (table,))
+
+    def _read(
+        self,
+        path: Path,
+        encoding: Literal["utf8", "utf8-lossy"],
+        columns: tuple[str, ...],
+        converted: tuple[str, ...],
+        flags: tuple[str, ...],
+        numbers: dict[str, pl.Expr],
+    ) -> pl.DataFrame:
+        """Both passes of :meth:`read` over one UTF-8 source."""
         frame = (
-            self._scan(columns)
+            self._scan(path, encoding, columns)
             .select(
                 *(numbers[name].alias(name) if name in numbers else name for name in columns),
                 *(
@@ -273,21 +295,43 @@ class DelimitedInputReader:
         )
         frame = frame.drop(flags)
         if needs_text:
-            frame = frame.with_columns(self._scan(needs_text).collect().get_columns())
-        file_format = _FORMATS.get(self.evidence.delimiter, "delimited")
-        table = InputTable(
-            InputFile(self.file.path, "table", file_format), self.evidence.columns, frame.height
-        )
-        return LevelSourceTable(frame, (table,))
+            frame = frame.with_columns(
+                self._scan(path, encoding, needs_text).collect().get_columns()
+            )
+        return frame
 
-    def _scan(self, columns: tuple[str, ...]) -> pl.LazyFrame:
-        """The given columns, each with its read dtype, converted columns as text.
+    @contextmanager
+    def _utf8_source(self) -> Generator[tuple[Path, Literal["utf8", "utf8-lossy"]]]:
+        """The file as UTF-8 that ``scan_csv`` can stream, and the encoding to scan it with.
 
-        A UTF-8 source streams through ``scan_csv``. Any other resolved encoding goes through
-        the eager reader, which transcodes the file before parsing — the only path polars
-        offers for it — so a non-UTF-8 file costs one extra pass, and a UTF-8 file costs
-        nothing new.
+        A UTF-8 source is scanned where it lies, gzipped or not. Any other resolved encoding
+        is transcoded to a temporary UTF-8 copy, chunk by chunk, and the copy is removed after
+        the read. Polars streams only UTF-8; its eager reader decodes a whole file in memory,
+        which took 44 GB for an 11 GB Spectronaut report whose every row holds one
+        windows-1252 dash.
         """
+        encoding = self.evidence.encoding
+        if encoding in ("utf8", "utf8-lossy"):
+            yield self.file.path, encoding
+            return
+        handle, name = tempfile.mkstemp(prefix="apb2-utf8-", suffix=".txt")
+        os.close(handle)
+        path = Path(name)
+        try:
+            with (
+                self.file.open_text(encoding) as source,
+                path.open("w", encoding="utf-8", newline="") as target,
+            ):
+                while chunk := source.read(_TRANSCODE_CHARS):
+                    target.write(chunk)
+            yield path, "utf8"
+        finally:
+            path.unlink(missing_ok=True)
+
+    def _scan(
+        self, path: Path, encoding: Literal["utf8", "utf8-lossy"], columns: tuple[str, ...]
+    ) -> pl.LazyFrame:
+        """The given columns of a UTF-8 source, each with its read dtype, converted as text."""
         overrides: dict[str, pl.DataType] = {name: pl.String() for name in self.plan.text_sources}
         overrides.update({name: pl.Categorical() for name in self.plan.categorical_sources})
         overrides.update(
@@ -296,31 +340,14 @@ class DelimitedInputReader:
                 for name in self.plan.native_numeric_sources
             }
         )
-        decimal_comma = self.evidence.number_format.decimal_mark == ","
-        encoding = self.evidence.encoding
-        if encoding in ("utf8", "utf8-lossy"):
-            return pl.scan_csv(
-                self.file.path,
-                separator=self.evidence.delimiter,
-                quote_char=self.evidence.quote_char,
-                encoding=encoding,
-                schema_overrides=overrides,
-                decimal_comma=decimal_comma,
-            ).select(columns)
-        with self.file.open() as stream:
-            return (
-                pl.read_csv(
-                    stream.read(),
-                    separator=self.evidence.delimiter,
-                    quote_char=self.evidence.quote_char,
-                    encoding=encoding,
-                    columns=list(columns),
-                    schema_overrides=overrides,
-                    decimal_comma=decimal_comma,
-                )
-                .select(columns)
-                .lazy()
-            )
+        return pl.scan_csv(
+            path,
+            separator=self.evidence.delimiter,
+            quote_char=self.evidence.quote_char,
+            encoding=encoding,
+            schema_overrides=overrides,
+            decimal_comma=self.evidence.number_format.decimal_mark == ",",
+        ).select(columns)
 
 
 def _flag_names(count: int, header: tuple[str, ...]) -> tuple[str, ...]:
