@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from apb2.parserV2.vendor_params.parsers.fragpipe import extract_params
+from apb2.parserV2.vendor_params.parsers.shared.errors import ParamsError
 from parserV2.vendor_params import proteobench_params
 
 PROTEOBENCH_PARAMS = Path(__file__).resolve().parent / "params"
@@ -82,3 +83,16 @@ def test_fragpipe_reads_diann_version_from_legacy_executable_path() -> None:
 
     parsed = extract_params(StringIO(workflow))
     assert parsed.quantification_software_version == "1.8.2 beta 8"
+
+
+@pytest.mark.parametrize(
+    ("content", "message"),
+    [
+        ("DIA-NN 1.8.1 (Data-Independent Acquisition by Neural Networks)\n", "lacks 'msfragger"),
+        ("", "empty file"),
+    ],
+)
+def test_a_file_that_is_no_workflow_is_a_params_error(content: str, message: str) -> None:
+    """A DIA-NN log handed to the FragPipe parser is an input error, not a KeyError."""
+    with pytest.raises(ParamsError, match=message):
+        extract_params(StringIO(content))

@@ -23,6 +23,7 @@ from apb2.parserV2.vendor_params.parsers.shared.common import (
     symmetric_tolerance,
     tolerance_unit,
 )
+from apb2.parserV2.vendor_params.parsers.shared.errors import ParamsError
 from apb2.parserV2.vendor_params.parsers.shared.unimod import UNIMOD_REGISTRY, UnimodMatch
 
 
@@ -49,6 +50,23 @@ class ParsedWorkflow:
     fragpipe_version: str | None
     diann_version: str | None
     records: list[Parameter]
+
+
+@dataclass(frozen=True, slots=True)
+class WorkflowValues:
+    """A workflow's named text values; reading one the file lacks is a ``ParamsError``, as for
+    a file that is no FragPipe workflow, such as a DIA-NN log."""
+
+    entries: dict[str, str]
+
+    def __getitem__(self, name: str) -> str:
+        if name not in self.entries:
+            raise ParamsError(f"not a FragPipe workflow this parser reads: it lacks {name!r}")
+        return self.entries[name]
+
+    def get(self, name: str, default: str) -> str:
+        """The value, or ``default`` for an entry the workflow may leave out."""
+        return self.entries.get(name, default)
 
 
 _VERSION_NO_PATTERN = r"MSFragger-(.+)\.jar"
@@ -225,6 +243,8 @@ def _read_workflow(
     content: str,
 ) -> ParsedWorkflow:
     lines = content.splitlines()
+    if not lines:
+        raise ParamsError("empty file; not a FragPipe workflow")
     header = lines[0][1:].strip()  # leading '#'
     msfragger_version: str | None = None
     fragpipe_version: str | None = None
@@ -298,9 +318,11 @@ def _tolerances(
     return precursor, fragment
 
 
-def _workflow_values(records: list[Parameter]) -> dict[str, str]:
+def _workflow_values(records: list[Parameter]) -> WorkflowValues:
     """Narrow parsed workflow records to named text values once."""
-    return {record.name: record.value for record in records if record.value is not None}
+    return WorkflowValues(
+        {record.name: record.value for record in records if record.value is not None}
+    )
 
 
 def _legacy_fragpipe_version(header: str) -> str | None:
@@ -309,7 +331,7 @@ def _legacy_fragpipe_version(header: str) -> str | None:
     return match.group(1) if match else None
 
 
-def _workflow_identification(values: dict[str, str], uses_diann: bool) -> IdentificationFdrs:
+def _workflow_identification(values: WorkflowValues, uses_diann: bool) -> IdentificationFdrs:
     """Read the FDR thresholds of the workflow's active identification stage."""
     if uses_diann:
         q_value = float(values["diann.q-value"])
@@ -322,7 +344,7 @@ def _workflow_identification(values: dict[str, str], uses_diann: bool) -> Identi
     )
 
 
-def _workflow_quantification(values: dict[str, str], uses_diann: bool) -> Quantification | None:
+def _workflow_quantification(values: WorkflowValues, uses_diann: bool) -> Quantification | None:
     """Read the workflow's quantification stage, or ``None`` when it declares none."""
     if values["quantitation.run-label-free-quant"] == "true":
         return Quantification(match_between_runs=bool(int(values["ionquant.mbr"])), method=None)
@@ -335,7 +357,7 @@ def _workflow_quantification(values: dict[str, str], uses_diann: bool) -> Quanti
     )
 
 
-def _workflow_charge_range(values: dict[str, str]) -> ChargeRange:
+def _workflow_charge_range(values: WorkflowValues) -> ChargeRange:
     """Read the precursor-charge bounds, which the workflow states only when overridden."""
     if values["msfragger.override_charge"] != "true":
         return ChargeRange(minimum=1, maximum=None)
