@@ -512,10 +512,24 @@
               },
               {
                 "name": "Leading_Razor_Protein",
-                "source": "peptide.Leading razor protein",
+                "source": "peptide.Leading razor protein"
+              },
+              {
+                "name": "Razor_Protein_Group",
+                "source": "protein.Protein IDs",
+                "required": false,
+                "note": "proteinGroups.txt lists only razor evidence, so each peptide joins the one group its leading razor protein belongs to"
+              },
+              {
+                "name": "Protein_IDs",
                 "roles": [
                   "protein_assignment"
-                ]
+                ],
+                "inputs": [
+                  "Razor_Protein_Group",
+                  "Leading_Razor_Protein"
+                ],
+                "how": "coalesce"
               },
               {
                 "name": "Gene_Names",

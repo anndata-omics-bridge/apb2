@@ -1,5 +1,10 @@
 # Changes
 
+## 2026-10-28
+
+- MaxQuant peptides carry their protein group. With proteinGroups.txt, the peptide level's `protein_assignment` is the new `Protein_IDs`, the `Protein IDs` of the group the peptide joins, which holds its leading razor protein, so peptides name the protein level's keys as ions already do; with peptides.txt alone, `Protein_IDs` is `Leading_Razor_Protein`. In the entrapment fixture (MaxQuant 2.8.1.0), all 43,807 peptides join exactly one group, the one holding their razor protein
+  - **Breaking:** `Leading_Razor_Protein` keeps its values but loses the role; prolfquapp's export of MaxQuant peptides now names the group in `protein_Id`
+
 ## 2026-10-27
 
 - Every result reader parks each level it reads (`LayerParking`, now `data/parking.py`): the layer cells move to an unlinked, memory-mapped Arrow file and stay an ordinary sorted `pl.DataFrame`. Reading back the 1,236-run TPCPA DIA-NN result held 36 GB of process memory before, so two results could not be compared on a 48 GB machine. Reading needs temporary disk space the size of the cells
