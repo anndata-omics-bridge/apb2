@@ -2872,8 +2872,10 @@ apb2/src/apb2/parserV2/
 │   │   ├── __init__.py         # data package marker; no broad re-exports
 │   │   ├── errors.py           # ConversionError, the base of every expected conversion failure
 │   │   ├── layer_columns.py    # positional observation labels; ObservationGrid widens a layer
+│   │   ├── layer_blocks.py     # LayerBlocks: a layer widened one block of feature rows or observations at a time
 │   │   ├── raw.py              # raw axes, LongLayer, RawLevel and FinalPositions
 │   │   ├── parsed.py           # final axes/layers, ParsedLevel, and ParsedLevels with observation groups
+│   │   ├── parking.py          # LayerParking: parsed layer cells moved to unlinked memory-mapped files
 │   │   └── step_log.py         # per-step start/done log lines with duration and peak memory
 │   ├── io/
 │   │   ├── __init__.py         # empty marker; no broad re-exports

@@ -17,6 +17,8 @@ for software in get_rules("DIA", level="peptidoform_ion"):
 
 The initial categories are `DDA` and `DIA`; a rule can belong to both. Each variant identifies one packaged rule and retains its own supported quantification levels. `software_version_pattern` is the rule's regular-expression version range, not a list of tested releases. The catalogue reports rule availability, not whether an arbitrary file can be parsed without search parameters. Parameter-parser-only software and ProteoBench-specific UI aliases are not included. Unknown categories raise `ValueError`.
 
+`get_rules()` returns one `SoftwareRules` per result producer, with its `software_name` and a tuple of `RuleVariant` values. `QuantificationLevel` is the type of a level name such as `peptidoform_ion`, as `level` and `RuleVariant.levels` take it; an unknown level also raises `ValueError`.
+
 `packaged_rule_declarations()` maps each packaged `(rule, level)`, with `rule` named as `RuleVariant.rule` names it, to every distinct `rule_json` text that conversion can store for that level, one per declaration some search-parameter evidence selects.
 
 ## Schema constants
@@ -25,7 +27,7 @@ The initial categories are `DDA` and `DIA`; a rule can belong to both. Each vari
 from apb2.api import FIXED_COLUMNS, VAR_ROLES
 ```
 
-`FIXED_COLUMNS` names the columns APB2 writes under the same name for every vendor: `ProForma_peptide`, `ProForma_peptidoform`, `ProForma_ion`, `ProForma_fragment`, `apb_Decoy` and `apb_Contaminant`. Which of them a level carries depends on its rule. `VAR_ROLES` is the set of roles a rule may give a var column (`fasta_accessions`, `protein_assignment`). apb-catalog's `apb` set gives each of them a kind and checks that none lacks one.
+`FIXED_COLUMNS` names the columns APB2 writes under the same name for every vendor: `ProForma_peptide`, `ProForma_peptidoform`, `ProForma_peptidoform_unlocalized`, `ProForma_ion`, `ProForma_fragment`, `apb_Decoy` and `apb_Contaminant`. Which of them a level carries depends on its rule. `VAR_ROLES` is the set of roles a rule may give a var column (`fasta_accessions`, `protein_assignment`). apb-catalog's `apb` set gives each of them a kind and checks that none lacks one.
 
 ## Convert vendor results
 
@@ -63,7 +65,7 @@ compiler = ParseRuleCompiler.from_software(
 parsed_levels = compiler.compile().parse()
 ```
 
-`software` is required and names the result producer; for DIA-NN output from a FragPipe workflow, use `software="diann"`. APB2 matches the requested levels against that producer's packaged rules using their source columns and declared version signatures. For DIA-NN 2.x, the declared MS1 columns distinguish DDA from the DIA default without a separate acquisition argument. Ambiguous matches and search settings that columns cannot establish still raise errors. `compiler.detection.version` is `None`, `compiler.parameters` is unavailable, and the normal rule provenance remains in the parsed result. The CLI uses this same constructor for `apb2 convert DATA ion --software DIA-NN` when `--params` is omitted.
+`software` is required and names the result producer; for DIA-NN output from a FragPipe workflow, use `software="diann"`. APB2 matches the requested levels against that producer's packaged rules using their source columns and declared version signatures. For DIA-NN 2.x, the declared MS1 columns distinguish DDA from the DIA default without a separate acquisition argument. Ambiguous matches and search settings that columns cannot establish still raise errors. `compiler.detection.version` is `None`, `compiler.parameters` is unavailable, and the normal rule provenance remains in the parsed result. The CLI uses this same constructor for `apb2 convert DATA peptidoform_ion --software DIA-NN` when `--params` is omitted.
 
 A caller-authored schema-0.9 rule file replaces detection:
 
@@ -82,6 +84,14 @@ Levels whose observation identities differ cannot share one file: `parsed_levels
 
 See [Convert vendor results](conversion.md) for rule selection, supported levels, validation, and
 output naming.
+
+## Search parameters
+
+```python
+from apb2.api import Parameters, canonical_modification_names, parse_search_parameters
+```
+
+`parse_search_parameters(path, software)` runs the parameter parser registered for `software`, matched case-insensitively, on one parameter file or a tuple of them and returns the typed `Parameters` record that `compiler.parameters` also holds. `canonical_modification_names()` maps each Unimod accession APB2 knows, such as `UNIMOD:4`, to its canonical name, here `Carbamidomethyl`.
 
 ## Annotate samples
 
@@ -128,6 +138,8 @@ print(sidecar_path(Path("results.duckdb")))  # results.duckdb.apb.json
 ```
 
 The suffix selects the format: `.h5ad`, `.h5mu`, `.parquet` or `.duckdb`. `write_parsed_levels()` also publishes an adjacent compact `<artifact>.apb.json` representation, which `sidecar_path(artifact)` names. Converting between formats is `write_parsed_levels(read_parsed_levels(source), target)`; the CLI command `apb2 reformat` does the same. `read_parsed_levels(source, level)` reads one level alone, with every annotation table and the feature relations whose every end it read; a level the result lacks raises `ResultIOError` naming the levels it has. Readers never hold a whole matrix: h5 files are read element by element and each matrix in slabs of feature columns, Parquet and DuckDB layers in batches of rows, and only stored cells are kept. A number layer's NaN read from an h5 file is a missing cell, since h5 stores a missing cell as NaN; `wide()` of such a layer shows null there. An `.h5mu` prefixes each modality's var names with its level (`pfi:`, `prt:`); `write_parsed_levels(parsed, target, var_name_prefix=False)` keeps them as written, the index named after a single String key. `ParsedLevel.export_uns` and `ParsedLevels.export_uns`, empty for parsed results and set through `ParsedLevel.build(..., export_uns=...)`, are written as they are into the file's top-level `uns`, for consumers that read their own keys there.
+
+`UnsJsonCodec` writes and reads one `uns["apb"]` namespace of an h5ad or h5mu file: `encode(metadata, storage)` returns the namespace, storing as JSON text each value AnnData cannot hold exactly; `storage(namespace)` parses its storage descriptor and `decode(namespace, descriptor)` restores the metadata. APB2's h5 writers and readers use it; see [metadata specification](metadata_specification.md).
 
 ## Result model
 

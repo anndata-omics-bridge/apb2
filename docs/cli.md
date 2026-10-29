@@ -32,7 +32,7 @@ apb2 convert DATA [LEVEL] [OPTIONS]
 
 Use `--params` for ordinary packaged rules, `--software pb_custom` for a parameter-free ProteoBench Custom upload, or `--rule-config` for an explicit rule. A directory supplies multi-file table groups. An explicit `LEVEL` selects one decomposition; omission converts all supported levels. HDF5 uses `.h5ad` for an explicit level and `.h5mu` otherwise. Parquet and DuckDB retain their suffixes. Compatible one-to-one observation aliases are aligned; incompatible resolutions get separate key-qualified outputs, such as `result.raw_file.h5mu` and `result.experiment.h5mu`. The CLI reports every actual path; see [output naming](conversion.md#output-naming).
 
-Every conversion step logs a `step=<name> start` line and a `done` or `failed` line with its seconds and the process's peak resident memory so far (`peak_rss_gb`; `n/a` on Windows): `detect`, `prepare.read` and `prepare.join` for inputs a preparation hook combines, then per level `read`, `parse.decompose`, `parse.obs`, `parse.var`, `parse.layers` and `parse.validate`, and finally `write`. A process the operating system kills for memory writes no error; its last `start` line names the step it died in.
+Every conversion step logs a `step=<name> start` line and a `done` or `failed` line with its seconds and the process's peak resident memory so far (`peak_rss_gb`; `n/a` on Windows): `detect`, `prepare.read` and `prepare.join` for inputs a preparation hook combines, then per level `read`, `parse.decompose`, `parse.obs`, `parse.var`, `parse.layers`, `parse.validate` and `parse.park`, and finally `write`. A process the operating system kills for memory writes no error; its last `start` line names the step it died in.
 
 See [Convert vendor results](conversion.md) for worked examples.
 
@@ -61,8 +61,7 @@ apb2 annotate SOURCE ANNOTATION TARGET [OPTIONS]
 | `--unmatched MODE` | `keep`, `error`, or `drop` behavior |
 | `--include COLUMN` | In drop mode, also require a true Boolean annotation field |
 
-ProteoBench module annotation is provided by the separate `apb-proteobench annotate` command. See
-[Annotate samples](sample_annotation.md).
+ProteoBench module annotation is provided by the separate `apb-proteobench benchmark` command, which annotates and scores an existing APB2 result. See [Annotate samples](sample_annotation.md).
 
 ## Exit behavior
 

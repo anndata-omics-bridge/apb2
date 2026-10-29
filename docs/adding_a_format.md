@@ -251,7 +251,7 @@ E   ('ToyQuant', '^1\\.', 'protein')
 make check                                              # apb2, then apb-catalog
 cd ../apb_studio
 uv run corpus run routine convert            # report the datasets it logs
-uv run corpus run routine convert --dry-run  # must schedule zero jobs
+uv run corpus run routine convert --no-force --dry-run  # must schedule zero jobs
 ```
 
 Routine corpus: existing vendors still convert. Committed sample: the new format converts.

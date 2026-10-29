@@ -1,5 +1,7 @@
 # Benchmarks
 
+Two sections below are historical and describe the parser as it was when measured: the `long_table_conversion.py` section times the steps of `parse_quant/table_conversion.py`, which no longer exists, and `parser_v2_stages.py` no longer runs, because its import of `RawLayerTable` fails.
+
 ## `result_io.py` — result-format adapters and crossings
 
 This benchmark constructs storage-neutral `ParsedLevels` values, verifies every result after

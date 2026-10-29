@@ -41,7 +41,7 @@ write_parsed_levels(parsed, Path("results.h5mu"))
 
 The sidecar is a versioned scientific view with `format: "apb2-result-representation"` and `format_version: "7"`. It is derived from `ParsedLevels`, so h5ad, h5mu, Parquet, and DuckDB results expose the same semantic sections. Projected before a physical artifact exists, its `artifact` member is `null`.
 
-Its JSON Schema is published as [representation.schema.json](../src/apb2/parserV2/parse_quant/io/_schema/representation.schema.json), generated from the models in `parse_quant/io/representation_schema.py`. Structural objects allow no unknown keys; `apb` parts and annotation `metadata` stay open, except that producer records follow the summary and details contract. Every sidecar is validated against the schema before it is written, so a document outside it fails the producing call and leaves no sidecar.
+Its JSON Schema is published as [representation.schema.json](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/parse_quant/io/_schema/representation.schema.json), generated from the models in `parse_quant/io/representation_schema.py`. Structural objects allow no unknown keys; `apb` parts and annotation `metadata` stay open, except that producer records follow the summary and details contract. Every sidecar is validated against the schema before it is written, so a document outside it fails the producing call and leaves no sidecar.
 
 It records the artifact basename, physical format and byte size; root and per-level tool metadata; axis schemas, key columns and null counts; structural layer roles, semantic column and layer roles, primary status and shapes; aligned-slot schemas; annotation-table schemas; and feature-relation structure. Every format exposes `root.apb` and each level's `apb`; the two parts are never combined. Persistence and representation reuse the same projection helpers; there is no `shared` field. Optional layer `unit` and `scale` values come from `ParsedLevel.metadata["layer_descriptors"][<layer>]` when a producer records them.
 
@@ -78,7 +78,7 @@ An h5ad writer requires exactly one level. An h5mu writer accepts one or more le
 
 ### Semantic rule roles
 
-Schema `0.4` rules may assign semantic `roles` directly to var-column and measurement-layer entries. The packaged [role policy](../src/apb2/parserV2/vendor_parse_rules/schema/role_policy.json) owns both the vocabulary and its permitted declaration owners: `fasta_accessions` and `protein_assignment` belong to `var`, while `abundance` belongs to `layer`.
+Rules may assign semantic `roles` directly to var-column and measurement-layer entries. The packaged [role policy](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/schema/role_policy.json) owns both the vocabulary and its permitted declaration owners: `fasta_accessions` and `protein_assignment` belong to `var`, while `abundance` belongs to `layer`.
 
 Conversion assigns these declarations to each level's var columns and layers. `columns` maps each semantic role to one var-column name. `layers` maps each semantic role to the ordered names of all retained layers carrying it; several raw, normalized, MS1, MS2, LFQ, iBAQ, or peak-based layers may therefore share `abundance`. Absent optional layers and pruned columns carry no role.
 

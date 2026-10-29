@@ -668,7 +668,7 @@
   Final: 19 modules / ~3.1k LOC outside vendor packages (from 41 / 3.6k), 66 passed / 4 skipped
   incl. parity, pyright strict 0, contracts 2/2, CLI smoke green.
 
-- 2026-08-15: Full runtime redesign per [TODO_apb2.md](../TODO/TODO_apb2.md) items 1–8, committed
+- 2026-08-15: Full runtime redesign per TODO_apb2.md items 1–8, committed
   on top of the initial apb2 baseline commit. **parse_strategy.py is the core**: `Parser`
   (protocols + run loop) and `make_parse_strategy/-ies` in one file. **Conversion runs first**:
   read → fragments.explode → `columns.prepare_keys` (axis-key closure only; modifications

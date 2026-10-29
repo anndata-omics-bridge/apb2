@@ -138,7 +138,7 @@ Without `--output`, APB2 replaces the source suffix with the selected suffix.
 
 Different observation identities are combined only through an explicit, complete one-to-one metadata mapping. For MaxQuant, higher-level experiment labels are then aligned to raw-file keys, retaining `Experiment` metadata without changing measurement values or order. Otherwise APB2 writes separate results: for example, `maxquant.raw_file.h5mu` and `maxquant.experiment.h5mu` for fractionated or unmapped inputs. It never aggregates ions to experiments or duplicates experiment quantities across fractions. Each split output retains the requested format and receives its own JSON sidecar; no unsuffixed combined result is written. An existing combined target is refused before writing split outputs.
 
-The CLI logs every actual output; the Python conversion summary exposes these paths as `outputs`. Observed mappings and alignment decisions are serialized as JSON in `observation_relationships` parse provenance.
+The CLI logs every actual output. Observed mappings and alignment decisions are serialized as JSON in `observation_relationships` parse provenance.
 
 See the [CLI reference](cli.md) for the complete command surface, the
 [Python API](api.md#convert-vendor-results) for programmatic conversion, and

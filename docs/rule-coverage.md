@@ -4,7 +4,7 @@ A rule document and the standard reader handle everything listed here. A prepara
 
 ## Reading
 
-- Formats: `.tsv`, `.txt`, `.csv`, `.parquet`, and a named `.xlsx` sheet
+- Formats: `.tsv`, `.txt`, `.csv`, their gzipped forms (`.tsv.gz`, `.txt.gz`, `.csv.gz`), `.parquet`, and a named `.xlsx` sheet
 - Declared detection of delimiter, decimal and thousands marks, and encoding
 - Exact file name inside a vendor directory (`input.file_name`)
 - Header signatures for `--software` without a parameter file (`input.software_only`)
@@ -51,4 +51,4 @@ A rule document and the standard reader handle everything listed here. A prepara
 - Making rows that are not a hierarchy level, such as FlashLFQ peaks, parseable as one; combining their repeated cells stays a duplicate mode
 - Giving rows another table's identity through a vendor foreign key, such as MaxQuant evidence's protein group, so levels share one protein identity
 
-Prepared tables are read as text ([prepare_source.py](../src/apb2/parserV2/prepare_source.py)); when a rule uses `sum`, `min` or `max`, their text layer columns are read as numbers, as the direct reader does.
+Prepared tables are read as text ([prepare_source.py](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/prepare_source.py)); when a rule uses `sum`, `min` or `max`, their text layer columns are read as numbers, as the direct reader does.

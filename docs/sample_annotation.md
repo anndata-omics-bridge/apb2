@@ -34,10 +34,10 @@ apb2 annotate input.h5mu samples.tsv selected.h5mu \
   --unmatched drop --include include
 ```
 
-ProteoBench module semantics are owned by `apb-proteobench`:
+ProteoBench module semantics are owned by `apb-proteobench`; its `benchmark` command annotates and scores an existing APB2 result:
 
 ```bash
-apb-proteobench annotate input.h5mu module_settings.toml annotated.h5mu
+apb-proteobench benchmark input.h5mu module_settings.toml scored.h5mu
 ```
 
 ## Diagnostics and set meanings

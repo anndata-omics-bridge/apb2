@@ -36,13 +36,13 @@ MaxQuant uses two table groups: evidence → `peptidoform_ion` (`Raw_File`), wit
 
 ## Quantification levels by rule
 
-A check mark means that the linked rule document can convert that level. APB2 recognizes five level names. The `peptide` level comes only from MaxQuant `peptides.txt`, which is a wide table of per-experiment intensities rather than a per-run ion table.
+A check mark means that the linked rule document can convert that level. APB2 recognizes eight level names; the packaged rules all use the `lfq` hierarchy and its five levels shown here. The `peptide` level comes only from MaxQuant `peptides.txt`, which is a wide table of per-experiment intensities rather than a per-run ion table.
 
 | Rule document | Peptidoform ion | Peptidoform | Peptide | Protein | Peptidoform fragment |
 | --- | :---: | :---: | :---: | :---: | :---: |
 | [AlphaDIA 1.10](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/alphadia/v1_10/rules.json) | ✓ | — | — | — | — |
 | [AlphaDIA 1.12](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/alphadia/v1_12/rules.json) | ✓ | — | — | — | — |
-| [AlphaDIA 2](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/alphadia/v2/rules.json) | ✓ | — | — | — | — |
+| [AlphaDIA 2](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/alphadia/v2/rules.json) | ✓ | — | — | ✓ | — |
 | [AlphaPept](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/alphapept/rules.json) | ✓ | — | — | — | — |
 | [DIA-NN 1.8/1.9](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/diann/v1_8/rules.json) | ✓ | — | — | ✓ | ✓ |
 | [DIA-NN 1.7](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/diann/v1_7/rules.json) | ✓ | — | — | ✓ | ✓ |
