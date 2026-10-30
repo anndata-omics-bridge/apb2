@@ -29,6 +29,7 @@ from apb2.parserV2.parse_quant.duplicates import (
     DuplicateCellError,
     ErrorOnDuplicates,
     KeepBestDuplicate,
+    SameValueDuplicates,
 )
 from apb2.parserV2.parse_quant.operations import (
     NUMERIC_DUPLICATE_MODES,
@@ -298,6 +299,26 @@ def test_rows_that_fill_different_layers_select_one_row_or_stop() -> None:
     ], "A1 wins, so the MS2 time is A1's: none"
 
 
+def test_copies_keep_the_value_an_empty_row_leaves_out() -> None:
+    """DIA-NN's protein value on two precursor rows; the non-proteotypic one leaves it empty."""
+    repeated = pl.DataFrame({"Feature": ["BMP1", "BMP1"], "obs_0": [None, 78217.8]})
+
+    result = resolve_wide(SameValueDuplicates(), repeated, NULL_ONLY)
+
+    assert result.to_dicts() == [{"Feature": "BMP1", "obs_0": 78217.8}]
+
+
+def test_copies_agree_and_rows_that_differ_are_not_copies() -> None:
+    agreeing = pl.DataFrame({"Feature": ["F1", "F1", "F1"], "obs_0": ["7", None, "7"]})
+    differing = pl.DataFrame({"Feature": ["F1", "F1"], "obs_0": ["7", "8"]})
+
+    assert resolve_wide(SameValueDuplicates(), agreeing, NULL_ONLY).to_dicts() == [
+        {"Feature": "F1", "obs_0": "7"}
+    ]
+    with pytest.raises(DuplicateCellError, match="not copies"):
+        resolve_wide(SameValueDuplicates(), differing, NULL_ONLY)
+
+
 def test_keep_best_skips_a_sentinel_and_keeps_the_real_value_unencoded() -> None:
     """AlphaDIA writes 0 for "not measured"; the value kept is the vendor's own scalar."""
     layer = placed(pl.DataFrame({"Feature": ["F1", "F1"], "obs_0": ["0", "12.5"]}), ZERO_SENTINEL)
@@ -458,8 +479,9 @@ def test_a_large_layer_finds_its_repeats_one_var_range_at_a_time(
 def test_the_declared_mode_selects_one_stateless_policy() -> None:
     """The removed legacy mode is not a value this selector can be given."""
     assert isinstance(duplicate_policy_for("error"), ErrorOnDuplicates)
+    assert isinstance(duplicate_policy_for("same"), SameValueDuplicates)
     assert isinstance(duplicate_policy_for("sum"), AggregateNumericDuplicates)
-    assert set(MODES) == {"error", "sum", "keep_best"}
+    assert set(MODES) == {"error", "same", "sum", "keep_best"}
 
 
 def test_the_numeric_modes_are_exactly_those_whose_policy_reduces_numbers() -> None:

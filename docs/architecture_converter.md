@@ -23,7 +23,7 @@ invariant or test explicitly adopts them.
 
 The [APB metadata specification](metadata_specification.md) is authoritative for persisted namespace ownership, tool integration, composition and result-format versions. Converter examples below do not define a separate metadata contract.
 
-The current rule storage version is schema `0.9`; [How rules-driven conversion works](rule-based.md) is the authoring guide. Earlier schema migrations remain historical context. Schema `0.9` adds an optional `note` to every column and layer entry, a `duplicates` block on var columns (`keep_first` by default, `min`, `max`, or `keep_best` by another numeric var column). Its layer duplicate modes are `error`, `sum` and `keep_best`: each selects one row for every layer of a cell or adds up all rows. Schema `0.8` adds explicit, independent sequence computations and named syntax/modification-map references; axis, measurement, physical-input, role, and preparation declarations retain their existing shapes.
+The current rule storage version is schema `0.9`; [How rules-driven conversion works](rule-based.md) is the authoring guide. Earlier schema migrations remain historical context. Schema `0.9` adds an optional `note` to every column and layer entry, a `duplicates` block on var columns (`keep_first` by default, `min`, `max`, or `keep_best` by another numeric var column). Its layer duplicate modes are `error`, `same`, `sum` and `keep_best`: each selects one row for every layer of a cell, takes the value copied rows share, or adds up all rows. Schema `0.8` adds explicit, independent sequence computations and named syntax/modification-map references; axis, measurement, physical-input, role, and preparation declarations retain their existing shapes.
 
 ## Current source-compilation boundary
 
@@ -466,6 +466,7 @@ The parser places the layer at final positions (`var_pos`, `obs_pos`), nulls eve
 The supported answers are:
 
 - `ErrorOnDuplicates`: reject a cell with more than one row, whatever the rows hold;
+- `SameValueDuplicates` (`same`): rows that are copies of one value, as a protein value repeated on each precursor row of a long report; each cell takes the value its rows share, an empty row gives way, and differing values are an error;
 - `AggregateNumericDuplicates`: add up already-numeric scalar values over all repeated rows (`sum`) and reject strings or factors;
 - `KeepBestDuplicate` (`keep_best`): rank the repeated rows once by a declared numeric layer, every claimed value of which must be a plain number, then take every layer's value from the winning row, so one cell's layers describe one source row; a row without a ranking value loses, and ties keep stable physical order. Layers the rule lists in `sum` add up over the repeated rows instead, as MaxQuant's intensities and MS/MS counts do while its PEP, score and retention time come from the lowest-PEP evidence row.
 
@@ -1840,6 +1841,7 @@ The duplicate registry contains ready stateless instances:
 ```python
 _DUPLICATE_POLICIES: Mapping[DuplicateMode, DuplicatePolicy] = {
     "error": ErrorOnDuplicates(),
+    "same": SameValueDuplicates(),
     "sum": AggregateNumericDuplicates(pl.Expr.sum),
 }
 
@@ -2001,7 +2003,7 @@ var column ranks best, ties in file order, no disagreement reported). Canonical 
 The identity and measurement portion of the storage model remains:
 
 ```python
-type DuplicateMode = Literal["error", "sum", "keep_best"]
+type DuplicateMode = Literal["error", "same", "sum", "keep_best"]
 type VarDuplicateMode = Literal["keep_first", "min", "max", "keep_best"]
 
 
@@ -2630,7 +2632,7 @@ The packaged rules, loaded and inventoried against `c9bfc32` on 2026-10-24, cont
 - two delimiter-packed fragment declarations: DIA-NN 1.7 positional, DIA-NN 1.8 column-labelled from an optional `Fragment.Info`;
 - token-regex, site-list and embedded-site-list sequence normalization, plus independent stripping;
 - numeric, regex-numeric, and factor layer encodings;
-- 19 `error` and 20 `keep_best` (MaxQuant's evidence with a `sum` list) measurement duplicate configurations;
+- 21 `error`, 15 `same` and 3 `keep_best` (AlphaPept's PSMs, MaxQuant's evidence with a `sum` list, MetaMorpheus's peaks) measurement duplicate configurations;
 - 12 var-column `duplicates` blocks: 5 `min`, 5 `keep_best`, 2 `max`;
 - ordered sourced and computed column entries, including nested and multi-column keys;
 - configured var and layer roles, including authored abundance tags;

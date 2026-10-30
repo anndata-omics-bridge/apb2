@@ -439,9 +439,7 @@
           "measurements": {
             "primary_layer": "PG_Normalised",
             "duplicates": {
-              "mode": "keep_best",
-              "by": "PG_Normalised",
-              "best": "highest"
+              "mode": "same"
             },
             "layers": [
               {

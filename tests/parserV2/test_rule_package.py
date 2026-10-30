@@ -267,7 +267,7 @@ def test_measurement_ownership_is_separate_from_axis_identity(
     rule = load_rule_document(pair.parser_v2_path).declared(level).declaration
 
     assert rule.measurements.primary_layer
-    assert rule.measurements.duplicates.mode in {"error", "keep_first", "sum", "max", "keep_best"}
+    assert rule.measurements.duplicates.mode in {"error", "same", "sum", "keep_best"}
     assert not hasattr(rule.axis, "x_layer")
     assert not hasattr(rule.axis, "duplicates")
 
@@ -1153,7 +1153,8 @@ def test_both_rule_shapes_are_represented_by_the_packaged_generation() -> None:
     assert sum(isinstance(rule, WideRule) for rule in shapes) == 14
     modes = [rule.measurements.duplicates.mode for rule in shapes]
     assert modes.count("error") == 21
-    assert modes.count("keep_best") == 18
+    assert modes.count("same") == 15
+    assert modes.count("keep_best") == 3
     assert modes.count("sum") == 0
     assert sum(isinstance(rule.fragments, ColumnLabeledFragments) for rule in shapes) == 1
 

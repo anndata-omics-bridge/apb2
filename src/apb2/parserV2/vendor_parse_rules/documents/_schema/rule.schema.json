@@ -456,6 +456,7 @@
     "DuplicateMode": {
       "enum": [
         "error",
+        "same",
         "sum",
         "keep_best"
       ],
@@ -463,7 +464,7 @@
     },
     "Duplicates": {
       "additionalProperties": false,
-      "description": "How repeated raw measurement cells are resolved: one row for every layer, or all rows.\n\n``error`` stops at a second row for a cell, whatever it holds. ``sum`` adds up every\nlayer over the repeated rows, so it suits only levels whose layers are all additive.\n``keep_best`` keeps, in each cell, the repeated row whose ``by`` layer is ``best``, and\ntakes every layer's value from that one row, so one feature's intensity, score and\nq-value describe the same identification, such as one PSM. Layers listed in ``sum`` are\nadded up over the repeated rows instead, such as quantities split across several of them.",
+      "description": "How repeated raw measurement cells are resolved: one row for every layer, or all rows.\n\n``error`` stops at a second row for a cell, whatever it holds. ``same`` takes the value\nthe rows share, for rows that are copies, such as a protein value repeated on each\nprecursor row, and stops where their values differ. ``sum`` adds up every layer over the\nrepeated rows, so it suits only levels whose layers are all additive.\n``keep_best`` keeps, in each cell, the repeated row whose ``by`` layer is ``best``, and\ntakes every layer's value from that one row, so one feature's intensity, score and\nq-value describe the same identification, such as one PSM. Layers listed in ``sum`` are\nadded up over the repeated rows instead, such as quantities split across several of them.",
       "properties": {
         "mode": {
           "$ref": "#/$defs/DuplicateMode",

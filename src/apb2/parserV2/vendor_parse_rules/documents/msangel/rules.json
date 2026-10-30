@@ -226,9 +226,7 @@
           "measurements": {
             "primary_layer": "Abundance",
             "duplicates": {
-              "mode": "keep_best",
-              "by": "Abundance",
-              "best": "highest"
+              "mode": "same"
             },
             "layers": [
               {

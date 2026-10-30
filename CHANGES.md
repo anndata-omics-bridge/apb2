@@ -2,13 +2,13 @@
 
 ## 2026-10-30
 
-- A `keep_best` var column now selects rows: each feature's best-ranked row is chosen once, before the feature table and the layers are built, so the protein set Proline and MSAngel name for a shared peptide and its quantities come from the same row. The feature table was deduplicated first and the layers after, which lost which rows the feature table kept; the layers ranked by `Abundance` instead. A long table keeps the best row's rows in every run
-  - **Breaking:** all `keep_best` var columns of one level rank by one column
-  - Proline and the MSAngel ion level resolve layer duplicates with `error`, which confirms that the selection leaves no repeated cell
-- Layer duplicate modes are `error`, `sum` and `keep_best`: a cell's repeated rows give one row for every layer, or add up. `keep_first`, `min` and `max` resolved each layer on its own, so one cell could join the layers of different rows: MetaMorpheus' `max` did so in 21,405 of 24,863 repeated ion cells of the IonStar fixture, joining one peak's intensity with another peak's apex
-  - **Breaking:** a rule declaring a layer `keep_first`, `min` or `max` no longer validates. The packaged rules that used them rank by their primary abundance layer, highest, and Spectronaut 15 ions by `EG_Qvalue`, lowest; MetaMorpheus ranks an ion's peaks by `Intensity`, as FlashLFQ's own peptide table does. Where repeated rows are copies, such as a protein value on every precursor row or Proline's ions listed once per protein set, nothing changes; where they differ, the result keeps the best-ranked row instead of the first
+- Layer duplicate modes are `error`, `same`, `sum` and `keep_best`; none takes one layer of a cell from one row and another layer from a row holding a different value. `keep_first`, `min` and `max` resolved each layer on its own: MetaMorpheus' `max` joined one peak's intensity with another peak's apex in 21,405 of 24,863 repeated ion cells of the IonStar fixture
+  - **Breaking:** a rule declaring a layer `keep_first`, `min` or `max` no longer validates. The 15 levels that used `keep_first` use `same`: their rows repeat one value, such as a protein value on each precursor row of a long report, so each cell takes the value its rows share; a row that leaves it empty gives way, as DIA-NN leaves `Genes.MaxLFQ.Unique` empty on non-proteotypic precursor rows, and rows whose values differ stop the conversion. MetaMorpheus ranks an ion's peaks by `Intensity` (`keep_best`), as FlashLFQ's own peptide table does
   - **Breaking:** `error` counts rows, not present values, so two rows for one cell stop the conversion even when each fills a different layer
   - Feature-column (`var`) duplicate modes are unchanged
+- A `keep_best` var column selects rows: each feature's best-ranked row is chosen once, before the feature table and the layers are built, so the protein set Proline and MSAngel name for a shared peptide and its quantities come from the same row. The feature table was deduplicated first and the layers after, which lost which rows the feature table kept. A long table keeps the best row's rows in every run
+  - **Breaking:** all `keep_best` var columns of one level rank by one column
+  - Proline and the MSAngel ion level resolve layer duplicates with `error`, which confirms that the selection leaves no repeated cell
 
 ## 2026-10-28
 

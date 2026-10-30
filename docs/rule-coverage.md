@@ -38,7 +38,7 @@ A rule document and the standard reader handle everything listed here. A prepara
 - `missing_values`: exact numbers and one `<=` threshold
 - `missing_tokens`: text written for a missing value, such as `-` or `NA`
 - `value_pattern`: one number extracted from structured cells by regex
-- Repeated cells: `error` (any second row stops), `sum` (all rows added up), or `keep_best` (one row per cell by a ranking layer, with optional summed layers); each takes every layer of a cell from one row or adds up all rows; another reduction is a new mode here, never hook work
+- Repeated cells: `error` (any second row stops), `same` (the rows are copies of one value, such as a protein value on each precursor row; an empty row gives way, differing values stop), `sum` (all rows added up), or `keep_best` (one row per cell by a ranking layer, with optional summed layers); none takes one layer from one row and another from a row holding a different value; another reduction is a new mode here, never hook work
 - `sum` leaves a cell null when nothing is present; it adds up every layer of the level, so it suits only levels whose layers are all additive
 - Primary layer, swapped by `search_parameter_overrides`
 - Semantic roles: `abundance`, `protein_assignment`, `fasta_accessions`

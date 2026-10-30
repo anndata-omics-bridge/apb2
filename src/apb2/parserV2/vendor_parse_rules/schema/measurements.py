@@ -19,8 +19,10 @@ type MissingBound = Annotated[str, Field(pattern=_MISSING_BOUND)]
 class Duplicates(ModelBase):
     """How repeated raw measurement cells are resolved: one row for every layer, or all rows.
 
-    ``error`` stops at a second row for a cell, whatever it holds. ``sum`` adds up every
-    layer over the repeated rows, so it suits only levels whose layers are all additive.
+    ``error`` stops at a second row for a cell, whatever it holds. ``same`` takes the value
+    the rows share, for rows that are copies, such as a protein value repeated on each
+    precursor row, and stops where their values differ. ``sum`` adds up every layer over the
+    repeated rows, so it suits only levels whose layers are all additive.
     ``keep_best`` keeps, in each cell, the repeated row whose ``by`` layer is ``best``, and
     takes every layer's value from that one row, so one feature's intensity, score and
     q-value describe the same identification, such as one PSM. Layers listed in ``sum`` are

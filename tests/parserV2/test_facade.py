@@ -218,7 +218,7 @@ def test_the_alphadia_wide_ion_level_resolves_exactly_as_specified() -> None:
     assert working.obs.final_key_columns == ("sample",)
     assert working.var.final_key_columns == ("ProForma_ion",)
     assert working.measurements.primary_layer_name == "Intensity"
-    assert working.measurements.duplicate_mode == "keep_best"
+    assert working.measurements.duplicate_mode == "same"
 
     resolved = facade.resolve_source(delimited(header))
     assert resolved.obs.keys == AxisKeyPlan(

@@ -45,6 +45,7 @@ from apb2.parserV2.parse_quant.duplicates import (
     FirstFeatureValue,
     KeepBestDuplicate,
     RankedFeatureValue,
+    SameValueDuplicates,
 )
 from apb2.parserV2.parse_quant.modifications import (
     PlainSequenceStripper,
@@ -141,6 +142,7 @@ class WorkingParseConfiguration:
 
 _DUPLICATE_POLICIES: Mapping[DuplicateMode, DuplicatePolicy] = {
     "error": ErrorOnDuplicates(),
+    "same": SameValueDuplicates(),
     "sum": AggregateNumericDuplicates(pl.Expr.sum),
 }
 """One policy per stateless duplicate mode; keep_best is built from its ranking instead."""

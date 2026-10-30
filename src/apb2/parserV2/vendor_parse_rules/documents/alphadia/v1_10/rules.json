@@ -25,9 +25,7 @@
         },
         "measurements": {
           "duplicates": {
-            "mode": "keep_best",
-            "by": "Intensity",
-            "best": "highest"
+            "mode": "same"
           }
         },
         "sequence_syntax": {

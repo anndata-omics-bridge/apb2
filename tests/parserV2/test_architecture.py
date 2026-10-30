@@ -334,6 +334,7 @@ _TAG_VOCABULARY = frozenset(
         "site_list",
         "error",
         "keep_first",
+        "same",
         "sum",
         "min",
         "max",

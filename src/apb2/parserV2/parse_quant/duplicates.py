@@ -8,8 +8,9 @@ survived.
 
 *Resolution* asks how a cell's repeated rows become one value. A policy receives only the
 placed rows that repeat a cell and groups them by (``var_pos``, ``obs_pos``). It selects one
-row for every layer of the level, or adds up all rows: it never takes one layer from one row
-and another layer from another. The selected scalar is copied through unchanged. A token that
+row for every layer of the level, adds up all rows, or, where the rows are copies of one
+value, takes the value they share: it never takes one layer from one row and another layer
+from another row that holds a different value. The selected scalar is copied through unchanged. A token that
 cannot be read stays present on purpose: selection must not be able to hide a value that will
 fail to encode later.
 
@@ -74,6 +75,33 @@ class ErrorOnDuplicates:
             raise DuplicateCellError(
                 f"layer {layer.layer_name!r}: {offending.len()} raw key(s) have more than one "
                 f"row for one measurement cell; examples: {examples}"
+            )
+        return replace(layer, rows=cells.drop(_CLAIMS))
+
+
+class SameValueDuplicates:
+    """Repeated rows are copies of one value, such as a protein value on each precursor row.
+
+    Each cell takes the value its rows share; a row that leaves it empty gives way, as DIA-NN
+    leaves ``Genes.MaxLFQ.Unique`` empty on the rows of non-proteotypic precursors. Rows whose
+    values differ are not copies, so the rule must choose between them with ``keep_best``:
+    they stop the conversion.
+    """
+
+    __slots__ = ()
+
+    def resolve(self, layer: LongLayer, /) -> LongLayer:
+        cells = _cells(
+            layer,
+            pl.col(VALUE).first(ignore_nulls=True),
+            pl.col(VALUE).drop_nulls().n_unique().alias(_CLAIMS),
+        )
+        offending = cells.filter(pl.col(_CLAIMS) > 1).get_column(VAR_POS).unique().sort()
+        if offending.len():
+            examples = layer.var_keys[offending.head(_EXAMPLE_LIMIT)].to_dicts()
+            raise DuplicateCellError(
+                f"layer {layer.layer_name!r}: {offending.len()} raw key(s) repeat a cell with "
+                f"different values, so its rows are not copies; examples: {examples}"
             )
         return replace(layer, rows=cells.drop(_CLAIMS))
 
