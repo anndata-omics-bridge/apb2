@@ -488,9 +488,9 @@ def test_a_repeated_raw_key_reaches_the_duplicate_policy_instead() -> None:
         var_plan=SIMPLE_VAR_PLAN,
         obs=SIMPLE_OBS,
         var=SIMPLE_VAR,
-        duplicates="keep_first",
+        duplicates="keep_best",
     ).parse_with_timings()[0]
-    assert kept.layers["Intensity"].wide().to_dicts() == [{"obs_0": 1.0}]
+    assert kept.layers["Intensity"].wide().to_dicts() == [{"obs_0": 2.0}]
 
 
 def test_keep_best_keeps_one_psm_per_cell_across_layers() -> None:
@@ -948,13 +948,18 @@ def _strategy(
     *,
     obs_plan: AxisRuntimePlan = SIMPLE_OBS_PLAN,
     var_plan: AxisRuntimePlan = SIMPLE_VAR_PLAN,
+    rank_by: str = "Intensity",
 ) -> ParseStrategy:
     return ParseStrategy(
         level="peptidoform_ion",
         decomposer=decomposer,
         obs=obs_plan,
         var=var_plan,
-        duplicates=duplicate_policy_for(duplicates),
+        duplicates=(
+            KeepBestDuplicate(by=rank_by, highest=True)
+            if duplicates == "keep_best"
+            else duplicate_policy_for(duplicates)
+        ),
         layer_parsers=layer_parsers,
         layer_validator=layer_validator("Intensity"),
         pruner=KeepEveryField(),
@@ -985,7 +990,7 @@ def _numbers(name: str, *, integer: bool = False) -> LayerValueParser:
     )
 
 
-def test_wide_repeats_keep_the_first_value_in_header_then_row_order() -> None:
+def test_wide_repeats_keep_the_best_value_across_headers_and_rows() -> None:
     samples = AxisSourcePlan(
         keys=AxisKeyPlan(("sample",), ("sample",), ("sample",)), payload_sources=()
     )
@@ -1008,7 +1013,7 @@ def test_wide_repeats_keep_the_first_value_in_header_then_row_order() -> None:
         _strategy(
             decomposer,
             {"Intensity": _numbers("Intensity")},
-            "keep_first",
+            "keep_best",
             obs_plan=AxisRuntimePlan(
                 keys=samples.keys, key_phase=phase(), output_phase=phase(), outputs=("sample",)
             ),
@@ -1017,7 +1022,7 @@ def test_wide_repeats_keep_the_first_value_in_header_then_row_order() -> None:
     )
 
     assert parsed.layers["Intensity"].wide().to_dicts() == [{"obs_0": 7.0}, {"obs_0": 1.0}], (
-        "the first header's column is read down every row before the second header's"
+        "F1's four cells under sample A, two of them empty, keep the most intense"
     )
 
 
@@ -1153,18 +1158,22 @@ def test_a_level_without_valid_observations_or_features_has_empty_layers() -> No
     assert without_features.dtypes == [pl.Float64, pl.Float64]
 
 
-def test_unreadable_tokens_are_counted_on_the_cells_keep_first_kept() -> None:
+def test_unreadable_tokens_are_counted_on_the_cells_keep_best_kept() -> None:
     frame = pl.DataFrame(
         {
             "run": ["A", "A", "B", "A", "B"],
             "feature": ["F1", "F1", "F1", "F2", "F2"],
             "intensity": ["broken", "2.0", "x", "1", "2"],
+            "score": [9.0, 1.0, 1.0, 1.0, 1.0],
         }
     )
 
     parsed = parse_table(
         _strategy(
-            _long((("Intensity", "intensity"),)), {"Intensity": _numbers("Intensity")}, "keep_first"
+            _long((("Intensity", "intensity"), ("Score", "score"))),
+            {"Intensity": _numbers("Intensity"), "Score": _numbers("Score")},
+            "keep_best",
+            rank_by="Score",
         ),
         LevelSourceTable(frame),
     )
@@ -1183,7 +1192,7 @@ def test_unreadable_tokens_are_counted_on_the_cells_keep_first_kept() -> None:
 
 
 def test_presence_is_decided_before_duplicates_are_resolved() -> None:
-    """A sentinel beside a real value claims no cell, so the error policy sees one value."""
+    """A sentinel beside a real value claims nothing, so keep_best ranks the real value first."""
     frame = pl.DataFrame(
         {"run": ["A", "A", "B"], "feature": ["F1", "F1", "F1"], "intensity": ["0", "2", "3"]}
     )
@@ -1192,7 +1201,7 @@ def test_presence_is_decided_before_duplicates_are_resolved() -> None:
     )
 
     parsed = parse_table(
-        _strategy(_long((("Intensity", "intensity"),)), {"Intensity": sentinel}),
+        _strategy(_long((("Intensity", "intensity"),)), {"Intensity": sentinel}, "keep_best"),
         LevelSourceTable(frame),
     )
 

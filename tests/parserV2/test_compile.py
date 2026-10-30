@@ -35,7 +35,6 @@ from apb2.parserV2.parse_quant.delimited_input import DelimitedInputReader
 from apb2.parserV2.parse_quant.duplicates import (
     AggregateNumericDuplicates,
     ErrorOnDuplicates,
-    KeepFirstDuplicate,
 )
 from apb2.parserV2.parse_quant.fragments import (
     ColumnLabeledFragmentTableSeparator,
@@ -142,7 +141,7 @@ def test_the_five_coercers_are_five_different_implementations() -> None:
 def test_every_executable_duplicate_mode_names_one_policy(mode: DuplicateMode) -> None:
     policy = duplicate_policy_for(mode)
 
-    assert type(policy) in {ErrorOnDuplicates, KeepFirstDuplicate, AggregateNumericDuplicates}
+    assert type(policy) in {ErrorOnDuplicates, AggregateNumericDuplicates}
     assert not hasattr(policy, "mode")
 
 

@@ -660,7 +660,7 @@ class SourcePlanResolver:
     def _reduced_sources(self, layers: _ResolvedLayers) -> frozenset[str]:
         """The layer sources whose repeated cells are added up, so they must be numbers.
 
-        Every layer's under ``sum`` and ``max``; under ``keep_best``, only the layers it sums.
+        Every layer's under ``sum``; under ``keep_best``, only the layers it sums.
         """
         measurements = self._configuration.measurements
         if measurements.duplicate_mode in NUMERIC_DUPLICATE_MODES:

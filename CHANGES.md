@@ -1,5 +1,12 @@
 # Changes
 
+## 2026-10-30
+
+- Layer duplicate modes are `error`, `sum` and `keep_best`: a cell's repeated rows give one row for every layer, or add up. `keep_first`, `min` and `max` resolved each layer on its own, so one cell could join the layers of different rows: MetaMorpheus' `max` did so in 21,405 of 24,863 repeated ion cells of the IonStar fixture, joining one peak's intensity with another peak's apex
+  - **Breaking:** a rule declaring a layer `keep_first`, `min` or `max` no longer validates. The packaged rules that used them rank by their primary abundance layer, highest, and Spectronaut 15 ions by `EG_Qvalue`, lowest; MetaMorpheus ranks an ion's peaks by `Intensity`, as FlashLFQ's own peptide table does. Where repeated rows are copies, such as a protein value on every precursor row or Proline's ions listed once per protein set, nothing changes; where they differ, the result keeps the best-ranked row instead of the first
+  - **Breaking:** `error` counts rows, not present values, so two rows for one cell stop the conversion even when each fills a different layer
+  - Feature-column (`var`) duplicate modes are unchanged
+
 ## 2026-10-28
 
 - A file the FragPipe parameter parser cannot read, such as a DIA-NN log or an empty file, is a `ParamsError` naming the missing workflow entry, so conversion reports a `ConversionError`; it raised a bare `KeyError` before

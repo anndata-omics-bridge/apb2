@@ -23,7 +23,7 @@ invariant or test explicitly adopts them.
 
 The [APB metadata specification](metadata_specification.md) is authoritative for persisted namespace ownership, tool integration, composition and result-format versions. Converter examples below do not define a separate metadata contract.
 
-The current rule storage version is schema `0.9`; [How rules-driven conversion works](rule-based.md) is the authoring guide. Earlier schema migrations remain historical context. Schema `0.9` adds an optional `note` to every column and layer entry, a `duplicates` block on var columns (`keep_first` by default, `min`, `max`, or `keep_best` by another numeric var column), and the layer duplicate mode `min`. Schema `0.8` adds explicit, independent sequence computations and named syntax/modification-map references; axis, measurement, physical-input, role, and preparation declarations retain their existing shapes.
+The current rule storage version is schema `0.9`; [How rules-driven conversion works](rule-based.md) is the authoring guide. Earlier schema migrations remain historical context. Schema `0.9` adds an optional `note` to every column and layer entry, a `duplicates` block on var columns (`keep_first` by default, `min`, `max`, or `keep_best` by another numeric var column). Its layer duplicate modes are `error`, `sum` and `keep_best`: each selects one row for every layer of a cell or adds up all rows. Schema `0.8` adds explicit, independent sequence computations and named syntax/modification-map references; axis, measurement, physical-input, role, and preparation declarations retain their existing shapes.
 
 ## Current source-compilation boundary
 
@@ -465,10 +465,11 @@ The parser places the layer at final positions (`var_pos`, `obs_pos`), nulls eve
 
 The supported answers are:
 
-- `ErrorOnDuplicates`: reject a cell with more than one present value;
-- `KeepFirstDuplicate`: select the first present value in stable physical order;
-- `AggregateNumericDuplicates`: sum, or take the smallest or largest of, already-numeric scalar values (`sum`, `min`, `max`) and reject strings or factors;
+- `ErrorOnDuplicates`: reject a cell with more than one row, whatever the rows hold;
+- `AggregateNumericDuplicates`: add up already-numeric scalar values over all repeated rows (`sum`) and reject strings or factors;
 - `KeepBestDuplicate` (`keep_best`): rank the repeated rows once by a declared numeric layer, every claimed value of which must be a plain number, then take every layer's value from the winning row, so one cell's layers describe one source row; a row without a ranking value loses, and ties keep stable physical order. Layers the rule lists in `sum` add up over the repeated rows instead, as MaxQuant's intensities and MS/MS counts do while its PEP, score and retention time come from the lowest-PEP evidence row.
+
+No answer takes one layer of a cell from one repeated row and another layer from another. `keep_first`, `min` and `max`, which resolved each layer on its own, were removed on 30 October 2026.
 
 Presence is the layer parser's question, decided before any policy runs. `present()` may recognize null, a declared numeric sentinel, a declared missing token, or a sentinel extracted from a structured numeric token. It returns a Boolean mask; the parser nulls the scalars it rejects and changes no other value. Layer encoding is not part of duplicate resolution.
 
@@ -1838,13 +1839,10 @@ The duplicate registry contains ready stateless instances:
 ```python
 _DUPLICATE_POLICIES: Mapping[DuplicateMode, DuplicatePolicy] = {
     "error": ErrorOnDuplicates(),
-    "keep_first": KeepFirstDuplicate(),
     "sum": AggregateNumericDuplicates(pl.Expr.sum),
-    "min": AggregateNumericDuplicates(pl.Expr.min),
-    "max": AggregateNumericDuplicates(pl.Expr.max),
 }
 
-NUMERIC_DUPLICATE_MODES: frozenset[DuplicateMode] = frozenset({"sum", "min", "max"})
+NUMERIC_DUPLICATE_MODES: frozenset[DuplicateMode] = frozenset({"sum"})
 
 def duplicate_policy_for(mode: DuplicateMode) -> DuplicatePolicy:
     if mode == "keep_best":
@@ -2002,7 +2000,7 @@ var column ranks best, ties in file order, no disagreement reported). Canonical 
 The identity and measurement portion of the storage model remains:
 
 ```python
-type DuplicateMode = Literal["error", "sum", "min", "max", "keep_first", "keep_best"]
+type DuplicateMode = Literal["error", "sum", "keep_best"]
 type VarDuplicateMode = Literal["keep_first", "min", "max", "keep_best"]
 
 
@@ -2113,7 +2111,7 @@ These become `AxisValueCoercer` objects evaluated on small axis frames. Their de
 
 `fragments.value_columns` is an ordered list independent of `measurements.layers`. Resolution retains available packed sources in authored order and requires at least one; `label_output` cannot collide with physical sources.
 
-The `sum` mode requires plain numeric layers without missing sentinels, factors or regex extraction. Source resolution additionally verifies native numeric read dtypes, so interpretation cannot change the contributions after summation. A `<=` threshold such as `"<=0"` is permitted: presence removes every contribution at or below it before summation. For a threshold of zero or more, the sum of the remaining larger values therefore stays above it and is never masked afterwards. The runtime aggregate retains a dtype guard; the MaxQuant `sum` rules satisfy these restrictions. The `min` and `max` modes share every restriction through `NUMERIC_DUPLICATE_MODES`, although they need fewer: each selects one present value, so it never falls to or below any threshold, and the exact-sentinel ban is stricter than they require.
+The `sum` mode requires plain numeric layers without missing sentinels, factors or regex extraction. Source resolution additionally verifies native numeric read dtypes, so interpretation cannot change the contributions after summation. A `<=` threshold such as `"<=0"` is permitted: presence removes every contribution at or below it before summation. For a threshold of zero or more, the sum of the remaining larger values therefore stays above it and is never masked afterwards. The runtime aggregate retains a dtype guard; the MaxQuant `sum` rules satisfy these restrictions.
 
 #### C.4 Physical input policy
 
@@ -2414,7 +2412,7 @@ For delimited text, `text_sources` includes:
 - packed label and value sources that must be split as text;
 - factor labels and regex/localized-number layer sources whose raw presence or canonical value parsing needs original tokens.
 
-A physical source used by several roles is text when any role requires lexical preservation. A layer source is read as a native number only when the rule reduces it (`sum`, `min`, `max`, or a `keep_best` summed layer); every other layer is text for its value parser. Parquet keeps its physical schema and bypasses text-dialect parsing.
+A physical source used by several roles is text when any role requires lexical preservation. A layer source is read as a native number only when the rule reduces it (`sum`, or a `keep_best` summed layer); every other layer is text for its value parser. Parquet keeps its physical schema and bypasses text-dialect parsing.
 
 `categorical_sources` is the subset of text read as `pl.Categorical`: the obs and var raw keys and payload, minus packed columns, layer sources, and the sources of var columns resolved by number (`min`, `max`, `keep_best`) together with their ranking column, which cast every row. A run path repeated on every row then costs four bytes instead of its text: on a 150-run DIA-NN report (9 M rows) the peptidoform-ion level's read fell from 7.2 GB to 3.7 GB footprint. Every consumer of these columns casts to text first or compares codes (axis coercers and computers, `unique`, `group_by`, joins within one read), so no Categorical reaches a parsed result. `LevelSourceTable` nulls a blank category the way it nulls blank text, finding the blank texts among the column's distinct values rather than casting the column.
 
@@ -2572,11 +2570,10 @@ Row numbers and positions point into the axis frames and are never identity: equ
 
 Before reduction, the parser applies the layer parser's `present()` to each placed layer and nulls the absent scalars, retaining the dtype and every claiming scalar. Factor presence and plain numeric presence without sentinels reject null/NaN but retain blank text. Plain numeric presence with sentinels or a `<=` threshold, and regex presence, also reject blank text, matching numeric sentinels and numbers at or below a declared threshold; they return only Boolean presence. An unreadable or unmatched nonblank token remains present so duplicate resolution cannot skip it in favor of a later readable value; canonical value parsing determines its diagnostic or missing result. Presence never returns parsed values; the parser's nulling changes no other value.
 
-All policies receive only the rows that repeat a cell, group them by (`var_pos`, `obs_pos`) in first-appearance order, and return one row per cell with both position columns kept. Error and keep-first copy the selected scalar unchanged. `sum` is the only policy that creates a new scalar, and only by addition; `min` and `max` select the smallest or largest present scalar.
+All policies receive only the rows that repeat a cell, group them by (`var_pos`, `obs_pos`) in first-appearance order, and return one row per cell with both position columns kept, or, under `error`, raise. `keep_best` copies the selected scalar unchanged. `sum` is the only policy that creates a new scalar, and only by addition.
 
-- `ErrorOnDuplicates` counts the non-null values per placed cell and raises when the count exceeds one; the message counts the offending final var rows and quotes their raw var keys from `LongLayer.var_keys`.
-- `KeepFirstDuplicate` selects the first non-null value per cell in physical order, which for wide input is header order, then row order. A missing sentinel, already null, is skipped, but a selected value is not encoded.
-- `AggregateNumericDuplicates` accepts only numeric (or all-null) Polars dtypes and reduces the non-null values per cell with its configured Polars reduction, `pl.Expr.sum`, `pl.Expr.min` or `pl.Expr.max`. Each layer reduces separately, so with several layers one feature's cells can come from different repeated rows. When no scalar is semantically present, the result stays null; it never manufactures `0.0` from missing data.
+- `ErrorOnDuplicates` counts the rows per placed cell, present or not, and raises when the count exceeds one: two rows that each fill a different layer would otherwise merge into one cell whose layers describe different rows. The message counts the offending final var rows and quotes their raw var keys from `LongLayer.var_keys`.
+- `AggregateNumericDuplicates` accepts only numeric (or all-null) Polars dtypes and reduces the non-null values per cell with `pl.Expr.sum`. Under `sum`, every layer adds up over all repeated rows. When no scalar is semantically present, the result stays null; it never manufactures `0.0` from missing data.
 - `KeepBestDuplicate.ranked()` (`keep_best`) reads every claimed value of the `by` layer as a number, by a strict `Float64` cast with `NaN` as absent, so a bad ranking value fails even in a cell of its own; it keeps the ranks of the repeated rows. The resulting `RankedDuplicates` resolves every layer from the same winning row, ties and unranked rows in file order, and copies the winner's value even when it is absent; a layer listed in `sum` adds up instead. A layer whose repeated positions differ from the ranking layer's is an error ("does not repeat the rows").
 
 Var payload columns resolve repeated rows during decomposition, not here, through one `FeatureValuePolicy` each: `FirstFeatureValue` keeps the first nonblank value and flags disagreeing features for `var_disagreements`; `ExtremeFeatureValue` keeps the smallest or largest number, a `NaN` ranking as absent; `RankedFeatureValue` takes the value of the row whose `by` column ranks best, ties in file order, and never reports disagreement.
@@ -2632,7 +2629,7 @@ The packaged rules, loaded and inventoried against `c9bfc32` on 2026-10-24, cont
 - two delimiter-packed fragment declarations: DIA-NN 1.7 positional, DIA-NN 1.8 column-labelled from an optional `Fragment.Info`;
 - token-regex, site-list and embedded-site-list sequence normalization, plus independent stripping;
 - numeric, regex-numeric, and factor layer encodings;
-- 19 `error`, 17 `keep_first`, 2 `keep_best` (MaxQuant's with a `sum` list) and 1 `max` measurement duplicate configurations;
+- 19 `error` and 20 `keep_best` (MaxQuant's evidence with a `sum` list) measurement duplicate configurations;
 - 12 var-column `duplicates` blocks: 5 `min`, 5 `keep_best`, 2 `max`;
 - ordered sourced and computed column entries, including nested and multi-column keys;
 - configured var and layer roles, including authored abundance tags;
@@ -2723,12 +2720,13 @@ Tests must cover:
   interior empty tokens, and column labels with `/` suffixes;
 - stable-first raw axis payload behavior;
 - `FinalPositions.place()` dropping the rows of axis rows that did not survive, and `LongLayer.split()` setting apart the rows that repeat a cell;
-- presence decided before duplicates are resolved: a sentinel beside a real value claims no cell, so the error policy sees one value;
-- AlphaDIA-style `keep_first` with `0` followed by a real value, proving the presence mask skips
+- presence decided before duplicates are resolved: a sentinel beside a real value claims nothing, so `keep_best` ranks the real value first;
+- AlphaDIA-style `0` followed by a real value under `keep_best`, proving the presence mask skips
   the sentinel while the retained scalar remains unencoded;
-- invalid non-null regex tokens and unknown factor labels remaining present—so `keep_first`
+- invalid non-null regex tokens and unknown factor labels remaining present—so selection
   cannot hide them—without producing encoded layer values;
-- error, keep-first, numeric sum, min and max policies over nullable values, each returning one row per cell in first-appearance order;
+- `error` stopping at any second row, even one holding only a sentinel, and the numeric sum over nullable values returning one row per cell in first-appearance order;
+- two rows that fill different layers of one cell stopping under `error` and resolving to one row under `keep_best`;
 - `keep_best` taking every layer from the best-ranked row, summing its `sum` layers, preferring a ranked row, keeping file order on ties, copying the winner's absent value, reading every ranking value even in a cell of its own, and refusing a layer that does not repeat the ranking rows;
 - var payload columns under `keep_first` (first nonblank, disagreement recorded), `min`/`max` (vendor text of the extreme number) and `keep_best` (the best-ranked row's value whatever the row order);
 - numeric aggregate leaving an all-missing cell null rather than manufacturing zero;

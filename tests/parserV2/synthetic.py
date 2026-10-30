@@ -123,8 +123,12 @@ def long_document(
     layers: list[dict[str, Any]] | None = None,
     primary_layer: str = "Quantity",
     duplicates: str = "error",
+    rank_by: str | None = None,
 ) -> RuleDocument:
-    """A long rule with one obs key and whatever var declarations a test needs."""
+    """A long rule with one obs key and whatever var declarations a test needs.
+
+    ``rank_by`` names the layer a ``keep_best`` rule ranks repeated rows by.
+    """
     return document(
         shape="long",
         base={
@@ -138,7 +142,7 @@ def long_document(
             },
             "measurements": {
                 "primary_layer": primary_layer,
-                "duplicates": {"mode": duplicates},
+                "duplicates": {"mode": duplicates} | ({"by": rank_by} if rank_by else {}),
                 "layers": layers or [{"name": "Quantity", "source": "Quantity"}],
             },
         },

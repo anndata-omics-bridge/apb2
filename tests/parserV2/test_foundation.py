@@ -269,7 +269,7 @@ def test_a_working_configuration_derives_presence_and_canonical_values() -> None
         ),
         measurements=WorkingMeasurements(
             primary_layer_name="Intensity",
-            duplicate_mode="keep_first",
+            duplicate_mode="error",
             layers=(layer,),
             required_names=frozenset({"Intensity"}),
         ),

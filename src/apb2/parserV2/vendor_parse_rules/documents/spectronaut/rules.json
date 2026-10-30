@@ -581,7 +581,9 @@
           "measurements": {
             "primary_layer": "PG_Quantity",
             "duplicates": {
-              "mode": "keep_first"
+              "mode": "keep_best",
+              "by": "PG_Quantity",
+              "best": "highest"
             },
             "layers": [
               {

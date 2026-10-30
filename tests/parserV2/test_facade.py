@@ -218,7 +218,7 @@ def test_the_alphadia_wide_ion_level_resolves_exactly_as_specified() -> None:
     assert working.obs.final_key_columns == ("sample",)
     assert working.var.final_key_columns == ("ProForma_ion",)
     assert working.measurements.primary_layer_name == "Intensity"
-    assert working.measurements.duplicate_mode == "keep_first"
+    assert working.measurements.duplicate_mode == "keep_best"
 
     resolved = facade.resolve_source(delimited(header))
     assert resolved.obs.keys == AxisKeyPlan(
@@ -1133,7 +1133,8 @@ def test_keep_best_takes_a_column_from_the_row_another_column_ranks_best() -> No
             {"name": "Set_Score", "duplicates": {"mode": "max"}},
         ],
         var_keys=["Feature"],
-        duplicates="keep_first",
+        duplicates="keep_best",
+        rank_by="Quantity",
     )
     strategy = synthetic.facade(document).resolve_source(
         delimited(("Sample", "Feature", "samesets", "score", "Quantity"))
@@ -1189,12 +1190,11 @@ def test_parquet_evidence_keeps_its_physical_schema() -> None:
     assert read.native_numeric_sources == frozenset()
 
 
-@pytest.mark.parametrize("mode", ["sum", "min", "max"])
-def test_a_reducing_rule_needs_layer_values_this_source_delivers_as_numbers(mode: str) -> None:
+def test_a_reducing_rule_needs_layer_values_this_source_delivers_as_numbers() -> None:
     document = synthetic.long_document(
         obs_select={"sample": "Sample"},
         var_select={"Feature": "Feature"},
-        duplicates=mode,
+        duplicates="sum",
     )
     facade = synthetic.facade(document)
     grouped = dataclasses.replace(

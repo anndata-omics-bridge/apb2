@@ -38,8 +38,8 @@ A rule document and the standard reader handle everything listed here. A prepara
 - `missing_values`: exact numbers and one `<=` threshold
 - `missing_tokens`: text written for a missing value, such as `-` or `NA`
 - `value_pattern`: one number extracted from structured cells by regex
-- Repeated cells: `error`, `keep_first`, `sum`, `min`, `max`, or `keep_best` (one row per cell by a ranking layer, with optional summed layers); another reduction is a new mode here, never hook work
-- `sum`, `min` and `max` leave a cell null when nothing is present, and reduce each layer separately, so with several layers one feature's cells can come from different repeated rows
+- Repeated cells: `error` (any second row stops), `sum` (all rows added up), or `keep_best` (one row per cell by a ranking layer, with optional summed layers); each takes every layer of a cell from one row or adds up all rows; another reduction is a new mode here, never hook work
+- `sum` leaves a cell null when nothing is present; it adds up every layer of the level, so it suits only levels whose layers are all additive
 - Primary layer, swapped by `search_parameter_overrides`
 - Semantic roles: `abundance`, `protein_assignment`, `fasta_accessions`
 
@@ -51,4 +51,4 @@ A rule document and the standard reader handle everything listed here. A prepara
 - Making rows that are not a hierarchy level, such as FlashLFQ peaks, parseable as one; combining their repeated cells stays a duplicate mode
 - Giving rows another table's identity through a vendor foreign key, such as MaxQuant evidence's protein group, so levels share one protein identity
 
-Prepared tables are read as text ([prepare_source.py](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/prepare_source.py)); when a rule uses `sum`, `min` or `max`, their text layer columns are read as numbers, as the direct reader does.
+Prepared tables are read as text ([prepare_source.py](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/prepare_source.py)); when a rule adds layers up (`sum`, or a `keep_best` `sum` list), those text layer columns are read as numbers, as the direct reader does.

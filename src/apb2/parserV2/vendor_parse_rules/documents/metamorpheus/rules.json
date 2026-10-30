@@ -23,7 +23,9 @@
         },
         "measurements": {
           "duplicates": {
-            "mode": "max"
+            "mode": "keep_best",
+            "by": "Intensity",
+            "best": "highest"
           }
         },
         "columns": {
@@ -71,6 +73,7 @@
               {
                 "name": "Intensity",
                 "source": "Peak intensity",
+                "note": "Ranks an ion's repeated peaks in one run: every layer comes from the most intense peak, the one FlashLFQ's own peptide table keeps",
                 "roles": [
                   "abundance"
                 ],

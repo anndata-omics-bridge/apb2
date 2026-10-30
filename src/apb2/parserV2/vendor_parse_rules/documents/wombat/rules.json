@@ -23,7 +23,9 @@
         },
         "measurements": {
           "duplicates": {
-            "mode": "keep_first"
+            "mode": "keep_best",
+            "by": "Abundance",
+            "best": "highest"
           }
         },
         "columns": {

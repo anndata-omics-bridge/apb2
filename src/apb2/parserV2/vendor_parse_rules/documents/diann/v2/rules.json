@@ -482,7 +482,9 @@
           "measurements": {
             "primary_layer": "PG_MaxLFQ",
             "duplicates": {
-              "mode": "keep_first"
+              "mode": "keep_best",
+              "by": "PG_MaxLFQ",
+              "best": "highest"
             },
             "layers": [
               {

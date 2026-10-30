@@ -42,7 +42,6 @@ from apb2.parserV2.parse_quant.duplicates import (
     ExtremeFeatureValue,
     FirstFeatureValue,
     KeepBestDuplicate,
-    KeepFirstDuplicate,
     RankedFeatureValue,
 )
 from apb2.parserV2.parse_quant.modifications import (
@@ -140,14 +139,11 @@ class WorkingParseConfiguration:
 
 _DUPLICATE_POLICIES: Mapping[DuplicateMode, DuplicatePolicy] = {
     "error": ErrorOnDuplicates(),
-    "keep_first": KeepFirstDuplicate(),
     "sum": AggregateNumericDuplicates(pl.Expr.sum),
-    "min": AggregateNumericDuplicates(pl.Expr.min),
-    "max": AggregateNumericDuplicates(pl.Expr.max),
 }
 """One policy per stateless duplicate mode; keep_best is built from its ranking instead."""
 
-NUMERIC_DUPLICATE_MODES: frozenset[DuplicateMode] = frozenset({"sum", "min", "max"})
+NUMERIC_DUPLICATE_MODES: frozenset[DuplicateMode] = frozenset({"sum"})
 """Modes that reduce numbers, so their layers must be plain numeric and read as numbers."""
 
 

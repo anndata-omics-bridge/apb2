@@ -94,7 +94,9 @@
           "measurements": {
             "primary_layer": "FG_Quantity",
             "duplicates": {
-              "mode": "keep_first"
+              "mode": "keep_best",
+              "by": "EG_Qvalue",
+              "best": "lowest"
             },
             "layers": [
               {
@@ -568,7 +570,9 @@
           "measurements": {
             "primary_layer": "PG_Quantity",
             "duplicates": {
-              "mode": "keep_first"
+              "mode": "keep_best",
+              "by": "PG_Quantity",
+              "best": "highest"
             },
             "layers": [
               {

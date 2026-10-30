@@ -223,7 +223,9 @@
           "measurements": {
             "primary_layer": "PG_Intensity",
             "duplicates": {
-              "mode": "keep_first"
+              "mode": "keep_best",
+              "by": "PG_Intensity",
+              "best": "highest"
             },
             "layers": [
               {

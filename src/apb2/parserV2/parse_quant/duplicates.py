@@ -6,10 +6,12 @@ every absent scalar before any policy here runs. Nothing here converts a value, 
 converting is the value parser's job and doing it here would decide, silently, which value
 survived.
 
-*Resolution* asks how several claiming scalars become one. A policy receives only the placed
-rows that repeat a cell, groups them by (``var_pos``, ``obs_pos``), and copies the scalar it
-selected through unchanged. A token that cannot be read stays present on purpose: keep-first
-must not be able to hide a value that will fail to encode later.
+*Resolution* asks how a cell's repeated rows become one value. A policy receives only the
+placed rows that repeat a cell and groups them by (``var_pos``, ``obs_pos``). It selects one
+row for every layer of the level, or adds up all rows: it never takes one layer from one row
+and another layer from another. The selected scalar is copied through unchanged. A token that
+cannot be read stays present on purpose: selection must not be able to hide a value that will
+fail to encode later.
 
 The feature-value policies at the end ask the resolution question of a ``var`` column: which
 of a feature's repeated rows gives its one value, the first present one, an extreme, or the one
@@ -52,7 +54,11 @@ def _cells(layer: LongLayer, *values: pl.Expr) -> pl.DataFrame:
 
 
 class ErrorOnDuplicates:
-    """More than one claiming scalar in one cell is a rule error, not a value to choose."""
+    """More than one row for one cell is a rule error, whatever the rows hold.
+
+    Rows that leave a layer empty count too: two rows that each fill a different layer would
+    otherwise merge into one cell whose layers describe different rows.
+    """
 
     __slots__ = ()
 
@@ -60,34 +66,24 @@ class ErrorOnDuplicates:
         cells = _cells(
             layer,
             pl.col(VALUE).first(ignore_nulls=True),
-            pl.col(VALUE).count().alias(_CLAIMS),
+            pl.len().alias(_CLAIMS),
         )
         offending = cells.filter(pl.col(_CLAIMS) > 1).get_column(VAR_POS).unique().sort()
         if offending.len():
             examples = layer.var_keys[offending.head(_EXAMPLE_LIMIT)].to_dicts()
             raise DuplicateCellError(
-                f"layer {layer.layer_name!r}: {offending.len()} raw key(s) claim one "
-                f"measurement cell more than once; examples: {examples}"
+                f"layer {layer.layer_name!r}: {offending.len()} raw key(s) have more than one "
+                f"row for one measurement cell; examples: {examples}"
             )
         return replace(layer, rows=cells.drop(_CLAIMS))
-
-
-class KeepFirstDuplicate:
-    """The first claiming scalar wins, in physical order."""
-
-    __slots__ = ()
-
-    def resolve(self, layer: LongLayer, /) -> LongLayer:
-        return replace(layer, rows=_cells(layer, pl.col(VALUE).first(ignore_nulls=True)))
 
 
 @dataclass(frozen=True, slots=True)
 class AggregateNumericDuplicates:
     """Claiming scalars reduce to one number; a cell with none stays null rather than zero.
 
-    ``pl.Expr.sum`` adds the claiming scalars into a new one; ``pl.Expr.max`` selects the
-    largest of them. Every layer reduces on its own, so with several layers one feature's
-    cells may come from different repeated rows.
+    ``pl.Expr.sum`` adds the claiming scalars of all repeated rows into a new one, for the
+    ``sum`` mode and for the layers ``keep_best`` sums.
     """
 
     reduction: Callable[[pl.Expr], pl.Expr]

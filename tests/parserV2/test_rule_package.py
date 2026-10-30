@@ -962,18 +962,15 @@ def test_rule_validates_the_declaration_before_using_gates_or_overrides(
         document.rule("peptidoform_ion", DDA)
 
 
-@pytest.mark.parametrize("mode", ["sum", "max"])
-def test_numeric_reduction_requires_layers_no_encoder_would_later_change(
-    tmp_path: Path, mode: str
-) -> None:
+def test_numeric_reduction_requires_layers_no_encoder_would_later_change(tmp_path: Path) -> None:
     payload = _document_payload()
-    payload["tables"][0]["base"]["measurements"]["duplicates"] = {"mode": mode}
+    payload["tables"][0]["base"]["measurements"]["duplicates"] = {"mode": "sum"}
     payload["tables"][0]["base"]["measurements"]["layers"] = [
         {"name": "quantity", "source": "Quantity", "missing_values": [0]}
     ]
 
     document = make_rule_document(tmp_path / "rules.json", payload)
-    with pytest.raises(ValueError, match=f"{mode} duplicates"):
+    with pytest.raises(ValueError, match="sum duplicates"):
         ParseRuleFacade(document, "peptidoform_ion", NO_EVIDENCE)
 
 
@@ -1134,10 +1131,8 @@ def test_both_rule_shapes_are_represented_by_the_packaged_generation() -> None:
     assert sum(isinstance(rule, WideRule) for rule in shapes) == 14
     modes = [rule.measurements.duplicates.mode for rule in shapes]
     assert modes.count("error") == 19
-    assert modes.count("keep_first") == 17
-    assert modes.count("keep_best") == 2
+    assert modes.count("keep_best") == 20
     assert modes.count("sum") == 0
-    assert modes.count("max") == 1
     assert sum(isinstance(rule.fragments, ColumnLabeledFragments) for rule in shapes) == 1
 
 

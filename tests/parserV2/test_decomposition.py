@@ -7,6 +7,8 @@ been decided about repeated cells yet.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import polars as pl
 import pytest
 
@@ -31,7 +33,7 @@ from apb2.parserV2.parse_quant.decomposition import (
 from apb2.parserV2.parse_quant.duplicates import (
     ExtremeFeatureValue,
     FirstFeatureValue,
-    KeepFirstDuplicate,
+    KeepBestDuplicate,
     RankedFeatureValue,
 )
 from apb2.parserV2.parse_quant.fragments import (
@@ -453,9 +455,10 @@ def test_a_required_wide_layer_with_no_aligned_column_is_kept_without_rows() -> 
 
 @pytest.mark.parametrize("repetitions", [0, 1, 20])
 @pytest.mark.parametrize("duplicate_headers", [False, True])
-def test_wide_keep_first_preserves_file_order_for_equal_keys(
+def test_wide_rows_keep_file_order_for_equal_keys(
     repetitions: int, duplicate_headers: bool
 ) -> None:
+    """keep_best keeps file order on tied ranks, so placed rows must keep it too."""
     table = LevelSourceTable(
         pl.DataFrame(
             {
@@ -482,7 +485,11 @@ def test_wide_keep_first_preserves_file_order_for_equal_keys(
         var_keys=raw.var.frame,
         grid=ObservationGrid(raw.var.frame.height, ("obs_0",)),
     )
-    result = KeepFirstDuplicate().resolve(positions.place(raw.layers[0])).rows
+    placed = positions.place(raw.layers[0])
+    unranked = replace(placed, rows=placed.rows.with_columns(pl.lit(None, pl.Float64).alias(VALUE)))
+    once, repeated = placed.split()
+    tied = KeepBestDuplicate(by="Intensity", highest=True).ranked(unranked)
+    result = pl.concat([once.rows, tied.resolve(repeated).rows], how="vertical_relaxed")
     assert raw.var.frame.get_column("Feature").to_list() == (
         ["F1", "F2", None] if repetitions else []
     )
