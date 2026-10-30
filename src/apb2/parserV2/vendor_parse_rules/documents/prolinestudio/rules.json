@@ -28,9 +28,7 @@
         },
         "measurements": {
           "duplicates": {
-            "mode": "keep_best",
-            "by": "Abundance",
-            "best": "highest"
+            "mode": "error"
           },
           "layers": [
             {

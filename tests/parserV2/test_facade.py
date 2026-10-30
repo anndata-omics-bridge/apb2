@@ -1164,6 +1164,42 @@ def test_keep_best_takes_a_column_from_the_row_another_column_ranks_best() -> No
     assert result["var_disagreements"] == {}
 
 
+def test_a_feature_column_ranking_selects_the_rows_of_the_feature_table_and_the_layers() -> None:
+    """P1 is listed under two protein sets per run; the set, score and quantity share a row."""
+    document = synthetic.long_document(
+        obs_select={"sample": "Sample"},
+        var_select={"Feature": "Feature", "Sameset": "samesets", "Set_Score": "score"},
+        var_types={"Set_Score": "number"},
+        computed=[
+            {"name": "Sameset", "duplicates": {"mode": "keep_best", "by": "Set_Score"}},
+            {"name": "Set_Score", "duplicates": {"mode": "max"}},
+        ],
+        var_keys=["Feature"],
+    )
+    strategy = synthetic.facade(document).resolve_source(
+        delimited(("Sample", "Feature", "samesets", "score", "Quantity"))
+    )
+    frame = pl.DataFrame(
+        {
+            "Sample": ["A", "A", "B", "B", "A"],
+            "Feature": ["P1", "P1", "P1", "P1", "P2"],
+            "samesets": ["FLNB", "FLNA", "FLNB", "FLNA", "TAGL2"],
+            "score": ["4894.2", "6585.4", "4894.2", "6585.4", "120"],
+            "Quantity": ["1", "5", "2", "6", "3"],
+        }
+    )
+
+    parsed = parse_table(strategy, LevelSourceTable(frame=frame))
+
+    assert parsed.var.frame.select("Feature", "Sameset", "Set_Score").to_dicts() == [
+        {"Feature": "P1", "Sameset": "FLNA", "Set_Score": 6585.4},
+        {"Feature": "P2", "Sameset": "TAGL2", "Set_Score": 120.0},
+    ]
+    assert parsed.layers["Quantity"].wide().rows() == [(5.0, 6.0), (3.0, None)], (
+        "the layer error policy sees no repeated cell: FLNB's rows were never decomposed"
+    )
+
+
 # -------------------------------------------------------------------------- other evidence
 
 

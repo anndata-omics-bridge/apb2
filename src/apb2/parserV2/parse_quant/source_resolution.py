@@ -19,6 +19,7 @@ from apb2.parserV2.parse_quant.contracts import (
     AxisRuntimePlan,
     FeatureValuePolicy,
     FragmentTableSeparator,
+    RowSelection,
     SelectedAxisColumn,
     SourceDecomposer,
 )
@@ -48,6 +49,7 @@ from apb2.parserV2.parse_quant.operations import (
     feature_value_policy,
     make_axis_coercer,
     make_layer_parser,
+    row_selection,
 )
 from apb2.parserV2.parse_quant.parameters.axis import (
     AxisColumnSelection,
@@ -143,8 +145,9 @@ class SourcePlanResolver:
         var_values = tuple(
             feature_value_policy(source, mode, numbers) for source, mode in var_modes.items()
         )
+        rows = row_selection(var_source.keys.raw_key_columns, var_modes, numbers)
         decomposer, decomposition_json = self._decomposition(
-            layers, obs_source, var_source, var_values, present, numbers
+            layers, obs_source, var_source, var_values, rows, present, numbers
         )
         validator = LayerContractValidator(
             primary_layer_name=working.measurements.primary_layer_name,
@@ -559,6 +562,7 @@ class SourcePlanResolver:
         obs: AxisSourcePlan,
         var: AxisSourcePlan,
         var_values: tuple[FeatureValuePolicy, ...],
+        rows: RowSelection,
         present: frozenset[str],
         numbers: NumericTextFormat,
     ) -> tuple[SourceDecomposer, dict[str, object]]:
@@ -566,12 +570,12 @@ class SourcePlanResolver:
         layout = self._configuration.source_layout
         primary = self._configuration.measurements.primary_layer_name
         if isinstance(layout, WideSourceLayout):
-            return WideSourceDecomposer(primary, layers.wide_plans, obs, var, var_values), {
+            return WideSourceDecomposer(primary, layers.wide_plans, obs, var, var_values, rows), {
                 "kind": "wide",
                 "primary_layer_name": primary,
                 "layer_plans": layers.wide_plans,
             }
-        long = LongSourceDecomposer(primary, layers.long_sources, obs, var, var_values)
+        long = LongSourceDecomposer(primary, layers.long_sources, obs, var, var_values, rows)
         long_json: dict[str, object] = {
             "kind": "long",
             "primary_layer_name": primary,

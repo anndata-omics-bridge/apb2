@@ -896,6 +896,28 @@ def test_factor_layers_do_not_acquire_a_numeric_type() -> None:
                         "duplicates": {"mode": "keep_best", "by": "score"},
                     },
                     {
+                        "name": "subset",
+                        "source": "Subset",
+                        "duplicates": {"mode": "keep_best", "by": "rank"},
+                    },
+                ]
+            ),
+            "rank by one column",
+            id="keep-best-two-rankings",
+        ),
+        pytest.param(
+            lambda payload: payload["tables"][0]["levels"]["peptidoform_ion"]["columns"][
+                "var"
+            ].extend(
+                [
+                    {"name": "score", "source": "Score", "type": "number"},
+                    {"name": "rank", "source": "Rank", "type": "number"},
+                    {
+                        "name": "set",
+                        "source": "Set",
+                        "duplicates": {"mode": "keep_best", "by": "score"},
+                    },
+                    {
                         "name": "set_copy",
                         "source": "Set",
                         "duplicates": {"mode": "keep_best", "by": "rank"},
@@ -1130,8 +1152,8 @@ def test_both_rule_shapes_are_represented_by_the_packaged_generation() -> None:
     assert sum(isinstance(rule, LongRule) for rule in shapes) == 25
     assert sum(isinstance(rule, WideRule) for rule in shapes) == 14
     modes = [rule.measurements.duplicates.mode for rule in shapes]
-    assert modes.count("error") == 19
-    assert modes.count("keep_best") == 20
+    assert modes.count("error") == 21
+    assert modes.count("keep_best") == 18
     assert modes.count("sum") == 0
     assert sum(isinstance(rule.fragments, ColumnLabeledFragments) for rule in shapes) == 1
 

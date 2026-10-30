@@ -94,6 +94,12 @@ class DuplicatePolicy(Protocol):
     def resolve(self, layer: LongLayer, /) -> LongLayer: ...
 
 
+class RowSelection(Protocol):
+    """Keep the raw rows the feature table and the layers are built from, before either is."""
+
+    def select(self, frame: pl.DataFrame, /) -> pl.DataFrame: ...
+
+
 class FeatureValuePolicy(Protocol):
     """Resolve the values a feature's repeated rows give one var payload column.
 

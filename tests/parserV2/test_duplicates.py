@@ -22,6 +22,7 @@ from apb2.parserV2.parse_quant.data import raw as raw_module
 from apb2.parserV2.parse_quant.data.errors import ConversionError
 from apb2.parserV2.parse_quant.data.layer_columns import ObservationGrid
 from apb2.parserV2.parse_quant.data.raw import OBS_POS, VALUE, VAR_POS, LongLayer
+from apb2.parserV2.parse_quant.decomposition import BestRankedRows, EveryRow
 from apb2.parserV2.parse_quant.duplicates import (
     AggregateNumericDuplicates,
     AggregateTypeError,
@@ -600,3 +601,69 @@ def test_a_layer_mode_that_mixes_rows_is_not_declarable(mode: str) -> None:
     """Each resolved a layer on its own, so one cell's layers could come from different rows."""
     with pytest.raises(ValueError, match="mode"):
         Duplicates.model_validate({"mode": mode})
+
+
+# ------------------------------------------------------------------------- row selection
+
+
+def _sets(frame: pl.DataFrame, highest: bool = True) -> pl.DataFrame:
+    """The rows a protein-set ranking keeps, as the decomposers receive them."""
+    selection = BestRankedRows(("Feature",), ("Set",), "Score", highest=highest, notation=DOT)
+    return selection.select(frame)
+
+
+def test_a_long_table_keeps_the_best_set_in_every_run() -> None:
+    """P1 is listed under two protein sets in runs A and B; FLNA scores best in both."""
+    frame = pl.DataFrame(
+        {
+            "Run": ["A", "A", "B", "B", "A"],
+            "Feature": ["P1", "P1", "P1", "P1", "P2"],
+            "Set": ["FLNB", "FLNA", "FLNB", "FLNA", "TAGL2"],
+            "Score": ["4894.2", "6585.4", "4894.2", "6585.4", "120"],
+            "Quantity": [1.0, 5.0, 2.0, 6.0, 3.0],
+        }
+    )
+
+    kept = _sets(frame)
+
+    assert kept.select("Run", "Feature", "Set", "Quantity").rows() == [
+        ("A", "P1", "FLNA", 5.0),
+        ("B", "P1", "FLNA", 6.0),
+        ("A", "P2", "TAGL2", 3.0),
+    ]
+    assert _sets(frame, highest=False).get_column("Set").to_list() == ["FLNB", "FLNB", "TAGL2"]
+
+
+def test_a_wide_table_keeps_the_winning_row_with_every_sample() -> None:
+    frame = pl.DataFrame(
+        {
+            "Feature": ["P1", "P1", "P2"],
+            "Set": ["FLNB", "FLNA", "TAGL2"],
+            "Score": [4894.2, 6585.4, 120.0],
+            "A Quantity": [1.0, 5.0, 3.0],
+            "B Quantity": [2.0, 6.0, None],
+        }
+    )
+
+    assert _sets(frame).rows() == [
+        ("P1", "FLNA", 6585.4, 5.0, 6.0),
+        ("P2", "TAGL2", 120.0, 3.0, None),
+    ]
+
+
+def test_a_row_without_a_score_loses_and_ties_and_blank_sets_keep_file_order() -> None:
+    frame = pl.DataFrame(
+        {
+            "Feature": ["P1", "P1", "P2", "P2", "P3"],
+            "Set": ["S1", "S2", None, "S4", None],
+            "Score": [None, "1", "2", "2", None],
+        }
+    )
+
+    assert _sets(frame).rows() == [("P1", "S2", "1"), ("P2", None, "2"), ("P3", None, None)]
+
+
+def test_without_a_ranking_every_row_stays() -> None:
+    frame = pl.DataFrame({"Feature": ["P1", "P1"], "Quantity": [1.0, 2.0]})
+
+    assert EveryRow().select(frame) is frame

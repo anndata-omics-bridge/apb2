@@ -24,9 +24,7 @@
         },
         "measurements": {
           "duplicates": {
-            "mode": "keep_best",
-            "by": "Abundance",
-            "best": "highest"
+            "mode": "error"
           }
         },
         "sequence_syntax": {
@@ -227,6 +225,11 @@
           },
           "measurements": {
             "primary_layer": "Abundance",
+            "duplicates": {
+              "mode": "keep_best",
+              "by": "Abundance",
+              "best": "highest"
+            },
             "layers": [
               {
                 "name": "Abundance",

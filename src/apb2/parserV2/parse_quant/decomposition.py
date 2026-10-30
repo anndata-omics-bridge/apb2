@@ -3,7 +3,8 @@
 A decomposer converts layout and nothing else. It receives source-resolved column names and
 configured key sets — never a rule, a vendor, a level, an unresolved regex, a duplicate mode,
 an encoder, or a writer — and every shape reduces to the same three values, so everything
-downstream is written once.
+downstream is written once. Its row selection runs first: where feature columns rank a
+feature's rows, the axes and the layers are built from the selected rows alone.
 
 Two invariants are easy to lose and are the reason this module exists at all. A raw axis holds
 exactly one row per complete raw-key tuple: the obs axis keeps the first payload metadata it
@@ -16,13 +17,14 @@ destroy the evidence it needs. Layer rows carry no key text, only the two row nu
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
 import polars as pl
 
 from apb2.parserV2.parse_quant.contracts import (
     FeatureValuePolicy,
     FragmentTableSeparator,
+    RowSelection,
 )
 from apb2.parserV2.parse_quant.data.layer_columns import VALUE
 from apb2.parserV2.parse_quant.data.raw import (
@@ -34,11 +36,12 @@ from apb2.parserV2.parse_quant.data.raw import (
     RawLevel,
     VarRaw,
 )
-from apb2.parserV2.parse_quant.numeric_text import absent
+from apb2.parserV2.parse_quant.numeric_text import absent, as_numbers
 from apb2.parserV2.parse_quant.parameters.axis import AxisSourcePlan
 from apb2.parserV2.parse_quant.parameters.source import (
     LevelSourceTable,
     LongRawLayerSource,
+    NumericTextFormat,
     WideRawLayerPlan,
 )
 
@@ -137,6 +140,51 @@ def _row_numbers(frame: pl.DataFrame, axis: pl.DataFrame, keys: tuple[str, ...])
 
 
 @dataclass(frozen=True, slots=True)
+class EveryRow:
+    """No feature column ranks a feature's rows, so every raw row stays."""
+
+    def select(self, frame: pl.DataFrame, /) -> pl.DataFrame:
+        return frame
+
+
+@dataclass(frozen=True, slots=True)
+class BestRankedRows:
+    """Each feature's best-ranked rows, selected once for the feature table and the layers.
+
+    The ``ranked`` columns tell a feature's repeated rows apart, such as the protein set a
+    shared peptide is listed under; ``by`` ranks them. The winner's ``ranked`` values, with the
+    feature key, name the rows kept: in a wide table the winning row, in a long table its rows
+    in every run. Selecting before anything is built keeps the feature table and every layer
+    on the same rows; resolving them separately lost which rows the feature table kept. Ties
+    and rows without a rank keep file order.
+    """
+
+    keys: tuple[str, ...]
+    ranked: tuple[str, ...]
+    by: str
+    highest: bool
+    notation: NumericTextFormat
+
+    def select(self, frame: pl.DataFrame, /) -> pl.DataFrame:
+        rank = as_numbers(pl.col(self.by), frame.schema[self.by], self.notation).fill_nan(None)
+        identity = [*self.keys, *self.ranked]
+        winners = (
+            frame.lazy()
+            .group_by(self.keys, maintain_order=True)
+            .agg(
+                pl.col(self.ranked)
+                .sort_by(rank, descending=self.highest, nulls_last=True, maintain_order=True)
+                .first()
+            )
+        )
+        return (
+            frame.lazy()
+            .join(winners, on=identity, how="semi", nulls_equal=True, maintain_order="left")
+            .collect()
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class LongSourceDecomposer:
     """One physical row per (observation, feature); every layer names an exact column."""
 
@@ -145,10 +193,11 @@ class LongSourceDecomposer:
     obs: AxisSourcePlan
     var: AxisSourcePlan
     var_values: tuple[FeatureValuePolicy, ...]
+    rows: RowSelection = field(default_factory=EveryRow)
 
     def decompose(self, table: LevelSourceTable, /) -> RawLevel:
         """Both raw axes, then every layer as the read column beside two shared row numbers."""
-        frame = table.frame
+        frame = self.rows.select(table.frame)
         obs_frame = _axis_frame(frame, self.obs)
         var = _var_raw(frame, self.var, self.var_values)
         return self.raw_level(
@@ -194,10 +243,11 @@ class WideSourceDecomposer:
     obs: AxisSourcePlan
     var: AxisSourcePlan
     var_values: tuple[FeatureValuePolicy, ...]
+    rows: RowSelection = field(default_factory=EveryRow)
 
     def decompose(self, table: LevelSourceTable, /) -> RawLevel:
         """The samples as the obs axis, then every layer as one block of rows per column."""
-        frame = table.frame
+        frame = self.rows.select(table.frame)
         samples = self._samples()
         obs_frame = pl.DataFrame({name: list(samples) for name in self.obs.keys.raw_key_columns})
         var = _var_raw(frame, self.var, self.var_values)
@@ -249,7 +299,8 @@ class DelimitedFragmentSourceDecomposer:
     The run and precursor keys are joined to their axes on the precursor rows, so the explode
     multiplies two integers and the scalars, never key or payload text. The var payload is a
     precursor's: its value policies run once per precursor on the rows that hold fragments, and
-    each fragment of the precursor takes the result. The fragment axis is one row per
+    each fragment of the precursor takes the result. The long decomposer's row selection is not
+    applied: no fragment level ranks a feature's rows. The fragment axis is one row per
     (precursor, label) in order of first appearance, its precursor key columns restored
     afterwards. Everything else is the long decomposer's: its plans and its layers.
     """

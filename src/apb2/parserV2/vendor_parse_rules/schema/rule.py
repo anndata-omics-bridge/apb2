@@ -247,6 +247,16 @@ def _check_duplicates(keys: list[str], group: ColumnGroup, owner: RoleOwner) -> 
             raise ValueError(
                 f"{entry.name}: keep_best ranks by {by!r}, which must be a required numeric column"
             )
+    rankings = {
+        (entry.duplicates.by, entry.duplicates.best)
+        for entry in sourced
+        if entry.duplicates is not None and entry.duplicates.by is not None
+    }
+    if len(rankings) > 1:
+        raise ValueError(
+            "keep_best var columns select a feature's rows, so they rank by one column; "
+            f"these differ: {sorted(rankings)}"
+        )
 
 
 def _described(resolution: ColumnDuplicates) -> str:

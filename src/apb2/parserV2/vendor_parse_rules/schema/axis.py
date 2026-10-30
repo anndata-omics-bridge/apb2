@@ -182,8 +182,9 @@ class ColumnDuplicates(ModelBase):
     keeps the first nonblank value and reports features whose rows disagree. ``min`` and
     ``max`` keep the smallest or largest number, for a tool that writes a placeholder into
     some of a feature's rows, such as DIA-NN's protein-group q-value of 1.0. ``keep_best``
-    takes the value of the row whose ``by`` column is ``best``, so the columns ranked by one
-    score describe the same row, such as the protein set a shared peptide is assigned to.
+    selects the feature's rows whose ``by`` column is ``best`` before the feature table and the
+    layers are built, so the columns ranked by one score and every layer describe the same
+    row, such as the protein set a shared peptide is assigned to. A level ranks by one column.
     """
 
     mode: VarDuplicateMode = "keep_first"

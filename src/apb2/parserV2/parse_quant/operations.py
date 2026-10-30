@@ -34,8 +34,10 @@ from apb2.parserV2.parse_quant.contracts import (
     DuplicatePolicy,
     FeatureValuePolicy,
     LayerValueParser,
+    RowSelection,
 )
 from apb2.parserV2.parse_quant.data.parsed import LevelHierarchy
+from apb2.parserV2.parse_quant.decomposition import BestRankedRows, EveryRow
 from apb2.parserV2.parse_quant.duplicates import (
     AggregateNumericDuplicates,
     ErrorOnDuplicates,
@@ -190,6 +192,25 @@ def feature_value_policy(
     if mode == "keep_first":
         return FirstFeatureValue(source)
     return ExtremeFeatureValue(source, largest=mode == "max", notation=numbers)
+
+
+def row_selection(
+    keys: tuple[str, ...], var_modes: Mapping[str, FeatureDuplicates], numbers: NumericTextFormat
+) -> RowSelection:
+    """Select each feature's best-ranked rows where var columns rank them; else keep every row.
+
+    The rule schema lets a level rank by one column only, so every ranking here is the same.
+    """
+    ranked = {
+        source: mode for source, mode in var_modes.items() if isinstance(mode, FeatureRanking)
+    }
+    rankings = set(ranked.values())
+    if not rankings:
+        return EveryRow()
+    if len(rankings) > 1:
+        raise ValueError(f"var columns {sorted(ranked)} rank a feature's rows by different columns")
+    (ranking,) = rankings
+    return BestRankedRows(keys, tuple(ranked), ranking.by, ranking.highest, numbers)
 
 
 def make_layer_parser(
