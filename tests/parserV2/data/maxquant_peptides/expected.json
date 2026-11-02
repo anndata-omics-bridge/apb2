@@ -8,7 +8,8 @@
       "observations": 12,
       "variables": 250,
       "layers": [
-        "Intensity"
+        "Intensity",
+        "Identification_Type"
       ]
     }
   }

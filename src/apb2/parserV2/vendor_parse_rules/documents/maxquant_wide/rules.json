@@ -105,6 +105,21 @@
                 "name": "PEP",
                 "source": "evidence.PEP",
                 "required": true
+              },
+              {
+                "name": "Type",
+                "source": "evidence.Type",
+                "encoding_mode": "factor",
+                "categories": {
+                  "MSMS": 0,
+                  "ISO-MSMS": 1,
+                  "MULTI-MSMS": 2,
+                  "ISO-SECPEP": 3,
+                  "MULTI-SECPEP": 4,
+                  "MULTI-MATCH": 5,
+                  "MULTI-MATCH-MSMS": 6
+                },
+                "note": "How MaxQuant identified the evidence row: MULTI-MATCH by matching between runs, the MSMS kinds by MS/MS. Categories from the MaxQuant output-table documentation, plus MULTI-MATCH-MSMS, which reports write but the documentation omits, and ISO-SECPEP"
               }
             ]
           },
@@ -317,6 +332,16 @@
                 "missing_values": [
                   "<=0"
                 ]
+              },
+              {
+                "name": "Identification_Type",
+                "source": "^peptidoform\\.Identification type (?P<sample>.+)$",
+                "encoding_mode": "factor",
+                "categories": {
+                  "By MS/MS": 0,
+                  "By matching": 1
+                },
+                "note": "Whether the feature was identified by MS/MS in this sample or only transferred by matching between runs"
               }
             ]
           },
@@ -494,6 +519,16 @@
                 "missing_values": [
                   "<=0"
                 ]
+              },
+              {
+                "name": "Identification_Type",
+                "source": "^peptide\\.Identification type (?P<sample>.+)$",
+                "encoding_mode": "factor",
+                "categories": {
+                  "By MS/MS": 0,
+                  "By matching": 1
+                },
+                "note": "Whether the feature was identified by MS/MS in this sample or only transferred by matching between runs"
               }
             ]
           },
@@ -665,6 +700,16 @@
                 "missing_values": [
                   "<=0"
                 ]
+              },
+              {
+                "name": "Identification_Type",
+                "source": "^protein\\.Identification type (?P<sample>.+)$",
+                "encoding_mode": "factor",
+                "categories": {
+                  "By MS/MS": 0,
+                  "By matching": 1
+                },
+                "note": "Whether the feature was identified by MS/MS in this sample or only transferred by matching between runs"
               }
             ]
           },

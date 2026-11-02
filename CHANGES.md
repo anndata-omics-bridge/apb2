@@ -1,5 +1,9 @@
 # Changes
 
+## 2026-11-02
+
+- MaxQuant results carry the match status, as FragPipe's `Match_Type` does: factor layer `Identification_Type` (`By MS/MS`, `By matching`) at the peptidoform, peptide and protein levels, from `Identification type <sample>`, and `Type` at the peptidoform-ion level, from `evidence.txt`. Both are optional, because exports without matching between runs lack the columns. `Type` declares the five values of MaxQuant's output-table documentation, plus `MULTI-MATCH-MSMS`, which reports write but the documentation omits, and `ISO-SECPEP`; in the evidence files of the test data, no row falls back to the unknown code
+
 ## 2026-10-30
 
 - Layer duplicate modes are `error`, `same`, `sum` and `keep_best`; none takes one layer of a cell from one row and another layer from a row holding a different value. `keep_first`, `min` and `max` resolved each layer on its own: MetaMorpheus' `max` joined one peak's intensity with another peak's apex in 21,405 of 24,863 repeated ion cells of the IonStar fixture

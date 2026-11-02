@@ -16,7 +16,8 @@
         "Calibrated_Retention_Time_Start",
         "Calibrated_Retention_Time_Finish",
         "Score",
-        "PEP"
+        "PEP",
+        "Type"
       ]
     }
   }
