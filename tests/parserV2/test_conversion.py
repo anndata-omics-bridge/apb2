@@ -622,9 +622,10 @@ def test_diann_v1_9_parquet_produces_available_levels(tmp_path: Path) -> None:
     assert list(formats.read_parsed_levels(target).levels) == ["peptidoform_ion", "protein"]
 
 
-def test_spectronaut_21_selects_the_rule_for_19_to_21() -> None:
+def test_spectronaut_v21_selects_its_dedicated_rule() -> None:
+    """Spectronaut 21 writes library q-values 19 and 20 never write, so it has its own rule."""
     key = "spectronaut/v21"
-    pair = next(candidate for candidate in document_pairs() if candidate.key == "spectronaut")
+    pair = next(candidate for candidate in document_pairs() if candidate.key == key)
     fixture_dir = committed_dir(key)
     data = committed_sample(key)
     assert fixture_dir is not None

@@ -19,6 +19,7 @@
     {"rule": "quantms/rules.json", "categories": ["DDA"]},
     {"rule": "sage/rules.json", "categories": ["DDA"]},
     {"rule": "spectronaut/rules.json", "categories": ["DIA"]},
+    {"rule": "spectronaut/v21/rules.json", "categories": ["DIA"]},
     {"rule": "spectronaut/v15/rules.json", "categories": ["DIA"]},
     {"rule": "wombat/rules.json", "categories": ["DDA"]}
   ]

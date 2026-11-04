@@ -20,10 +20,7 @@ from apb2.parserV2.parse_quant.data.parsed import JsonValue
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels
 from parserV2.fixtures import DATA_DIR, committed_dir, committed_sample, level_pairs, parse_section
 
-_SECOND_SAMPLES = {"spectronaut/v21": "spectronaut"}
-"""Samples of another software version a rule covers, by sample key, and that rule's key."""
-
-_KEYS = tuple(sorted({pair.sample_key for pair, _level in level_pairs()} | set(_SECOND_SAMPLES)))
+_KEYS = tuple(sorted({pair.sample_key for pair, _level in level_pairs()}))
 
 
 def test_every_packaged_document_has_committed_artifacts() -> None:
@@ -89,7 +86,4 @@ def test_committed_folders_all_belong_to_packaged_documents() -> None:
 
 
 def _rule_config(key: str) -> Path:
-    sample_key = _SECOND_SAMPLES.get(key, key)
-    return next(
-        pair.parser_v2_path for pair, _level in level_pairs() if pair.sample_key == sample_key
-    )
+    return next(pair.parser_v2_path for pair, _level in level_pairs() if pair.sample_key == key)

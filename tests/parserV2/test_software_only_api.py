@@ -153,11 +153,7 @@ def _spectronaut_rule_folders(source: Path) -> set[str]:
 
 @pytest.mark.parametrize(
     ("key", "expected_folder"),
-    [
-        ("spectronaut/v15", "v15"),
-        ("spectronaut", "spectronaut"),
-        ("spectronaut/v21", "spectronaut"),
-    ],
+    [("spectronaut/v15", "v15"), ("spectronaut", "spectronaut"), ("spectronaut/v21", "v21")],
 )
 def test_spectronaut_version_is_selected_by_declared_columns(
     key: str, expected_folder: str

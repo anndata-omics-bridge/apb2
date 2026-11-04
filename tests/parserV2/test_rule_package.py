@@ -103,6 +103,11 @@ _NON_PRIMARY_ABUNDANCE: dict[tuple[str, QuantificationLevel], tuple[str, ...]] =
         "EG_TargetQuantity_Settings",
         "EG_TotalQuantity_Settings",
     ),
+    ("spectronaut/v21", "peptidoform_ion"): (
+        "EG_ReferenceQuantity_Settings",
+        "EG_TargetQuantity_Settings",
+        "EG_TotalQuantity_Settings",
+    ),
     ("spectronaut/v15", "peptidoform_ion"): (
         "EG_TargetQuantity_Settings",
         "EG_TotalQuantity_Settings",
@@ -390,6 +395,7 @@ def test_packaged_integer_measurements_are_exactly_the_declared_counts() -> None
         ("msangel", "protein", "Peptides_Count"),
         ("prolinestudio", "peptidoform_ion", "PSM_Count"),
         ("spectronaut", "protein", "PG_RunEvidenceCount"),
+        ("spectronaut/v21", "protein", "PG_RunEvidenceCount"),
         ("wombat", "peptidoform", "Number_Of_Psms"),
     }
 
@@ -1709,11 +1715,11 @@ def test_both_rule_shapes_are_represented_by_the_packaged_generation() -> None:
         for pair, level in level_pairs()
     ]
 
-    assert sum(isinstance(rule, LongRule) for rule in shapes) == 22
+    assert sum(isinstance(rule, LongRule) for rule in shapes) == 25
     assert sum(isinstance(rule, WideRule) for rule in shapes) == 14
     modes = [rule.measurements.repeated_cells.mode for rule in shapes]
-    assert modes.count("error") == 19
-    assert modes.count("same") == 14
+    assert modes.count("error") == 21
+    assert modes.count("same") == 15
     assert modes.count("keep_best") == 3
     assert modes.count("sum") == 0
     assert sum(isinstance(rule.fragments, ColumnLabeledFragments) for rule in shapes) == 1

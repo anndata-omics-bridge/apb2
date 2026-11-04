@@ -1,8 +1,8 @@
 {
   "schema_version": "0.10",
-  "file_version": "5",
+  "file_version": "6",
   "software_name": "Spectronaut",
-  "software_version_pattern": "^(19|20|21)\\..*",
+  "software_version_pattern": "^(19|20)\\..*",
   "hierarchy": "lfq",
   "parameter_file": "required",
   "tables": [
@@ -18,6 +18,7 @@
         },
         "without_parameter_file": {
           "required_columns": ["E.Errors"],
+          "forbidden_columns": ["EG.LibraryQvalue"],
           "acquisition_method": {"otherwise": "unknown"}
         }
       },
@@ -159,13 +160,6 @@
               {"name": "EG_MaxProfileQvalue", "source": "EG.MaxProfileQvalue", "type": "number"},
               {"name": "EG_MinProfileQvalue", "source": "EG.MinProfileQvalue", "type": "number"},
               {"name": "EG_PercentileQvalue", "source": "EG.PercentileQvalue", "type": "number"},
-              {
-                "name": "EG_LibraryQvalue",
-                "source": "EG.LibraryQvalue",
-                "type": "number",
-                "required": false,
-                "note": "Spectral-library q-value, one per precursor, repeated in every run row"
-              },
               {"name": "FG_Charge", "source": "FG.Charge", "type": "integer"},
               {"name": "FG_IntMID", "source": "FG.IntMID"},
               {"name": "FG_LabeledSequence", "source": "FG.LabeledSequence"},
@@ -293,13 +287,6 @@
               {"name": "PG_PEP", "source": "PG.PEP", "type": "number"},
               {"name": "PG_Pvalue", "source": "PG.Pvalue", "type": "number"},
               {"name": "PG_Qvalue", "source": "PG.Qvalue", "type": "number"},
-              {
-                "name": "PG_LibraryQvalue",
-                "source": "PG.LibraryQvalue",
-                "type": "number",
-                "required": false,
-                "note": "Spectral-library q-value, one per protein group, repeated in every run row"
-              },
               {"name": "EG_IsDecoy", "source": "EG.IsDecoy", "type": "boolean", "required": false}
             ]
           }

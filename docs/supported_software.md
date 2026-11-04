@@ -25,7 +25,8 @@ This table has one row per packaged rule document.
 | [ProlineStudio](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/prolinestudio/rules.json) | 2.x | `Quantified peptide ions` sheet in an XLSX workbook (`.txt` or `.xlsx`) | wide | parameter sheets in the result workbook |
 | [quantms](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/quantms/rules.json) | 1.x | `.csv` | long | quantms versions YAML |
 | [Sage](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/sage/rules.json) | 0.x | `.tsv` | wide | Sage JSON parameter file |
-| [Spectronaut](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/spectronaut/rules.json) | 19.x to 21.x | `.tsv` | long | Spectronaut settings text report |
+| [Spectronaut](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/spectronaut/rules.json) | 19.x or 20.x | `.tsv` | long | Spectronaut settings text report |
+| [Spectronaut 21](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/spectronaut/v21/rules.json) | 21.x | `.tsv` | long | Spectronaut settings text report |
 | [Spectronaut 15](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/spectronaut/v15/rules.json) | 15.x | `.tsv` | long | Spectronaut settings text report |
 | [WOMBAT-P](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/wombat/rules.json) | 0.9.11 | `.csv` | wide | WOMBAT-P YAML parameter file |
 
@@ -57,6 +58,7 @@ A check mark means that the linked rule document can convert that level. APB2 re
 | [quantms](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/quantms/rules.json) | ✓ | — | — | — | — |
 | [Sage](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/sage/rules.json) | ✓ | ✓ | — | — | — |
 | [Spectronaut](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/spectronaut/rules.json) | ✓ | — | — | ✓ | ✓ |
+| [Spectronaut 21](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/spectronaut/v21/rules.json) | ✓ | — | — | ✓ | ✓ |
 | [Spectronaut 15](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/spectronaut/v15/rules.json) | ✓ | — | — | ✓ | ✓ |
 | [WOMBAT-P](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/wombat/rules.json) | ✓ | ✓ | — | — | — |
 
