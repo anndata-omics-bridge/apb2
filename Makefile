@@ -9,7 +9,7 @@ export APB2_TEST_DATA
 
 .DEFAULT_GOAL := help
 .PHONY: help sync format format-check lint typecheck deps test build docs docs-serve \
-	docs-serve-public check clean
+	docs-serve-public rules-bundle check clean
 
 help:  ## Show developer commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -18,9 +18,10 @@ help:  ## Show developer commands
 sync:  ## Synchronize the locked development environment
 	uv sync --group dev
 
-format:  ## Format and autofix source and tests
+format:  ## Format and autofix source and tests; lay out the packaged rules.json files
 	$(VENV_BIN)/ruff format src tests scripts
 	$(VENV_BIN)/ruff check --fix src tests scripts
+	$(VENV_BIN)/python -m scripts.format_rules
 
 format-check:  ## Check formatting without changing files
 	$(VENV_BIN)/ruff format --check src tests scripts
@@ -51,6 +52,9 @@ docs-serve:  ## Serve user documentation locally
 docs-serve-public:  ## Serve the prebuilt public directory without rebuilding
 	@test -f public/index.html || (echo "public/index.html is missing; run 'make docs' first" >&2; exit 1)
 	SERVE_PORT=$(DOCS_PORT) $(SERVE_ON_PORT) $(VENV_BIN)/python -m http.server $(DOCS_PORT) --directory public
+
+rules-bundle:  ## Build the parsing-rules bundle APB Studio's rules viewer reads into build/
+	$(VENV_BIN)/python -m scripts.build_rules_bundle
 
 check:  ## Run every merge-blocking quality gate
 	$(MAKE) format-check lint typecheck deps test build docs

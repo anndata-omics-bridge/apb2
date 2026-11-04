@@ -16,10 +16,14 @@ import polars as pl
 import pytest
 
 from apb2.cli.conversion import convert_all_from_rule_config
+from apb2.parserV2.parse_quant.data.parsed import JsonValue
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels
-from parserV2.fixtures import DATA_DIR, committed_dir, committed_sample, level_pairs
+from parserV2.fixtures import DATA_DIR, committed_dir, committed_sample, level_pairs, parse_section
 
-_KEYS = tuple(sorted({pair.sample_key for pair, _level in level_pairs()}))
+_SECOND_SAMPLES = {"spectronaut/v21": "spectronaut"}
+"""Samples of another software version a rule covers, by sample key, and that rule's key."""
+
+_KEYS = tuple(sorted({pair.sample_key for pair, _level in level_pairs()} | set(_SECOND_SAMPLES)))
 
 
 def test_every_packaged_document_has_committed_artifacts() -> None:
@@ -59,6 +63,21 @@ def test_committed_sample_converts_to_the_recorded_expectations(key: str, tmp_pa
         for flag in ("apb_Decoy", "apb_Contaminant"):
             column = level.var.frame.get_column(flag)
             assert (column.dtype, column.null_count()) == (pl.Boolean, 0), (name, flag)
+        obs, var, layers = _declared_names(level.uns)
+        assert set(level.obs.frame.columns) <= obs, (name, set(level.obs.frame.columns) - obs)
+        assert set(level.var.frame.columns) <= var, (name, set(level.var.frame.columns) - var)
+        assert set(level.layers) <= layers, (name, set(level.layers) - layers)
+
+
+def _declared_names(uns: dict[str, JsonValue]) -> tuple[set[str], set[str], set[str]]:
+    """The obs, var and layer names a level's stored rule declares; apb2 writes no others."""
+    rule = json.loads(str(parse_section(uns, "provenance")["rule_json"]))
+    columns, axis = rule["columns"], rule["axis"]
+    obs = {column["name"] for column in columns.get("obs", [])} | set(axis["obs_keys"])
+    var = {column["name"] for column in columns["var"]} | set(axis["var_keys"])
+    if rule.get("fragments") is not None:
+        var.add(rule["fragments"]["label_output"])
+    return obs, var, {layer["name"] for layer in rule["measurements"]["layers"]}
 
 
 def test_committed_folders_all_belong_to_packaged_documents() -> None:
@@ -70,4 +89,7 @@ def test_committed_folders_all_belong_to_packaged_documents() -> None:
 
 
 def _rule_config(key: str) -> Path:
-    return next(pair.parser_v2_path for pair, _level in level_pairs() if pair.sample_key == key)
+    sample_key = _SECOND_SAMPLES.get(key, key)
+    return next(
+        pair.parser_v2_path for pair, _level in level_pairs() if pair.sample_key == sample_key
+    )

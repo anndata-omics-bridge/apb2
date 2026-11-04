@@ -1,5 +1,30 @@
 {
   "$defs": {
+    "AcquisitionFromColumns": {
+      "additionalProperties": false,
+      "description": "The acquisition method a header implies: DDA when any listed column is present.",
+      "properties": {
+        "DDA_if_any_column": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Dda If Any Column",
+          "type": "array"
+        },
+        "otherwise": {
+          "default": "unknown",
+          "enum": [
+            "DDA",
+            "DIA",
+            "unknown"
+          ],
+          "title": "Otherwise",
+          "type": "string"
+        }
+      },
+      "title": "AcquisitionFromColumns",
+      "type": "object"
+    },
     "DecimalMark": {
       "enum": [
         ".",
@@ -231,10 +256,10 @@
           ],
           "default": null
         },
-        "software_only": {
+        "without_parameter_file": {
           "anyOf": [
             {
-              "$ref": "#/$defs/SoftwareOnlyEvidence"
+              "$ref": "#/$defs/WithoutParameterFile"
             },
             {
               "type": "null"
@@ -293,52 +318,13 @@
       ]
     },
     "SchemaVersion": {
-      "const": "0.9",
+      "const": "0.10",
       "type": "string"
     },
     "SingleCharacter": {
       "maxLength": 1,
       "minLength": 1,
       "type": "string"
-    },
-    "SoftwareOnlyEvidence": {
-      "additionalProperties": false,
-      "description": "Column evidence used when no vendor parameter file is available.",
-      "properties": {
-        "required_columns": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Required Columns",
-          "type": "array"
-        },
-        "forbidden_columns": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Forbidden Columns",
-          "type": "array"
-        },
-        "acquisition_method_if_any": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Acquisition Method If Any",
-          "type": "array"
-        },
-        "acquisition_method_otherwise": {
-          "default": "unknown",
-          "enum": [
-            "DDA",
-            "DIA",
-            "unknown"
-          ],
-          "title": "Acquisition Method Otherwise",
-          "type": "string"
-        }
-      },
-      "title": "SoftwareOnlyEvidence",
-      "type": "object"
     },
     "SupportedExtension": {
       "enum": [
@@ -364,6 +350,31 @@
         "windows-1252"
       ],
       "type": "string"
+    },
+    "WithoutParameterFile": {
+      "additionalProperties": false,
+      "description": "The column check used when no vendor parameter file is available.",
+      "properties": {
+        "required_columns": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Required Columns",
+          "type": "array"
+        },
+        "forbidden_columns": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Forbidden Columns",
+          "type": "array"
+        },
+        "acquisition_method": {
+          "$ref": "#/$defs/AcquisitionFromColumns"
+        }
+      },
+      "title": "WithoutParameterFile",
+      "type": "object"
     },
     "_PreparationSchema": {
       "additionalProperties": false,
@@ -449,6 +460,7 @@
       "type": "string"
     },
     "hierarchy": {
+      "default": "lfq",
       "title": "Hierarchy",
       "type": "string"
     },
@@ -486,7 +498,6 @@
     "file_version",
     "software_name",
     "software_version_pattern",
-    "hierarchy",
     "tables"
   ],
   "title": "RuleDocument",

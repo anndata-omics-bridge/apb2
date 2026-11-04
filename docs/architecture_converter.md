@@ -23,7 +23,7 @@ invariant or test explicitly adopts them.
 
 The [APB metadata specification](metadata_specification.md) is authoritative for persisted namespace ownership, tool integration, composition and result-format versions. Converter examples below do not define a separate metadata contract.
 
-The current rule storage version is schema `0.9`; [How rules-driven conversion works](rule-based.md) is the authoring guide. Earlier schema migrations remain historical context. Schema `0.9` adds an optional `note` to every column and layer entry, a `duplicates` block on var columns (`keep_first` by default, `min`, `max`, or `keep_best` by another numeric var column). Its layer duplicate modes are `error`, `same`, `sum` and `keep_best`: each selects one row for every layer of a cell, takes the value copied rows share, or adds up all rows. Schema `0.8` adds explicit, independent sequence computations and named syntax/modification-map references; axis, measurement, physical-input, role, and preparation declarations retain their existing shapes.
+The current rule storage version is schema `0.10`; [How rules-driven conversion works](rule-based.md) is the authoring guide. Earlier schema migrations remain historical context. Schema `0.10` renames for readability: layers' `measurements.repeated_cells` (was `duplicates`); a var column's `per_feature` (`first`, `min`, `max`, `best_row`), with the level's ranking written once as `rank_rows`; `input.without_parameter_file` (was `software_only`), whose `acquisition_method` names DDA; and modification maps as token-to-accession objects. It adds authoring shorthand that composition resolves, so the stored `rule_json` stays explicit: `source_prefix` for a prepared table's namespace, a sequence column's default `syntax` and `modification_map` when the level declares one, and `hierarchy` `lfq` by default. Schema `0.9` added an optional `note` to every column and layer entry, a `duplicates` block on var columns (`keep_first` by default, `min`, `max`, or `keep_best` by another numeric var column). Its layer duplicate modes are `error`, `same`, `sum` and `keep_best`: each selects one row for every layer of a cell, takes the value copied rows share, or adds up all rows. Schema `0.8` adds explicit, independent sequence computations and named syntax/modification-map references; axis, measurement, physical-input, role, and preparation declarations retain their existing shapes.
 
 ## Current source-compilation boundary
 
@@ -48,7 +48,7 @@ holds no `rules.json` model and contains no vendor, level, layout, encoding, dup
 output-format dispatch. `ParseRuleCompiler` consumes those declarations once, constructs the
 required behavior objects, and injects them into one `Parser` per compatible quantification level.
 
-Rule storage schema `0.9` declares `tables: [{input, base, levels, prepare?}]` under shared software metadata. Each table group independently selects direct input or an ordinary preparation function from the independent `joins` package. Parent composition binds and reads each selected prepared group's inputs once. A direct group and a prepared group can coexist, as in MaxQuant. Obs/var columns remain ordered sourced-or-computed entries with inline type, optionality, and semantic roles. Numeric layers may declare logical type `integer`; omitted numeric types mean `number`. The facade projects declarations into storage-neutral runtime configurations. Its `resolve_source()` delegates to parsing-owned `SourcePlanResolver`, which resolves headers, optional columns, dependency phases, wide sample expansion, notation, and physical dtypes without importing rule models.
+Rule storage schema `0.10` declares `tables: [{input, base, levels, prepare?}]` under shared software metadata. Each table group independently selects direct input or an ordinary preparation function from the independent `joins` package. Parent composition binds and reads each selected prepared group's inputs once. A direct group and a prepared group can coexist, as in MaxQuant. Obs/var columns remain ordered sourced-or-computed entries with inline type, optionality, and semantic roles. Numeric layers may declare logical type `integer`; omitted numeric types mean `number`. The facade projects declarations into storage-neutral runtime configurations. Its `resolve_source()` delegates to parsing-owned `SourcePlanResolver`, which resolves headers, optional columns, dependency phases, wide sample expansion, notation, and physical dtypes without importing rule models.
 
 The computational result is:
 
@@ -1305,7 +1305,7 @@ level, software, parameter, strictness, FASTA, or annotation option.
 
 The implementation must preserve these invariants:
 
-- schema `0.9` keeps `axis` identity-only, stores primary/duplicates/layers under `measurements`, declares obs/var columns as ordered entries, validates semantic-role ownership from packaged policy, and admits only executable duplicate modes;
+- schema `0.10` keeps `axis` identity-only, stores primary/repeated_cells/layers under `measurements`, declares obs/var columns as ordered entries, validates semantic-role ownership from packaged policy, and admits only executable duplicate modes;
 - one generic key-plan derivation compiles every axis of every effective rule;
 - level-specific physical projection occurs during reading and before decomposition;
 - delimiter-packed fragments are separated before and then reuse ordinary long decomposition;
@@ -1877,7 +1877,7 @@ The rule package is a declarative storage boundary. Pydantic models validate wha
 they do not implement parsing behavior. Discriminators and shape validators are correct here and
 are consumed once when the facade and compiler construct runtime values.
 
-The live storage model is schema `0.9`. The before/after examples in C.2 and migration record in C.5 explain the older identity/measurement split; C.6 records the entry/role design retained and extended by current rules.
+The live storage model is schema `0.10`. The before/after examples in C.2 and migration record in C.5 explain the older identity/measurement split; C.6 records the entry/role design retained and extended by current rules.
 
 #### C.1 `RuleDocument` owns validated storage fields
 
@@ -1971,7 +1971,7 @@ with:
   },
   "measurements": {
     "primary_layer": "Precursor_Intensity",
-    "duplicates": {"mode": "error"},
+    "repeated_cells": {"mode": "error"},
     "layers": [
       {
         "name": "Precursor_Intensity",
@@ -1992,31 +1992,31 @@ Ownership is then literal:
 - `columns.obs` and `columns.var` declare how key and payload columns are materialized;
 - `measurements.layers` declare named measurements and their physical source selectors;
 - `measurements.primary_layer` selects one named measurement without using AnnData's term `X`;
-- `measurements.duplicates` resolves repeated composite raw measurement cells and belongs to
+- `measurements.repeated_cells` resolves repeated composite raw measurement cells and belongs to
   neither axis alone.
 
 There is no obs-only duplicate policy: obs payload keeps its stable first row. A var column may
-declare its own `duplicates`: `keep_first` (default, first nonblank value, disagreements recorded
-as `var_disagreements`), `min`, `max`, or `keep_best` (the value of the row a required numeric `by`
-var column ranks best, ties in file order, no disagreement reported). Canonical final-key collision is a fixed error.
+declare its own `per_feature`: `first` (default, first nonblank value, disagreements recorded
+as `var_disagreements`), `min`, `max`, or `best_row` (the value of the row the level's
+`rank_rows` keeps: the row its required numeric `by` var column ranks best, ties in file order,
+no disagreement reported). Canonical final-key collision is a fixed error.
 
 The identity and measurement portion of the storage model remains:
 
 ```python
 type DuplicateMode = Literal["error", "same", "sum", "keep_best"]
-type VarDuplicateMode = Literal["keep_first", "min", "max", "keep_best"]
+type PerFeature = Literal["first", "min", "max", "best_row"]
 
 
-class Duplicates(ModelBase):
+class RepeatedCells(ModelBase):
     mode: DuplicateMode = "error"
     by: str | None = None  # keep_best: the numeric layer that ranks repeated rows
     best: Literal["highest", "lowest"] = "highest"
     sum: list[str] = Field(default_factory=list)  # keep_best: layers added up instead
 
 
-class ColumnDuplicates(ModelBase):  # a var column's "duplicates"
-    mode: VarDuplicateMode = "keep_first"
-    by: str | None = None  # keep_best: the required numeric var column that ranks rows
+class RankRows(ModelBase):  # a level's ranking for its best_row var columns
+    by: str  # the required numeric var column that ranks a feature's rows
     best: Literal["highest", "lowest"] = "highest"
 
 
@@ -2027,7 +2027,7 @@ class Axis(ModelBase):
 
 class Measurements(ModelBase):
     primary_layer: str
-    duplicates: Duplicates = Field(default_factory=Duplicates)
+    repeated_cells: RepeatedCells = Field(default_factory=RepeatedCells)
     layers: list[Layer] = Field(min_length=1)
 
 
@@ -2069,8 +2069,8 @@ the dependency graph is acyclic. These checks validate authored values; they do 
 behavior.
 
 The base/level merge descends into `measurements`. Mapping fields merge key-wise,
-`measurements.layers` concatenate in authored base-then-level order, and `duplicates` merges as one
-nested mapping. Search-parameter overrides use the same vocabulary:
+`measurements.layers` concatenate in authored base-then-level order, and `repeated_cells` merges as
+one nested mapping. Search-parameter overrides use the same vocabulary:
 
 ```json
 {
@@ -2118,7 +2118,7 @@ The `sum` mode requires plain numeric layers without missing sentinels, factors 
 
 #### C.4 Physical input policy
 
-Schema 0.9 keeps physical input deliberately small. Ordinary format behavior is defined once in
+Schema 0.10 keeps physical input deliberately small. Ordinary format behavior is defined once in
 `vendor_parse_rules/schema/base_formats.py`, not copied into every vendor document:
 
 | Extension hint | Reader family | Shared delimiter | Shared encoding | Shared numeric notation |
@@ -2300,7 +2300,7 @@ Measurement layers also carry semantic `roles`. The packaged `schema/role_policy
 
 The facade projects var roles to `column_roles: role → logical column name` and retains authored roles on each working layer. Source resolution produces `layer_roles: role → ordered retained layer names` once, excluding unavailable optional layers. These authored semantic tags are distinct from a final layer's measurement/auxiliary occupancy role.
 
-Schema 0.9 retains ordered entries and adds explicit, independent sequence operations with logical `inputs`, a named `syntax` reference and, for normalization, a named `modification_map`. Stripping and ProForma normalization do not consume each other's hidden intermediate output.
+Schema 0.10 retains ordered entries and explicit, independent sequence operations with logical `inputs`, a named `syntax` reference and, for normalization, a named `modification_map`; a column that names none takes the level's only one. Stripping and ProForma normalization do not consume each other's hidden intermediate output.
 
 ### D. Rule facade and parsing parameters
 
@@ -2624,16 +2624,16 @@ and reinterpret it as a different mode.
 
 #### G.1 Current rule coverage
 
-The packaged rules, loaded and inventoried against `c9bfc32` on 2026-10-24, contain:
+The packaged rules, inventoried on 2026-11-04, contain:
 
-- 21 rule documents with 22 table groups, six of them prepared;
-- 39 effective declared levels and therefore 78 obs/var axis plans;
-- 25 long levels and 14 wide levels;
+- 20 rule documents with 21 table groups, six of them prepared;
+- 36 effective declared levels and therefore 72 obs/var axis plans;
+- 22 long levels and 14 wide levels;
 - two delimiter-packed fragment declarations: DIA-NN 1.7 positional, DIA-NN 1.8 column-labelled from an optional `Fragment.Info`;
 - token-regex, site-list and embedded-site-list sequence normalization, plus independent stripping;
 - numeric, regex-numeric, and factor layer encodings;
-- 21 `error`, 15 `same` and 3 `keep_best` (AlphaPept's PSMs, MaxQuant's evidence with a `sum` list, MetaMorpheus's peaks) measurement duplicate configurations;
-- 12 var-column `duplicates` blocks: 5 `min`, 5 `keep_best`, 2 `max`;
+- 19 `error`, 14 `same` and 3 `keep_best` (AlphaPept's PSMs, MaxQuant's evidence with a `sum` list, MetaMorpheus's peaks) measurement duplicate configurations;
+- 12 var-column `per_feature` values: 5 `min`, 5 `best_row` under 2 `rank_rows`, 2 `max`;
 - ordered sourced and computed column entries, including nested and multi-column keys;
 - configured var and layer roles, including authored abundance tags;
 - parameter gates and a DIA-NN primary-layer override.
@@ -2664,12 +2664,12 @@ The architecture covers that set through declarations, not vendor-specific parse
 
 Tests must prove:
 
-- all 21 packaged documents validate as schema `0.9`;
-- all 39 effective levels and every gate/override alternative validate;
+- all 20 packaged documents validate as schema `0.10`;
+- all 36 effective levels and every gate/override alternative validate;
 - no document contains `axis.x_layer`, `axis.duplicates`, root-level `layers`, or override
   `x_layer`;
 - every effective rule has identity-only `axis` plus one valid `measurements` block;
-- schema `0.9` rejects schema-0.8 and earlier documents, the legacy `keep_all_as_raw_table` duplicate mode, and older document shapes;
+- schema `0.10` rejects schema-0.9 and earlier documents, the legacy `keep_all_as_raw_table` duplicate mode, and older document shapes;
 - obs/var entries carry sourced or computed facts inline and have unique names;
 - role vocabulary and owner permissions match the packaged policy;
 - every effective primary and every declared non-primary abundance layer is tagged;

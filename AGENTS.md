@@ -7,7 +7,7 @@ The closest `AGENTS.md` wins. Explicit user instructions override this file.
 | Task | Command |
 | --- | --- |
 | Synchronize | `uv sync --group dev` |
-| Format | `.venv/bin/ruff format src tests && .venv/bin/ruff check --fix src tests` |
+| Format, including the packaged rules.json layout | `make format` |
 | Lint | `make lint` |
 | Typecheck | `.venv/bin/pyright` |
 | Dependencies | `.venv/bin/deptry .` |
@@ -75,7 +75,10 @@ Parser V2 layers stay long until they are widened, last. A layer row names its c
 - A value per run and feature is a layer (`measurements.layers`). A value per run alone is an `obs` column (`columns.obs`). A value per feature, experiment-wide or taken from the spectral library, is a `var` column (`columns.var`), even where a long report repeats it in every run row: DIA-NN's `Global.Q.Value` and `Lib.Q.Value` are examples.
 - Decide the placement from the tool's documentation, the data and what the column means. One dataset alone does not decide it: a column with the same value in every cell of one result says nothing about whether it varies per run, while one that differs across runs in any result is a layer.
 - Write the reason for a placement in the entry's `note`, especially where a reader would expect the other one.
-- A `var` column keeps a feature's first nonblank value (`keep_first`) and reports features whose rows disagree as `var_disagreements`, so check in a real report that the rows agree. A tool that writes placeholders into some rows, as DIA-NN writes 1.0 into `Global.PG.Q.Value`, needs `"duplicates": {"mode": "min"}` (or `max`). Columns that describe one of a feature's repeated rows, as Proline lists a shared peptide once per protein set, take `"duplicates": {"mode": "keep_best", "by": "<score column>"}`: the level keeps only the row the score ranks best, for the feature table and every layer; a level ranks by one column.
+- A `var` column keeps a feature's first nonblank value (`"per_feature": "first"`, the default) and reports features whose rows disagree as `var_disagreements`, so check in a real report that the rows agree. A tool that writes placeholders into some rows, as DIA-NN writes 1.0 into `Global.PG.Q.Value`, needs `"per_feature": "min"` (or `max`). Columns that describe one of a feature's repeated rows, as Proline lists a shared peptide once per protein set, take `"per_feature": "best_row"`, and the level names its ranking once, `"rank_rows": {"by": "<score column>"}`: the level keeps only the row the score ranks best, for the feature table and every layer.
+- A prepared table's sources carry the namespace its join adds, such as MaxQuant's `peptide.`; write it once per level as `source_prefix`, and on an entry only where it reads another table.
+- A wide layer writes its header as text with `{sample}` where the sample's name goes, `"Intensity {sample}"`; a tool that adds to the name declares the regex once as the table's `sample_pattern`. Only a header no fixed text describes stays a regex.
+- Every rule declares `apb_Decoy` and `apb_Contaminant`; a report with no column marking such rows writes `{"name": "apb_Contaminant", "how": "unmarked"}`, as apb2 writes only what a rule declares.
 - A column or layer that holds one value, or none, in a result is not created; the parse record keeps what it held. That says nothing about placement, so declare it where its meaning belongs. Keys, role and computed columns, the flags' inputs and the primary and sample layers are kept.
 - A moved layer becomes a `var` entry with `"type": "number", "required": false`: a `var` entry is a required string by default, and a required column decides which files the rule accepts.
 - The steps for a new format are in [docs/adding_a_format.md](docs/adding_a_format.md).

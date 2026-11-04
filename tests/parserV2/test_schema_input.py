@@ -38,7 +38,6 @@ EXPECTED_EXTENSIONS = {
     "sage": [".tsv"],
     "spectronaut": [".tsv"],
     "spectronaut/v15": [".tsv"],
-    "spectronaut/v21": [".tsv"],
     "wombat": [".csv"],
 }
 
@@ -88,7 +87,6 @@ def test_only_spectronaut_enables_physical_format_detection() -> None:
     assert detected == {
         "spectronaut": {"delimiter", "numbers"},
         "spectronaut/v15": {"delimiter", "numbers", "encoding"},
-        "spectronaut/v21": {"delimiter", "numbers"},
     }
 
 

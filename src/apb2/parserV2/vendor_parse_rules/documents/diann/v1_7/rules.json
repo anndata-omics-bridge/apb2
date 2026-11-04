@@ -1,320 +1,132 @@
 {
-  "hierarchy": "lfq",
-  "schema_version": "0.9",
-  "file_version": "2",
+  "schema_version": "0.10",
+  "file_version": "3",
   "software_name": "DIA-NN",
   "software_version_pattern": "^1\\.[0-7](\\.|$)",
-  "sample_annotation": {
-    "matching": {
-      "mode": "exact",
-      "normalize": "mass_spec_basename"
-    }
-  },
+  "sample_annotation": {"matching": {"mode": "exact", "normalize": "mass_spec_basename"}},
   "tables": [
     {
       "input": {
         "shape": "long",
-        "extensions": [
-          ".tsv"
-        ],
-        "software_only": {
-          "forbidden_columns": [
-            "Lib.PG.Q.Value"
-          ]
-        }
+        "extensions": [".tsv"],
+        "without_parameter_file": {"forbidden_columns": ["Lib.PG.Q.Value"]}
       },
       "base": {
-        "axis": {
-          "obs_keys": [
-            "Run"
-          ]
-        },
-        "measurements": {
-          "duplicates": {
-            "mode": "error"
-          }
-        },
+        "axis": {"obs_keys": ["Run"]},
         "columns": {
           "obs": [
-            {
-              "name": "Run",
-              "source": "File.Name"
-            },
-            {
-              "name": "Run_Name",
-              "source": "Run",
-              "required": false
-            }
+            {"name": "Run", "source": "File.Name"},
+            {"name": "Run_Name", "source": "Run", "required": false}
           ],
           "var": [
-            {
-              "name": "Decoy",
-              "source": "Decoy",
-              "type": "boolean",
-              "required": false
-            },
-            {
-              "name": "apb_Decoy",
-              "inputs": [
-                "Decoy"
-              ],
-              "how": "decoy",
-              "equals": "true"
-            },
-            {
-              "name": "apb_Contaminant",
-              "how": "contaminant"
-            }
+            {"name": "Decoy", "source": "Decoy", "type": "boolean", "required": false},
+            {"name": "apb_Decoy", "inputs": ["Decoy"], "how": "decoy", "equals": "true"},
+            {"name": "apb_Contaminant", "how": "unmarked"}
           ]
         },
         "sequence_syntax": {
           "vendor_sequence": {
             "parser": "token_regex",
-            "token_pattern": "^\\((?P<nterm>[^()]*)\\)|\\((?P<residue>[^()]*)\\)",
-            "token_position": "after_residue"
+            "token_pattern": "^\\((?P<nterm>[^()]*)\\)|\\((?P<residue>[^()]*)\\)"
           }
         },
         "modification_maps": {
-          "basic_modification_map": [
-            {
-              "token": "UniMod:1",
-              "accession": "UNIMOD:1"
-            },
-            {
-              "token": "UniMod:4",
-              "accession": "UNIMOD:4"
-            },
-            {
-              "token": "UniMod:35",
-              "accession": "UNIMOD:35"
-            },
-            {
-              "token": "UniMod:21",
-              "accession": "UNIMOD:21"
-            },
-            {
-              "token": "UniMod:121",
-              "accession": "UNIMOD:121"
-            }
-          ]
+          "basic_modification_map": {
+            "UniMod:1": "UNIMOD:1",
+            "UniMod:4": "UNIMOD:4",
+            "UniMod:35": "UNIMOD:35",
+            "UniMod:21": "UNIMOD:21",
+            "UniMod:121": "UNIMOD:121"
+          }
         }
       },
       "levels": {
         "peptidoform_ion": {
-          "axis": {
-            "var_keys": [
-              "ProForma_ion"
-            ]
-          },
+          "axis": {"var_keys": ["ProForma_ion"]},
           "measurements": {
             "primary_layer": "Precursor_Normalised",
             "layers": [
               {
                 "name": "Precursor_Normalised",
                 "source": "Precursor.Normalised",
-                "roles": [
-                  "abundance"
-                ],
-                "missing_values": [
-                  "<=0"
-                ]
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
               },
               {
                 "name": "Precursor_Quantity",
                 "source": "Precursor.Quantity",
-                "roles": [
-                  "abundance"
-                ],
-                "missing_values": [
-                  "<=0"
-                ]
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
               },
               {
                 "name": "Ms1_Area",
                 "source": "Ms1.Area",
-                "roles": [
-                  "abundance"
-                ],
-                "missing_values": [
-                  "<=0"
-                ]
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
               },
-              {
-                "name": "Q_Value",
-                "source": "Q.Value"
-              },
-              {
-                "name": "RT",
-                "source": "RT"
-              },
-              {
-                "name": "CScore",
-                "source": "CScore"
-              },
-              {
-                "name": "Decoy_CScore",
-                "source": "Decoy.CScore"
-              },
-              {
-                "name": "Decoy_Evidence",
-                "source": "Decoy.Evidence"
-              },
-              {
-                "name": "Evidence",
-                "source": "Evidence"
-              },
-              {
-                "name": "GG_Q_Value",
-                "source": "GG.Q.Value"
-              },
-              {
-                "name": "IM",
-                "source": "IM"
-              },
-              {
-                "name": "MS2_Scan",
-                "source": "MS2.Scan"
-              },
-              {
-                "name": "Mass_Evidence",
-                "source": "Mass.Evidence"
-              },
-              {
-                "name": "Ms1_Profile_Corr",
-                "source": "Ms1.Profile.Corr"
-              },
-              {
-                "name": "Precursor_Translated",
-                "source": "Precursor.Translated"
-              },
+              {"name": "Q_Value", "source": "Q.Value"},
+              {"name": "RT", "source": "RT"},
+              {"name": "CScore", "source": "CScore"},
+              {"name": "Decoy_CScore", "source": "Decoy.CScore"},
+              {"name": "Decoy_Evidence", "source": "Decoy.Evidence"},
+              {"name": "Evidence", "source": "Evidence"},
+              {"name": "GG_Q_Value", "source": "GG.Q.Value"},
+              {"name": "IM", "source": "IM"},
+              {"name": "MS2_Scan", "source": "MS2.Scan"},
+              {"name": "Mass_Evidence", "source": "Mass.Evidence"},
+              {"name": "Ms1_Profile_Corr", "source": "Ms1.Profile.Corr"},
+              {"name": "Precursor_Translated", "source": "Precursor.Translated"},
               {
                 "name": "Predicted_IM",
                 "source": "Predicted.IM",
                 "note": "Calibrated per run: differs across runs on timsTOF data, so a layer; constant without ion mobility."
               },
-              {
-                "name": "Predicted_RT",
-                "source": "Predicted.RT"
-              },
+              {"name": "Predicted_RT", "source": "Predicted.RT"},
               {
                 "name": "Predicted_iIM",
                 "source": "Predicted.iIM",
                 "note": "Differs across runs on timsTOF data, like Predicted_IM, so a layer."
               },
-              {
-                "name": "Predicted_iRT",
-                "source": "Predicted.iRT"
-              },
-              {
-                "name": "Protein_Q_Value",
-                "source": "Protein.Q.Value"
-              },
-              {
-                "name": "Quantity_Quality",
-                "source": "Quantity.Quality"
-              },
-              {
-                "name": "RT_Start",
-                "source": "RT.Start"
-              },
-              {
-                "name": "RT_Stop",
-                "source": "RT.Stop"
-              },
-              {
-                "name": "Spectrum_Similarity",
-                "source": "Spectrum.Similarity"
-              },
-              {
-                "name": "Translated_Q_Value",
-                "source": "Translated.Q.Value"
-              }
+              {"name": "Predicted_iRT", "source": "Predicted.iRT"},
+              {"name": "Protein_Q_Value", "source": "Protein.Q.Value"},
+              {"name": "Quantity_Quality", "source": "Quantity.Quality"},
+              {"name": "RT_Start", "source": "RT.Start"},
+              {"name": "RT_Stop", "source": "RT.Stop"},
+              {"name": "Spectrum_Similarity", "source": "Spectrum.Similarity"},
+              {"name": "Translated_Q_Value", "source": "Translated.Q.Value"}
             ]
           },
           "columns": {
             "var": [
-              {
-                "name": "Modified_Sequence",
-                "source": "Modified.Sequence"
-              },
-              {
-                "name": "Stripped_Sequence",
-                "source": "Stripped.Sequence"
-              },
-              {
-                "name": "Precursor_Charge",
-                "source": "Precursor.Charge",
-                "type": "integer"
-              },
-              {
-                "name": "Precursor_Id",
-                "source": "Precursor.Id"
-              },
-              {
-                "name": "Protein_Group",
-                "source": "Protein.Group",
-                "roles": [
-                  "protein_assignment"
-                ]
-              },
-              {
-                "name": "Protein_Ids",
-                "source": "Protein.Ids",
-                "roles": [
-                  "fasta_accessions"
-                ]
-              },
-              {
-                "name": "Protein_Names",
-                "source": "Protein.Names"
-              },
-              {
-                "name": "Genes",
-                "source": "Genes"
-              },
+              {"name": "Modified_Sequence", "source": "Modified.Sequence"},
+              {"name": "Stripped_Sequence", "source": "Stripped.Sequence"},
+              {"name": "Precursor_Charge", "source": "Precursor.Charge", "type": "integer"},
+              {"name": "Precursor_Id", "source": "Precursor.Id"},
+              {"name": "Protein_Group", "source": "Protein.Group", "roles": ["protein_assignment"]},
+              {"name": "Protein_Ids", "source": "Protein.Ids", "roles": ["fasta_accessions"]},
+              {"name": "Protein_Names", "source": "Protein.Names"},
+              {"name": "Genes", "source": "Genes"},
               {
                 "name": "Proteotypic",
                 "source": "Proteotypic",
                 "type": "boolean",
                 "required": false
               },
-              {
-                "name": "iIM",
-                "source": "iIM",
-                "type": "number",
-                "required": false
-              },
-              {
-                "name": "iRT",
-                "source": "iRT",
-                "type": "number",
-                "required": false
-              },
+              {"name": "iIM", "source": "iIM", "type": "number", "required": false},
+              {"name": "iRT", "source": "iRT", "type": "number", "required": false},
               {
                 "name": "ProForma_peptidoform",
-                "inputs": [
-                  "Modified_Sequence"
-                ],
-                "how": "proforma_sequence",
-                "syntax": "vendor_sequence",
-                "modification_map": "basic_modification_map",
-                "case_sensitive": false,
-                "unknown_policy": "preserve"
+                "inputs": ["Modified_Sequence"],
+                "how": "proforma_sequence"
               },
               {
                 "name": "ProForma_peptide",
-                "inputs": [
-                  "Modified_Sequence"
-                ],
-                "how": "stripped_sequence",
-                "syntax": "vendor_sequence"
+                "inputs": ["Modified_Sequence"],
+                "how": "stripped_sequence"
               },
               {
                 "name": "ProForma_ion",
-                "inputs": [
-                  "ProForma_peptidoform",
-                  "Precursor_Charge"
-                ],
+                "inputs": ["ProForma_peptidoform", "Precursor_Charge"],
                 "how": "proforma_ion"
               },
               {
@@ -335,86 +147,47 @@
           }
         },
         "peptidoform_fragment": {
-          "axis": {
-            "var_keys": [
-              "ProForma_fragment"
-            ]
-          },
+          "axis": {"var_keys": ["ProForma_fragment"]},
           "measurements": {
             "primary_layer": "Fragment_Quant_Raw",
             "layers": [
               {
                 "name": "Fragment_Quant_Raw",
                 "source": "Fragment.Quant.Raw",
-                "roles": [
-                  "abundance"
-                ],
-                "missing_values": [
-                  "<=0"
-                ]
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
               },
-              {
-                "name": "Fragment_Correlations",
-                "source": "Fragment.Correlations"
-              },
-              {
-                "name": "Fragment_Quant_Corrected",
-                "source": "Fragment.Quant.Corrected"
-              }
+              {"name": "Fragment_Correlations", "source": "Fragment.Correlations"},
+              {"name": "Fragment_Quant_Corrected", "source": "Fragment.Quant.Corrected"}
             ]
           },
           "columns": {
             "var": [
-              {
-                "name": "Modified_Sequence",
-                "source": "Modified.Sequence"
-              },
-              {
-                "name": "Precursor_Charge",
-                "source": "Precursor.Charge",
-                "type": "integer"
-              },
+              {"name": "Modified_Sequence", "source": "Modified.Sequence"},
+              {"name": "Precursor_Charge", "source": "Precursor.Charge", "type": "integer"},
               {
                 "name": "Protein_Group",
                 "source": "Protein.Group",
-                "roles": [
-                  "protein_assignment",
-                  "fasta_accessions"
-                ]
+                "roles": ["protein_assignment", "fasta_accessions"]
               },
               {
                 "name": "ProForma_peptidoform",
-                "inputs": [
-                  "Modified_Sequence"
-                ],
-                "how": "proforma_sequence",
-                "syntax": "vendor_sequence",
-                "modification_map": "basic_modification_map",
-                "case_sensitive": false,
-                "unknown_policy": "preserve"
+                "inputs": ["Modified_Sequence"],
+                "how": "proforma_sequence"
               },
               {
                 "name": "ProForma_peptide",
-                "inputs": [
-                  "Modified_Sequence"
-                ],
-                "how": "stripped_sequence",
-                "syntax": "vendor_sequence"
+                "inputs": ["Modified_Sequence"],
+                "how": "stripped_sequence"
               },
               {
                 "name": "ProForma_ion",
-                "inputs": [
-                  "ProForma_peptidoform",
-                  "Precursor_Charge"
-                ],
+                "inputs": ["ProForma_peptidoform", "Precursor_Charge"],
                 "how": "proforma_ion"
               },
               {
                 "name": "ProForma_fragment",
-                "inputs": [
-                  "ProForma_ion",
-                  "fragment_label"
-                ],
+                "inputs": ["ProForma_ion", "fragment_label"],
                 "how": "proforma_fragment"
               }
             ]
@@ -431,72 +204,38 @@
           }
         },
         "protein": {
-          "axis": {
-            "var_keys": [
-              "Protein_Group"
-            ]
-          },
+          "axis": {"var_keys": ["Protein_Group"]},
           "measurements": {
             "primary_layer": "PG_Normalised",
-            "duplicates": {
-              "mode": "same"
-            },
+            "repeated_cells": {"mode": "same"},
             "layers": [
               {
                 "name": "PG_Normalised",
                 "source": "PG.Normalised",
-                "roles": [
-                  "abundance"
-                ],
-                "missing_values": [
-                  "<=0"
-                ]
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
               },
               {
                 "name": "PG_Quantity",
                 "source": "PG.Quantity",
-                "roles": [
-                  "abundance"
-                ],
-                "missing_values": [
-                  "<=0"
-                ]
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
               },
               {
                 "name": "Genes_MaxLFQ",
                 "source": "Genes.MaxLFQ",
-                "roles": [
-                  "abundance"
-                ],
-                "missing_values": [
-                  "<=0"
-                ]
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
               },
-              {
-                "name": "PG_Q_Value",
-                "source": "PG.Q.Value"
-              },
-              {
-                "name": "Genes_MaxLFQ_Unique",
-                "source": "Genes.MaxLFQ.Unique"
-              },
-              {
-                "name": "Genes_Normalised",
-                "source": "Genes.Normalised"
-              },
-              {
-                "name": "Genes_Quantity",
-                "source": "Genes.Quantity"
-              },
+              {"name": "PG_Q_Value", "source": "PG.Q.Value"},
+              {"name": "Genes_MaxLFQ_Unique", "source": "Genes.MaxLFQ.Unique"},
+              {"name": "Genes_Normalised", "source": "Genes.Normalised"},
+              {"name": "Genes_Quantity", "source": "Genes.Quantity"},
               {
                 "name": "PG_MaxLFQ",
                 "source": "PG.MaxLFQ",
-                "roles": [
-                  "abundance"
-                ],
-                "missing_values": [
-                  "<=0"
-                ]
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
               }
             ]
           },
@@ -505,20 +244,11 @@
               {
                 "name": "Protein_Group",
                 "source": "Protein.Group",
-                "roles": [
-                  "protein_assignment",
-                  "fasta_accessions"
-                ],
+                "roles": ["protein_assignment", "fasta_accessions"],
                 "note": "The group's members are its FASTA accessions. Protein.Ids describes each precursor and differs within a group, so the protein level leaves it out."
               },
-              {
-                "name": "Protein_Names",
-                "source": "Protein.Names"
-              },
-              {
-                "name": "Genes",
-                "source": "Genes"
-              },
+              {"name": "Protein_Names", "source": "Protein.Names"},
+              {"name": "Genes", "source": "Genes"},
               {
                 "name": "First_Protein_Description",
                 "source": "First.Protein.Description",
@@ -529,9 +259,7 @@
                 "source": "Global.PG.Q.Value",
                 "type": "number",
                 "required": false,
-                "duplicates": {
-                  "mode": "min"
-                },
+                "per_feature": "min",
                 "note": "Experiment-wide protein-group q-value, one per group. DIA-NN writes 1.0 into the rows of precursors without a global q-value, so the group's value is the smallest."
               }
             ]

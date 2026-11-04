@@ -1,4 +1,4 @@
-"""Measurement, duplicate, layer, and value-pattern declarations."""
+"""Measurement, repeated-cell, layer, and value-pattern declarations."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ type MissingBound = Annotated[str, Field(pattern=_MISSING_BOUND)]
 """A ``<=`` threshold: every number at or below it is missing, e.g. ``"<=0"``."""
 
 
-class Duplicates(ModelBase):
+class RepeatedCells(ModelBase):
     """How repeated raw measurement cells are resolved: one row for every layer, or all rows.
 
     ``error`` stops at a second row for a cell, whatever it holds. ``same`` takes the value
@@ -43,7 +43,7 @@ class Duplicates(ModelBase):
     )
 
     @model_validator(mode="after")
-    def _ranking_only_for_keep_best(self) -> Duplicates:
+    def _ranking_only_for_keep_best(self) -> RepeatedCells:
         if (self.mode == "keep_best") != (self.by is not None):
             raise ValueError("'by' names the ranking layer exactly when mode is keep_best")
         if self.mode != "keep_best" and (self.best != "highest" or self.sum):
@@ -148,7 +148,7 @@ type Layer = Annotated[
 
 
 class Measurements(ModelBase):
-    """Named measurements, their primary layer, and raw duplicate policy.
+    """Named measurements, their primary layer, and the policy for repeated raw cells.
 
     ``sample_layer`` names the wide layer whose header captures are the sample names;
     omitted, the primary layer supplies them.
@@ -156,14 +156,14 @@ class Measurements(ModelBase):
 
     primary_layer: str
     sample_layer: str | None = None
-    duplicates: Duplicates = Field(default_factory=Duplicates)
+    repeated_cells: RepeatedCells = Field(default_factory=RepeatedCells)
     layers: list[Layer] = Field(min_length=1)
 
     @model_validator(mode="after")
     def _ranking_layer_is_declared(self) -> Measurements:
-        ranking = self.duplicates.by
+        ranking = self.repeated_cells.by
         if ranking is not None and ranking not in {layer.name for layer in self.layers}:
-            raise ValueError(f"duplicates rank by {ranking!r}, which names no declared layer")
+            raise ValueError(f"repeated_cells rank by {ranking!r}, which names no declared layer")
         return self
 
 

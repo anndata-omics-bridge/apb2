@@ -1,7 +1,6 @@
 {
-  "hierarchy": "lfq",
-  "schema_version": "0.9",
-  "file_version": "2",
+  "schema_version": "0.10",
+  "file_version": "3",
   "software_name": "PEAKS",
   "software_version_pattern": "^13(?:\\.|\\s|$)",
   "sample_annotation": {
@@ -15,132 +14,60 @@
   },
   "tables": [
     {
-      "input": {
-        "shape": "wide",
-        "extensions": [
-          ".csv"
-        ]
-      },
+      "input": {"shape": "wide", "extensions": [".csv"]},
       "base": {
-        "axis": {
-          "obs_keys": [
-            "sample"
-          ]
-        },
-        "measurements": {
-          "duplicates": {
-            "mode": "error"
-          }
-        },
+        "sample_pattern": "(?P<sample>.+?)(?:\\.raw|_raw)?",
+        "axis": {"obs_keys": ["sample"]},
         "sequence_syntax": {
           "vendor_sequence": {
             "parser": "token_regex",
-            "token_pattern": "(?:(?<=^[A-Z])|(?<=^C\\(\\+57\\.02\\)))\\((?P<nterm>\\+42\\.01|\\+42\\.0106)\\)|\\((?P<residue>[^()]+)\\)",
-            "token_position": "after_residue"
+            "token_pattern": "(?:(?<=^[A-Z])|(?<=^C\\(\\+57\\.02\\)))\\((?P<nterm>\\+42\\.01|\\+42\\.0106)\\)|\\((?P<residue>[^()]+)\\)"
           }
         },
         "modification_maps": {
-          "basic_modification_map": [
-            {
-              "token": "+15.99",
-              "accession": "UNIMOD:35"
-            },
-            {
-              "token": "+57.02",
-              "accession": "UNIMOD:4"
-            },
-            {
-              "token": "+42.01",
-              "accession": "UNIMOD:1"
-            },
-            {
-              "token": "+15.9949",
-              "accession": "UNIMOD:35"
-            },
-            {
-              "token": "+57.02146",
-              "accession": "UNIMOD:4"
-            },
-            {
-              "token": "+42.0106",
-              "accession": "UNIMOD:1"
-            }
-          ]
+          "basic_modification_map": {
+            "+15.99": "UNIMOD:35",
+            "+57.02": "UNIMOD:4",
+            "+42.01": "UNIMOD:1",
+            "+15.9949": "UNIMOD:35",
+            "+57.02146": "UNIMOD:4",
+            "+42.0106": "UNIMOD:1"
+          }
         },
         "columns": {
           "var": [
-            {
-              "name": "apb_Decoy",
-              "how": "decoy"
-            },
-            {
-              "name": "apb_Contaminant",
-              "how": "contaminant"
-            }
+            {"name": "apb_Decoy", "how": "unmarked"},
+            {"name": "apb_Contaminant", "how": "unmarked"}
           ]
         }
       },
       "levels": {
         "peptidoform_ion": {
-          "axis": {
-            "var_keys": [
-              "ProForma_ion"
-            ]
-          },
+          "axis": {"var_keys": ["ProForma_ion"]},
           "measurements": {
             "primary_layer": "Normalized_Area",
             "sample_layer": "Sample_Mz",
             "layers": [
               {
                 "name": "Normalized_Area",
-                "source": "^(?P<sample>.+?)(?:\\.raw|_raw)? Normalized Area$",
-                "roles": [
-                  "abundance"
-                ],
-                "missing_values": [
-                  "<=0"
-                ]
+                "source": "{sample} Normalized Area",
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
               },
-              {
-                "name": "Sample_Mz",
-                "source": "^(?P<sample>.+?)(?:\\.raw|_raw)? m/z$",
-                "missing_tokens": [
-                  "-"
-                ]
-              },
-              {
-                "name": "Sample_RT_Mean",
-                "source": "^(?P<sample>.+?)(?:\\.raw|_raw)? RT mean$",
-                "missing_tokens": [
-                  "-"
-                ]
-              },
+              {"name": "Sample_Mz", "source": "{sample} m/z", "missing_tokens": ["-"]},
+              {"name": "Sample_RT_Mean", "source": "{sample} RT mean", "missing_tokens": ["-"]},
               {
                 "name": "AScore",
-                "source": "^(?P<sample>.+?)(?:\\.raw|_raw)? AScore$",
-                "value_pattern": {
-                  "mode": "regex",
-                  "pattern": ":(-?\\d+(?:\\.\\d+)?)(?:;|$)"
-                }
+                "source": "{sample} AScore",
+                "value_pattern": {"mode": "regex", "pattern": ":(-?\\d+(?:\\.\\d+)?)(?:;|$)"}
               }
             ]
           },
           "columns": {
             "var": [
-              {
-                "name": "Peptide",
-                "source": "Peptide"
-              },
-              {
-                "name": "Charge",
-                "source": "z",
-                "type": "integer"
-              },
-              {
-                "name": "Mz",
-                "source": "m/z",
-                "type": "number"
-              },
+              {"name": "Peptide", "source": "Peptide"},
+              {"name": "Charge", "source": "z", "type": "integer"},
+              {"name": "Mz", "source": "m/z", "type": "number"},
               {
                 "name": "RT_Mean",
                 "source": "RT mean",
@@ -148,64 +75,22 @@
                 "required": false,
                 "note": "The feature's retention time across all samples, one value per feature; the per-sample values are the Sample_RT_Mean layer"
               },
-              {
-                "name": "RT_Range",
-                "source": "RT range"
-              },
-              {
-                "name": "Quality",
-                "source": "Quality",
-                "type": "number"
-              },
-              {
-                "name": "Significance",
-                "source": "Significance",
-                "type": "number"
-              },
-              {
-                "name": "Minus_10LgP",
-                "source": "-10LgP",
-                "type": "number"
-              },
-              {
-                "name": "Avg_Area",
-                "source": "Avg. Area",
-                "type": "number"
-              },
+              {"name": "RT_Range", "source": "RT range"},
+              {"name": "Quality", "source": "Quality", "type": "number"},
+              {"name": "Significance", "source": "Significance", "type": "number"},
+              {"name": "Minus_10LgP", "source": "-10LgP", "type": "number"},
+              {"name": "Avg_Area", "source": "Avg. Area", "type": "number"},
               {
                 "name": "Accession",
                 "source": "Accession",
-                "roles": [
-                  "protein_assignment",
-                  "fasta_accessions"
-                ],
+                "roles": ["protein_assignment", "fasta_accessions"],
                 "separator": ":"
               },
-              {
-                "name": "ProForma_peptidoform",
-                "inputs": [
-                  "Peptide"
-                ],
-                "how": "proforma_sequence",
-                "syntax": "vendor_sequence",
-                "modification_map": "basic_modification_map",
-                "case_sensitive": false,
-                "unknown_policy": "preserve"
-              },
-              {
-                "name": "ProForma_peptide",
-                "inputs": [
-                  "Peptide"
-                ],
-                "how": "stripped_sequence",
-                "syntax": "vendor_sequence"
-              },
+              {"name": "ProForma_peptidoform", "inputs": ["Peptide"], "how": "proforma_sequence"},
+              {"name": "ProForma_peptide", "inputs": ["Peptide"], "how": "stripped_sequence"},
               {
                 "name": "ProForma_ion",
-                "inputs": [
-                  "ProForma_peptidoform",
-                  "Charge"
-                ],
+                "inputs": ["ProForma_peptidoform", "Charge"],
                 "how": "proforma_ion"
               }
             ]

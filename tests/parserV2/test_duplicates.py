@@ -47,7 +47,7 @@ from apb2.parserV2.parse_quant.parameters.measurements import (
     WorkingMeasurements,
 )
 from apb2.parserV2.parse_quant.parameters.source import NumericTextFormat
-from apb2.parserV2.vendor_parse_rules.schema.measurements import Duplicates
+from apb2.parserV2.vendor_parse_rules.schema.measurements import RepeatedCells
 
 DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
 GROUPED = NumericTextFormat(decimal_mark=",", thousands_marks=(".",))
@@ -608,21 +608,21 @@ def test_keep_best_is_built_from_the_declared_ranking_only() -> None:
 
 
 def test_a_rule_names_its_ranking_layer_exactly_for_keep_best() -> None:
-    assert Duplicates(mode="keep_best", by="Score").best == "highest"
+    assert RepeatedCells(mode="keep_best", by="Score").best == "highest"
     for invalid in (
         {"mode": "keep_best"},
         {"mode": "sum", "by": "Score"},
         {"mode": "sum", "best": "lowest"},
     ):
         with pytest.raises(ValueError, match="keep_best"):
-            Duplicates.model_validate(invalid)
+            RepeatedCells.model_validate(invalid)
 
 
 @pytest.mark.parametrize("mode", ["keep_first", "min", "max"])
 def test_a_layer_mode_that_mixes_rows_is_not_declarable(mode: str) -> None:
     """Each resolved a layer on its own, so one cell's layers could come from different rows."""
     with pytest.raises(ValueError, match="mode"):
-        Duplicates.model_validate({"mode": mode})
+        RepeatedCells.model_validate({"mode": mode})
 
 
 # ------------------------------------------------------------------------- row selection

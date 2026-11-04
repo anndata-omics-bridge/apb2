@@ -66,12 +66,9 @@ def base(operations: list[dict[str, Any]]) -> dict[str, Any]:
             ],
         },
         "sequence_syntax": {"vendor_sequence": deepcopy(INLINE)},
-        "modification_maps": {
-            "basic_modification_map": [{"token": "ox", "accession": "UNIMOD:35"}]
-        },
+        "modification_maps": {"basic_modification_map": {"ox": "UNIMOD:35"}},
         "measurements": {
             "primary_layer": "Quantity",
-            "duplicates": {"mode": "error"},
             "layers": [{"name": "Quantity", "source": "quantity"}],
         },
     }
@@ -325,15 +322,11 @@ def test_named_definitions_are_replaced_whole_after_base_composition(tmp_path: P
                 "token_pattern": r"\[(?P<residue>[^\]]+)\]",
             }
         },
-        "modification_maps": {
-            "basic_modification_map": [{"token": "new", "accession": "UNIMOD:35"}]
-        },
+        "modification_maps": {"basic_modification_map": {"new": "UNIMOD:35"}},
     }
     built = document(declaration, level)
     effective = built.declared("peptidoform_ion").declaration
-    assert [entry.token for entry in effective.modification_maps["basic_modification_map"]] == [
-        "new"
-    ]
+    assert effective.modification_maps["basic_modification_map"] == {"new": "UNIMOD:35"}
     values = frame().with_columns(pl.lit("ACM[new]K").alias("vendor sequence"))
     assert parse(tmp_path, built, values).var.frame["ProForma_peptidoform"].to_list() == [
         "ACM[UNIMOD:35]K"

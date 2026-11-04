@@ -107,8 +107,10 @@ from apb2.parserV2.vendor_parse_rules.schema.axis import (
     JoinNonempty,
     ProformaIon,
     ProformaSequence,
+    RankRows,
     SourcedColumn,
     StrippedSequence,
+    UnmarkedFlag,
     computed_columns,
 )
 from apb2.parserV2.vendor_parse_rules.schema.base_formats import (
@@ -310,7 +312,7 @@ class ParseRuleFacade:
     @staticmethod
     def _require_rule_compatibility(rule: LongRule | WideRule) -> None:
         """Reject declarations for which no configured runtime strategy can be built."""
-        duplicates = rule.measurements.duplicates
+        duplicates = rule.measurements.repeated_cells
         mode = duplicates.mode
         names = {layer.name for layer in rule.measurements.layers}
         unknown = sorted(set(duplicates.sum) - names)
@@ -329,8 +331,8 @@ class ParseRuleFacade:
             )
             if offenders:
                 raise ValueError(
-                    f"{mode} duplicates combine only plain numeric layers without late decoding; "
-                    f"offending layers: {offenders}"
+                    f"repeated_cells mode {mode!r} combines only plain numeric layers without "
+                    f"late decoding; offending layers: {offenders}"
                 )
         if mode == "keep_best":
             ParseRuleFacade._require_ranking_layer(rule)
@@ -398,8 +400,12 @@ class ParseRuleFacade:
             return WorkingAxisConfiguration(tuple(keys), (), (), (), tuple(keys))
         return WorkingAxisConfiguration(
             final_key_columns=tuple(keys),
-            required_selections=ParseRuleFacade._project_selections(group, required=True),
-            optional_selections=ParseRuleFacade._project_selections(group, required=False),
+            required_selections=ParseRuleFacade._project_selections(
+                group, rule.rank_rows, required=True
+            ),
+            optional_selections=ParseRuleFacade._project_selections(
+                group, rule.rank_rows, required=False
+            ),
             computed=tuple(
                 ParseRuleFacade._project_computed(column, rule)
                 for column in computed_columns(group)
@@ -409,7 +415,7 @@ class ParseRuleFacade:
 
     @staticmethod
     def _project_selections(
-        group: ColumnGroup, *, required: bool
+        group: ColumnGroup, rank_rows: RankRows | None, *, required: bool
     ) -> tuple[AxisColumnSelection, ...]:
         sources = {column.name: column.source for column in group if column.source is not None}
         return tuple(
@@ -420,22 +426,23 @@ class ParseRuleFacade:
                 if PROTEIN_LIST_ROLES & {*column.roles}
                 else column.type,
                 separator=column.separator if isinstance(column, SourcedColumn) else None,
-                duplicates=ParseRuleFacade._feature_duplicates(column, sources),
+                duplicates=ParseRuleFacade._feature_duplicates(column, sources, rank_rows),
             )
             for column in group
             if column.source is not None and column.required is required
         )
 
     @staticmethod
-    def _feature_duplicates(column: ColumnEntry, sources: Mapping[str, str]) -> FeatureDuplicates:
-        """A var column's resolution; ``keep_best`` ranks by the physical source of ``by``."""
-        if not isinstance(column, SourcedColumn) or column.duplicates is None:
+    def _feature_duplicates(
+        column: ColumnEntry, sources: Mapping[str, str], rank_rows: RankRows | None
+    ) -> FeatureDuplicates:
+        """A var column's resolution; ``best_row`` ranks by the physical source of ``by``."""
+        if not isinstance(column, SourcedColumn) or column.per_feature == "first":
             return "keep_first"
-        declared = column.duplicates
-        if declared.mode != "keep_best":
-            return declared.mode
-        assert declared.by is not None, "the schema pairs keep_best with by"
-        return FeatureRanking(by=sources[declared.by], highest=declared.best == "highest")
+        if column.per_feature != "best_row":
+            return column.per_feature
+        assert rank_rows is not None, "the schema pairs best_row with rank_rows"
+        return FeatureRanking(by=sources[rank_rows.by], highest=rank_rows.best == "highest")
 
     @staticmethod
     def _project_computed(column: ComputedColumn, rule: LongRule | WideRule) -> ComputedOperation:
@@ -463,6 +470,8 @@ class ParseRuleFacade:
             return MarkerColumn(
                 column.name, tuple(column.inputs), column.equals, column.prefix, column.separator
             )
+        if isinstance(column, UnmarkedFlag):
+            return MarkerColumn(column.name, (), None, None, None)
         return ProformaFragmentColumn(column.name, tuple(column.inputs))
 
     @staticmethod
@@ -471,7 +480,7 @@ class ParseRuleFacade:
         ranking = next(
             layer
             for layer in rule.measurements.layers
-            if layer.name == rule.measurements.duplicates.by
+            if layer.name == rule.measurements.repeated_cells.by
         )
         if not isinstance(ranking, NumericLayer) or not isinstance(
             ranking.value_pattern, NoValuePattern
@@ -491,7 +500,7 @@ class ParseRuleFacade:
             for layer in rule.measurements.layers
             if layer_required(rule.measurements, layer)
         )
-        duplicates = rule.measurements.duplicates
+        duplicates = rule.measurements.repeated_cells
         return WorkingMeasurements(
             primary_layer_name=rule.measurements.primary_layer,
             duplicate_mode=duplicates.mode,
@@ -560,16 +569,16 @@ class ParseRuleFacade:
         syntax = rule.sequence_syntax[column.syntax]
         entries = tuple(
             ModificationMapEntry(
-                token=entry.token,
+                token=token,
                 name=record.name,
                 accession=record.accession,
                 target=tuple(record.target),
                 position=record.position,
                 mass_delta=record.mass_delta,
             )
-            for entry, record in (
-                (entry, UNIMOD_REGISTRY.resolve(entry.accession))
-                for entry in rule.modification_maps[column.modification_map]
+            for token, record in (
+                (token, UNIMOD_REGISTRY.resolve(accession))
+                for token, accession in rule.modification_maps[column.modification_map].items()
             )
         )
         if isinstance(syntax, SiteListSyntax):

@@ -13,7 +13,6 @@ from apb2.parserV2.vendor_parse_rules.schema.axis import (
     FLAG_COLUMNS,
     Axis,
     Coalesce,
-    ColumnDuplicates,
     ColumnGroup,
     ComputedColumn,
     JoinNonempty,
@@ -21,6 +20,7 @@ from apb2.parserV2.vendor_parse_rules.schema.axis import (
     ProformaFragment,
     ProformaIon,
     ProformaSequence,
+    RankRows,
     SourcedColumn,
     StrippedSequence,
     WideColumns,
@@ -29,6 +29,7 @@ from apb2.parserV2.vendor_parse_rules.schema.axis import (
 from apb2.parserV2.vendor_parse_rules.schema.base import (
     AxisColumnType,
     ModelBase,
+    PerFeature,
     QuantificationLevel,
     SchemaVersion,
 )
@@ -75,6 +76,7 @@ class _RuleCore(ModelBase):
     )
     search_parameter_overrides: list[SearchParameterOverride] = Field(default_factory=list)
     sample_annotation: SampleAnnotation | None = None
+    rank_rows: RankRows | None = None
 
     @model_validator(mode="after")
     def _core_consistency(self) -> _RuleCore:
@@ -122,8 +124,8 @@ class LongRule(_RuleCore):
                 "measurements.sample_layer is valid only for wide rules; long observations "
                 "come from columns.obs"
             )
-        _check_column_group(self.axis.obs_keys, self.columns.obs, "obs")
-        _check_column_group(self.axis.var_keys, self.columns.var, "var")
+        _check_column_group(self.axis.obs_keys, self.columns.obs, "obs", None)
+        _check_column_group(self.axis.var_keys, self.columns.var, "var", self.rank_rows)
         _check_computed_columns(self, self.columns.var)
         self._check_obs_computed_columns(self.columns.obs)
         _check_one_type_per_source((self.columns.obs, self.columns.var))
@@ -169,7 +171,7 @@ class WideRule(_RuleCore):
                     f"Layer {layer.name!r}: wide source must contain "
                     f"'(?P<{_SAMPLE_GROUP}>...)'; got {layer.source!r}"
                 )
-        _check_column_group(self.axis.var_keys, self.columns.var, "var")
+        _check_column_group(self.axis.var_keys, self.columns.var, "var", self.rank_rows)
         _check_computed_columns(self, self.columns.var)
         _check_one_type_per_source((self.columns.var,))
         return self
@@ -186,11 +188,13 @@ def validate_rule(payload: object) -> LongRule | WideRule:
 
 
 def rule_json_schema() -> dict[str, object]:
-    """Return the JSON Schema for complete schema-0.9 effective rules."""
+    """Return the JSON Schema for complete schema-0.10 effective rules."""
     return _RULE_ADAPTER.json_schema()
 
 
-def _check_column_group(keys: list[str], group: ColumnGroup, owner: RoleOwner) -> None:
+def _check_column_group(
+    keys: list[str], group: ColumnGroup, owner: RoleOwner, rank_rows: RankRows | None
+) -> None:
     names = [entry.name for entry in group]
     if len(set(names)) != len(names):
         raise ValueError("column entry names must be unique")
@@ -212,56 +216,45 @@ def _check_column_group(keys: list[str], group: ColumnGroup, owner: RoleOwner) -
     _check_role_owners(owner, (role for role, _name in role_columns))
     if len(dict(role_columns)) != len(role_columns):
         raise ValueError(f"roles must be unique on columns.{owner}")
-    _check_duplicates(keys, group, owner)
+    _check_per_feature(keys, group, owner, rank_rows)
 
 
-def _check_duplicates(keys: list[str], group: ColumnGroup, owner: RoleOwner) -> None:
-    """Only var payload columns resolve duplicates, and each vendor column one way."""
+def _check_per_feature(
+    keys: list[str], group: ColumnGroup, owner: RoleOwner, rank_rows: RankRows | None
+) -> None:
+    """Only var payload columns resolve repeated rows, each vendor column one way, and
+    ``best_row`` columns exactly when the level ranks its rows."""
     sourced = [entry for entry in group if isinstance(entry, SourcedColumn)]
-    declared = [entry.name for entry in sourced if entry.duplicates is not None]
+    declared = [entry.name for entry in sourced if entry.per_feature != "first"]
     if owner == "obs" and declared:
-        raise ValueError(f"duplicates apply to var columns only: {declared}")
+        raise ValueError(f"per_feature applies to var columns only: {declared}")
     keyed = [name for name in declared if name in keys]
     if keyed:
-        raise ValueError(f"axis.var_keys identify a feature and resolve no duplicates: {keyed}")
-    resolutions: dict[str, ColumnDuplicates] = {}
+        raise ValueError(f"axis.var_keys identify a feature and resolve no repeated rows: {keyed}")
+    resolutions: dict[str, PerFeature] = {}
     for entry in sourced:
-        resolution = entry.duplicates or ColumnDuplicates()
-        if resolutions.setdefault(entry.source, resolution) != resolution:
+        if resolutions.setdefault(entry.source, entry.per_feature) != entry.per_feature:
             raise ValueError(
-                f"vendor source {entry.source!r} resolves duplicates both as "
-                f"{_described(resolutions[entry.source])} and as {_described(resolution)}"
+                f"vendor source {entry.source!r} resolves repeated rows both as "
+                f"{resolutions[entry.source]!r} and as {entry.per_feature!r}"
             )
-    columns = {entry.name: entry for entry in sourced}
-    for entry in sourced:
-        by = None if entry.duplicates is None else entry.duplicates.by
-        if by is None:
-            continue
-        ranking = columns.get(by)
-        if ranking is None or by in keys or by == entry.name:
-            raise ValueError(
-                f"{entry.name}: keep_best ranks by {by!r}, which must be another sourced var "
-                "column, not a key"
-            )
-        if ranking.type not in {"number", "integer"} or not ranking.required:
-            raise ValueError(
-                f"{entry.name}: keep_best ranks by {by!r}, which must be a required numeric column"
-            )
-    rankings = {
-        (entry.duplicates.by, entry.duplicates.best)
-        for entry in sourced
-        if entry.duplicates is not None and entry.duplicates.by is not None
-    }
-    if len(rankings) > 1:
+    best_rows = [entry.name for entry in sourced if entry.per_feature == "best_row"]
+    if best_rows and rank_rows is None:
+        raise ValueError(f"per_feature 'best_row' needs the level's rank_rows: {best_rows}")
+    if rank_rows is None:
+        return
+    if not best_rows:
+        raise ValueError("rank_rows ranks rows for best_row columns, and no column is best_row")
+    ranking = {entry.name: entry for entry in sourced}.get(rank_rows.by)
+    if ranking is None or rank_rows.by in keys or ranking.per_feature == "best_row":
         raise ValueError(
-            "keep_best var columns select a feature's rows, so they rank by one column; "
-            f"these differ: {sorted(rankings)}"
+            f"rank_rows ranks by {rank_rows.by!r}, which must be a sourced var column, "
+            "neither a key nor a best_row column"
         )
-
-
-def _described(resolution: ColumnDuplicates) -> str:
-    ranking = "" if resolution.by is None else f" by {resolution.by!r}, {resolution.best}"
-    return f"{resolution.mode!r}{ranking}"
+    if ranking.type not in {"number", "integer"} or not ranking.required:
+        raise ValueError(
+            f"rank_rows ranks by {rank_rows.by!r}, which must be a required numeric column"
+        )
 
 
 def _check_role_owners(owner: RoleOwner, roles: Iterable[SemanticRole]) -> None:
@@ -300,7 +293,7 @@ def _check_computed_columns(rule: LongRule | WideRule, var: ColumnGroup) -> None
         if names.count(flag) != 1:
             raise ValueError(
                 f"var declares {flag!r} {names.count(flag)} times; every rule declares it once, "
-                "with no inputs when the vendor writes no such rows"
+                "with how 'unmarked' when the report marks no such rows"
             )
 
 

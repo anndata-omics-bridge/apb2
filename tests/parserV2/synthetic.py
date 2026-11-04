@@ -25,8 +25,8 @@ from apb2.parserV2.vendor_parse_rules.schema.base import SCHEMA_VERSION, Quantif
 
 NO_EVIDENCE = SearchParameterEvidence(acquisition_method="unknown", combine_charge_states=None)
 FLAGS: tuple[dict[str, Any], ...] = (
-    {"name": "apb_Decoy", "how": "decoy"},
-    {"name": "apb_Contaminant", "how": "contaminant"},
+    {"name": "apb_Decoy", "how": "unmarked"},
+    {"name": "apb_Contaminant", "how": "unmarked"},
 )
 """The vendor markings every rule declares once; a synthetic vendor writes none."""
 
@@ -124,10 +124,12 @@ def long_document(
     primary_layer: str = "Quantity",
     duplicates: str = "error",
     rank_by: str | None = None,
+    rank_rows: dict[str, Any] | None = None,
 ) -> RuleDocument:
     """A long rule with one obs key and whatever var declarations a test needs.
 
-    ``rank_by`` names the layer a ``keep_best`` rule ranks repeated rows by.
+    ``rank_by`` names the layer a ``keep_best`` rule ranks repeated cells by; ``rank_rows``
+    the var column a level ranks a feature's repeated rows by.
     """
     return document(
         shape="long",
@@ -142,9 +144,10 @@ def long_document(
             },
             "measurements": {
                 "primary_layer": primary_layer,
-                "duplicates": {"mode": duplicates} | ({"by": rank_by} if rank_by else {}),
+                "repeated_cells": {"mode": duplicates} | ({"by": rank_by} if rank_by else {}),
                 "layers": layers or [{"name": "Quantity", "source": "Quantity"}],
             },
+            **({"rank_rows": rank_rows} if rank_rows is not None else {}),
         },
         levels={"peptidoform_ion": {}},
     )
@@ -171,7 +174,6 @@ def wide_document(
             "measurements": {
                 "primary_layer": primary_layer,
                 **({"sample_layer": sample_layer} if sample_layer is not None else {}),
-                "duplicates": {"mode": "error"},
                 "layers": layers,
             },
         },

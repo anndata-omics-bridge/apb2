@@ -2,7 +2,7 @@
 
 APB2 keeps vendor-table knowledge in one declarative `rules.json` document per software/version. Each document contains a nonempty `tables` list; every table declares its physical input, observation and variable identity, sourced or computed axis columns, measurement layers, semantic roles, and supported quantification levels. Supporting another layout normally means adding a table declaration rather than another Python reader.
 
-The current rule format is schema `0.9`. The generated [document schema](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/_schema/document.schema.json) describes the authored shell and physical inputs. Table-local base/level composition is then validated against the [effective-rule schema](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/_schema/rule.schema.json). Older documents must be migrated; there is no compatibility model.
+The current rule format is schema `0.10`. The generated [document schema](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/_schema/document.schema.json) describes the authored shell and physical inputs. Table-local base/level composition is then validated against the [effective-rule schema](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/_schema/rule.schema.json). Older documents must be migrated; there is no compatibility model.
 
 ## One software, multiple input tables
 
@@ -17,7 +17,7 @@ MaxQuant's [document](https://github.com/anndata-omics-bridge/apb2/blob/main/src
 | `peptides.txt` | wide | peptide |
 | `proteinGroups.txt` | wide | protein |
 
-`join_wide` in [joins/maxquant.py](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/joins/maxquant.py) accepts any nonempty subset of the three higher-level exports and resolves their foreign keys through shared evidence-ID references. It keeps every table wide: one row per related feature-ID tuple with each table's per-experiment columns side by side, so rows grow with relationships rather than features × experiments, and it reads only the columns its rules declare plus `id` and `Evidence IDs`; its wide layers capture `Experiment` from headers such as `peptide.Intensity <experiment>`. Namespaced source columns preserve each table's measurements, with repeated cells resolved by the rule's `keep_best` policy, ranked by `Intensity`. All three higher-level rules inherit `Experiment` observations from their table's `base`. Evidence never enters that join. Its own preparation, `join_evidence`, keeps every evidence row and adds the `Protein IDs` of the group, among those in `Protein group IDs`, that holds the row's leading razor protein, MaxQuant's own assignment of shared peptides; the ion rule names it `Protein_IDs`, like the protein level's key. The evidence rule inherits `Raw_File` observations and retains `Experiment` and `Fraction` metadata. All 15 nonempty input combinations remain supported.
+`join_wide` in [joins/maxquant.py](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/joins/maxquant.py) accepts any nonempty subset of the three higher-level exports and resolves their foreign keys through shared evidence-ID references. It keeps every table wide: one row per related feature-ID tuple with each table's per-experiment columns side by side, so rows grow with relationships rather than features × experiments, and it reads only the columns its rules declare plus `id` and `Evidence IDs`; its wide layers capture `Experiment` from headers such as `peptide.Intensity <experiment>`. Namespaced source columns preserve each table's measurements; each level names its namespace once, `"source_prefix": "peptide."`, so its sources read as MaxQuant writes them, and an entry from another table names its own. Repeated cells are resolved by the rule's `repeated_cells` mode `keep_best`, ranked by `Intensity`. All three higher-level rules inherit `Experiment` observations from their table's `base`. Evidence never enters that join. Its own preparation, `join_evidence`, keeps every evidence row and adds the `Protein IDs` of the group, among those in `Protein group IDs`, that holds the row's leading razor protein, MaxQuant's own assignment of shared peptides; the ion rule names it `Protein_IDs`, like the protein level's key. The evidence rule inherits `Raw_File` observations and retains `Experiment` and `Fraction` metadata. All 15 nonempty input combinations remain supported.
 
 The function in [joins/alphadia.py](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/joins/alphadia.py) enriches AlphaDIA 1.12 matrix intensities with precursor metadata and returns long rows. Parent composition prepares once per requested group. Each level projects from that group's shared frame, excluding wholly absent identities before ordinary decomposition. Tool modules import neither schemas nor parser orchestration. After parsing, explicit bijective observation mappings permit alignment; incompatible resolutions are [written separately](conversion.md#output-naming).
 
@@ -25,13 +25,13 @@ The function in [joins/metamorpheus.py](https://github.com/anndata-omics-bridge/
 
 The function in [joins/wombat.py](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/joins/wombat.py) drops WOMBAT-P rows whose `modified_peptide` names several peptides (`SEQA|SEQB`, FlashLFQ's ambiguous peak) and logs how many; such a row is no single ion. Prepared delimited tables are read with a comma for a `.csv` file and a tab otherwise; a preparation that names workbook sheets reads those sheets instead.
 
-The function in [joins/msangel.py](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/joins/msangel.py) joins MSAngel's "Protein sets" sheet onto its "Quantified peptide ions" sheet by `protein_set_id`. A preparation names the workbook sheets it reads, and the preparation reads only those, as text; it declares no `sheet_name`. The ion sheet lists a shared peptide once per protein set, so every joined row is one ion in one protein set: the ion level keeps the best-scoring set's row (`keep_best` by `Protein_Set_Score`), so its quantities and `Same_Set_Proteins`, its `protein_assignment`, come from that row; `Proteins` keeps only the `fasta_accessions` role. The protein level, keyed by the same `Same_Set_Proteins` (`samesets_accessions`), reads each set's own columns. Without a "Protein sets" sheet only the ions convert.
+The function in [joins/msangel.py](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/joins/msangel.py) joins MSAngel's "Protein sets" sheet onto its "Quantified peptide ions" sheet by `protein_set_id`. A preparation names the workbook sheets it reads, and the preparation reads only those, as text; it declares no `sheet_name`. The ion sheet lists a shared peptide once per protein set, so every joined row is one ion in one protein set: the ion level keeps the best-scoring set's row (`"rank_rows": {"by": "Protein_Set_Score"}`, its columns `"per_feature": "best_row"`), so its quantities and `Same_Set_Proteins`, its `protein_assignment`, come from that row; `Proteins` keeps only the `fasta_accessions` role. The protein level, keyed by the same `Same_Set_Proteins` (`samesets_accessions`), reads each set's own columns. Without a "Protein sets" sheet only the ions convert.
 
-## Software-only column evidence
+## Column evidence without a parameter file
 
-When a caller supplies `--software` but no parameter file, the table's optional `input.software_only` declaration can distinguish rule variants beyond their normal required columns. `required_columns` and `forbidden_columns` are exact header signatures used only for this parameter-free route; parameter-backed version selection still uses the parsed software version. For example, DIA-NN 1.8/1.9 requires `PG.Normalised` and `Lib.PG.Q.Value`, while its 2.x rule requires `PG.TopN`.
+When a caller supplies `--software` but no parameter file, the table's optional `input.without_parameter_file` declaration can distinguish rule variants beyond their normal required columns. `required_columns` and `forbidden_columns` are exact header signatures used only for this parameter-free route; parameter-backed version selection still uses the parsed software version. For example, DIA-NN 1.8/1.9 requires `PG.Normalised` and `Lib.PG.Q.Value`, while its 2.x rule requires `PG.TopN`.
 
-For a rule with an acquisition-dependent primary layer, `acquisition_method_if_any` lists columns that establish DDA and `acquisition_method_otherwise` declares the fallback. DIA-NN 2.x uses `Ms1.Q.Value` or `Global.Ms1.Q.Value` as DDA evidence and otherwise selects its DIA default. This is authored evidence, not a generic claim that missing columns always mean DIA: only declare a fallback after validating its signature against the supported exports. Unresolved settings such as Sage's charge combination still raise an error rather than being guessed.
+For a rule with an acquisition-dependent primary layer, `acquisition_method` names the columns that establish DDA, `DDA_if_any_column`, and the fallback, `otherwise`. DIA-NN 2.x uses `Ms1.Q.Value` or `Global.Ms1.Q.Value` as DDA evidence and otherwise selects its DIA default. This is authored evidence, not a generic claim that missing columns always mean DIA: only declare a fallback after validating its signature against the supported exports. Unresolved settings such as Sage's charge combination still raise an error rather than being guessed.
 
 ## Long format
 
@@ -47,8 +47,7 @@ P2	b	21
 
 ```json title="rules.json"
 {
-  "hierarchy": "lfq",
-  "schema_version": "0.9",
+  "schema_version": "0.10",
   "file_version": "1",
   "software_name": "MinimalLongExample",
   "software_version_pattern": "^1$",
@@ -85,8 +84,8 @@ P2	b	21
                 "fasta_accessions"
               ]
             },
-            {"name": "apb_Decoy", "how": "decoy"},
-            {"name": "apb_Contaminant", "how": "contaminant"}
+            {"name": "apb_Decoy", "how": "unmarked"},
+            {"name": "apb_Contaminant", "how": "unmarked"}
           ]
         },
         "measurements": {
@@ -110,7 +109,7 @@ P2	b	21
 }
 ```
 
-`hierarchy` names a level hierarchy from [hierarchies.json](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/schema/hierarchies.json), and every level the document declares must belong to it. Quantification tables use `lfq`, which runs from `peptidoform_fragment` to `protein` and identifies a `protein` feature by its `protein_assignment` column; `psm` and `ptm_site` cover PSM and modification-site tables.
+`hierarchy`, `lfq` unless written, names a level hierarchy from [hierarchies.json](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/schema/hierarchies.json), and every level the document declares must belong to it. Quantification tables use `lfq`, which runs from `peptidoform_fragment` to `protein` and identifies a `protein` feature by its `protein_assignment` column; `psm` and `ptm_site` cover PSM and modification-site tables.
 
 Convert it with:
 
@@ -120,18 +119,17 @@ apb2 convert long.tsv protein --rule-config rules.json --output long
 
 ## Wide format
 
-In a wide table, every row holds one variable and observations are spread across measurement columns. A layer source is therefore a regular expression with a required `sample` capture group.
+In a wide table, every row holds one variable and observations are spread across measurement columns. A layer source therefore names a column per sample: `{sample}` marks where the header names its sample.
 
 ```tsv title="wide.tsv"
-protein	Intensity_a	intensity_b
+protein	Intensity_a	Intensity_b
 P1	10	11
 P2	20	21
 ```
 
 ```json title="rules.json"
 {
-  "hierarchy": "lfq",
-  "schema_version": "0.9",
+  "schema_version": "0.10",
   "file_version": "1",
   "software_name": "MinimalWideExample",
   "software_version_pattern": "^1$",
@@ -162,8 +160,8 @@ P2	20	21
                 "fasta_accessions"
               ]
             },
-            {"name": "apb_Decoy", "how": "decoy"},
-            {"name": "apb_Contaminant", "how": "contaminant"}
+            {"name": "apb_Decoy", "how": "unmarked"},
+            {"name": "apb_Contaminant", "how": "unmarked"}
           ]
         },
         "measurements": {
@@ -171,7 +169,7 @@ P2	20	21
           "layers": [
             {
               "name": "Intensity",
-              "source": "^[Ii]ntensity_(?P<sample>.+)$",
+              "source": "Intensity_{sample}",
               "roles": [
                 "abundance"
               ]
@@ -187,7 +185,15 @@ P2	20	21
 }
 ```
 
-The expression matches both measurement headers and captures `a` and `b` as observation keys. Long and wide inputs produce the same observations-by-variables result contract.
+The source matches both measurement headers and captures `a` and `b` as observation keys. Long and wide inputs produce the same observations-by-variables result contract.
+
+The text around `{sample}` matches literally, `source_prefix` first. `{sample}` stands for the table's `sample_pattern`, a regular expression with a `sample` capture group, written once in the `base` or a level, the level's first; it defaults to `(?P<sample>.+)`. A tool that writes more than the sample name declares it there, as PEAKS does for an optional `.raw` suffix:
+
+```json
+"sample_pattern": "(?P<sample>.+?)(?:\\.raw|_raw)?"
+```
+
+A source without `{sample}` is a regular expression itself, starting with `^` and with the `sample` group, for a header no fixed text describes, such as Sage's file-name columns. The stored `rule_json` holds every source as the regular expression it matches.
 
 By default the primary layer's captures are the sample names, and every other layer keeps only columns whose capture is one of them. When the primary layer's header shape is shared by non-sample columns, `measurements.sample_layer` names the layer whose captures are the sample names instead. PEAKS sets it to `Sample_Mz`: only runs have `<run> m/z` columns, so group averages such as `A Normalized Area` are not samples. The sample layer is required, and long rules reject the field because their observations come from `columns.obs`.
 
@@ -201,7 +207,9 @@ By default the primary layer's captures are the sample names, and every other la
 - `type`: `string`, `integer`, `number`, or `boolean`; defaults to `string`
 - `roles`: semantic meanings owned by this entry
 - `note`: why the entry is placed or read as it is; parsing ignores it. Layers and computed entries take one too
-- `duplicates` (var only): how a feature's repeated rows become one value. `keep_first` (default) keeps the first nonblank value and reports features whose rows disagree as `var_disagreements`; `min` and `max` keep the smallest or largest number, for a tool that writes a placeholder into some rows; `keep_best` with `by` (a required numeric var column) and `best` (`highest` or `lowest`) selects the feature's rows that column ranks best before the feature table and the layers are built, so the columns ranked by the score and every layer describe the same row, such as the protein set a shared peptide is assigned to. All `keep_best` columns of a level rank by one column; a long table keeps the best row's rows in every run
+- `per_feature` (var only): how a feature's repeated rows become one value. `first` (default) keeps the first nonblank value and reports features whose rows disagree as `var_disagreements`; `min` and `max` keep the smallest or largest number, for a tool that writes a placeholder into some rows; `best_row` takes the value from the row the level's `rank_rows` keeps
+
+`rank_rows`, written once per level beside its `columns`, names the required numeric var column that ranks a feature's repeated rows, `by`, and which value wins, `best` (`highest`, the default, or `lowest`). The level keeps that row before the feature table and the layers are built, so its `best_row` columns and every layer describe the same row, such as the protein set a shared peptide is assigned to; a long table keeps the best row's rows in every run.
 
 A long report repeats a feature's values in every row of it, so a value per feature belongs in `columns.var` even where every run row carries it; a value per run and feature is a layer. DIA-NN's experiment-wide protein-group q-value is one such column, with a 1.0 placeholder on precursors without a global q-value:
 
@@ -211,7 +219,7 @@ A long report repeats a feature's values in every row of it, so a value per feat
   "source": "Global.PG.Q.Value",
   "type": "number",
   "required": false,
-  "duplicates": {"mode": "min"},
+  "per_feature": "min",
   "note": "Experiment-wide; DIA-NN writes 1.0 in rows of precursors without one, so the smallest value is the group's"
 }
 ```
@@ -226,7 +234,7 @@ Computed entries replace `source` with `how` and `inputs`. They appear after the
 ]
 ```
 
-Supported computations are `coalesce`, `join_nonempty`, `stripped_sequence`, `proforma_sequence`, `proforma_ion`, `proforma_fragment`, `decoy`, and `contaminant`. Entry names must be unique within each axis group, final axis keys must name required materialized entries, and computed dependencies must be available in declaration order.
+Supported computations are `coalesce`, `join_nonempty`, `stripped_sequence`, `proforma_sequence`, `proforma_ion`, `proforma_fragment`, `decoy`, `contaminant`, and `unmarked`. Entry names must be unique within each axis group, final axis keys must name required materialized entries, and computed dependencies must be available in declaration order.
 
 ## Decoys and contaminants
 
@@ -235,12 +243,13 @@ Every rule declares, on every level's var axis, exactly once each, how the vendo
 ```json
 {"name": "apb_Decoy", "inputs": ["Reverse", "Decoy"], "how": "decoy", "equals": "+"}
 {"name": "apb_Contaminant", "inputs": ["Proteins"], "how": "contaminant", "prefix": "CON__", "separator": ";"}
-{"name": "apb_Decoy", "how": "decoy"}
+{"name": "apb_Decoy", "how": "unmarked"}
 ```
 
 - `equals`: a row is marked when an input's value equals it; a boolean input reads as `true` or `false`
 - `prefix`: a row is marked when an input starts with it, or, with `separator`, when any member of the list does
-- No inputs: the vendor writes no such rows; nothing is marked
+- `decoy` and `contaminant` read at least one input, in exactly one of these two ways
+- `unmarked`: the report has no column marking such rows; the result still carries the column, every row `false`
 - Several inputs: any match marks the row; inputs a source lacks are left out, so the column never disappears
 
 ## Independent sequence computations
@@ -252,28 +261,20 @@ Map vendor columns to logical names first. A sequence computation consumes exact
   "sequence_syntax": {
     "vendor_sequence": {
       "parser": "token_regex",
-      "token_pattern": "^n\\[(?P<nterm>[^\\]]+)\\]|\\[(?P<residue>[^\\]]+)\\]",
-      "token_position": "after_residue"
+      "token_pattern": "^n\\[(?P<nterm>[^\\]]+)\\]|\\[(?P<residue>[^\\]]+)\\]"
     }
   },
   "modification_maps": {
-    "basic_modification_map": [
-      {"token": "57.0215", "accession": "UNIMOD:4"}
-    ]
+    "basic_modification_map": {"57.0215": "UNIMOD:4"}
   },
   "columns": {
     "var": [
       {"name": "Modified_Sequence", "source": "Modified Sequence"},
       {"name": "Charge", "source": "Charge", "type": "integer"},
-      {
-        "name": "ProForma_peptide", "how": "stripped_sequence",
-        "inputs": ["Modified_Sequence"], "syntax": "vendor_sequence"
-      },
+      {"name": "ProForma_peptide", "how": "stripped_sequence", "inputs": ["Modified_Sequence"]},
       {
         "name": "ProForma_peptidoform", "how": "proforma_sequence",
-        "inputs": ["Modified_Sequence"], "syntax": "vendor_sequence",
-        "modification_map": "basic_modification_map",
-        "case_sensitive": false, "unknown_policy": "preserve"
+        "inputs": ["Modified_Sequence"]
       },
       {
         "name": "ProForma_ion", "how": "proforma_ion",
@@ -284,7 +285,7 @@ Map vendor columns to logical names first. A sequence computation consumes exact
 }
 ```
 
-`vendor_sequence` is an arbitrary local grammar name, not an input column. Syntax definitions contain no source or output names. Both registries merge base-to-level by name, replacing each same-named definition wholesale; references are validated after composition. There is no implicit default map.
+`vendor_sequence` is an arbitrary local grammar name, not an input column. Syntax definitions contain no source or output names. Both registries merge base-to-level by name, replacing each same-named definition wholesale; references are validated after composition. A sequence column that names no `syntax` or `modification_map` takes the level's only one; where a level declares several, as AlphaDIA's plain and vendor syntaxes, each column names its own. A modification map gives each vendor token its Unimod accession.
 
 | Syntax parser | Normalization inputs | Settings |
 | --- | --- | --- |

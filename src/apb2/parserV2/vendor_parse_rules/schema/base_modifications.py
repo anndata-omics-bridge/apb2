@@ -12,13 +12,6 @@ from apb2.parserV2.vendor_parse_rules.schema.base import ModelBase, TokenPositio
 _SITES = frozenset({"nterm", "cterm", "residue"})
 
 
-class ModificationMapEntry(ModelBase):
-    """One vendor token and the Unimod accession it denotes."""
-
-    token: str
-    accession: str
-
-
 class PlainSequenceSyntax(ModelBase):
     """An unmodified sequence: residue letters only, apart from terminal ``_``, ``-`` or ``.``."""
 
@@ -96,4 +89,5 @@ type SequenceSyntax = Annotated[
     PlainSequenceSyntax | TokenRegexSyntax | SiteListSyntax | EmbeddedSiteListSyntax,
     Field(discriminator="parser"),
 ]
-type ModificationMap = Annotated[list[ModificationMapEntry], Field(min_length=1)]
+type ModificationMap = Annotated[dict[str, str], Field(min_length=1)]
+"""Each vendor token and the Unimod accession it denotes, such as ``{"UniMod:35": "UNIMOD:35"}``."""

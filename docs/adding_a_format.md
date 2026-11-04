@@ -11,7 +11,7 @@ A single-table format needs no Python. Debug the rule with `--rule-config` first
 5. Parameter parser: only for a new grammar
 6. Add rows to [Supported software and formats](supported_software.md)
 7. Add apb-catalog variants
-8. Run `make check` and the routine corpus
+8. Run `make format`, which lays out the rule file, then `make check` and the routine corpus
 
 Worked example: synthetic ToyQuant, two versions. Files and commands ran as shown; log lines shortened.
 
@@ -27,14 +27,13 @@ src/apb2/parserV2/vendor_parse_rules/documents/
 
 - Discovered: `documents/<folder>/rules.json` and `documents/<folder>/v<suffix>/rules.json`; any other path is silently ignored
 - Folder name: free; `--software` matches `software_name` lowercased, alphanumerics only (`DIA-NN` → `diann`)
-- Required: `hierarchy`, `schema_version`, `file_version`, `software_name`, `software_version_pattern`; per table `input.shape`, `input.extensions`, `base`, `levels`
+- Required: `schema_version`, `file_version`, `software_name`, `software_version_pattern`; per table `input.shape`, `input.extensions`, `base`, `levels`; `hierarchy` defaults to `lfq`
 - Optional: `parameter_file: "none"` when no parameter file exists (`pb_custom`)
 - Placement: a value per run and feature is a layer, a value per run alone an `obs` column, and a value per feature, experiment-wide or from the spectral library, a `var` column. Decide from the tool's documentation and the data, not from one dataset
 
 ```json title="toyquant/v1/rules.json"
 {
-  "hierarchy": "lfq",
-  "schema_version": "0.9",
+  "schema_version": "0.10",
   "file_version": "1",
   "software_name": "ToyQuant",
   "software_version_pattern": "^1\\.",
@@ -43,7 +42,7 @@ src/apb2/parserV2/vendor_parse_rules/documents/
       "input": {
         "shape": "long",
         "extensions": [".tsv"],
-        "software_only": {"forbidden_columns": ["Gene Name"]}
+        "without_parameter_file": {"forbidden_columns": ["Gene Name"]}
       },
       "base": {
         "axis": {"obs_keys": ["Run"], "var_keys": ["Protein"]},
@@ -51,8 +50,8 @@ src/apb2/parserV2/vendor_parse_rules/documents/
           "obs": [{"name": "Run", "source": "Run Name"}],
           "var": [
             {"name": "Protein", "source": "Protein Accession", "roles": ["protein_assignment", "fasta_accessions"]},
-            {"name": "apb_Decoy", "how": "decoy"},
-            {"name": "apb_Contaminant", "how": "contaminant"}
+            {"name": "apb_Decoy", "how": "unmarked"},
+            {"name": "apb_Contaminant", "how": "unmarked"}
           ]
         },
         "measurements": {
@@ -75,7 +74,7 @@ ToyQuant 2.x adds a `Gene Name` column:
 +  "software_version_pattern": "^2\\.",
  ...
 -        "extensions": [".tsv"],
--        "software_only": {"forbidden_columns": ["Gene Name"]}
+-        "without_parameter_file": {"forbidden_columns": ["Gene Name"]}
 +        "extensions": [".tsv"]
  ...
 -            {"name": "Protein", "source": "Protein Accession", "roles": ["protein_assignment", "fasta_accessions"]}
@@ -117,17 +116,17 @@ A document accepts a file whose header holds every required `source` and require
 | --- | --- | --- |
 | `--params P` | the one vendor whose parameter-bearing documents accept the header | parsed version against `software_version_pattern` (`re.search`), then header |
 | `--params P --software S` | vendor `S`, plus the parameter file's `quantification_software` | version, then header |
-| `--software S` | vendor `S`, every version | header, then `input.software_only` |
+| `--software S` | vendor `S`, every version | header, then `input.without_parameter_file` |
 | `--rule-config R` | `R` only | — |
 
-Without v1's `software_only`, a 2.x file also satisfies v1:
+Without v1's `without_parameter_file`, a 2.x file also satisfies v1:
 
 ```text
 $ apb2 convert toy_v2.tsv protein --software toyquant
 ERROR level 'protein' matches several packaged documents: ['…/toyquant/v1/rules.json', '…/toyquant/v2/rules.json']
 ```
 
-- `software_only`: `--software` route only; see [software-only column evidence](rule-based.md#software-only-column-evidence)
+- `without_parameter_file`: `--software` route only; see [column evidence without a parameter file](rule-based.md#column-evidence-without-a-parameter-file)
 - Version patterns: no overlap where headers overlap
 - Generic signatures (one `Proteins` column, catch-all wide regex): other vendors' files turn ambiguous under `--params` alone
 

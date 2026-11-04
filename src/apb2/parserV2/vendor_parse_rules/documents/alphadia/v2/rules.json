@@ -1,95 +1,47 @@
 {
-  "hierarchy": "lfq",
-  "schema_version": "0.9",
-  "file_version": "2",
+  "schema_version": "0.10",
+  "file_version": "4",
   "software_name": "AlphaDIA",
   "software_version_pattern": "^2\\.",
   "tables": [
     {
-      "input": {
-        "shape": "long",
-        "extensions": [
-          ".parquet"
-        ]
-      },
+      "input": {"shape": "long", "extensions": [".parquet"]},
       "base": {
-        "axis": {
-          "obs_keys": [
-            "raw_name"
-          ]
-        },
-        "measurements": {
-          "duplicates": {
-            "mode": "error"
-          }
-        },
+        "axis": {"obs_keys": ["raw_name"]},
         "columns": {
-          "obs": [
-            {
-              "name": "raw_name",
-              "source": "raw.name"
-            }
+          "obs": [{"name": "raw_name", "source": "raw.name"}],
+          "var": [
+            {"name": "Protein_Group_Master", "source": "pg.master_protein"},
+            {"name": "apb_Contaminant", "how": "unmarked"}
           ]
         },
         "sequence_syntax": {
-          "vendor_sequence": {
-            "parser": "site_list",
-            "delimiter": ";",
-            "site_base": 1
-          },
-          "plain_sequence": {
-            "parser": "plain_sequence"
-          }
+          "vendor_sequence": {"parser": "site_list"},
+          "plain_sequence": {"parser": "plain_sequence"}
         },
         "modification_maps": {
-          "basic_modification_map": [
-            {
-              "token": "Carbamidomethyl@C",
-              "accession": "UNIMOD:4"
-            },
-            {
-              "token": "Oxidation@M",
-              "accession": "UNIMOD:35"
-            },
-            {
-              "token": "Acetyl@Protein_N-term",
-              "accession": "UNIMOD:1"
-            }
-          ]
+          "basic_modification_map": {
+            "Carbamidomethyl@C": "UNIMOD:4",
+            "Oxidation@M": "UNIMOD:35",
+            "Acetyl@Protein_N-term": "UNIMOD:1"
+          }
         }
       },
       "levels": {
         "peptidoform_ion": {
-          "axis": {
-            "var_keys": [
-              "ProForma_ion"
-            ]
-          },
+          "axis": {"var_keys": ["ProForma_ion"]},
           "measurements": {
             "primary_layer": "Precursor_Intensity",
             "layers": [
               {
                 "name": "Precursor_Intensity",
                 "source": "precursor.intensity",
-                "roles": [
-                  "abundance"
-                ],
-                "missing_values": [
-                  "<=0"
-                ]
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
               },
-              {
-                "name": "QValue",
-                "source": "precursor.qval"
-              },
-              {
-                "name": "Proba",
-                "source": "precursor.proba"
-              },
-              {
-                "name": "RT_Observed",
-                "source": "precursor.rt.observed"
-              },
+              {"name": "QValue", "source": "precursor.qval"},
+              {"name": "Proba", "source": "precursor.proba"},
+              {"name": "RT_Observed", "source": "precursor.rt.observed"},
               {
                 "name": "RT_Calibrated",
                 "source": "precursor.rt.calibrated",
@@ -109,55 +61,15 @@
           },
           "columns": {
             "var": [
-              {
-                "name": "Sequence",
-                "source": "precursor.sequence"
-              },
-              {
-                "name": "Charge",
-                "source": "precursor.charge",
-                "type": "integer"
-              },
-              {
-                "name": "Mods",
-                "source": "precursor.mods"
-              },
-              {
-                "name": "Mod_Sites",
-                "source": "precursor.mod_sites"
-              },
-              {
-                "name": "Genes",
-                "source": "pg.genes"
-              },
-              {
-                "name": "Proteins",
-                "source": "pg.proteins",
-                "roles": [
-                  "fasta_accessions"
-                ]
-              },
-              {
-                "name": "Protein_Group",
-                "source": "pg.name",
-                "roles": [
-                  "protein_assignment"
-                ]
-              },
-              {
-                "name": "Protein_Group_Master",
-                "source": "pg.master_protein"
-              },
-              {
-                "name": "Decoy",
-                "source": "precursor.decoy",
-                "type": "boolean"
-              },
-              {
-                "name": "Channel",
-                "source": "precursor.channel",
-                "required": false
-              },
+              {"name": "Sequence", "source": "precursor.sequence"},
+              {"name": "Charge", "source": "precursor.charge", "type": "integer"},
+              {"name": "Mods", "source": "precursor.mods"},
+              {"name": "Mod_Sites", "source": "precursor.mod_sites"},
+              {"name": "Genes", "source": "pg.genes"},
+              {"name": "Proteins", "source": "pg.proteins", "roles": ["fasta_accessions"]},
+              {"name": "Protein_Group", "source": "pg.name", "roles": ["protein_assignment"]},
+              {"name": "Decoy", "source": "precursor.decoy", "type": "boolean"},
+              {"name": "Channel", "source": "precursor.channel", "required": false},
               {
                 "name": "Mz_Observed",
                 "source": "precursor.mz.observed",
@@ -172,69 +84,36 @@
               },
               {
                 "name": "ProForma_peptidoform",
-                "inputs": [
-                  "Sequence",
-                  "Mods",
-                  "Mod_Sites"
-                ],
+                "inputs": ["Sequence", "Mods", "Mod_Sites"],
                 "how": "proforma_sequence",
-                "syntax": "vendor_sequence",
-                "modification_map": "basic_modification_map",
-                "case_sensitive": false,
-                "unknown_policy": "preserve"
+                "syntax": "vendor_sequence"
               },
               {
                 "name": "ProForma_peptide",
-                "inputs": [
-                  "Sequence"
-                ],
+                "inputs": ["Sequence"],
                 "how": "stripped_sequence",
                 "syntax": "plain_sequence"
               },
               {
                 "name": "ProForma_ion",
-                "inputs": [
-                  "ProForma_peptidoform",
-                  "Charge"
-                ],
+                "inputs": ["ProForma_peptidoform", "Charge"],
                 "how": "proforma_ion"
               },
-              {
-                "name": "apb_Decoy",
-                "inputs": [
-                  "Decoy"
-                ],
-                "how": "decoy",
-                "equals": "true"
-              },
-              {
-                "name": "apb_Contaminant",
-                "how": "contaminant"
-              }
+              {"name": "apb_Decoy", "inputs": ["Decoy"], "how": "decoy", "equals": "true"}
             ]
           }
         },
         "protein": {
-          "axis": {
-            "var_keys": [
-              "Protein_Group"
-            ]
-          },
+          "axis": {"var_keys": ["Protein_Group"]},
           "measurements": {
             "primary_layer": "PG_Intensity",
-            "duplicates": {
-              "mode": "same"
-            },
+            "repeated_cells": {"mode": "same"},
             "layers": [
               {
                 "name": "PG_Intensity",
                 "source": "pg.intensity",
-                "roles": [
-                  "abundance"
-                ],
-                "missing_values": [
-                  "<=0"
-                ]
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
               }
             ]
           },
@@ -243,14 +122,7 @@
               {
                 "name": "Protein_Group",
                 "source": "pg.name",
-                "roles": [
-                  "protein_assignment",
-                  "fasta_accessions"
-                ]
-              },
-              {
-                "name": "Protein_Group_Master",
-                "source": "pg.master_protein"
+                "roles": ["protein_assignment", "fasta_accessions"]
               },
               {
                 "name": "Protein_Group_QValue",
@@ -258,14 +130,7 @@
                 "type": "number",
                 "required": false
               },
-              {
-                "name": "apb_Decoy",
-                "how": "decoy"
-              },
-              {
-                "name": "apb_Contaminant",
-                "how": "contaminant"
-              }
+              {"name": "apb_Decoy", "how": "unmarked"}
             ]
           }
         }

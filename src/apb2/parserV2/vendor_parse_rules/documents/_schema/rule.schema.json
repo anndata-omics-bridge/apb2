@@ -99,41 +99,6 @@
       "title": "Coalesce",
       "type": "object"
     },
-    "ColumnDuplicates": {
-      "additionalProperties": false,
-      "description": "How a var column resolves the values a feature's repeated rows give it.\n\nA long report repeats a feature's values in every row of it, one per run. ``keep_first``\nkeeps the first nonblank value and reports features whose rows disagree. ``min`` and\n``max`` keep the smallest or largest number, for a tool that writes a placeholder into\nsome of a feature's rows, such as DIA-NN's protein-group q-value of 1.0. ``keep_best``\nselects the feature's rows whose ``by`` column is ``best`` before the feature table and the\nlayers are built, so the columns ranked by one score and every layer describe the same\nrow, such as the protein set a shared peptide is assigned to. A level ranks by one column.",
-      "properties": {
-        "mode": {
-          "$ref": "#/$defs/VarDuplicateMode",
-          "default": "keep_first"
-        },
-        "by": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "keep_best: the numeric var column that ranks repeated rows",
-          "title": "By"
-        },
-        "best": {
-          "default": "highest",
-          "description": "keep_best: which value of the 'by' column wins",
-          "enum": [
-            "highest",
-            "lowest"
-          ],
-          "title": "Best",
-          "type": "string"
-        }
-      },
-      "title": "ColumnDuplicates",
-      "type": "object"
-    },
     "ColumnEntry": {
       "anyOf": [
         {
@@ -204,7 +169,8 @@
           "proforma_fragment": "#/$defs/ProformaFragment",
           "proforma_ion": "#/$defs/ProformaIon",
           "proforma_sequence": "#/$defs/ProformaSequence",
-          "stripped_sequence": "#/$defs/StrippedSequence"
+          "stripped_sequence": "#/$defs/StrippedSequence",
+          "unmarked": "#/$defs/UnmarkedFlag"
         },
         "propertyName": "how"
       },
@@ -232,6 +198,9 @@
         },
         {
           "$ref": "#/$defs/ContaminantFlag"
+        },
+        {
+          "$ref": "#/$defs/UnmarkedFlag"
         }
       ]
     },
@@ -287,6 +256,7 @@
           "items": {
             "type": "string"
           },
+          "minItems": 1,
           "title": "Inputs",
           "type": "array"
         },
@@ -346,6 +316,7 @@
         }
       },
       "required": [
+        "inputs",
         "how"
       ],
       "title": "ContaminantFlag",
@@ -384,6 +355,7 @@
           "items": {
             "type": "string"
           },
+          "minItems": 1,
           "title": "Inputs",
           "type": "array"
         },
@@ -443,6 +415,7 @@
         }
       },
       "required": [
+        "inputs",
         "how"
       ],
       "title": "DecoyFlag",
@@ -461,49 +434,6 @@
         "keep_best"
       ],
       "type": "string"
-    },
-    "Duplicates": {
-      "additionalProperties": false,
-      "description": "How repeated raw measurement cells are resolved: one row for every layer, or all rows.\n\n``error`` stops at a second row for a cell, whatever it holds. ``same`` takes the value\nthe rows share, for rows that are copies, such as a protein value repeated on each\nprecursor row, and stops where their values differ. ``sum`` adds up every layer over the\nrepeated rows, so it suits only levels whose layers are all additive.\n``keep_best`` keeps, in each cell, the repeated row whose ``by`` layer is ``best``, and\ntakes every layer's value from that one row, so one feature's intensity, score and\nq-value describe the same identification, such as one PSM. Layers listed in ``sum`` are\nadded up over the repeated rows instead, such as quantities split across several of them.",
-      "properties": {
-        "mode": {
-          "$ref": "#/$defs/DuplicateMode",
-          "default": "error"
-        },
-        "by": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "keep_best: the numeric layer that ranks repeated rows",
-          "title": "By"
-        },
-        "best": {
-          "default": "highest",
-          "description": "keep_best: which value of the 'by' layer wins",
-          "enum": [
-            "highest",
-            "lowest"
-          ],
-          "title": "Best",
-          "type": "string"
-        },
-        "sum": {
-          "description": "keep_best: layers added up over the repeated rows, not taken from the winning row",
-          "items": {
-            "type": "string"
-          },
-          "title": "Sum",
-          "type": "array"
-        }
-      },
-      "title": "Duplicates",
-      "type": "object"
     },
     "EmbeddedSiteListSyntax": {
       "additionalProperties": false,
@@ -845,6 +775,17 @@
           ],
           "default": null
         },
+        "rank_rows": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RankRows"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "shape": {
           "const": "long",
           "title": "Shape",
@@ -882,7 +823,7 @@
     },
     "Measurements": {
       "additionalProperties": false,
-      "description": "Named measurements, their primary layer, and raw duplicate policy.\n\n``sample_layer`` names the wide layer whose header captures are the sample names;\nomitted, the primary layer supplies them.",
+      "description": "Named measurements, their primary layer, and the policy for repeated raw cells.\n\n``sample_layer`` names the wide layer whose header captures are the sample names;\nomitted, the primary layer supplies them.",
       "properties": {
         "primary_layer": {
           "title": "Primary Layer",
@@ -900,8 +841,8 @@
           "default": null,
           "title": "Sample Layer"
         },
-        "duplicates": {
-          "$ref": "#/$defs/Duplicates"
+        "repeated_cells": {
+          "$ref": "#/$defs/RepeatedCells"
         },
         "layers": {
           "items": {
@@ -924,30 +865,10 @@
       "type": "string"
     },
     "ModificationMap": {
-      "items": {
-        "$ref": "#/$defs/ModificationMapEntry"
+      "additionalProperties": {
+        "type": "string"
       },
-      "minItems": 1,
-      "type": "array"
-    },
-    "ModificationMapEntry": {
-      "additionalProperties": false,
-      "description": "One vendor token and the Unimod accession it denotes.",
-      "properties": {
-        "token": {
-          "title": "Token",
-          "type": "string"
-        },
-        "accession": {
-          "title": "Accession",
-          "type": "string"
-        }
-      },
-      "required": [
-        "token",
-        "accession"
-      ],
-      "title": "ModificationMapEntry",
+      "minProperties": 1,
       "type": "object"
     },
     "NoValuePattern": {
@@ -1050,6 +971,15 @@
       ],
       "title": "NumericLayer",
       "type": "object"
+    },
+    "PerFeature": {
+      "enum": [
+        "first",
+        "min",
+        "max",
+        "best_row"
+      ],
+      "type": "string"
     },
     "PlainSequenceSyntax": {
       "additionalProperties": false,
@@ -1318,6 +1248,32 @@
     "QuantificationLevel": {
       "type": "string"
     },
+    "RankRows": {
+      "additionalProperties": false,
+      "description": "The var column that ranks a feature's repeated rows, for its ``best_row`` columns.\n\nThe level keeps, per feature, the row whose ``by`` column is ``best`` before the feature\ntable and the layers are built, so the ``best_row`` columns and every layer describe the\nsame row, such as the protein set a shared peptide is assigned to.",
+      "properties": {
+        "by": {
+          "description": "the numeric var column that ranks a feature's repeated rows",
+          "title": "By",
+          "type": "string"
+        },
+        "best": {
+          "default": "highest",
+          "description": "which value of the 'by' column wins",
+          "enum": [
+            "highest",
+            "lowest"
+          ],
+          "title": "Best",
+          "type": "string"
+        }
+      },
+      "required": [
+        "by"
+      ],
+      "title": "RankRows",
+      "type": "object"
+    },
     "RegexValuePattern": {
       "additionalProperties": false,
       "description": "Extract one numeric capture group from each structured layer value.",
@@ -1338,6 +1294,49 @@
         "pattern"
       ],
       "title": "RegexValuePattern",
+      "type": "object"
+    },
+    "RepeatedCells": {
+      "additionalProperties": false,
+      "description": "How repeated raw measurement cells are resolved: one row for every layer, or all rows.\n\n``error`` stops at a second row for a cell, whatever it holds. ``same`` takes the value\nthe rows share, for rows that are copies, such as a protein value repeated on each\nprecursor row, and stops where their values differ. ``sum`` adds up every layer over the\nrepeated rows, so it suits only levels whose layers are all additive.\n``keep_best`` keeps, in each cell, the repeated row whose ``by`` layer is ``best``, and\ntakes every layer's value from that one row, so one feature's intensity, score and\nq-value describe the same identification, such as one PSM. Layers listed in ``sum`` are\nadded up over the repeated rows instead, such as quantities split across several of them.",
+      "properties": {
+        "mode": {
+          "$ref": "#/$defs/DuplicateMode",
+          "default": "error"
+        },
+        "by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "keep_best: the numeric layer that ranks repeated rows",
+          "title": "By"
+        },
+        "best": {
+          "default": "highest",
+          "description": "keep_best: which value of the 'by' layer wins",
+          "enum": [
+            "highest",
+            "lowest"
+          ],
+          "title": "Best",
+          "type": "string"
+        },
+        "sum": {
+          "description": "keep_best: layers added up over the repeated rows, not taken from the winning row",
+          "items": {
+            "type": "string"
+          },
+          "title": "Sum",
+          "type": "array"
+        }
+      },
+      "title": "RepeatedCells",
       "type": "object"
     },
     "SampleAnnotation": {
@@ -1376,7 +1375,7 @@
       ]
     },
     "SchemaVersion": {
-      "const": "0.9",
+      "const": "0.10",
       "type": "string"
     },
     "SearchParameterField": {
@@ -1477,7 +1476,7 @@
     },
     "SourcedColumn": {
       "additionalProperties": false,
-      "description": "One logical axis column read from one physical vendor column.\n\nA protein-list column may declare the vendor's own further list ``separator``, such as\nPEAKS's ``:``; ``;`` and ``,`` separate every protein list already. Only a var column\ndeclares ``duplicates``; without it, a feature keeps its first nonblank value.",
+      "description": "One logical axis column read from one physical vendor column.\n\nA protein-list column may declare the vendor's own further list ``separator``, such as\nPEAKS's ``:``; ``;`` and ``,`` separate every protein list already.\n\n``per_feature`` says how a var column resolves the values a feature's repeated rows give\nit; a long report repeats a feature in every row of it, one per run. ``first`` keeps the\nfirst nonblank value and reports features whose rows disagree. ``min`` and ``max`` keep the\nsmallest or largest number, for a tool that writes a placeholder into some of a feature's\nrows, such as DIA-NN's protein-group q-value of 1.0. ``best_row`` takes the value from the\nrow the level's ``rank_rows`` keeps.",
       "properties": {
         "name": {
           "title": "Name",
@@ -1516,16 +1515,9 @@
           "default": null,
           "title": "Separator"
         },
-        "duplicates": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ColumnDuplicates"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
+        "per_feature": {
+          "$ref": "#/$defs/PerFeature",
+          "default": "first"
         },
         "note": {
           "$ref": "#/$defs/Note",
@@ -1667,6 +1659,68 @@
       ],
       "type": "string"
     },
+    "UnmarkedFlag": {
+      "additionalProperties": false,
+      "description": "``apb_Decoy`` or ``apb_Contaminant`` for a report with no column marking such rows.\n\nThe result still carries the column, every row ``false``.",
+      "properties": {
+        "source": {
+          "default": null,
+          "title": "Source",
+          "type": "null"
+        },
+        "type": {
+          "const": "boolean",
+          "default": "boolean",
+          "title": "Type",
+          "type": "string"
+        },
+        "required": {
+          "const": true,
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "roles": {
+          "items": {
+            "$ref": "#/$defs/SemanticRole"
+          },
+          "maxItems": 0,
+          "title": "Roles",
+          "type": "array"
+        },
+        "inputs": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 0,
+          "title": "Inputs",
+          "type": "array"
+        },
+        "note": {
+          "$ref": "#/$defs/Note",
+          "default": null
+        },
+        "how": {
+          "const": "unmarked",
+          "title": "How",
+          "type": "string"
+        },
+        "name": {
+          "enum": [
+            "apb_Decoy",
+            "apb_Contaminant"
+          ],
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "how",
+        "name"
+      ],
+      "title": "UnmarkedFlag",
+      "type": "object"
+    },
     "ValuePattern": {
       "discriminator": {
         "mapping": {
@@ -1683,15 +1737,6 @@
           "$ref": "#/$defs/RegexValuePattern"
         }
       ]
-    },
-    "VarDuplicateMode": {
-      "enum": [
-        "keep_first",
-        "min",
-        "max",
-        "keep_best"
-      ],
-      "type": "string"
     },
     "WideColumns": {
       "additionalProperties": false,
@@ -1774,6 +1819,17 @@
           "anyOf": [
             {
               "$ref": "#/$defs/SampleAnnotation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rank_rows": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RankRows"
             },
             {
               "type": "null"

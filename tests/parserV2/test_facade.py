@@ -438,7 +438,7 @@ def test_a_token_with_no_residue_to_modify_is_an_error() -> None:
         ("diann/v1_8/rules.json", "TLTGK(UniMod:121)TITLEK", "TLTGK[UNIMOD:121]TITLEK"),
         ("sage/rules.json", "[+42]-MPEPTIDE", "[UNIMOD:1]-MPEPTIDE"),
         (
-            "spectronaut/v21/rules.json",
+            "spectronaut/rules.json",
             "_[Acetyl (Protein N-term)]PEPN[Deamidation (NQ)]K_",
             "[UNIMOD:1]-PEPN[UNIMOD:7]K",
         ),
@@ -1092,7 +1092,7 @@ def test_a_var_column_resolves_a_features_repeated_rows_as_its_rule_declares() -
         obs_select={"sample": "Sample"},
         var_select={"Feature": "Feature", "Global": "Global", "Gene": "Gene"},
         var_types={"Global": "number"},
-        computed=[{"name": "Global", "duplicates": {"mode": "min"}}],
+        computed=[{"name": "Global", "per_feature": "min"}],
         var_keys=["Feature"],
     )
     strategy = synthetic.facade(document).resolve_source(
@@ -1129,10 +1129,11 @@ def test_keep_best_takes_a_column_from_the_row_another_column_ranks_best() -> No
         var_select={"Feature": "Feature", "Sameset": "samesets", "Set_Score": "score"},
         var_types={"Set_Score": "number"},
         computed=[
-            {"name": "Sameset", "duplicates": {"mode": "keep_best", "by": "Set_Score"}},
-            {"name": "Set_Score", "duplicates": {"mode": "max"}},
+            {"name": "Sameset", "per_feature": "best_row"},
+            {"name": "Set_Score", "per_feature": "max"},
         ],
         var_keys=["Feature"],
+        rank_rows={"by": "Set_Score"},
         duplicates="keep_best",
         rank_by="Quantity",
     )
@@ -1171,10 +1172,11 @@ def test_a_feature_column_ranking_selects_the_rows_of_the_feature_table_and_the_
         var_select={"Feature": "Feature", "Sameset": "samesets", "Set_Score": "score"},
         var_types={"Set_Score": "number"},
         computed=[
-            {"name": "Sameset", "duplicates": {"mode": "keep_best", "by": "Set_Score"}},
-            {"name": "Set_Score", "duplicates": {"mode": "max"}},
+            {"name": "Sameset", "per_feature": "best_row"},
+            {"name": "Set_Score", "per_feature": "max"},
         ],
         var_keys=["Feature"],
+        rank_rows={"by": "Set_Score"},
     )
     strategy = synthetic.facade(document).resolve_source(
         delimited(("Sample", "Feature", "samesets", "score", "Quantity"))

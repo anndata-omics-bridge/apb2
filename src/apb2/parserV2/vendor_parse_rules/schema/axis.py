@@ -10,8 +10,8 @@ from apb2.parserV2.vendor_parse_rules.schema.base import (
     AxisColumnType,
     ModelBase,
     Note,
+    PerFeature,
     UnknownPolicy,
-    VarDuplicateMode,
 )
 from apb2.parserV2.vendor_parse_rules.schema.roles import SemanticRole
 
@@ -98,34 +98,34 @@ class ProformaFragment(ComputedColumnBase):
 
 
 class _Flag(ModelBase):
-    """Mark the rows the vendor itself marks; never missing.
-
-    ``equals`` marks a row whose input value equals it, ``prefix`` one whose input, or a
-    member of its ``separator``-joined list, starts with it. Without inputs the vendor writes
-    no such rows and every row is unmarked. With several inputs, any match marks the row, and
-    inputs a source lacks are left out.
-    """
+    """A decoy or contaminant column: a boolean every row carries, never missing."""
 
     source: None = None
     type: Literal["boolean"] = "boolean"
     required: Literal[True] = True
     roles: list[SemanticRole] = Field(default_factory=list, max_length=0)
-    inputs: list[str] = Field(default_factory=list)
+
+
+class _Marking(_Flag):
+    """Mark the rows the vendor itself marks.
+
+    ``equals`` marks a row whose input value equals it, ``prefix`` one whose input, or a
+    member of its ``separator``-joined list, starts with it. With several inputs, any match
+    marks the row, and inputs a source lacks are left out.
+    """
+
+    inputs: list[str] = Field(min_length=1)
     equals: str | None = Field(default=None, min_length=1)
     prefix: str | None = Field(default=None, min_length=1)
     separator: str | None = Field(default=None, min_length=1)
     note: Note = None
 
     @model_validator(mode="after")
-    def _one_marking(self) -> _Flag:
+    def _one_marking(self) -> _Marking:
         markings = [field for field in ("equals", "prefix") if getattr(self, field) is not None]
-        if self.inputs and len(markings) != 1:
+        if len(markings) != 1:
             raise ValueError(
-                "a decoy or contaminant column with inputs declares exactly one of equals or prefix"
-            )
-        if not self.inputs and markings:
-            raise ValueError(
-                "a decoy or contaminant column without inputs declares neither equals nor prefix"
+                "a decoy or contaminant column declares exactly one of equals or prefix"
             )
         if self.separator is not None and self.prefix is None:
             raise ValueError(
@@ -134,18 +134,30 @@ class _Flag(ModelBase):
         return self
 
 
-class DecoyFlag(_Flag):
+class DecoyFlag(_Marking):
     """``apb_Decoy``: the rows the vendor marks as decoys."""
 
     how: Literal["decoy"]
     name: Literal["apb_Decoy"] = "apb_Decoy"
 
 
-class ContaminantFlag(_Flag):
+class ContaminantFlag(_Marking):
     """``apb_Contaminant``: the rows the vendor marks as contaminants it flags or adds itself."""
 
     how: Literal["contaminant"]
     name: Literal["apb_Contaminant"] = "apb_Contaminant"
+
+
+class UnmarkedFlag(_Flag):
+    """``apb_Decoy`` or ``apb_Contaminant`` for a report with no column marking such rows.
+
+    The result still carries the column, every row ``false``.
+    """
+
+    inputs: list[str] = Field(default_factory=list, max_length=0)
+    note: Note = None
+    how: Literal["unmarked"]
+    name: Literal["apb_Decoy", "apb_Contaminant"]
 
 
 FLAG_COLUMNS = ("apb_Decoy", "apb_Contaminant")
@@ -170,46 +182,38 @@ type ComputedColumn = Annotated[
     | ProformaIon
     | ProformaFragment
     | DecoyFlag
-    | ContaminantFlag,
+    | ContaminantFlag
+    | UnmarkedFlag,
     Field(discriminator="how"),
 ]
 
 
-class ColumnDuplicates(ModelBase):
-    """How a var column resolves the values a feature's repeated rows give it.
+class RankRows(ModelBase):
+    """The var column that ranks a feature's repeated rows, for its ``best_row`` columns.
 
-    A long report repeats a feature's values in every row of it, one per run. ``keep_first``
-    keeps the first nonblank value and reports features whose rows disagree. ``min`` and
-    ``max`` keep the smallest or largest number, for a tool that writes a placeholder into
-    some of a feature's rows, such as DIA-NN's protein-group q-value of 1.0. ``keep_best``
-    selects the feature's rows whose ``by`` column is ``best`` before the feature table and the
-    layers are built, so the columns ranked by one score and every layer describe the same
-    row, such as the protein set a shared peptide is assigned to. A level ranks by one column.
+    The level keeps, per feature, the row whose ``by`` column is ``best`` before the feature
+    table and the layers are built, so the ``best_row`` columns and every layer describe the
+    same row, such as the protein set a shared peptide is assigned to.
     """
 
-    mode: VarDuplicateMode = "keep_first"
-    by: str | None = Field(
-        default=None, description="keep_best: the numeric var column that ranks repeated rows"
-    )
+    by: str = Field(description="the numeric var column that ranks a feature's repeated rows")
     best: Literal["highest", "lowest"] = Field(
-        default="highest", description="keep_best: which value of the 'by' column wins"
+        default="highest", description="which value of the 'by' column wins"
     )
-
-    @model_validator(mode="after")
-    def _ranking_only_for_keep_best(self) -> ColumnDuplicates:
-        if (self.mode == "keep_best") != (self.by is not None):
-            raise ValueError("'by' names the ranking column exactly when mode is keep_best")
-        if self.mode != "keep_best" and self.best != "highest":
-            raise ValueError("'best' applies only to keep_best")
-        return self
 
 
 class SourcedColumn(ModelBase):
     """One logical axis column read from one physical vendor column.
 
     A protein-list column may declare the vendor's own further list ``separator``, such as
-    PEAKS's ``:``; ``;`` and ``,`` separate every protein list already. Only a var column
-    declares ``duplicates``; without it, a feature keeps its first nonblank value.
+    PEAKS's ``:``; ``;`` and ``,`` separate every protein list already.
+
+    ``per_feature`` says how a var column resolves the values a feature's repeated rows give
+    it; a long report repeats a feature in every row of it, one per run. ``first`` keeps the
+    first nonblank value and reports features whose rows disagree. ``min`` and ``max`` keep the
+    smallest or largest number, for a tool that writes a placeholder into some of a feature's
+    rows, such as DIA-NN's protein-group q-value of 1.0. ``best_row`` takes the value from the
+    row the level's ``rank_rows`` keeps.
     """
 
     name: str
@@ -218,7 +222,7 @@ class SourcedColumn(ModelBase):
     required: bool = True
     roles: list[SemanticRole] = Field(default_factory=list)
     separator: str | None = Field(default=None, min_length=1)
-    duplicates: ColumnDuplicates | None = None
+    per_feature: PerFeature = "first"
     note: Note = None
 
     @model_validator(mode="after")
@@ -231,15 +235,10 @@ class SourcedColumn(ModelBase):
 
     @model_validator(mode="after")
     def _extremes_are_numbers(self) -> SourcedColumn:
-        mode = self.duplicates_mode
+        mode = self.per_feature
         if mode in {"min", "max"} and self.type not in {"number", "integer"}:
-            raise ValueError(f"{self.name}: duplicates mode {mode!r} needs a numeric column")
+            raise ValueError(f"{self.name}: per_feature {mode!r} needs a numeric column")
         return self
-
-    @property
-    def duplicates_mode(self) -> VarDuplicateMode:
-        """The declared mode, ``keep_first`` without a ``duplicates`` block."""
-        return "keep_first" if self.duplicates is None else self.duplicates.mode
 
 
 type ColumnEntry = SourcedColumn | ComputedColumn

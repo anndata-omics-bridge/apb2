@@ -91,14 +91,15 @@ class ColumnSignature:
         working = ParseRuleFacade.from_declared_rule(document, level).working_parameters
         columns = set(source.header(working))
         acquisition: Literal["DDA", "DIA", "unknown"] = "unknown"
-        signature = declared.input.software_only
+        signature = declared.input.without_parameter_file
         if signature is not None:
             if not set(signature.required_columns) <= columns or (
                 set(signature.forbidden_columns) & columns
             ):
                 raise RuleNotApplicable(f"{document.path}: columns do not match level {level!r}")
-            acquisition = signature.acquisition_method_otherwise
-            if any(column in columns for column in signature.acquisition_method_if_any):
+            method = signature.acquisition_method
+            acquisition = method.otherwise
+            if any(column in columns for column in method.DDA_if_any_column):
                 acquisition = "DDA"
         rule = declared.declaration
         needed = set(rule.requires_search_parameters)
@@ -150,7 +151,7 @@ UNKNOWN_SEARCH_PARAMETERS = SearchParameterEvidence(
 
 
 def search_parameter_evidence(parameters: Parameters) -> SearchParameterEvidence:
-    """Project the two search-parameter fields schema 0.9 is allowed to inspect."""
+    """Project the two search-parameter fields schema 0.10 is allowed to inspect."""
     return SearchParameterEvidence(
         acquisition_method=parameters.acquisition_method,
         combine_charge_states=parameters.combine_charge_states,

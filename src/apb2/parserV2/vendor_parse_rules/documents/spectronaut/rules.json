@@ -1,422 +1,179 @@
 {
-  "hierarchy": "lfq",
-  "schema_version": "0.9",
-  "file_version": "2",
+  "schema_version": "0.10",
+  "file_version": "4",
   "software_name": "Spectronaut",
-  "software_version_pattern": "^(19|20)\\..*",
+  "software_version_pattern": "^(19|20|21)\\..*",
   "tables": [
     {
       "input": {
         "shape": "long",
-        "extensions": [
-          ".tsv"
-        ],
-        "software_only": {
-          "required_columns": [
-            "E.Errors"
-          ],
-          "forbidden_columns": [
-            "EG.LibraryQvalue"
-          ]
-        },
-        "delimiter": {
-          "mode": "detect",
-          "candidates": [
-            "\t",
-            ";",
-            ","
-          ]
-        },
+        "extensions": [".tsv"],
+        "delimiter": {"mode": "detect", "candidates": ["\t", ";", ","]},
         "numbers": {
           "mode": "detect",
-          "decimal_candidates": [
-            ".",
-            ","
-          ],
-          "thousands_candidates": [
-            ",",
-            ".",
-            " "
-          ]
-        }
+          "decimal_candidates": [".", ","],
+          "thousands_candidates": [",", ".", " "]
+        },
+        "without_parameter_file": {"required_columns": ["E.Errors"]}
       },
       "base": {
-        "axis": {
-          "obs_keys": [
-            "R_FileName"
+        "axis": {"obs_keys": ["R_FileName"]},
+        "columns": {
+          "obs": [
+            {"name": "R_FileName", "source": "R.FileName"},
+            {"name": "R_Condition", "source": "R.Condition"}
+          ],
+          "var": [
+            {
+              "name": "PG_ProteinAccessions",
+              "source": "PG.ProteinAccessions",
+              "roles": ["fasta_accessions"]
+            },
+            {
+              "name": "PG_ProteinGroups",
+              "source": "PG.ProteinGroups",
+              "roles": ["protein_assignment"]
+            },
+            {"name": "apb_Decoy", "inputs": ["EG_IsDecoy"], "how": "decoy", "equals": "true"},
+            {"name": "apb_Contaminant", "how": "unmarked"}
           ]
-        },
-        "measurements": {
-          "duplicates": {
-            "mode": "error"
-          }
         },
         "sequence_syntax": {
           "vendor_sequence": {
             "parser": "token_regex",
-            "token_pattern": "^\\[(?P<nterm>[^\\[\\]]+)\\]|\\[(?P<residue>[^\\[\\]]+)\\]",
-            "token_position": "after_residue"
+            "token_pattern": "^\\[(?P<nterm>[^\\[\\]]+)\\]|\\[(?P<residue>[^\\[\\]]+)\\]"
           }
         },
         "modification_maps": {
-          "basic_modification_map": [
-            {
-              "token": "Acetyl (Protein N-term)",
-              "accession": "UNIMOD:1"
-            },
-            {
-              "token": "Oxidation (M)",
-              "accession": "UNIMOD:35"
-            },
-            {
-              "token": "Carbamidomethyl (C)",
-              "accession": "UNIMOD:4"
-            },
-            {
-              "token": "Deamidation (NQ)",
-              "accession": "UNIMOD:7"
-            }
-          ]
+          "basic_modification_map": {
+            "Acetyl (Protein N-term)": "UNIMOD:1",
+            "Oxidation (M)": "UNIMOD:35",
+            "Carbamidomethyl (C)": "UNIMOD:4",
+            "Deamidation (NQ)": "UNIMOD:7"
+          }
         }
       },
       "levels": {
         "peptidoform_ion": {
-          "axis": {
-            "var_keys": [
-              "ProForma_ion"
-            ]
-          },
+          "axis": {"var_keys": ["ProForma_ion"]},
           "measurements": {
             "primary_layer": "FG_Quantity",
             "layers": [
               {
                 "name": "FG_Quantity",
                 "source": "FG.Quantity",
-                "roles": [
-                  "abundance"
-                ],
-                "missing_values": [
-                  "<=0"
-                ]
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
               },
-              {
-                "name": "EG_MaxChannelQvalue",
-                "source": "EG.MaxChannelQvalue"
-              },
-              {
-                "name": "EG_MinChannelQvalue",
-                "source": "EG.MinChannelQvalue"
-              },
-              {
-                "name": "EG_PEP",
-                "source": "EG.PEP"
-              },
-              {
-                "name": "EG_Qvalue",
-                "source": "EG.Qvalue",
-                "required": true
-              },
-              {
-                "name": "EG_IsUserPeak",
-                "source": "EG.IsUserPeak"
-              },
-              {
-                "name": "FG_PrecMzCalibrated",
-                "source": "FG.PrecMzCalibrated"
-              },
-              {
-                "name": "FG_CScore",
-                "source": "FG.CScore"
-              },
-              {
-                "name": "FG_Qvalue",
-                "source": "FG.Qvalue",
-                "required": true
-              },
-              {
-                "name": "EG_ApexRT",
-                "source": "EG.ApexRT"
-              },
-              {
-                "name": "EG_StartRT",
-                "source": "EG.StartRT"
-              },
-              {
-                "name": "EG_EndRT",
-                "source": "EG.EndRT"
-              },
-              {
-                "name": "EG_FWHM",
-                "source": "EG.FWHM"
-              },
-              {
-                "name": "EG_PeakWidth",
-                "source": "EG.PeakWidth"
-              },
-              {
-                "name": "EG_StartiRT",
-                "source": "EG.StartiRT"
-              },
-              {
-                "name": "EG_EndiRT",
-                "source": "EG.EndiRT"
-              },
-              {
-                "name": "EG_FWHM_iRT",
-                "source": "EG.FWHM (iRT)"
-              },
+              {"name": "EG_MaxChannelQvalue", "source": "EG.MaxChannelQvalue"},
+              {"name": "EG_MinChannelQvalue", "source": "EG.MinChannelQvalue"},
+              {"name": "EG_PEP", "source": "EG.PEP"},
+              {"name": "EG_Qvalue", "source": "EG.Qvalue", "required": true},
+              {"name": "EG_IsUserPeak", "source": "EG.IsUserPeak"},
+              {"name": "FG_PrecMzCalibrated", "source": "FG.PrecMzCalibrated"},
+              {"name": "FG_CScore", "source": "FG.CScore"},
+              {"name": "FG_Qvalue", "source": "FG.Qvalue", "required": true},
+              {"name": "EG_ApexRT", "source": "EG.ApexRT"},
+              {"name": "EG_StartRT", "source": "EG.StartRT"},
+              {"name": "EG_EndRT", "source": "EG.EndRT"},
+              {"name": "EG_FWHM", "source": "EG.FWHM"},
+              {"name": "EG_PeakWidth", "source": "EG.PeakWidth"},
+              {"name": "EG_StartiRT", "source": "EG.StartiRT"},
+              {"name": "EG_EndiRT", "source": "EG.EndiRT"},
+              {"name": "EG_FWHM_iRT", "source": "EG.FWHM (iRT)"},
               {
                 "name": "EG_MeanApexRT",
                 "source": "EG.MeanApexRT",
                 "note": "Differs between runs for the same precursor, so a layer; equal to EG.ApexRT in most rows"
               },
-              {
-                "name": "EG_iRTEmpirical",
-                "source": "EG.iRTEmpirical"
-              },
-              {
-                "name": "EG_RTPredicted",
-                "source": "EG.RTPredicted"
-              },
-              {
-                "name": "EG_IsImputed",
-                "source": "EG.IsImputed"
-              },
+              {"name": "EG_iRTEmpirical", "source": "EG.iRTEmpirical"},
+              {"name": "EG_RTPredicted", "source": "EG.RTPredicted"},
+              {"name": "EG_IsImputed", "source": "EG.IsImputed"},
               {
                 "name": "EG_ReferenceQuantity_Settings",
                 "source": "EG.ReferenceQuantity (Settings)",
-                "roles": [
-                  "abundance"
-                ],
-                "missing_values": [
-                  "<=0"
-                ]
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
               },
               {
                 "name": "EG_TargetQuantity_Settings",
                 "source": "EG.TargetQuantity (Settings)",
-                "roles": [
-                  "abundance"
-                ],
-                "missing_values": [
-                  "<=0"
-                ]
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
               },
               {
                 "name": "EG_TotalQuantity_Settings",
                 "source": "EG.TotalQuantity (Settings)",
-                "roles": [
-                  "abundance"
-                ],
-                "missing_values": [
-                  "<=0"
-                ]
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
               },
-              {
-                "name": "EG_UsedForPeptideQuantity",
-                "source": "EG.UsedForPeptideQuantity"
-              },
+              {"name": "EG_UsedForPeptideQuantity", "source": "EG.UsedForPeptideQuantity"},
               {
                 "name": "EG_UsedForProteinGroupQuantity",
                 "source": "EG.UsedForProteinGroupQuantity"
               },
-              {
-                "name": "EG_Cscore",
-                "source": "EG.Cscore"
-              },
-              {
-                "name": "EG_NormalizedCscore",
-                "source": "EG.NormalizedCscore"
-              }
+              {"name": "EG_Cscore", "source": "EG.Cscore"},
+              {"name": "EG_NormalizedCscore", "source": "EG.NormalizedCscore"}
             ]
           },
           "columns": {
             "obs": [
-              {
-                "name": "E_Errors",
-                "source": "E.Errors"
-              },
-              {
-                "name": "E_LFQMethod",
-                "source": "E.LFQMethod"
-              },
-              {
-                "name": "E_Warnings",
-                "source": "E.Warnings"
-              },
-              {
-                "name": "R_FileName",
-                "source": "R.FileName"
-              },
-              {
-                "name": "R_Condition",
-                "source": "R.Condition"
-              },
-              {
-                "name": "R_Fraction",
-                "source": "R.Fraction"
-              },
-              {
-                "name": "R_Replicate",
-                "source": "R.Replicate"
-              },
-              {
-                "name": "R_Label",
-                "source": "R.Label"
-              }
+              {"name": "E_Errors", "source": "E.Errors"},
+              {"name": "E_LFQMethod", "source": "E.LFQMethod"},
+              {"name": "E_Warnings", "source": "E.Warnings"},
+              {"name": "R_Fraction", "source": "R.Fraction"},
+              {"name": "R_Replicate", "source": "R.Replicate"},
+              {"name": "R_Label", "source": "R.Label"}
             ],
             "var": [
-              {
-                "name": "PG_GroupLabel",
-                "source": "PG.GroupLabel"
-              },
-              {
-                "name": "PG_ProteinAccessions",
-                "source": "PG.ProteinAccessions",
-                "roles": [
-                  "fasta_accessions"
-                ]
-              },
-              {
-                "name": "PG_ProteinGroups",
-                "source": "PG.ProteinGroups",
-                "roles": [
-                  "protein_assignment"
-                ]
-              },
-              {
-                "name": "PEP_GroupingKey",
-                "source": "PEP.GroupingKey"
-              },
-              {
-                "name": "PEP_GroupingKeyType",
-                "source": "PEP.GroupingKeyType"
-              },
-              {
-                "name": "PEP_StrippedSequence",
-                "source": "PEP.StrippedSequence"
-              },
+              {"name": "PG_GroupLabel", "source": "PG.GroupLabel"},
+              {"name": "PEP_GroupingKey", "source": "PEP.GroupingKey"},
+              {"name": "PEP_GroupingKeyType", "source": "PEP.GroupingKeyType"},
+              {"name": "PEP_StrippedSequence", "source": "PEP.StrippedSequence"},
               {
                 "name": "PEP_IsProteotypic",
                 "source": "PEP.IsProteotypic",
                 "type": "boolean",
                 "required": false
               },
+              {"name": "EG_ModifiedSequence", "source": "EG.ModifiedSequence"},
+              {"name": "EG_ModifiedPeptide", "source": "EG.ModifiedPeptide"},
+              {"name": "EG_IntPIMID", "source": "EG.IntPIMID"},
+              {"name": "EG_UserGroup", "source": "EG.UserGroup"},
+              {"name": "EG_Workflow", "source": "EG.Workflow"},
+              {"name": "EG_IsDecoy", "source": "EG.IsDecoy", "type": "boolean"},
+              {"name": "EG_iRTPredicted", "source": "EG.iRTPredicted", "type": "number"},
+              {"name": "EG_AvgProfileQvalue", "source": "EG.AvgProfileQvalue", "type": "number"},
+              {"name": "EG_MaxProfileQvalue", "source": "EG.MaxProfileQvalue", "type": "number"},
+              {"name": "EG_MinProfileQvalue", "source": "EG.MinProfileQvalue", "type": "number"},
+              {"name": "EG_PercentileQvalue", "source": "EG.PercentileQvalue", "type": "number"},
               {
-                "name": "EG_ModifiedSequence",
-                "source": "EG.ModifiedSequence"
+                "name": "EG_LibraryQvalue",
+                "source": "EG.LibraryQvalue",
+                "type": "number",
+                "required": false,
+                "note": "Spectral-library q-value, one per precursor, repeated in every run row"
               },
-              {
-                "name": "EG_ModifiedPeptide",
-                "source": "EG.ModifiedPeptide"
-              },
-              {
-                "name": "EG_IntPIMID",
-                "source": "EG.IntPIMID"
-              },
-              {
-                "name": "EG_UserGroup",
-                "source": "EG.UserGroup"
-              },
-              {
-                "name": "EG_Workflow",
-                "source": "EG.Workflow"
-              },
-              {
-                "name": "EG_IsDecoy",
-                "source": "EG.IsDecoy",
-                "type": "boolean"
-              },
-              {
-                "name": "EG_iRTPredicted",
-                "source": "EG.iRTPredicted",
-                "type": "number"
-              },
-              {
-                "name": "EG_AvgProfileQvalue",
-                "source": "EG.AvgProfileQvalue",
-                "type": "number"
-              },
-              {
-                "name": "EG_MaxProfileQvalue",
-                "source": "EG.MaxProfileQvalue",
-                "type": "number"
-              },
-              {
-                "name": "EG_MinProfileQvalue",
-                "source": "EG.MinProfileQvalue",
-                "type": "number"
-              },
-              {
-                "name": "EG_PercentileQvalue",
-                "source": "EG.PercentileQvalue",
-                "type": "number"
-              },
-              {
-                "name": "FG_Charge",
-                "source": "FG.Charge",
-                "type": "integer"
-              },
-              {
-                "name": "FG_IntMID",
-                "source": "FG.IntMID"
-              },
-              {
-                "name": "FG_LabeledSequence",
-                "source": "FG.LabeledSequence"
-              },
-              {
-                "name": "FG_Mass",
-                "source": "FG.Mass",
-                "type": "number"
-              },
-              {
-                "name": "FG_PrecMz",
-                "source": "FG.PrecMz",
-                "type": "number"
-              },
-              {
-                "name": "FG_XICDBID",
-                "source": "FG.XICDBID"
-              },
+              {"name": "FG_Charge", "source": "FG.Charge", "type": "integer"},
+              {"name": "FG_IntMID", "source": "FG.IntMID"},
+              {"name": "FG_LabeledSequence", "source": "FG.LabeledSequence"},
+              {"name": "FG_Mass", "source": "FG.Mass", "type": "number"},
+              {"name": "FG_PrecMz", "source": "FG.PrecMz", "type": "number"},
+              {"name": "FG_XICDBID", "source": "FG.XICDBID"},
               {
                 "name": "ProForma_peptidoform",
-                "inputs": [
-                  "EG_ModifiedSequence"
-                ],
-                "how": "proforma_sequence",
-                "syntax": "vendor_sequence",
-                "modification_map": "basic_modification_map",
-                "case_sensitive": false,
-                "unknown_policy": "preserve"
+                "inputs": ["EG_ModifiedSequence"],
+                "how": "proforma_sequence"
               },
               {
                 "name": "ProForma_peptide",
-                "inputs": [
-                  "EG_ModifiedSequence"
-                ],
-                "how": "stripped_sequence",
-                "syntax": "vendor_sequence"
+                "inputs": ["EG_ModifiedSequence"],
+                "how": "stripped_sequence"
               },
               {
                 "name": "ProForma_ion",
-                "inputs": [
-                  "ProForma_peptidoform",
-                  "FG_Charge"
-                ],
+                "inputs": ["ProForma_peptidoform", "FG_Charge"],
                 "how": "proforma_ion"
-              },
-              {
-                "name": "apb_Decoy",
-                "inputs": [
-                  "EG_IsDecoy"
-                ],
-                "how": "decoy",
-                "equals": "true"
-              },
-              {
-                "name": "apb_Contaminant",
-                "how": "contaminant"
               }
             ]
           }
@@ -438,80 +195,22 @@
               {
                 "name": "F_PeakArea",
                 "source": "F.PeakArea",
-                "roles": [
-                  "abundance"
-                ],
-                "missing_values": [
-                  "<=0"
-                ]
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
               }
             ]
           },
           "columns": {
-            "obs": [
-              {
-                "name": "R_FileName",
-                "source": "R.FileName"
-              },
-              {
-                "name": "R_Condition",
-                "source": "R.Condition"
-              }
-            ],
             "var": [
-              {
-                "name": "PG_ProteinGroups",
-                "source": "PG.ProteinGroups",
-                "roles": [
-                  "protein_assignment"
-                ]
-              },
-              {
-                "name": "PG_ProteinAccessions",
-                "source": "PG.ProteinAccessions",
-                "roles": [
-                  "fasta_accessions"
-                ]
-              },
-              {
-                "name": "PEP_StrippedSequence",
-                "source": "PEP.StrippedSequence"
-              },
-              {
-                "name": "EG_ModifiedSequence",
-                "source": "EG.ModifiedSequence"
-              },
-              {
-                "name": "EG_PrecursorId",
-                "source": "EG.PrecursorId"
-              },
-              {
-                "name": "FG_Charge",
-                "source": "FG.Charge",
-                "type": "integer"
-              },
-              {
-                "name": "F_FrgIon",
-                "source": "F.FrgIon"
-              },
-              {
-                "name": "F_Charge",
-                "source": "F.Charge",
-                "type": "integer"
-              },
-              {
-                "name": "F_FrgLossType",
-                "source": "F.FrgLossType"
-              },
-              {
-                "name": "F_FrgType",
-                "source": "F.FrgType"
-              },
-              {
-                "name": "F_FrgNum",
-                "source": "F.FrgNum",
-                "type": "integer"
-              },
+              {"name": "PEP_StrippedSequence", "source": "PEP.StrippedSequence"},
+              {"name": "EG_ModifiedSequence", "source": "EG.ModifiedSequence"},
+              {"name": "EG_PrecursorId", "source": "EG.PrecursorId"},
+              {"name": "FG_Charge", "source": "FG.Charge", "type": "integer"},
+              {"name": "F_FrgIon", "source": "F.FrgIon"},
+              {"name": "F_Charge", "source": "F.Charge", "type": "integer"},
+              {"name": "F_FrgLossType", "source": "F.FrgLossType"},
+              {"name": "F_FrgType", "source": "F.FrgType"},
+              {"name": "F_FrgNum", "source": "F.FrgNum", "type": "integer"},
               {
                 "name": "F_FrgMz",
                 "source": "F.FrgMz",
@@ -526,189 +225,65 @@
               },
               {
                 "name": "ProForma_peptidoform",
-                "inputs": [
-                  "EG_ModifiedSequence"
-                ],
-                "how": "proforma_sequence",
-                "syntax": "vendor_sequence",
-                "modification_map": "basic_modification_map",
-                "case_sensitive": false,
-                "unknown_policy": "preserve"
+                "inputs": ["EG_ModifiedSequence"],
+                "how": "proforma_sequence"
               },
               {
                 "name": "ProForma_peptide",
-                "inputs": [
-                  "EG_ModifiedSequence"
-                ],
-                "how": "stripped_sequence",
-                "syntax": "vendor_sequence"
+                "inputs": ["EG_ModifiedSequence"],
+                "how": "stripped_sequence"
               },
               {
                 "name": "ProForma_ion",
-                "inputs": [
-                  "ProForma_peptidoform",
-                  "FG_Charge"
-                ],
+                "inputs": ["ProForma_peptidoform", "FG_Charge"],
                 "how": "proforma_ion"
               },
-              {
-                "name": "EG_IsDecoy",
-                "source": "EG.IsDecoy",
-                "type": "boolean",
-                "required": false
-              },
-              {
-                "name": "apb_Decoy",
-                "inputs": [
-                  "EG_IsDecoy"
-                ],
-                "how": "decoy",
-                "equals": "true"
-              },
-              {
-                "name": "apb_Contaminant",
-                "how": "contaminant"
-              }
+              {"name": "EG_IsDecoy", "source": "EG.IsDecoy", "type": "boolean", "required": false}
             ]
           }
         },
         "protein": {
-          "axis": {
-            "var_keys": [
-              "PG_ProteinGroups"
-            ]
-          },
+          "axis": {"var_keys": ["PG_ProteinGroups"]},
           "measurements": {
             "primary_layer": "PG_Quantity",
-            "duplicates": {
-              "mode": "same"
-            },
+            "repeated_cells": {"mode": "same"},
             "layers": [
               {
                 "name": "PG_Quantity",
                 "source": "PG.Quantity",
-                "roles": [
-                  "abundance"
-                ],
-                "missing_values": [
-                  "<=0"
-                ]
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
               },
-              {
-                "name": "PG_Cscore_Run_Wise",
-                "source": "PG.Cscore (Run-Wise)"
-              },
-              {
-                "name": "PG_PEP_Run_Wise",
-                "source": "PG.PEP (Run-Wise)"
-              },
-              {
-                "name": "PG_PValue_Run_Wise",
-                "source": "PG.PValue (Run-Wise)"
-              },
-              {
-                "name": "PG_QValue_Run_Wise",
-                "source": "PG.QValue (Run-Wise)"
-              },
-              {
-                "name": "PG_RunEvidenceCount",
-                "source": "PG.RunEvidenceCount",
-                "type": "integer"
-              }
+              {"name": "PG_Cscore_Run_Wise", "source": "PG.Cscore (Run-Wise)"},
+              {"name": "PG_PEP_Run_Wise", "source": "PG.PEP (Run-Wise)"},
+              {"name": "PG_PValue_Run_Wise", "source": "PG.PValue (Run-Wise)"},
+              {"name": "PG_QValue_Run_Wise", "source": "PG.QValue (Run-Wise)"},
+              {"name": "PG_RunEvidenceCount", "source": "PG.RunEvidenceCount", "type": "integer"}
             ]
           },
           "columns": {
             "obs": [
-              {
-                "name": "E_Errors",
-                "source": "E.Errors"
-              },
-              {
-                "name": "E_LFQMethod",
-                "source": "E.LFQMethod"
-              },
-              {
-                "name": "E_Warnings",
-                "source": "E.Warnings"
-              },
-              {
-                "name": "R_FileName",
-                "source": "R.FileName"
-              },
-              {
-                "name": "R_Condition",
-                "source": "R.Condition"
-              },
-              {
-                "name": "R_Fraction",
-                "source": "R.Fraction"
-              },
-              {
-                "name": "R_Replicate",
-                "source": "R.Replicate"
-              },
-              {
-                "name": "R_Label",
-                "source": "R.Label"
-              }
+              {"name": "E_Errors", "source": "E.Errors"},
+              {"name": "E_LFQMethod", "source": "E.LFQMethod"},
+              {"name": "E_Warnings", "source": "E.Warnings"},
+              {"name": "R_Fraction", "source": "R.Fraction"},
+              {"name": "R_Replicate", "source": "R.Replicate"},
+              {"name": "R_Label", "source": "R.Label"}
             ],
             "var": [
+              {"name": "PG_GroupLabel", "source": "PG.GroupLabel"},
+              {"name": "PG_Cscore", "source": "PG.Cscore", "type": "number"},
+              {"name": "PG_PEP", "source": "PG.PEP", "type": "number"},
+              {"name": "PG_Pvalue", "source": "PG.Pvalue", "type": "number"},
+              {"name": "PG_Qvalue", "source": "PG.Qvalue", "type": "number"},
               {
-                "name": "PG_GroupLabel",
-                "source": "PG.GroupLabel"
+                "name": "PG_LibraryQvalue",
+                "source": "PG.LibraryQvalue",
+                "type": "number",
+                "required": false,
+                "note": "Spectral-library q-value, one per protein group, repeated in every run row"
               },
-              {
-                "name": "PG_ProteinAccessions",
-                "source": "PG.ProteinAccessions",
-                "roles": [
-                  "fasta_accessions"
-                ]
-              },
-              {
-                "name": "PG_ProteinGroups",
-                "source": "PG.ProteinGroups",
-                "roles": [
-                  "protein_assignment"
-                ]
-              },
-              {
-                "name": "PG_Cscore",
-                "source": "PG.Cscore",
-                "type": "number"
-              },
-              {
-                "name": "PG_PEP",
-                "source": "PG.PEP",
-                "type": "number"
-              },
-              {
-                "name": "PG_Pvalue",
-                "source": "PG.Pvalue",
-                "type": "number"
-              },
-              {
-                "name": "PG_Qvalue",
-                "source": "PG.Qvalue",
-                "type": "number"
-              },
-              {
-                "name": "EG_IsDecoy",
-                "source": "EG.IsDecoy",
-                "type": "boolean",
-                "required": false
-              },
-              {
-                "name": "apb_Decoy",
-                "inputs": [
-                  "EG_IsDecoy"
-                ],
-                "how": "decoy",
-                "equals": "true"
-              },
-              {
-                "name": "apb_Contaminant",
-                "how": "contaminant"
-              }
+              {"name": "EG_IsDecoy", "source": "EG.IsDecoy", "type": "boolean", "required": false}
             ]
           }
         }

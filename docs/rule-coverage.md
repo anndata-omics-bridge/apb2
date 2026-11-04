@@ -7,7 +7,7 @@ A rule document and the standard reader handle everything listed here. A prepara
 - Formats: `.tsv`, `.txt`, `.csv`, their gzipped forms (`.tsv.gz`, `.txt.gz`, `.csv.gz`), `.parquet`, and a named `.xlsx` sheet
 - Declared detection of delimiter, decimal and thousands marks, and encoding
 - Exact file name inside a vendor directory (`input.file_name`)
-- Header signatures for `--software` without a parameter file (`input.software_only`)
+- Header signatures for `--software` without a parameter file (`input.without_parameter_file`)
 - Version selection by `software_version_pattern`
 - Levels that apply only under declared search-parameter values (`requires_search_parameters`)
 

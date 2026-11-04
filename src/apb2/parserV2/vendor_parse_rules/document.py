@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -35,6 +36,11 @@ authored paths, at the single effective-rule validation boundary.
 """
 type MergeBlock = Callable[[JsonDict, JsonDict], JsonDict]
 
+_SAMPLE = "{sample}"
+"""The placeholder a wide layer's source writes where each column names its sample."""
+_DEFAULT_SAMPLE_PATTERN = "(?P<sample>.+)"
+"""What ``{sample}`` stands for when the table declares no ``sample_pattern``."""
+
 
 class RuleNotApplicable(ValueError):
     """This rule does not apply to what the caller has — try another level.
@@ -47,7 +53,7 @@ class RuleNotApplicable(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class SearchParameterEvidence:
-    """The complete parameter vocabulary permitted in schema-0.9 conditions."""
+    """The complete parameter vocabulary permitted in schema-0.10 conditions."""
 
     acquisition_method: Literal["DDA", "DIA", "unknown"]
     combine_charge_states: bool | None
@@ -124,7 +130,7 @@ class RuleDocument(ModelBase):
     file_version: str
     software_name: str
     software_version_pattern: str
-    hierarchy: str
+    hierarchy: str = "lfq"
     parameter_file: Literal["required", "none"] = "required"
     sample_annotation: SampleAnnotation | None = None
     tables: list[_RuleTableSchema] = Field(min_length=1)
@@ -226,7 +232,7 @@ class RuleDocument(ModelBase):
                 if self.sample_annotation is not None
                 else {}
             ),
-            **_merge_fragments(table.base, level_fragment),
+            **_compose_shorthand(_merge_fragments(table.base, level_fragment), table.input.shape),
         }
 
 
@@ -242,6 +248,122 @@ def document_json_schema() -> dict[str, object]:
     schema["required"].remove("path")
     schema["title"] = "RuleDocument"
     return schema
+
+
+# ------------------------------------------- the file: shorthand the composition resolves
+
+
+def _compose_shorthand(merged: JsonDict, shape: str) -> JsonDict:
+    """Resolve the authoring shorthand of one merged level into explicit declarations.
+
+    ``source_prefix`` names the table a preparation step's join prefixes, such as MaxQuant's
+    ``peptide.``: an entry's own prefix wins over the level's, which wins over the base's. A
+    wide layer's ``{sample}`` stands for the table's ``sample_pattern``, the level's over the
+    base's. A sequence column that names no ``syntax`` or ``modification_map`` takes the level's
+    only one. New dicts carry the result, so the document's fragments stay as authored.
+    """
+    composed = dict(merged)
+    prefix = composed.pop("source_prefix", None)
+    if "sample_pattern" in composed and shape != "wide":
+        raise ValueError("sample_pattern applies to a wide table")
+    pattern = composed.pop("sample_pattern", _DEFAULT_SAMPLE_PATTERN)
+    columns = composed.get("columns")
+    if isinstance(columns, dict):
+        composed["columns"] = {
+            group: [_composed_column(entry, prefix, composed) for entry in entries]
+            if isinstance(entries, list)
+            else entries
+            for group, entries in columns.items()
+        }
+    measurements = composed.get("measurements")
+    if isinstance(measurements, dict) and isinstance(layers := measurements.get("layers"), list):
+        composed["measurements"] = {
+            **measurements,
+            "layers": [
+                _wide_layer(layer, prefix, pattern) if shape == "wide" else _prefixed(layer, prefix)
+                for layer in layers
+            ],
+        }
+    return composed
+
+
+def _composed_column(entry: object, prefix: object, level: JsonDict) -> object:
+    """One column with its prefix applied and its sequence references filled in."""
+    column = _prefixed(entry, prefix)
+    if not isinstance(column, dict):
+        return column
+    how = column.get("how")
+    if how in {"proforma_sequence", "stripped_sequence"} and "syntax" not in column:
+        column["syntax"] = _only_name(level, "sequence_syntax", column)
+    if how == "proforma_sequence" and "modification_map" not in column:
+        column["modification_map"] = _only_name(level, "modification_maps", column)
+    return column
+
+
+def _prefixed(entry: object, prefix: object) -> object:
+    """A copy of one column or long-table layer whose ``source`` carries its table prefix."""
+    if not isinstance(entry, dict):
+        return entry
+    composed = dict(entry)
+    declared = "source_prefix" in composed
+    own = composed.pop("source_prefix") if declared else prefix
+    source = composed.get("source")
+    if own is None or (source is None and not declared):
+        return composed
+    if not isinstance(own, str) or not isinstance(source, str):
+        raise ValueError(f"{composed.get('name')!r}: source_prefix applies to a text source")
+    composed["source"] = own + source
+    return composed
+
+
+def _wide_layer(entry: object, prefix: object, pattern: object) -> object:
+    """A copy of one wide layer whose ``source`` is the regex naming each sample's column.
+
+    A source with ``{sample}`` is the column header as text: ``pattern`` stands in for the
+    placeholder, and the text before and after it, the table prefix first, matches literally.
+    Any other source is a regex already, and an escaped prefix follows its leading ``^``.
+    """
+    if not isinstance(entry, dict):
+        return entry
+    composed = dict(entry)
+    own = composed.pop("source_prefix") if "source_prefix" in composed else prefix
+    source = composed.get("source")
+    name = composed.get("name")
+    if own is not None and not isinstance(own, str):
+        raise ValueError(f"layer {name!r}: source_prefix is text")
+    if not isinstance(source, str):
+        return composed
+    if _SAMPLE in source:
+        before, *after = source.split(_SAMPLE)
+        if len(after) != 1:
+            raise ValueError(f"layer {name!r}: a wide source names {_SAMPLE} once")
+        if not isinstance(pattern, str):
+            raise ValueError("sample_pattern is a regex text")
+        composed["source"] = f"^{_literal((own or '') + before)}{pattern}{_literal(after[0])}$"
+        return composed
+    if own is None:
+        return composed
+    if not source.startswith("^"):
+        raise ValueError(f"layer {name!r}: a wide source under source_prefix starts with '^'")
+    composed["source"] = "^" + _literal(own) + source[1:]
+    return composed
+
+
+def _literal(text: str) -> str:
+    """``text`` as a regex matching it literally; a space stays a space outside verbose mode."""
+    return re.escape(text).replace("\\ ", " ")
+
+
+def _only_name(level: JsonDict, registry: str, column: JsonDict) -> str:
+    """The one name ``registry`` declares, for a sequence column that names none."""
+    declared = level.get(registry)
+    names = list(declared) if isinstance(declared, dict) else []
+    if len(names) != 1:
+        raise ValueError(
+            f"column {column.get('name')!r} names no {registry} entry, and the level declares "
+            f"{len(names)}, {names}; name one"
+        )
+    return str(names[0])
 
 
 # ---------------------------------------------------- the file: the base-level merge
@@ -310,8 +432,8 @@ def _merge_columns(base: JsonDict, level: JsonDict) -> JsonDict:
 
 
 def _merge_measurements(base: JsonDict, level: JsonDict) -> JsonDict:
-    """Merge a measurements block: nested duplicates key-wise, layers concatenated."""
-    return _merge_blocks(base, level, mappings=("duplicates",), sequences=("layers",))
+    """Merge a measurements block: nested repeated_cells key-wise, layers concatenated."""
+    return _merge_blocks(base, level, mappings=("repeated_cells",), sequences=("layers",))
 
 
 def _merge_blocks(

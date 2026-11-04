@@ -1,93 +1,42 @@
 {
-  "hierarchy": "lfq",
-  "schema_version": "0.9",
-  "file_version": "1",
+  "schema_version": "0.10",
+  "file_version": "2",
   "software_name": "pb_custom",
   "software_version_pattern": "^.*$",
   "parameter_file": "none",
-  "sample_annotation": {
-    "matching": {
-      "mode": "exact",
-      "normalize": "mass_spec_basename"
-    }
-  },
+  "sample_annotation": {"matching": {"mode": "exact", "normalize": "mass_spec_basename"}},
   "tables": [
     {
-      "input": {
-        "shape": "wide",
-        "extensions": [
-          ".txt",
-          ".tsv"
-        ]
-      },
+      "input": {"shape": "wide", "extensions": [".txt", ".tsv"]},
       "base": {
-        "axis": {
-          "obs_keys": [
-            "sample"
-          ]
-        },
-        "measurements": {
-          "duplicates": {
-            "mode": "error"
-          }
-        },
+        "axis": {"obs_keys": ["sample"]},
         "columns": {
           "var": [
-            {
-              "name": "Sequence",
-              "source": "Sequence"
-            },
+            {"name": "Sequence", "source": "Sequence"},
             {
               "name": "Proteins",
               "source": "Proteins",
-              "roles": [
-                "protein_assignment",
-                "fasta_accessions"
-              ]
+              "roles": ["protein_assignment", "fasta_accessions"]
             },
-            {
-              "name": "Charge",
-              "source": "Charge",
-              "type": "integer"
-            },
-            {
-              "name": "ProForma_peptidoform",
-              "source": "Modified sequence"
-            },
-            {
-              "name": "ProForma_peptide",
-              "source": "Sequence"
-            },
-            {
-              "name": "apb_Decoy",
-              "how": "decoy"
-            },
-            {
-              "name": "apb_Contaminant",
-              "how": "contaminant"
-            }
+            {"name": "Charge", "source": "Charge", "type": "integer"},
+            {"name": "ProForma_peptidoform", "source": "Modified sequence"},
+            {"name": "ProForma_peptide", "source": "Sequence"},
+            {"name": "apb_Decoy", "how": "unmarked"},
+            {"name": "apb_Contaminant", "how": "unmarked"}
           ]
         }
       },
       "levels": {
         "peptidoform_ion": {
-          "axis": {
-            "var_keys": [
-              "ProForma_ion"
-            ]
-          },
+          "axis": {"var_keys": ["ProForma_ion"]},
           "measurements": {
             "primary_layer": "Intensity",
             "layers": [
               {
                 "name": "Intensity",
                 "source": "^(?P<sample>.+)$",
-                "roles": [
-                  "abundance"
-                ],
-                "missing_values": [
-                  "<=0"
-                ]
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
               }
             ]
           },
@@ -95,10 +44,7 @@
             "var": [
               {
                 "name": "ProForma_ion",
-                "inputs": [
-                  "ProForma_peptidoform",
-                  "Charge"
-                ],
+                "inputs": ["ProForma_peptidoform", "Charge"],
                 "how": "proforma_ion"
               }
             ]

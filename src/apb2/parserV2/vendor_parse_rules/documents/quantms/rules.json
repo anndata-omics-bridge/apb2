@@ -1,162 +1,82 @@
 {
-  "hierarchy": "lfq",
-  "schema_version": "0.9",
-  "file_version": "1",
+  "schema_version": "0.10",
+  "file_version": "2",
   "software_name": "quantms",
   "software_version_pattern": "^v?1\\..*",
-  "sample_annotation": {
-    "matching": {
-      "mode": "exact",
-      "normalize": "mass_spec_basename"
-    }
-  },
+  "sample_annotation": {"matching": {"mode": "exact", "normalize": "mass_spec_basename"}},
   "tables": [
     {
-      "input": {
-        "shape": "long",
-        "extensions": [
-          ".csv"
-        ]
-      },
+      "input": {"shape": "long", "extensions": [".csv"]},
       "base": {
-        "axis": {
-          "obs_keys": [
-            "Raw_File"
-          ]
-        },
-        "measurements": {
-          "duplicates": {
-            "mode": "error"
-          }
-        },
+        "axis": {"obs_keys": ["Raw_File"]},
         "columns": {
           "obs": [
-            {
-              "name": "Raw_File",
-              "source": "Reference"
-            },
-            {
-              "name": "Condition",
-              "source": "Condition",
-              "required": false
-            },
-            {
-              "name": "Bio_Replicate",
-              "source": "BioReplicate",
-              "required": false
-            },
-            {
-              "name": "Run",
-              "source": "Run",
-              "required": false
-            }
+            {"name": "Raw_File", "source": "Reference"},
+            {"name": "Condition", "source": "Condition", "required": false},
+            {"name": "Bio_Replicate", "source": "BioReplicate", "required": false},
+            {"name": "Run", "source": "Run", "required": false}
           ]
         },
         "sequence_syntax": {
           "vendor_sequence": {
             "parser": "token_regex",
-            "token_pattern": "^\\((?P<nterm>[^)]+)\\)|\\((?P<residue>[^)]+)\\)",
-            "token_position": "after_residue"
+            "token_pattern": "^\\((?P<nterm>[^)]+)\\)|\\((?P<residue>[^)]+)\\)"
           }
         },
         "modification_maps": {
-          "basic_modification_map": [
-            {
-              "token": "Carbamidomethyl",
-              "accession": "UNIMOD:4"
-            },
-            {
-              "token": "Oxidation",
-              "accession": "UNIMOD:35"
-            },
-            {
-              "token": "Acetyl",
-              "accession": "UNIMOD:1"
-            }
-          ]
+          "basic_modification_map": {
+            "Carbamidomethyl": "UNIMOD:4",
+            "Oxidation": "UNIMOD:35",
+            "Acetyl": "UNIMOD:1"
+          }
         }
       },
       "levels": {
         "peptidoform_ion": {
-          "axis": {
-            "var_keys": [
-              "ProForma_ion"
-            ]
-          },
+          "axis": {"var_keys": ["ProForma_ion"]},
           "measurements": {
             "primary_layer": "Intensity",
             "layers": [
               {
                 "name": "Intensity",
                 "source": "Intensity",
-                "roles": [
-                  "abundance"
-                ],
-                "missing_values": [
-                  "<=0"
-                ]
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
               }
             ]
           },
           "columns": {
             "var": [
-              {
-                "name": "Modified_Sequence",
-                "source": "PeptideSequence"
-              },
-              {
-                "name": "Charge",
-                "source": "PrecursorCharge",
-                "type": "integer"
-              },
+              {"name": "Modified_Sequence", "source": "PeptideSequence"},
+              {"name": "Charge", "source": "PrecursorCharge", "type": "integer"},
               {
                 "name": "Protein",
                 "source": "ProteinName",
-                "roles": [
-                  "protein_assignment",
-                  "fasta_accessions"
-                ]
+                "roles": ["protein_assignment", "fasta_accessions"]
               },
               {
                 "name": "ProForma_peptidoform",
-                "inputs": [
-                  "Modified_Sequence"
-                ],
-                "how": "proforma_sequence",
-                "syntax": "vendor_sequence",
-                "modification_map": "basic_modification_map",
-                "case_sensitive": false,
-                "unknown_policy": "preserve"
+                "inputs": ["Modified_Sequence"],
+                "how": "proforma_sequence"
               },
               {
                 "name": "ProForma_peptide",
-                "inputs": [
-                  "Modified_Sequence"
-                ],
-                "how": "stripped_sequence",
-                "syntax": "vendor_sequence"
+                "inputs": ["Modified_Sequence"],
+                "how": "stripped_sequence"
               },
               {
                 "name": "ProForma_ion",
-                "inputs": [
-                  "ProForma_peptidoform",
-                  "Charge"
-                ],
+                "inputs": ["ProForma_peptidoform", "Charge"],
                 "how": "proforma_ion"
               },
               {
                 "name": "apb_Decoy",
-                "inputs": [
-                  "Protein"
-                ],
+                "inputs": ["Protein"],
                 "how": "decoy",
                 "prefix": "DECOY_",
                 "separator": ";"
               },
-              {
-                "name": "apb_Contaminant",
-                "how": "contaminant"
-              }
+              {"name": "apb_Contaminant", "how": "unmarked"}
             ]
           }
         }

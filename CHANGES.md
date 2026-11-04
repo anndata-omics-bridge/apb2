@@ -1,5 +1,17 @@
 # Changes
 
+## 2026-11-04
+
+- **Breaking**, schema `0.10` continued: a wide layer writes its header as text, `{sample}` where the sample's name goes (`"Intensity {sample}"`); the table's `sample_pattern`, default `(?P<sample>.+)`, stands for it, and composition writes the regex the stored `rule_json` keeps. MSAngel, PEAKS and FragPipe declare one; AlphaDIA 1.10, Sage and the custom ProteoBench table keep a regex source. FragPipe's `Intensity` now drops a trailing `_1` or `_2` from the sample name, as its other layers did
+- **Breaking:** a decoy or contaminant flag the report never marks is `{"how": "unmarked"}`; `decoy` and `contaminant` need at least one input. The result is unchanged, a column every row `false`
+- **Breaking:** one Spectronaut rule covers 19 to 21 (`spectronaut/rules.json`, `^(19|20|21)\.`); `spectronaut/v21/` is gone. Without a parameter file it requires `E.Errors`, which Spectronaut 15's rule forbids, and both library q-value columns are optional
+
+## 2026-11-03
+
+- **Breaking:** rule schema `0.10`, for readability; every packaged rules.json is rewritten and its `file_version` raised, and parsed values are unchanged. Layers resolve repeated cells under `measurements.repeated_cells`, formerly `duplicates`. A var column says `per_feature`: `first` (default), `min`, `max` or `best_row`, formerly a `duplicates` block; the level names its ranking once, `rank_rows: {by, best}`. The column check without a parameter file is `input.without_parameter_file`, formerly `software_only`, and its `acquisition_method` names DDA: `{"DDA_if_any_column": [...], "otherwise": "DIA"}`. Modification maps are token-to-accession objects. Composition resolves new shorthand, so the stored `rule_json` stays explicit: `source_prefix` in a base, level or entry names a prepared table's namespace, such as MaxQuant's `peptide.`; a sequence column that names no `syntax` or `modification_map` takes the level's only one; `hierarchy` defaults to `lfq`
+- Rule files are laid out by `make format` (`scripts/format_rules.py`): an object or list on one line up to 100 columns; a test checks it. Defaults the files wrote out are gone, and entries every level shared moved into `base`; MaxQuant's wide levels and six other rules list feature-table columns in a new order
+- `make rules-bundle` (`scripts/build_rules_bundle.py`) writes the parsing-rules bundle APB Studio's rules viewer reads
+
 ## 2026-11-02
 
 - MaxQuant results carry the match status, as FragPipe's `Match_Type` does: factor layer `Identification_Type` (`By MS/MS`, `By matching`) at the peptidoform, peptide and protein levels, from `Identification type <sample>`, and `Type` at the peptidoform-ion level, from `evidence.txt`. Both are optional, because exports without matching between runs lack the columns. `Type` declares the five values of MaxQuant's output-table documentation, plus `MULTI-MATCH-MSMS`, which reports write but the documentation omits, and `ISO-SECPEP`; in the evidence files of the test data, no row falls back to the unknown code

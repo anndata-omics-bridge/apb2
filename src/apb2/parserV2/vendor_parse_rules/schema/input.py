@@ -15,13 +15,19 @@ from apb2.parserV2.vendor_parse_rules.schema.base_formats import (
 )
 
 
-class SoftwareOnlyEvidence(ModelBase):
-    """Column evidence used when no vendor parameter file is available."""
+class AcquisitionFromColumns(ModelBase):
+    """The acquisition method a header implies: DDA when any listed column is present."""
+
+    DDA_if_any_column: list[str] = Field(default_factory=list)
+    otherwise: Literal["DDA", "DIA", "unknown"] = "unknown"
+
+
+class WithoutParameterFile(ModelBase):
+    """The column check used when no vendor parameter file is available."""
 
     required_columns: list[str] = Field(default_factory=list)
     forbidden_columns: list[str] = Field(default_factory=list)
-    acquisition_method_if_any: list[str] = Field(default_factory=list)
-    acquisition_method_otherwise: Literal["DDA", "DIA", "unknown"] = "unknown"
+    acquisition_method: AcquisitionFromColumns = Field(default_factory=AcquisitionFromColumns)
 
 
 class Input(ModelBase):
@@ -34,7 +40,7 @@ class Input(ModelBase):
     delimiter: DetectedDelimiter | None = None
     numbers: DetectedNumberFormat | None = None
     encoding: DetectedEncoding | None = None
-    software_only: SoftwareOnlyEvidence | None = None
+    without_parameter_file: WithoutParameterFile | None = None
 
     @model_validator(mode="after")
     def _workbook_consistency(self) -> Input:

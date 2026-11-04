@@ -84,11 +84,6 @@ _NON_PRIMARY_ABUNDANCE: dict[tuple[str, QuantificationLevel], tuple[str, ...]] =
         "EG_TargetQuantity_Settings",
         "EG_TotalQuantity_Settings",
     ),
-    ("spectronaut/v21", "peptidoform_ion"): (
-        "EG_ReferenceQuantity_Settings",
-        "EG_TargetQuantity_Settings",
-        "EG_TotalQuantity_Settings",
-    ),
     ("spectronaut/v15", "peptidoform_ion"): (
         "EG_TargetQuantity_Settings",
         "EG_TotalQuantity_Settings",
@@ -195,7 +190,7 @@ def test_every_rule_declares_each_vendor_marking_once(
     payload = _document_payload()
     payload["tables"][0]["base"]["columns"]["var"] = [
         flag for flag in synthetic.FLAGS if flag["name"] != "apb_Decoy"
-    ] + [{"name": "apb_Decoy", "how": "decoy"}] * count
+    ] + [{"name": "apb_Decoy", "how": "unmarked"}] * count
 
     with pytest.raises(ValidationError, match=message):
         _declared(payload, tmp_path)
@@ -206,18 +201,21 @@ def test_every_rule_declares_each_vendor_marking_once(
     [
         ({"inputs": ["feature"]}, "exactly one of equals or prefix"),
         ({"inputs": ["feature"], "equals": "+", "prefix": "REV__"}, "exactly one of"),
-        ({"equals": "+"}, "without inputs declares neither"),
+        ({"equals": "+"}, "inputs"),
         ({"inputs": ["feature"], "equals": "+", "separator": ";"}, "separator only with"),
         ({"inputs": ["feature"], "equals": "+", "roles": ["protein_assignment"]}, "at most 0"),
+        ({"how": "unmarked", "inputs": ["feature"]}, "at most 0"),
+        ({"how": "unmarked", "equals": "+"}, "equals"),
     ],
 )
 def test_a_vendor_marking_names_its_inputs_and_one_way_to_read_them(
     marking: dict[str, object], message: str, tmp_path: Path
 ) -> None:
+    """A marking reads at least one input one way; an unmarked flag reads none."""
     payload = _document_payload()
     payload["tables"][0]["base"]["columns"]["var"] = [
         {"name": "apb_Decoy", "how": "decoy", **marking},
-        {"name": "apb_Contaminant", "how": "contaminant"},
+        {"name": "apb_Contaminant", "how": "unmarked"},
     ]
 
     with pytest.raises(ValidationError, match=message):
@@ -225,7 +223,7 @@ def test_a_vendor_marking_names_its_inputs_and_one_way_to_read_them(
 
 
 @pytest.mark.parametrize(
-    ("duplicates", "message"),
+    ("repeated_cells", "message"),
     [
         ({"mode": "sum", "sum": ["quantity"]}, "apply only to keep_best"),
         ({"mode": "keep_best", "by": "quantity", "sum": ["quantity"]}, "cannot also sum it"),
@@ -233,10 +231,10 @@ def test_a_vendor_marking_names_its_inputs_and_one_way_to_read_them(
     ],
 )
 def test_keep_best_sums_only_declared_layers_other_than_its_ranking(
-    duplicates: dict[str, object], message: str, tmp_path: Path
+    repeated_cells: dict[str, object], message: str, tmp_path: Path
 ) -> None:
     payload = _document_payload()
-    payload["tables"][0]["base"]["measurements"]["duplicates"] = duplicates
+    payload["tables"][0]["base"]["measurements"]["repeated_cells"] = repeated_cells
     document = make_rule_document(tmp_path / "rules.json", payload)
 
     with pytest.raises((ValidationError, ValueError), match=message):
@@ -267,9 +265,9 @@ def test_measurement_ownership_is_separate_from_axis_identity(
     rule = load_rule_document(pair.parser_v2_path).declared(level).declaration
 
     assert rule.measurements.primary_layer
-    assert rule.measurements.duplicates.mode in {"error", "same", "sum", "keep_best"}
+    assert rule.measurements.repeated_cells.mode in {"error", "same", "sum", "keep_best"}
     assert not hasattr(rule.axis, "x_layer")
-    assert not hasattr(rule.axis, "duplicates")
+    assert not hasattr(rule.axis, "repeated_cells")
 
 
 @pytest.mark.parametrize(("pair", "level"), _LEVEL_CASES)
@@ -360,7 +358,6 @@ def test_packaged_integer_measurements_are_exactly_the_declared_counts() -> None
         ("msangel", "protein", "Peptides_Count"),
         ("prolinestudio", "peptidoform_ion", "PSM_Count"),
         ("spectronaut", "protein", "PG_RunEvidenceCount"),
-        ("spectronaut/v21", "protein", "PG_RunEvidenceCount"),
         ("wombat", "peptidoform", "Number_Of_Psms"),
     }
 
@@ -621,7 +618,7 @@ def test_a_level_without_a_gate_is_applicable_without_any_evidence() -> None:
         document.rule("peptide", NO_EVIDENCE)
 
 
-# ------------------------------------------------------------------ what schema 0.9 refuses
+# ------------------------------------------------------------------ what schema 0.10 refuses
 
 
 def _document_payload() -> dict[str, Any]:
@@ -663,12 +660,22 @@ def _declared(payload: dict[str, Any], tmp_path: Path) -> None:
     document.declared("peptidoform_ion")
 
 
+def _with_ranking(rank_rows: dict[str, Any], columns: list[dict[str, Any]]) -> MutatePayload:
+    """Declare the level's ``rank_rows`` and append ``columns`` to its var columns."""
+
+    def mutate(payload: dict[str, Any]) -> None:
+        level = payload["tables"][0]["levels"]["peptidoform_ion"]
+        level["rank_rows"] = rank_rows
+        level["columns"]["var"].extend(columns)
+
+    return mutate
+
+
 def _ranked_by(by: str, ranking: list[dict[str, Any]]) -> MutatePayload:
     """Declare ``ranking`` and a var column taking its value from the row ``by`` ranks best."""
-    column = {"name": "set", "source": "Set", "duplicates": {"mode": "keep_best", "by": by}}
-    return lambda payload: payload["tables"][0]["levels"]["peptidoform_ion"]["columns"][
-        "var"
-    ].extend([*ranking, column])
+    return _with_ranking(
+        {"by": by}, [*ranking, {"name": "set", "source": "Set", "per_feature": "best_row"}]
+    )
 
 
 def test_the_reference_payload_is_valid_so_every_rejection_below_is_the_change(
@@ -677,7 +684,133 @@ def test_the_reference_payload_is_valid_so_every_rejection_below_is_the_change(
     _declared(_document_payload(), tmp_path)
 
 
-def test_every_column_and_layer_takes_a_note_and_a_var_column_its_duplicates(
+def test_source_prefix_names_the_joined_table_of_each_source(tmp_path: Path) -> None:
+    """The level's prefix reaches base and level sources; an entry's own prefix wins."""
+    payload = _document_payload()
+    table = payload["tables"][0]
+    table["base"]["source_prefix"] = "base."
+    table["levels"]["peptidoform_ion"]["source_prefix"] = "evidence."
+    table["levels"]["peptidoform_ion"]["columns"]["var"].append(
+        {"name": "group", "source": "Protein IDs", "source_prefix": "protein."}
+    )
+    document = make_rule_document(tmp_path / "rules.json", payload)
+
+    rule = document.declared("peptidoform_ion").declaration
+
+    assert isinstance(rule, LongRule)
+    columns = [*rule.columns.obs, *rule.columns.var]
+    assert {column.name: column.source for column in columns if column.source is not None} == {
+        "sample": "evidence.Sample",
+        "feature": "evidence.Feature",
+        "group": "protein.Protein IDs",
+    }
+    assert rule.measurements.layers[0].source == "evidence.Quantity"
+    assert "source_prefix" not in json.dumps(rule.model_dump(mode="json"))
+    assert document.declared("peptidoform_ion").declaration == rule
+    authored = json.loads(json.dumps(document.tables[0].levels["peptidoform_ion"]))
+    assert authored["columns"]["var"][1]["source"] == "Protein IDs"
+
+
+def _wide_payload(layer_source: str) -> dict[str, Any]:
+    payload = _document_payload()
+    table = payload["tables"][0]
+    table["input"]["shape"] = "wide"
+    del table["base"]["columns"]["obs"]
+    table["base"]["measurements"]["layers"] = [{"name": "quantity", "source": layer_source}]
+    table["levels"]["peptidoform_ion"]["source_prefix"] = "peptide."
+    return payload
+
+
+def test_a_wide_source_takes_its_escaped_prefix_after_the_anchor(tmp_path: Path) -> None:
+    payload = _wide_payload("^Intensity (?P<sample>.+)$")
+
+    rule = make_rule_document(tmp_path / "rules.json", payload).declared("peptidoform_ion")
+
+    assert rule.declaration.measurements.layers[0].source == r"^peptide\.Intensity (?P<sample>.+)$"
+    feature = next(column for column in rule.declaration.columns.var if column.name == "feature")
+    assert feature.source == "peptide.Feature"
+    with pytest.raises(ValueError, match="starts with"):
+        _declared(_wide_payload("Intensity (?P<sample>.+)$"), tmp_path)
+
+
+def test_a_wide_placeholder_source_reads_as_text_around_the_sample_pattern(
+    tmp_path: Path,
+) -> None:
+    """``{sample}`` takes the default pattern, or the table's; the text matches literally."""
+    rule = make_rule_document(
+        tmp_path / "rules.json", _wide_payload("Intensity {sample}")
+    ).declared("peptidoform_ion")
+    assert rule.declaration.measurements.layers[0].source == r"^peptide\.Intensity (?P<sample>.+)$"
+
+    payload = _wide_payload("abundance_{sample} m/z")
+    payload["tables"][0]["base"]["sample_pattern"] = "(?:DDA_)?(?P<sample>.+?)"
+    rule = make_rule_document(tmp_path / "rules.json", payload).declared("peptidoform_ion")
+
+    assert rule.declaration.measurements.layers[0].source == (
+        r"^peptide\.abundance_(?:DDA_)?(?P<sample>.+?) m/z$"
+    )
+    assert "sample_pattern" not in json.dumps(rule.declaration.model_dump(mode="json"))
+
+
+@pytest.mark.parametrize(
+    ("source", "pattern", "message"),
+    [
+        ("Intensity {sample}", ".+", r"must contain '\(\?P<sample>"),
+        ("{sample} and {sample}", None, "names {sample} once"),
+    ],
+)
+def test_a_wide_placeholder_needs_one_sample_group(
+    source: str, pattern: str | None, message: str, tmp_path: Path
+) -> None:
+    payload = _wide_payload(source)
+    if pattern is not None:
+        payload["tables"][0]["levels"]["peptidoform_ion"]["sample_pattern"] = pattern
+
+    with pytest.raises(ValueError, match=message):
+        _declared(payload, tmp_path)
+
+
+def test_a_long_table_declares_no_sample_pattern(tmp_path: Path) -> None:
+    payload = _document_payload()
+    payload["tables"][0]["base"]["sample_pattern"] = "(?P<sample>.+)"
+
+    with pytest.raises(ValueError, match="applies to a wide table"):
+        _declared(payload, tmp_path)
+
+
+def test_a_sequence_column_takes_the_levels_only_syntax_and_map(tmp_path: Path) -> None:
+    payload = _document_payload()
+    base = payload["tables"][0]["base"]
+    base["sequence_syntax"] = {
+        "vendor": {"parser": "token_regex", "token_pattern": r"\((?P<residue>[^)]+)\)"}
+    }
+    base["modification_maps"] = {"mods": {"ox": "UNIMOD:35"}}
+    payload["tables"][0]["levels"]["peptidoform_ion"]["columns"]["var"].extend(
+        [
+            {"name": "Sequence", "source": "Sequence"},
+            {"name": "ProForma_peptidoform", "inputs": ["Sequence"], "how": "proforma_sequence"},
+            {"name": "ProForma_peptide", "inputs": ["Sequence"], "how": "stripped_sequence"},
+        ]
+    )
+
+    rule = make_rule_document(tmp_path / "rules.json", payload).declared("peptidoform_ion")
+
+    columns = {column.name: column for column in rule.declaration.columns.var}
+    peptidoform = columns["ProForma_peptidoform"]
+    peptide = columns["ProForma_peptide"]
+    assert isinstance(peptidoform, ProformaSequence)
+    assert isinstance(peptide, StrippedSequence)
+    assert (peptidoform.syntax, peptidoform.modification_map, peptide.syntax) == (
+        "vendor",
+        "mods",
+        "vendor",
+    )
+    base["sequence_syntax"]["plain"] = {"parser": "plain_sequence"}
+    with pytest.raises(ValueError, match="the level declares 2"):
+        _declared(payload, tmp_path)
+
+
+def test_every_column_and_layer_takes_a_note_and_a_var_column_its_per_feature(
     tmp_path: Path,
 ) -> None:
     payload = _document_payload()
@@ -692,13 +825,13 @@ def test_every_column_and_layer_takes_a_note_and_a_var_column_its_duplicates(
             "source": "Global Q",
             "type": "number",
             "required": False,
-            "duplicates": {"mode": "min"},
+            "per_feature": "min",
             "note": "experiment-wide; placeholder 1.0 in some rows",
         }
     )
 
     _declared(payload, tmp_path)
-    assert SourcedColumn(name="gene", source="Gene").duplicates_mode == "keep_first"
+    assert SourcedColumn(name="gene", source="Gene").per_feature == "first"
 
 
 def test_numeric_layer_type_defaults_to_number_and_rejects_unknown_values() -> None:
@@ -732,10 +865,10 @@ def test_factor_layers_do_not_acquire_a_numeric_type() -> None:
         ),
         pytest.param(
             lambda payload: payload["tables"][0]["base"]["axis"].update(
-                {"duplicates": {"mode": "error"}}
+                {"repeated_cells": {"mode": "error"}}
             ),
-            "duplicates",
-            id="axis.duplicates",
+            "repeated_cells",
+            id="axis.repeated_cells",
         ),
         pytest.param(
             lambda payload: payload["tables"][0]["base"].update(
@@ -746,7 +879,7 @@ def test_factor_layers_do_not_acquire_a_numeric_type() -> None:
         ),
         pytest.param(
             lambda payload: payload["tables"][0]["base"]["measurements"].update(
-                {"duplicates": {"mode": "keep_all_as_raw_table"}}
+                {"repeated_cells": {"mode": "keep_all_as_raw_table"}}
             ),
             "keep_all_as_raw_table",
             id="keep_all_as_raw_table",
@@ -802,30 +935,30 @@ def test_factor_layers_do_not_acquire_a_numeric_type() -> None:
         ),
         pytest.param(
             lambda payload: payload["tables"][0]["base"]["columns"]["obs"][0].update(
-                {"duplicates": {"mode": "keep_first"}}
+                {"per_feature": "best_row"}
             ),
             "var columns only",
-            id="obs-duplicates",
+            id="obs-per-feature",
         ),
         pytest.param(
             lambda payload: payload["tables"][0]["levels"]["peptidoform_ion"]["columns"]["var"][
                 0
-            ].update({"duplicates": {"mode": "keep_first"}}),
-            "resolve no duplicates",
-            id="var-key-duplicates",
+            ].update({"per_feature": "best_row"}),
+            "resolve no repeated rows",
+            id="var-key-per-feature",
         ),
         pytest.param(
             lambda payload: payload["tables"][0]["levels"]["peptidoform_ion"]["columns"][
                 "var"
-            ].append({"name": "gene", "source": "Gene", "duplicates": {"mode": "min"}}),
+            ].append({"name": "gene", "source": "Gene", "per_feature": "min"}),
             "numeric column",
             id="min-on-text",
         ),
         pytest.param(
             lambda payload: payload["tables"][0]["levels"]["peptidoform_ion"]["columns"][
                 "var"
-            ].append({"name": "q", "source": "Q", "type": "number", "duplicates": {"mode": "sum"}}),
-            "keep_first",
+            ].append({"name": "q", "source": "Q", "type": "number", "per_feature": "sum"}),
+            "'first'",
             id="var-sum",
         ),
         pytest.param(
@@ -833,47 +966,44 @@ def test_factor_layers_do_not_acquire_a_numeric_type() -> None:
                 "var"
             ].extend(
                 [
-                    {"name": "q", "source": "Q", "type": "number", "duplicates": {"mode": "min"}},
+                    {"name": "q", "source": "Q", "type": "number", "per_feature": "min"},
                     {"name": "q_copy", "source": "Q", "type": "number"},
                 ]
             ),
-            "resolves duplicates both",
+            "resolves repeated rows both",
             id="one-source-two-modes",
         ),
         pytest.param(
             lambda payload: payload["tables"][0]["levels"]["peptidoform_ion"]["columns"][
                 "var"
-            ].append({"name": "set", "source": "Set", "duplicates": {"mode": "keep_best"}}),
-            "'by' names the ranking column",
-            id="keep-best-without-by",
+            ].append({"name": "set", "source": "Set", "per_feature": "best_row"}),
+            "needs the level's rank_rows",
+            id="best-row-without-rank-rows",
         ),
         pytest.param(
-            lambda payload: payload["tables"][0]["levels"]["peptidoform_ion"]["columns"][
-                "var"
-            ].append({"name": "set", "source": "Set", "duplicates": {"by": "score"}}),
-            "'by' names the ranking column",
-            id="by-without-keep-best",
-        ),
-        pytest.param(
-            lambda payload: payload["tables"][0]["levels"]["peptidoform_ion"]["columns"][
-                "var"
-            ].append(
-                {
-                    "name": "q",
-                    "source": "Q",
-                    "type": "number",
-                    "duplicates": {"mode": "min", "best": "lowest"},
-                }
+            _with_ranking(
+                {"by": "score"}, [{"name": "score", "source": "Score", "type": "number"}]
             ),
-            "'best' applies only to keep_best",
-            id="best-without-keep-best",
+            "no column is best_row",
+            id="rank-rows-without-best-row",
+        ),
+        pytest.param(
+            _with_ranking(
+                {"by": "score", "best": "middle"},
+                [
+                    {"name": "score", "source": "Score", "type": "number"},
+                    {"name": "set", "source": "Set", "per_feature": "best_row"},
+                ],
+            ),
+            "'highest'",
+            id="rank-rows-best-value",
         ),
         *(
-            pytest.param(_ranked_by(by, ranking), match, id=f"keep-best-by-{label}")
+            pytest.param(_ranked_by(by, ranking), match, id=f"rank-rows-by-{label}")
             for label, by, ranking, match in [
-                ("unknown", "score", [], "another sourced var column"),
-                ("key", "feature", [], "another sourced var column"),
-                ("itself", "set", [], "another sourced var column"),
+                ("unknown", "score", [], "a sourced var column"),
+                ("key", "feature", [], "a sourced var column"),
+                ("itself", "set", [], "a sourced var column"),
                 ("text", "score", [{"name": "score", "source": "Score"}], "required numeric"),
                 (
                     "optional",
@@ -882,50 +1012,6 @@ def test_factor_layers_do_not_acquire_a_numeric_type() -> None:
                     "required numeric",
                 ),
             ]
-        ),
-        pytest.param(
-            lambda payload: payload["tables"][0]["levels"]["peptidoform_ion"]["columns"][
-                "var"
-            ].extend(
-                [
-                    {"name": "score", "source": "Score", "type": "number"},
-                    {"name": "rank", "source": "Rank", "type": "number"},
-                    {
-                        "name": "set",
-                        "source": "Set",
-                        "duplicates": {"mode": "keep_best", "by": "score"},
-                    },
-                    {
-                        "name": "subset",
-                        "source": "Subset",
-                        "duplicates": {"mode": "keep_best", "by": "rank"},
-                    },
-                ]
-            ),
-            "rank by one column",
-            id="keep-best-two-rankings",
-        ),
-        pytest.param(
-            lambda payload: payload["tables"][0]["levels"]["peptidoform_ion"]["columns"][
-                "var"
-            ].extend(
-                [
-                    {"name": "score", "source": "Score", "type": "number"},
-                    {"name": "rank", "source": "Rank", "type": "number"},
-                    {
-                        "name": "set",
-                        "source": "Set",
-                        "duplicates": {"mode": "keep_best", "by": "score"},
-                    },
-                    {
-                        "name": "set_copy",
-                        "source": "Set",
-                        "duplicates": {"mode": "keep_best", "by": "rank"},
-                    },
-                ]
-            ),
-            "resolves duplicates both",
-            id="one-source-two-rankings",
         ),
         pytest.param(
             lambda payload: payload["tables"][0]["base"]["measurements"]["layers"][0].update(
@@ -946,7 +1032,7 @@ def test_schema_0_4_refuses_a_legacy_or_illegal_declaration(
         _declared(payload, tmp_path)
 
 
-@pytest.mark.parametrize("version", ["0.3", "0.5", "0.6", "0.7", "0.8"])
+@pytest.mark.parametrize("version", ["0.3", "0.5", "0.6", "0.7", "0.8", "0.9"])
 def test_a_document_of_a_previous_generation_is_refused_at_the_shell(
     version: str, tmp_path: Path
 ) -> None:
@@ -986,13 +1072,13 @@ def test_rule_validates_the_declaration_before_using_gates_or_overrides(
 
 def test_numeric_reduction_requires_layers_no_encoder_would_later_change(tmp_path: Path) -> None:
     payload = _document_payload()
-    payload["tables"][0]["base"]["measurements"]["duplicates"] = {"mode": "sum"}
+    payload["tables"][0]["base"]["measurements"]["repeated_cells"] = {"mode": "sum"}
     payload["tables"][0]["base"]["measurements"]["layers"] = [
         {"name": "quantity", "source": "Quantity", "missing_values": [0]}
     ]
 
     document = make_rule_document(tmp_path / "rules.json", payload)
-    with pytest.raises(ValueError, match="sum duplicates"):
+    with pytest.raises(ValueError, match="combines only plain numeric layers"):
         ParseRuleFacade(document, "peptidoform_ion", NO_EVIDENCE)
 
 
@@ -1105,7 +1191,7 @@ def test_only_schema_0_4_is_published_and_its_unions_are_discriminated() -> None
     assert "x_layer" not in text
     assert "keep_all_as_raw_table" not in text
     assert '"measurements"' in text
-    for name in ("Measurements", "Axis", "Duplicates", "SearchParameterOverride"):
+    for name in ("Measurements", "Axis", "RepeatedCells", "SearchParameterOverride"):
         assert name in definitions
     assert "primary_layer" in json.dumps(definitions["Measurements"])
     assert sorted(definitions["Axis"]["properties"]) == ["obs_keys", "var_keys"]
@@ -1149,11 +1235,11 @@ def test_both_rule_shapes_are_represented_by_the_packaged_generation() -> None:
         for pair, level in level_pairs()
     ]
 
-    assert sum(isinstance(rule, LongRule) for rule in shapes) == 25
+    assert sum(isinstance(rule, LongRule) for rule in shapes) == 22
     assert sum(isinstance(rule, WideRule) for rule in shapes) == 14
-    modes = [rule.measurements.duplicates.mode for rule in shapes]
-    assert modes.count("error") == 21
-    assert modes.count("same") == 15
+    modes = [rule.measurements.repeated_cells.mode for rule in shapes]
+    assert modes.count("error") == 19
+    assert modes.count("same") == 14
     assert modes.count("keep_best") == 3
     assert modes.count("sum") == 0
     assert sum(isinstance(rule.fragments, ColumnLabeledFragments) for rule in shapes) == 1

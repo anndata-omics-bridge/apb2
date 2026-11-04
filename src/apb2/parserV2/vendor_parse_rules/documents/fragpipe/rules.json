@@ -1,204 +1,98 @@
 {
-  "hierarchy": "lfq",
-  "schema_version": "0.9",
-  "file_version": "2",
+  "schema_version": "0.10",
+  "file_version": "3",
   "software_name": "FragPipe",
   "software_version_pattern": "^2[23]\\.",
   "tables": [
     {
-      "input": {
-        "shape": "wide",
-        "extensions": [
-          ".tsv"
-        ]
-      },
+      "input": {"shape": "wide", "extensions": [".tsv"]},
       "base": {
-        "axis": {
-          "obs_keys": [
-            "sample"
-          ]
-        },
-        "measurements": {
-          "duplicates": {
-            "mode": "error"
-          }
-        },
+        "sample_pattern": "(?P<sample>.+?)(?:_[12])?",
+        "axis": {"obs_keys": ["sample"]},
         "sequence_syntax": {
           "vendor_sequence": {
             "parser": "token_regex",
-            "token_pattern": "^n\\[(?P<nterm>[^\\]]+)\\]|c\\[(?P<cterm>[^\\]]+)\\]$|\\[(?P<residue>[^\\]]+)\\]",
-            "token_position": "after_residue"
+            "token_pattern": "^n\\[(?P<nterm>[^\\]]+)\\]|c\\[(?P<cterm>[^\\]]+)\\]$|\\[(?P<residue>[^\\]]+)\\]"
           }
         },
         "modification_maps": {
-          "basic_modification_map": [
-            {
-              "token": "57.0215",
-              "accession": "UNIMOD:4"
-            },
-            {
-              "token": "15.9949",
-              "accession": "UNIMOD:35"
-            },
-            {
-              "token": "42.0106",
-              "accession": "UNIMOD:1"
-            },
-            {
-              "token": "-17.026548",
-              "accession": "UNIMOD:28"
-            },
-            {
-              "token": "-18.010565",
-              "accession": "UNIMOD:27"
-            }
-          ]
+          "basic_modification_map": {
+            "57.0215": "UNIMOD:4",
+            "15.9949": "UNIMOD:35",
+            "42.0106": "UNIMOD:1",
+            "-17.026548": "UNIMOD:28",
+            "-18.010565": "UNIMOD:27"
+          }
         }
       },
       "levels": {
         "peptidoform_ion": {
-          "axis": {
-            "var_keys": [
-              "ProForma_ion"
-            ]
-          },
+          "axis": {"var_keys": ["ProForma_ion"]},
           "measurements": {
             "primary_layer": "Intensity",
             "layers": [
               {
                 "name": "Intensity",
-                "source": "^(?P<sample>.+) Intensity$",
-                "roles": [
-                  "abundance"
-                ],
-                "missing_values": [
-                  "<=0"
-                ]
+                "source": "{sample} Intensity",
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
               },
-              {
-                "name": "Spectral_Count",
-                "source": "^(?P<sample>.+?)(?:_[12])? Spectral Count$",
-                "type": "integer"
-              },
-              {
-                "name": "Apex_Retention_Time",
-                "source": "^(?P<sample>.+?)(?:_[12])? Apex Retention Time$"
-              },
-              {
-                "name": "Retention_Time_Start",
-                "source": "^(?P<sample>.+?)(?:_[12])? Retention Time Start$"
-              },
-              {
-                "name": "Retention_Time_End",
-                "source": "^(?P<sample>.+?)(?:_[12])? Retention Time End$"
-              },
-              {
-                "name": "Retention_Time_FWHM",
-                "source": "^(?P<sample>.+?)(?:_[12])? Retention Time FWHM$"
-              },
+              {"name": "Spectral_Count", "source": "{sample} Spectral Count", "type": "integer"},
+              {"name": "Apex_Retention_Time", "source": "{sample} Apex Retention Time"},
+              {"name": "Retention_Time_Start", "source": "{sample} Retention Time Start"},
+              {"name": "Retention_Time_End", "source": "{sample} Retention Time End"},
+              {"name": "Retention_Time_FWHM", "source": "{sample} Retention Time FWHM"},
               {
                 "name": "Match_Type",
-                "source": "^(?P<sample>.+?)(?:_[12])? Match Type$",
+                "source": "{sample} Match Type",
                 "encoding_mode": "factor",
-                "categories": {
-                  "unmatched": 0,
-                  "MS/MS": 1,
-                  "MBR": 2
-                }
+                "categories": {"unmatched": 0, "MS/MS": 1, "MBR": 2}
               }
             ]
           },
           "columns": {
             "var": [
-              {
-                "name": "Peptide_Sequence",
-                "source": "Peptide Sequence"
-              },
-              {
-                "name": "Modified_Sequence",
-                "source": "Modified Sequence"
-              },
-              {
-                "name": "Charge",
-                "source": "Charge",
-                "type": "integer"
-              },
-              {
-                "name": "M_Z",
-                "source": "M/Z",
-                "type": "number"
-              },
+              {"name": "Peptide_Sequence", "source": "Peptide Sequence"},
+              {"name": "Modified_Sequence", "source": "Modified Sequence"},
+              {"name": "Charge", "source": "Charge", "type": "integer"},
+              {"name": "M_Z", "source": "M/Z", "type": "number"},
               {
                 "name": "Protein",
                 "source": "Protein",
-                "roles": [
-                  "protein_assignment",
-                  "fasta_accessions"
-                ],
-                "inputs": [
-                  "Protein",
-                  "Mapped_Proteins"
-                ],
+                "roles": ["protein_assignment", "fasta_accessions"],
+                "inputs": ["Protein", "Mapped_Proteins"],
                 "how": "join_nonempty",
                 "separator": ";"
               },
-              {
-                "name": "Mapped_Proteins",
-                "source": "Mapped Proteins"
-              },
-              {
-                "name": "Protein_ID",
-                "source": "Protein ID"
-              },
-              {
-                "name": "Gene",
-                "source": "Gene"
-              },
-              {
-                "name": "Assigned_Modifications",
-                "source": "Assigned Modifications"
-              },
+              {"name": "Mapped_Proteins", "source": "Mapped Proteins"},
+              {"name": "Protein_ID", "source": "Protein ID"},
+              {"name": "Gene", "source": "Gene"},
+              {"name": "Assigned_Modifications", "source": "Assigned Modifications"},
               {
                 "name": "ProForma_peptidoform",
-                "inputs": [
-                  "Modified_Sequence"
-                ],
-                "how": "proforma_sequence",
-                "syntax": "vendor_sequence",
-                "modification_map": "basic_modification_map",
-                "case_sensitive": false,
-                "unknown_policy": "preserve"
+                "inputs": ["Modified_Sequence"],
+                "how": "proforma_sequence"
               },
               {
                 "name": "ProForma_peptide",
-                "inputs": [
-                  "Modified_Sequence"
-                ],
-                "how": "stripped_sequence",
-                "syntax": "vendor_sequence"
+                "inputs": ["Modified_Sequence"],
+                "how": "stripped_sequence"
               },
               {
                 "name": "ProForma_ion",
-                "inputs": [
-                  "ProForma_peptidoform",
-                  "Charge"
-                ],
+                "inputs": ["ProForma_peptidoform", "Charge"],
                 "how": "proforma_ion"
               },
               {
                 "name": "apb_Decoy",
-                "inputs": [
-                  "Protein"
-                ],
+                "inputs": ["Protein"],
                 "how": "decoy",
                 "prefix": "rev_",
                 "separator": ","
               },
               {
                 "name": "apb_Contaminant",
-                "inputs": [
-                  "Protein"
-                ],
+                "inputs": ["Protein"],
                 "how": "contaminant",
                 "prefix": "contam_",
                 "separator": ","

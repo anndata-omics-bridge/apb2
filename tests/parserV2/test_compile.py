@@ -214,7 +214,7 @@ def test_every_computed_column_declaration_names_one_computer(
                     "token_pattern": r"^\((?P<nterm>[^()]*)\)|\((?P<residue>[^()]*)\)",
                 },
             },
-            "modification_maps": {"basic": [{"token": "ox", "accession": "UNIMOD:35"}]},
+            "modification_maps": {"basic": {"ox": "UNIMOD:35"}},
         },
         levels={"peptidoform_fragment": {}},
     )
@@ -513,7 +513,6 @@ def test_compilation_injects_the_detected_number_notation_into_axis_coercers(
                         },
                         "measurements": {
                             "primary_layer": "Quantity",
-                            "duplicates": {"mode": "error"},
                             "layers": [{"name": "Quantity", "source": "Quantity"}],
                         },
                     },

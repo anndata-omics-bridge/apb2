@@ -1,368 +1,150 @@
 {
-  "hierarchy": "lfq",
-  "schema_version": "0.9",
-  "file_version": "5",
+  "schema_version": "0.10",
+  "file_version": "7",
   "software_name": "DIA-NN",
   "software_version_pattern": "^2\\..*",
-  "sample_annotation": {
-    "matching": {
-      "mode": "exact",
-      "normalize": "mass_spec_basename"
-    }
-  },
+  "sample_annotation": {"matching": {"mode": "exact", "normalize": "mass_spec_basename"}},
   "tables": [
     {
       "input": {
         "shape": "long",
-        "extensions": [
-          ".parquet"
-        ],
-        "software_only": {
-          "required_columns": [
-            "PG.TopN"
-          ],
-          "acquisition_method_if_any": [
-            "Ms1.Q.Value",
-            "Global.Ms1.Q.Value"
-          ],
-          "acquisition_method_otherwise": "DIA"
+        "extensions": [".parquet"],
+        "without_parameter_file": {
+          "required_columns": ["PG.TopN"],
+          "acquisition_method": {
+            "DDA_if_any_column": ["Ms1.Q.Value", "Global.Ms1.Q.Value"],
+            "otherwise": "DIA"
+          }
         }
       },
       "base": {
-        "axis": {
-          "obs_keys": [
-            "Run"
-          ]
-        },
-        "measurements": {
-          "duplicates": {
-            "mode": "error"
-          }
-        },
+        "axis": {"obs_keys": ["Run"]},
         "columns": {
           "obs": [
-            {
-              "name": "Run",
-              "source": "Run"
-            },
-            {
-              "name": "Run_Index",
-              "source": "Run.Index",
-              "type": "integer",
-              "required": false
-            }
+            {"name": "Run", "source": "Run"},
+            {"name": "Run_Index", "source": "Run.Index", "type": "integer", "required": false}
           ],
           "var": [
-            {
-              "name": "Decoy",
-              "source": "Decoy",
-              "type": "boolean",
-              "required": false
-            },
-            {
-              "name": "apb_Decoy",
-              "inputs": [
-                "Decoy"
-              ],
-              "how": "decoy",
-              "equals": "true"
-            },
-            {
-              "name": "apb_Contaminant",
-              "how": "contaminant"
-            }
+            {"name": "Decoy", "source": "Decoy", "type": "boolean", "required": false},
+            {"name": "apb_Decoy", "inputs": ["Decoy"], "how": "decoy", "equals": "true"},
+            {"name": "apb_Contaminant", "how": "unmarked"},
+            {"name": "Protein_Names", "source": "Protein.Names"},
+            {"name": "Genes", "source": "Genes"}
           ]
         },
         "sequence_syntax": {
           "vendor_sequence": {
             "parser": "token_regex",
-            "token_pattern": "^\\((?P<nterm>[^()]*)\\)|\\((?P<residue>[^()]*)\\)",
-            "token_position": "after_residue"
+            "token_pattern": "^\\((?P<nterm>[^()]*)\\)|\\((?P<residue>[^()]*)\\)"
           }
         },
         "modification_maps": {
-          "basic_modification_map": [
-            {
-              "token": "UniMod:1",
-              "accession": "UNIMOD:1"
-            },
-            {
-              "token": "UniMod:4",
-              "accession": "UNIMOD:4"
-            },
-            {
-              "token": "UniMod:35",
-              "accession": "UNIMOD:35"
-            },
-            {
-              "token": "UniMod:21",
-              "accession": "UNIMOD:21"
-            },
-            {
-              "token": "UniMod:121",
-              "accession": "UNIMOD:121"
-            }
-          ]
+          "basic_modification_map": {
+            "UniMod:1": "UNIMOD:1",
+            "UniMod:4": "UNIMOD:4",
+            "UniMod:35": "UNIMOD:35",
+            "UniMod:21": "UNIMOD:21",
+            "UniMod:121": "UNIMOD:121"
+          }
         }
       },
       "levels": {
         "peptidoform_ion": {
-          "axis": {
-            "var_keys": [
-              "ProForma_ion"
-            ]
-          },
+          "axis": {"var_keys": ["ProForma_ion"]},
           "measurements": {
             "primary_layer": "Precursor_Normalised",
             "layers": [
               {
                 "name": "Ms1_Normalised",
                 "source": "Ms1.Normalised",
-                "roles": [
-                  "abundance"
-                ],
-                "missing_values": [
-                  "<=0"
-                ]
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
               },
               {
                 "name": "Precursor_Normalised",
                 "source": "Precursor.Normalised",
-                "roles": [
-                  "abundance"
-                ],
-                "missing_values": [
-                  "<=0"
-                ]
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
               },
               {
                 "name": "Precursor_Quantity",
                 "source": "Precursor.Quantity",
-                "roles": [
-                  "abundance"
-                ],
-                "missing_values": [
-                  "<=0"
-                ]
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
               },
               {
                 "name": "Ms1_Area",
                 "source": "Ms1.Area",
-                "roles": [
-                  "abundance"
-                ],
-                "missing_values": [
-                  "<=0"
-                ]
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
               },
-              {
-                "name": "Q_Value",
-                "source": "Q.Value"
-              },
-              {
-                "name": "PEP",
-                "source": "PEP"
-              },
-              {
-                "name": "RT",
-                "source": "RT"
-              },
-              {
-                "name": "Averagine",
-                "source": "Averagine"
-              },
-              {
-                "name": "Best_Fr_Mz",
-                "source": "Best.Fr.Mz"
-              },
-              {
-                "name": "Best_Fr_Mz_Delta",
-                "source": "Best.Fr.Mz.Delta"
-              },
-              {
-                "name": "Channel_Evidence",
-                "source": "Channel.Evidence"
-              },
-              {
-                "name": "Channel_Q_Value",
-                "source": "Channel.Q.Value"
-              },
-              {
-                "name": "Empirical_Quality",
-                "source": "Empirical.Quality"
-              },
-              {
-                "name": "Evidence",
-                "source": "Evidence"
-              },
-              {
-                "name": "FWHM",
-                "source": "FWHM"
-              },
-              {
-                "name": "GG_Q_Value",
-                "source": "GG.Q.Value"
-              },
-              {
-                "name": "IM",
-                "source": "IM"
-              },
-              {
-                "name": "Mass_Evidence",
-                "source": "Mass.Evidence"
-              },
-              {
-                "name": "Ms1_Apex_Area",
-                "source": "Ms1.Apex.Area"
-              },
-              {
-                "name": "Ms1_Apex_Mz_Delta",
-                "source": "Ms1.Apex.Mz.Delta"
-              },
-              {
-                "name": "Ms1_Profile_Corr",
-                "source": "Ms1.Profile.Corr"
-              },
-              {
-                "name": "Ms1_Q_Value",
-                "source": "Ms1.Q.Value"
-              },
-              {
-                "name": "Ms1_Total_Signal_After",
-                "source": "Ms1.Total.Signal.After"
-              },
-              {
-                "name": "Ms1_Total_Signal_Before",
-                "source": "Ms1.Total.Signal.Before"
-              },
-              {
-                "name": "Normalisation_Factor",
-                "source": "Normalisation.Factor"
-              },
-              {
-                "name": "Normalisation_Noise",
-                "source": "Normalisation.Noise"
-              },
-              {
-                "name": "PTM_Site_Confidence",
-                "source": "PTM.Site.Confidence"
-              },
-              {
-                "name": "Peptidoform_Q_Value",
-                "source": "Peptidoform.Q.Value"
-              },
+              {"name": "Q_Value", "source": "Q.Value"},
+              {"name": "PEP", "source": "PEP"},
+              {"name": "RT", "source": "RT"},
+              {"name": "Averagine", "source": "Averagine"},
+              {"name": "Best_Fr_Mz", "source": "Best.Fr.Mz"},
+              {"name": "Best_Fr_Mz_Delta", "source": "Best.Fr.Mz.Delta"},
+              {"name": "Channel_Evidence", "source": "Channel.Evidence"},
+              {"name": "Channel_Q_Value", "source": "Channel.Q.Value"},
+              {"name": "Empirical_Quality", "source": "Empirical.Quality"},
+              {"name": "Evidence", "source": "Evidence"},
+              {"name": "FWHM", "source": "FWHM"},
+              {"name": "GG_Q_Value", "source": "GG.Q.Value"},
+              {"name": "IM", "source": "IM"},
+              {"name": "Mass_Evidence", "source": "Mass.Evidence"},
+              {"name": "Ms1_Apex_Area", "source": "Ms1.Apex.Area"},
+              {"name": "Ms1_Apex_Mz_Delta", "source": "Ms1.Apex.Mz.Delta"},
+              {"name": "Ms1_Profile_Corr", "source": "Ms1.Profile.Corr"},
+              {"name": "Ms1_Q_Value", "source": "Ms1.Q.Value"},
+              {"name": "Ms1_Total_Signal_After", "source": "Ms1.Total.Signal.After"},
+              {"name": "Ms1_Total_Signal_Before", "source": "Ms1.Total.Signal.Before"},
+              {"name": "Normalisation_Factor", "source": "Normalisation.Factor"},
+              {"name": "Normalisation_Noise", "source": "Normalisation.Noise"},
+              {"name": "PTM_Site_Confidence", "source": "PTM.Site.Confidence"},
+              {"name": "Peptidoform_Q_Value", "source": "Peptidoform.Q.Value"},
               {
                 "name": "Predicted_IM",
                 "source": "Predicted.IM",
                 "note": "Calibrated per run: differs across runs on timsTOF data, so a layer; constant without ion mobility."
               },
-              {
-                "name": "Predicted_RT",
-                "source": "Predicted.RT"
-              },
+              {"name": "Predicted_RT", "source": "Predicted.RT"},
               {
                 "name": "Predicted_iIM",
                 "source": "Predicted.iIM",
                 "note": "Differs across runs on timsTOF data, like Predicted_IM, so a layer."
               },
-              {
-                "name": "Predicted_iRT",
-                "source": "Predicted.iRT"
-              },
-              {
-                "name": "Profile_After",
-                "source": "Profile.After"
-              },
-              {
-                "name": "Profile_Before",
-                "source": "Profile.Before"
-              },
-              {
-                "name": "Profile_HM",
-                "source": "Profile.HM"
-              },
-              {
-                "name": "Protein_Q_Value",
-                "source": "Protein.Q.Value"
-              },
-              {
-                "name": "Quantity_Quality",
-                "source": "Quantity.Quality"
-              },
-              {
-                "name": "RT_Start",
-                "source": "RT.Start"
-              },
-              {
-                "name": "RT_Stop",
-                "source": "RT.Stop"
-              },
-              {
-                "name": "Translated_Q_Value",
-                "source": "Translated.Q.Value"
-              }
+              {"name": "Predicted_iRT", "source": "Predicted.iRT"},
+              {"name": "Profile_After", "source": "Profile.After"},
+              {"name": "Profile_Before", "source": "Profile.Before"},
+              {"name": "Profile_HM", "source": "Profile.HM"},
+              {"name": "Protein_Q_Value", "source": "Protein.Q.Value"},
+              {"name": "Quantity_Quality", "source": "Quantity.Quality"},
+              {"name": "RT_Start", "source": "RT.Start"},
+              {"name": "RT_Stop", "source": "RT.Stop"},
+              {"name": "Translated_Q_Value", "source": "Translated.Q.Value"}
             ]
           },
           "search_parameter_overrides": [
             {
-              "when_search_parameters": {
-                "acquisition_method": "DDA"
-              },
+              "when_search_parameters": {"acquisition_method": "DDA"},
               "primary_layer": "Ms1_Normalised"
             }
           ],
           "columns": {
             "var": [
-              {
-                "name": "Modified_Sequence",
-                "source": "Modified.Sequence"
-              },
-              {
-                "name": "Stripped_Sequence",
-                "source": "Stripped.Sequence"
-              },
-              {
-                "name": "Precursor_Charge",
-                "source": "Precursor.Charge",
-                "type": "integer"
-              },
-              {
-                "name": "Precursor_Id",
-                "source": "Precursor.Id"
-              },
-              {
-                "name": "Protein_Group",
-                "source": "Protein.Group",
-                "roles": [
-                  "protein_assignment"
-                ]
-              },
-              {
-                "name": "Protein_Ids",
-                "source": "Protein.Ids",
-                "roles": [
-                  "fasta_accessions"
-                ]
-              },
-              {
-                "name": "Protein_Names",
-                "source": "Protein.Names"
-              },
-              {
-                "name": "Genes",
-                "source": "Genes"
-              },
+              {"name": "Modified_Sequence", "source": "Modified.Sequence"},
+              {"name": "Stripped_Sequence", "source": "Stripped.Sequence"},
+              {"name": "Precursor_Charge", "source": "Precursor.Charge", "type": "integer"},
+              {"name": "Precursor_Id", "source": "Precursor.Id"},
+              {"name": "Protein_Group", "source": "Protein.Group", "roles": ["protein_assignment"]},
+              {"name": "Protein_Ids", "source": "Protein.Ids", "roles": ["fasta_accessions"]},
               {
                 "name": "Proteotypic",
                 "source": "Proteotypic",
                 "type": "boolean",
                 "required": false
               },
-              {
-                "name": "Channel",
-                "source": "Channel",
-                "required": false
-              },
+              {"name": "Channel", "source": "Channel", "required": false},
               {
                 "name": "Lib_Q_Value",
                 "source": "Lib.Q.Value",
@@ -421,98 +203,52 @@
                 "type": "number",
                 "required": false
               },
-              {
-                "name": "Protein_Sites",
-                "source": "Protein.Sites",
-                "required": false
-              },
+              {"name": "Protein_Sites", "source": "Protein.Sites", "required": false},
               {
                 "name": "Site_Occupancy_Probabilities",
                 "source": "Site.Occupancy.Probabilities",
                 "required": false
               },
-              {
-                "name": "iIM",
-                "source": "iIM",
-                "type": "number",
-                "required": false
-              },
-              {
-                "name": "iRT",
-                "source": "iRT",
-                "type": "number",
-                "required": false
-              },
+              {"name": "iIM", "source": "iIM", "type": "number", "required": false},
+              {"name": "iRT", "source": "iRT", "type": "number", "required": false},
               {
                 "name": "ProForma_peptidoform",
-                "inputs": [
-                  "Modified_Sequence"
-                ],
-                "how": "proforma_sequence",
-                "syntax": "vendor_sequence",
-                "modification_map": "basic_modification_map",
-                "case_sensitive": false,
-                "unknown_policy": "preserve"
+                "inputs": ["Modified_Sequence"],
+                "how": "proforma_sequence"
               },
               {
                 "name": "ProForma_peptide",
-                "inputs": [
-                  "Modified_Sequence"
-                ],
-                "how": "stripped_sequence",
-                "syntax": "vendor_sequence"
+                "inputs": ["Modified_Sequence"],
+                "how": "stripped_sequence"
               },
               {
                 "name": "ProForma_ion",
-                "inputs": [
-                  "ProForma_peptidoform",
-                  "Precursor_Charge"
-                ],
+                "inputs": ["ProForma_peptidoform", "Precursor_Charge"],
                 "how": "proforma_ion"
               }
             ]
           }
         },
         "protein": {
-          "axis": {
-            "var_keys": [
-              "Protein_Group"
-            ]
-          },
+          "axis": {"var_keys": ["Protein_Group"]},
           "measurements": {
             "primary_layer": "PG_MaxLFQ",
-            "duplicates": {
-              "mode": "same"
-            },
+            "repeated_cells": {"mode": "same"},
             "layers": [
               {
                 "name": "PG_MaxLFQ",
                 "source": "PG.MaxLFQ",
-                "roles": [
-                  "abundance"
-                ],
-                "missing_values": [
-                  "<=0"
-                ]
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
               },
               {
                 "name": "Genes_MaxLFQ",
                 "source": "Genes.MaxLFQ",
-                "roles": [
-                  "abundance"
-                ],
-                "missing_values": [
-                  "<=0"
-                ]
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
               },
-              {
-                "name": "PG_Q_Value",
-                "source": "PG.Q.Value"
-              },
-              {
-                "name": "PG_PEP",
-                "source": "PG.PEP"
-              },
+              {"name": "PG_Q_Value", "source": "PG.Q.Value"},
+              {"name": "PG_PEP", "source": "PG.PEP"},
               {
                 "name": "Genes_MaxLFQ_Empirical_Quality",
                 "source": "Genes.MaxLFQ.Empirical.Quality"
@@ -521,34 +257,13 @@
                 "name": "Genes_MaxLFQ_Empirical_Unique_Quality",
                 "source": "Genes.MaxLFQ.Empirical.Unique.Quality"
               },
-              {
-                "name": "Genes_MaxLFQ_Quality",
-                "source": "Genes.MaxLFQ.Quality"
-              },
-              {
-                "name": "Genes_MaxLFQ_Unique",
-                "source": "Genes.MaxLFQ.Unique"
-              },
-              {
-                "name": "Genes_MaxLFQ_Unique_Quality",
-                "source": "Genes.MaxLFQ.Unique.Quality"
-              },
-              {
-                "name": "Genes_TopN",
-                "source": "Genes.TopN"
-              },
-              {
-                "name": "PG_MaxLFQ_Empirical_Quality",
-                "source": "PG.MaxLFQ.Empirical.Quality"
-              },
-              {
-                "name": "PG_MaxLFQ_Quality",
-                "source": "PG.MaxLFQ.Quality"
-              },
-              {
-                "name": "PG_TopN",
-                "source": "PG.TopN"
-              }
+              {"name": "Genes_MaxLFQ_Quality", "source": "Genes.MaxLFQ.Quality"},
+              {"name": "Genes_MaxLFQ_Unique", "source": "Genes.MaxLFQ.Unique"},
+              {"name": "Genes_MaxLFQ_Unique_Quality", "source": "Genes.MaxLFQ.Unique.Quality"},
+              {"name": "Genes_TopN", "source": "Genes.TopN"},
+              {"name": "PG_MaxLFQ_Empirical_Quality", "source": "PG.MaxLFQ.Empirical.Quality"},
+              {"name": "PG_MaxLFQ_Quality", "source": "PG.MaxLFQ.Quality"},
+              {"name": "PG_TopN", "source": "PG.TopN"}
             ]
           },
           "columns": {
@@ -556,28 +271,15 @@
               {
                 "name": "Protein_Group",
                 "source": "Protein.Group",
-                "roles": [
-                  "protein_assignment",
-                  "fasta_accessions"
-                ],
+                "roles": ["protein_assignment", "fasta_accessions"],
                 "note": "The group's members are its FASTA accessions. Protein.Ids describes each precursor and differs within a group, so the protein level leaves it out."
-              },
-              {
-                "name": "Protein_Names",
-                "source": "Protein.Names"
-              },
-              {
-                "name": "Genes",
-                "source": "Genes"
               },
               {
                 "name": "Lib_PG_Q_Value",
                 "source": "Lib.PG.Q.Value",
                 "type": "number",
                 "required": false,
-                "duplicates": {
-                  "mode": "min"
-                },
+                "per_feature": "min",
                 "note": "From the spectral library: the protein group's library q-value, one per group; min, as for Global_PG_Q_Value."
               },
               {
@@ -585,9 +287,7 @@
                 "source": "Global.PG.Q.Value",
                 "type": "number",
                 "required": false,
-                "duplicates": {
-                  "mode": "min"
-                },
+                "per_feature": "min",
                 "note": "Experiment-wide protein-group q-value, one per group. DIA-NN writes 1.0 into the rows of precursors without a global q-value, so the group's value is the smallest."
               }
             ]
