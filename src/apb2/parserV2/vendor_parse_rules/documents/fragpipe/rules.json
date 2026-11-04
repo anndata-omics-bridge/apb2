@@ -1,18 +1,26 @@
 {
   "schema_version": "0.10",
-  "file_version": "3",
+  "file_version": "4",
   "software_name": "FragPipe",
   "software_version_pattern": "^2[23]\\.",
+  "hierarchy": "lfq",
+  "parameter_file": "required",
   "tables": [
     {
       "input": {"shape": "wide", "extensions": [".tsv"]},
       "base": {
+        "defaults": {
+          "var": {"type": "string", "required": true, "per_feature": "first"},
+          "layers": {"encoding_mode": "numeric", "type": "number", "required": false}
+        },
         "sample_pattern": "(?P<sample>.+?)(?:_[12])?",
         "axis": {"obs_keys": ["sample"]},
+        "measurements": {"repeated_cells": {"mode": "error"}},
         "sequence_syntax": {
           "vendor_sequence": {
             "parser": "token_regex",
-            "token_pattern": "^n\\[(?P<nterm>[^\\]]+)\\]|c\\[(?P<cterm>[^\\]]+)\\]$|\\[(?P<residue>[^\\]]+)\\]"
+            "token_pattern": "^n\\[(?P<nterm>[^\\]]+)\\]|c\\[(?P<cterm>[^\\]]+)\\]$|\\[(?P<residue>[^\\]]+)\\]",
+            "token_position": "after_residue"
           }
         },
         "modification_maps": {
@@ -71,6 +79,8 @@
               {
                 "name": "ProForma_peptidoform",
                 "inputs": ["Modified_Sequence"],
+                "case_sensitive": false,
+                "unknown_policy": "preserve",
                 "how": "proforma_sequence"
               },
               {

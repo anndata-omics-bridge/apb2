@@ -1,8 +1,10 @@
 {
   "schema_version": "0.10",
-  "file_version": "4",
+  "file_version": "5",
   "software_name": "Spectronaut",
   "software_version_pattern": "^(19|20|21)\\..*",
+  "hierarchy": "lfq",
+  "parameter_file": "required",
   "tables": [
     {
       "input": {
@@ -14,9 +16,17 @@
           "decimal_candidates": [".", ","],
           "thousands_candidates": [",", ".", " "]
         },
-        "without_parameter_file": {"required_columns": ["E.Errors"]}
+        "without_parameter_file": {
+          "required_columns": ["E.Errors"],
+          "acquisition_method": {"otherwise": "unknown"}
+        }
       },
       "base": {
+        "defaults": {
+          "var": {"type": "string", "required": true, "per_feature": "first"},
+          "obs": {"type": "string", "required": true},
+          "layers": {"encoding_mode": "numeric", "type": "number", "required": false}
+        },
         "axis": {"obs_keys": ["R_FileName"]},
         "columns": {
           "obs": [
@@ -41,7 +51,8 @@
         "sequence_syntax": {
           "vendor_sequence": {
             "parser": "token_regex",
-            "token_pattern": "^\\[(?P<nterm>[^\\[\\]]+)\\]|\\[(?P<residue>[^\\[\\]]+)\\]"
+            "token_pattern": "^\\[(?P<nterm>[^\\[\\]]+)\\]|\\[(?P<residue>[^\\[\\]]+)\\]",
+            "token_position": "after_residue"
           }
         },
         "modification_maps": {
@@ -58,6 +69,7 @@
           "axis": {"var_keys": ["ProForma_ion"]},
           "measurements": {
             "primary_layer": "FG_Quantity",
+            "repeated_cells": {"mode": "error"},
             "layers": [
               {
                 "name": "FG_Quantity",
@@ -163,6 +175,8 @@
               {
                 "name": "ProForma_peptidoform",
                 "inputs": ["EG_ModifiedSequence"],
+                "case_sensitive": false,
+                "unknown_policy": "preserve",
                 "how": "proforma_sequence"
               },
               {
@@ -191,6 +205,7 @@
           },
           "measurements": {
             "primary_layer": "F_PeakArea",
+            "repeated_cells": {"mode": "error"},
             "layers": [
               {
                 "name": "F_PeakArea",
@@ -226,6 +241,8 @@
               {
                 "name": "ProForma_peptidoform",
                 "inputs": ["EG_ModifiedSequence"],
+                "case_sensitive": false,
+                "unknown_policy": "preserve",
                 "how": "proforma_sequence"
               },
               {

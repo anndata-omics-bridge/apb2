@@ -608,13 +608,14 @@ def test_keep_best_is_built_from_the_declared_ranking_only() -> None:
 
 
 def test_a_rule_names_its_ranking_layer_exactly_for_keep_best() -> None:
-    assert RepeatedCells(mode="keep_best", by="Score").best == "highest"
-    for invalid in (
-        {"mode": "keep_best"},
-        {"mode": "sum", "by": "Score"},
-        {"mode": "sum", "best": "lowest"},
+    assert RepeatedCells(mode="keep_best", by="Score", best="lowest").best == "lowest"
+    for invalid, message in (
+        ({"mode": "keep_best", "best": "highest"}, "'by' names the ranking layer"),
+        ({"mode": "keep_best", "by": "Score"}, "'best' names the winning value"),
+        ({"mode": "sum", "by": "Score"}, "'by' names the ranking layer"),
+        ({"mode": "sum", "best": "lowest"}, "'best' names the winning value"),
     ):
-        with pytest.raises(ValueError, match="keep_best"):
+        with pytest.raises(ValueError, match=message):
             RepeatedCells.model_validate(invalid)
 
 

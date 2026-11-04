@@ -1,12 +1,19 @@
 {
   "schema_version": "0.10",
-  "file_version": "4",
+  "file_version": "5",
   "software_name": "AlphaDIA",
   "software_version_pattern": "^2\\.",
+  "hierarchy": "lfq",
+  "parameter_file": "required",
   "tables": [
     {
       "input": {"shape": "long", "extensions": [".parquet"]},
       "base": {
+        "defaults": {
+          "var": {"type": "string", "required": true, "per_feature": "first"},
+          "obs": {"type": "string", "required": true},
+          "layers": {"encoding_mode": "numeric", "type": "number", "required": false}
+        },
         "axis": {"obs_keys": ["raw_name"]},
         "columns": {
           "obs": [{"name": "raw_name", "source": "raw.name"}],
@@ -16,7 +23,7 @@
           ]
         },
         "sequence_syntax": {
-          "vendor_sequence": {"parser": "site_list"},
+          "vendor_sequence": {"parser": "site_list", "delimiter": ";", "site_base": 1},
           "plain_sequence": {"parser": "plain_sequence"}
         },
         "modification_maps": {
@@ -32,6 +39,7 @@
           "axis": {"var_keys": ["ProForma_ion"]},
           "measurements": {
             "primary_layer": "Precursor_Intensity",
+            "repeated_cells": {"mode": "error"},
             "layers": [
               {
                 "name": "Precursor_Intensity",
@@ -86,7 +94,9 @@
                 "name": "ProForma_peptidoform",
                 "inputs": ["Sequence", "Mods", "Mod_Sites"],
                 "how": "proforma_sequence",
-                "syntax": "vendor_sequence"
+                "syntax": "vendor_sequence",
+                "case_sensitive": false,
+                "unknown_policy": "preserve"
               },
               {
                 "name": "ProForma_peptide",

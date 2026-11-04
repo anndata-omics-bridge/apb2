@@ -8,11 +8,13 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, ValidationError, model_validator
 
 from apb2.parserV2.vendor_parse_rules.schema.annotation import SampleAnnotation
 from apb2.parserV2.vendor_parse_rules.schema.base import (
+    AxisColumnType,
     ModelBase,
+    PerFeature,
     QuantificationLevel,
     SchemaVersion,
 )
@@ -38,8 +40,6 @@ type MergeBlock = Callable[[JsonDict, JsonDict], JsonDict]
 
 _SAMPLE = "{sample}"
 """The placeholder a wide layer's source writes where each column names its sample."""
-_DEFAULT_SAMPLE_PATTERN = "(?P<sample>.+)"
-"""What ``{sample}`` stands for when the table declares no ``sample_pattern``."""
 
 
 class RuleNotApplicable(ValueError):
@@ -89,6 +89,40 @@ class _PreparationSchema(ModelBase):
     ]
 
 
+class _VarDefaults(ModelBase):
+    """What a table's var columns read from a vendor column take where they state no value."""
+
+    type: AxisColumnType
+    required: bool
+    per_feature: PerFeature
+
+
+class _ObsDefaults(ModelBase):
+    """What a long table's obs columns read from a vendor column take where they state none."""
+
+    type: AxisColumnType
+    required: bool
+
+
+class _LayerDefaults(ModelBase):
+    """What a table's layers take where they state no value; a factor layer takes no type."""
+
+    encoding_mode: Literal["numeric", "factor"]
+    type: Literal["number", "integer"]
+    required: bool
+
+
+class _TableDefaults(ModelBase):
+    """A table's ``base.defaults``: each choice its entries share, stated once.
+
+    An entry's own value wins. Computed entries take none: they have no such choice.
+    """
+
+    var: _VarDefaults
+    obs: _ObsDefaults | None = None
+    layers: _LayerDefaults
+
+
 class _RuleTableSchema(ModelBase):
     """One physical input and the level declarations composed only within that table."""
 
@@ -96,6 +130,29 @@ class _RuleTableSchema(ModelBase):
     base: JsonDict
     levels: dict[QuantificationLevel, JsonDict] = Field(min_length=1)
     prepare: _PreparationSchema | None = None
+
+    def defaults(self) -> _TableDefaults:
+        """The values the table's column and layer entries take where they state none."""
+        if "defaults" not in self.base:
+            raise ValueError("base declares no defaults: the values its entries take by default")
+        try:
+            return _TableDefaults.model_validate(self.base["defaults"])
+        except ValidationError as error:
+            problems = "; ".join(
+                ".".join(("base.defaults", *map(str, problem["loc"]))) + f": {problem['msg']}"
+                for problem in error.errors()
+            )
+            raise ValueError(problems) from error
+
+    @model_validator(mode="after")
+    def _defaults_are_the_bases(self) -> _RuleTableSchema:
+        """The base states its entries' defaults once, for the axes its table has."""
+        if (self.defaults().obs is not None) != (self.input.shape == "long"):
+            raise ValueError("base.defaults names obs exactly for a long table")
+        levels = [level for level, fragment in self.levels.items() if "defaults" in fragment]
+        if levels:
+            raise ValueError(f"defaults belong to the table's base; levels {levels} declare them")
+        return self
 
     @model_validator(mode="after")
     def _prepared_input_declares_no_detection(self) -> _RuleTableSchema:
@@ -130,8 +187,8 @@ class RuleDocument(ModelBase):
     file_version: str
     software_name: str
     software_version_pattern: str
-    hierarchy: str = "lfq"
-    parameter_file: Literal["required", "none"] = "required"
+    hierarchy: str
+    parameter_file: Literal["required", "none"]
     sample_annotation: SampleAnnotation | None = None
     tables: list[_RuleTableSchema] = Field(min_length=1)
 
@@ -232,7 +289,9 @@ class RuleDocument(ModelBase):
                 if self.sample_annotation is not None
                 else {}
             ),
-            **_compose_shorthand(_merge_fragments(table.base, level_fragment), table.input.shape),
+            **_compose_shorthand(
+                _merge_fragments(table.base, level_fragment), table.input.shape, table.defaults()
+            ),
         }
 
 
@@ -253,46 +312,95 @@ def document_json_schema() -> dict[str, object]:
 # ------------------------------------------- the file: shorthand the composition resolves
 
 
-def _compose_shorthand(merged: JsonDict, shape: str) -> JsonDict:
+def _compose_shorthand(merged: JsonDict, shape: str, defaults: _TableDefaults) -> JsonDict:
     """Resolve the authoring shorthand of one merged level into explicit declarations.
 
     ``source_prefix`` names the table a preparation step's join prefixes, such as MaxQuant's
     ``peptide.``: an entry's own prefix wins over the level's, which wins over the base's. A
     wide layer's ``{sample}`` stands for the table's ``sample_pattern``, the level's over the
     base's. A sequence column that names no ``syntax`` or ``modification_map`` takes the level's
-    only one. New dicts carry the result, so the document's fragments stay as authored.
+    only one. Column entries read from a vendor column, and layers, take the table's
+    ``defaults`` for each value they state none of. New dicts carry the result, so the
+    document's fragments stay as authored.
     """
     composed = dict(merged)
+    composed.pop("defaults", None)
     prefix = composed.pop("source_prefix", None)
-    if "sample_pattern" in composed and shape != "wide":
-        raise ValueError("sample_pattern applies to a wide table")
-    pattern = composed.pop("sample_pattern", _DEFAULT_SAMPLE_PATTERN)
+    pattern = composed.pop("sample_pattern", None)
+    measurements = composed.get("measurements")
+    layers = measurements.get("layers") if isinstance(measurements, dict) else None
+    _check_sample_pattern(shape, pattern, layers)
     columns = composed.get("columns")
     if isinstance(columns, dict):
         composed["columns"] = {
-            group: [_composed_column(entry, prefix, composed) for entry in entries]
+            group: [
+                _composed_column(entry, prefix, composed, _column_defaults(defaults, group))
+                for entry in entries
+            ]
             if isinstance(entries, list)
             else entries
             for group, entries in columns.items()
         }
-    measurements = composed.get("measurements")
-    if isinstance(measurements, dict) and isinstance(layers := measurements.get("layers"), list):
+    if isinstance(measurements, dict) and isinstance(layers, list):
         composed["measurements"] = {
             **measurements,
             "layers": [
-                _wide_layer(layer, prefix, pattern) if shape == "wide" else _prefixed(layer, prefix)
+                _layer_with_defaults(
+                    _wide_layer(layer, prefix, pattern)
+                    if shape == "wide"
+                    else _prefixed(layer, prefix),
+                    defaults.layers,
+                )
                 for layer in layers
             ],
         }
     return composed
 
 
-def _composed_column(entry: object, prefix: object, level: JsonDict) -> object:
-    """One column with its prefix applied and its sequence references filled in."""
+def _check_sample_pattern(shape: str, pattern: object, layers: object) -> None:
+    """A wide table declares its ``sample_pattern`` exactly when a layer writes ``{sample}``."""
+    if pattern is not None and shape != "wide":
+        raise ValueError("sample_pattern applies to a wide table")
+    if shape != "wide":
+        return
+    writing = [
+        layer.get("name")
+        for layer in (layers if isinstance(layers, list) else [])
+        if isinstance(layer, dict) and _SAMPLE in str(layer.get("source"))
+    ]
+    if writing and pattern is None:
+        raise ValueError(
+            f"layers {writing} write {_SAMPLE}, and the table declares no sample_pattern, such "
+            "as '(?P<sample>.+)'"
+        )
+    if pattern is not None and not writing:
+        raise ValueError(f"sample_pattern is declared, and no layer writes {_SAMPLE}")
+
+
+def _column_defaults(defaults: _TableDefaults, group: object) -> JsonDict:
+    """The values one column group's entries take where they state none."""
+    chosen = defaults.var if group == "var" else defaults.obs if group == "obs" else None
+    return {} if chosen is None else chosen.model_dump()
+
+
+def _layer_with_defaults(layer: object, defaults: _LayerDefaults) -> object:
+    """One layer with each value it states none of taken from the table; a factor has no type."""
+    if not isinstance(layer, dict):
+        return layer
+    filled = {"encoding_mode": defaults.encoding_mode, "required": defaults.required, **layer}
+    if filled["encoding_mode"] == "numeric":
+        filled.setdefault("type", defaults.type)
+    return filled
+
+
+def _composed_column(entry: object, prefix: object, level: JsonDict, defaults: JsonDict) -> object:
+    """One column with its prefix applied, and its sequence references or defaults filled in."""
     column = _prefixed(entry, prefix)
     if not isinstance(column, dict):
         return column
     how = column.get("how")
+    if how is None:
+        return {**defaults, **column}
     if how in {"proforma_sequence", "stripped_sequence"} and "syntax" not in column:
         column["syntax"] = _only_name(level, "sequence_syntax", column)
     if how == "proforma_sequence" and "modification_map" not in column:

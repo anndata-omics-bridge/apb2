@@ -1,8 +1,10 @@
 {
   "schema_version": "0.10",
-  "file_version": "7",
+  "file_version": "8",
   "software_name": "DIA-NN",
   "software_version_pattern": "^2\\..*",
+  "hierarchy": "lfq",
+  "parameter_file": "required",
   "sample_annotation": {"matching": {"mode": "exact", "normalize": "mass_spec_basename"}},
   "tables": [
     {
@@ -18,6 +20,11 @@
         }
       },
       "base": {
+        "defaults": {
+          "var": {"type": "string", "required": false, "per_feature": "first"},
+          "obs": {"type": "string", "required": true},
+          "layers": {"encoding_mode": "numeric", "type": "number", "required": false}
+        },
         "axis": {"obs_keys": ["Run"]},
         "columns": {
           "obs": [
@@ -25,17 +32,18 @@
             {"name": "Run_Index", "source": "Run.Index", "type": "integer", "required": false}
           ],
           "var": [
-            {"name": "Decoy", "source": "Decoy", "type": "boolean", "required": false},
+            {"name": "Decoy", "source": "Decoy", "type": "boolean"},
             {"name": "apb_Decoy", "inputs": ["Decoy"], "how": "decoy", "equals": "true"},
             {"name": "apb_Contaminant", "how": "unmarked"},
-            {"name": "Protein_Names", "source": "Protein.Names"},
-            {"name": "Genes", "source": "Genes"}
+            {"name": "Protein_Names", "source": "Protein.Names", "required": true},
+            {"name": "Genes", "source": "Genes", "required": true}
           ]
         },
         "sequence_syntax": {
           "vendor_sequence": {
             "parser": "token_regex",
-            "token_pattern": "^\\((?P<nterm>[^()]*)\\)|\\((?P<residue>[^()]*)\\)"
+            "token_pattern": "^\\((?P<nterm>[^()]*)\\)|\\((?P<residue>[^()]*)\\)",
+            "token_position": "after_residue"
           }
         },
         "modification_maps": {
@@ -53,6 +61,7 @@
           "axis": {"var_keys": ["ProForma_ion"]},
           "measurements": {
             "primary_layer": "Precursor_Normalised",
+            "repeated_cells": {"mode": "error"},
             "layers": [
               {
                 "name": "Ms1_Normalised",
@@ -132,88 +141,71 @@
           ],
           "columns": {
             "var": [
-              {"name": "Modified_Sequence", "source": "Modified.Sequence"},
-              {"name": "Stripped_Sequence", "source": "Stripped.Sequence"},
-              {"name": "Precursor_Charge", "source": "Precursor.Charge", "type": "integer"},
-              {"name": "Precursor_Id", "source": "Precursor.Id"},
-              {"name": "Protein_Group", "source": "Protein.Group", "roles": ["protein_assignment"]},
-              {"name": "Protein_Ids", "source": "Protein.Ids", "roles": ["fasta_accessions"]},
+              {"name": "Modified_Sequence", "source": "Modified.Sequence", "required": true},
+              {"name": "Stripped_Sequence", "source": "Stripped.Sequence", "required": true},
               {
-                "name": "Proteotypic",
-                "source": "Proteotypic",
-                "type": "boolean",
-                "required": false
+                "name": "Precursor_Charge",
+                "source": "Precursor.Charge",
+                "type": "integer",
+                "required": true
               },
-              {"name": "Channel", "source": "Channel", "required": false},
+              {"name": "Precursor_Id", "source": "Precursor.Id", "required": true},
+              {
+                "name": "Protein_Group",
+                "source": "Protein.Group",
+                "required": true,
+                "roles": ["protein_assignment"]
+              },
+              {
+                "name": "Protein_Ids",
+                "source": "Protein.Ids",
+                "required": true,
+                "roles": ["fasta_accessions"]
+              },
+              {"name": "Proteotypic", "source": "Proteotypic", "type": "boolean"},
+              {"name": "Channel", "source": "Channel"},
               {
                 "name": "Lib_Q_Value",
                 "source": "Lib.Q.Value",
                 "type": "number",
-                "required": false,
                 "note": "Spectral-library q-value, one per precursor, repeated in every run row"
               },
               {
                 "name": "Global_Q_Value",
                 "source": "Global.Q.Value",
                 "type": "number",
-                "required": false,
                 "note": "Experiment-wide q-value, one per precursor, repeated in every run row"
               },
               {
                 "name": "Lib_PTM_Site_Confidence",
                 "source": "Lib.PTM.Site.Confidence",
                 "type": "number",
-                "required": false,
                 "note": "Spectral-library site confidence, one per precursor, repeated in every run row"
               },
               {
                 "name": "Lib_Peptidoform_Q_Value",
                 "source": "Lib.Peptidoform.Q.Value",
                 "type": "number",
-                "required": false,
                 "note": "Spectral-library peptidoform q-value, one per precursor, repeated in every run row"
               },
-              {
-                "name": "Global_Ms1_Q_Value",
-                "source": "Global.Ms1.Q.Value",
-                "type": "number",
-                "required": false
-              },
-              {
-                "name": "Global_Ms1_Quality",
-                "source": "Global.Ms1.Quality",
-                "type": "number",
-                "required": false
-              },
+              {"name": "Global_Ms1_Q_Value", "source": "Global.Ms1.Q.Value", "type": "number"},
+              {"name": "Global_Ms1_Quality", "source": "Global.Ms1.Quality", "type": "number"},
               {
                 "name": "Global_Peptidoform_Q_Value",
                 "source": "Global.Peptidoform.Q.Value",
-                "type": "number",
-                "required": false
+                "type": "number"
               },
-              {
-                "name": "Precursor_Lib_Index",
-                "source": "Precursor.Lib.Index",
-                "type": "integer",
-                "required": false
-              },
-              {
-                "name": "Precursor_Mz",
-                "source": "Precursor.Mz",
-                "type": "number",
-                "required": false
-              },
-              {"name": "Protein_Sites", "source": "Protein.Sites", "required": false},
-              {
-                "name": "Site_Occupancy_Probabilities",
-                "source": "Site.Occupancy.Probabilities",
-                "required": false
-              },
-              {"name": "iIM", "source": "iIM", "type": "number", "required": false},
-              {"name": "iRT", "source": "iRT", "type": "number", "required": false},
+              {"name": "Precursor_Lib_Index", "source": "Precursor.Lib.Index", "type": "integer"},
+              {"name": "Precursor_Mz", "source": "Precursor.Mz", "type": "number"},
+              {"name": "Protein_Sites", "source": "Protein.Sites"},
+              {"name": "Site_Occupancy_Probabilities", "source": "Site.Occupancy.Probabilities"},
+              {"name": "iIM", "source": "iIM", "type": "number"},
+              {"name": "iRT", "source": "iRT", "type": "number"},
               {
                 "name": "ProForma_peptidoform",
                 "inputs": ["Modified_Sequence"],
+                "case_sensitive": false,
+                "unknown_policy": "preserve",
                 "how": "proforma_sequence"
               },
               {
@@ -258,8 +250,18 @@
                 "source": "Genes.MaxLFQ.Empirical.Unique.Quality"
               },
               {"name": "Genes_MaxLFQ_Quality", "source": "Genes.MaxLFQ.Quality"},
-              {"name": "Genes_MaxLFQ_Unique", "source": "Genes.MaxLFQ.Unique"},
-              {"name": "Genes_MaxLFQ_Unique_Quality", "source": "Genes.MaxLFQ.Unique.Quality"},
+              {
+                "name": "Genes_MaxLFQ_Unique",
+                "source": "Genes.MaxLFQ.Unique",
+                "missing_values": ["<=0"],
+                "note": "DIA-NN writes the gene's value on gene-unique precursors and 0 on the protein group's other rows"
+              },
+              {
+                "name": "Genes_MaxLFQ_Unique_Quality",
+                "source": "Genes.MaxLFQ.Unique.Quality",
+                "missing_values": ["<=0"],
+                "note": "DIA-NN writes the gene's value on gene-unique precursors and 0 on the protein group's other rows, as with Genes.MaxLFQ.Unique"
+              },
               {"name": "Genes_TopN", "source": "Genes.TopN"},
               {"name": "PG_MaxLFQ_Empirical_Quality", "source": "PG.MaxLFQ.Empirical.Quality"},
               {"name": "PG_MaxLFQ_Quality", "source": "PG.MaxLFQ.Quality"},
@@ -271,6 +273,7 @@
               {
                 "name": "Protein_Group",
                 "source": "Protein.Group",
+                "required": true,
                 "roles": ["protein_assignment", "fasta_accessions"],
                 "note": "The group's members are its FASTA accessions. Protein.Ids describes each precursor and differs within a group, so the protein level leaves it out."
               },
@@ -278,7 +281,6 @@
                 "name": "Lib_PG_Q_Value",
                 "source": "Lib.PG.Q.Value",
                 "type": "number",
-                "required": false,
                 "per_feature": "min",
                 "note": "From the spectral library: the protein group's library q-value, one per group; min, as for Global_PG_Q_Value."
               },
@@ -286,7 +288,6 @@
                 "name": "Global_PG_Q_Value",
                 "source": "Global.PG.Q.Value",
                 "type": "number",
-                "required": false,
                 "per_feature": "min",
                 "note": "Experiment-wide protein-group q-value, one per group. DIA-NN writes 1.0 into the rows of precursors without a global q-value, so the group's value is the smallest."
               }

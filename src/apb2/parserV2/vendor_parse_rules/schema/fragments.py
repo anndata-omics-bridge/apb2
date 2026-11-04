@@ -16,8 +16,8 @@ class PositionalFragments(ModelBase):
 
     label_strategy: Literal["positional"]
     value_columns: list[str] = Field(min_length=1)
-    delimiter: Delimiter = ";"
-    label_output: str = "fragment_label"
+    delimiter: Delimiter
+    label_output: str
 
 
 class ColumnLabeledFragments(ModelBase):
@@ -27,9 +27,9 @@ class ColumnLabeledFragments(ModelBase):
     value_columns: list[str] = Field(min_length=1)
     label_column: str
     # False: a source without the label column labels its scalars by position instead.
-    label_required: bool = True
-    delimiter: Delimiter = ";"
-    label_output: str = "fragment_label"
+    label_required: bool
+    delimiter: Delimiter
+    label_output: str
 
     @model_validator(mode="after")
     def _label_is_not_a_value_column(self) -> ColumnLabeledFragments:

@@ -12,7 +12,6 @@
           "type": "array"
         },
         "otherwise": {
-          "default": "unknown",
           "enum": [
             "DDA",
             "DIA",
@@ -22,6 +21,9 @@
           "type": "string"
         }
       },
+      "required": [
+        "otherwise"
+      ],
       "title": "AcquisitionFromColumns",
       "type": "object"
     },
@@ -373,6 +375,9 @@
           "$ref": "#/$defs/AcquisitionFromColumns"
         }
       },
+      "required": [
+        "acquisition_method"
+      ],
       "title": "WithoutParameterFile",
       "type": "object"
     },
@@ -460,12 +465,10 @@
       "type": "string"
     },
     "hierarchy": {
-      "default": "lfq",
       "title": "Hierarchy",
       "type": "string"
     },
     "parameter_file": {
-      "default": "required",
       "enum": [
         "required",
         "none"
@@ -498,6 +501,8 @@
     "file_version",
     "software_name",
     "software_version_pattern",
+    "hierarchy",
+    "parameter_file",
     "tables"
   ],
   "title": "RuleDocument",

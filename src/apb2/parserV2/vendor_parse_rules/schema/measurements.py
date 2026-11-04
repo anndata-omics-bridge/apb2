@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
 from typing import Annotated, Literal
 
-from pydantic import Discriminator, Field, Tag, model_validator
+from pydantic import Field, model_validator
 
 from apb2.parserV2.vendor_parse_rules.schema.base import DuplicateMode, ModelBase, Note
 from apb2.parserV2.vendor_parse_rules.schema.roles import SemanticRole
@@ -29,12 +28,12 @@ class RepeatedCells(ModelBase):
     added up over the repeated rows instead, such as quantities split across several of them.
     """
 
-    mode: DuplicateMode = "error"
+    mode: DuplicateMode
     by: str | None = Field(
         default=None, description="keep_best: the numeric layer that ranks repeated rows"
     )
-    best: Literal["highest", "lowest"] = Field(
-        default="highest", description="keep_best: which value of the 'by' layer wins"
+    best: Literal["highest", "lowest"] | None = Field(
+        default=None, description="keep_best: which value of the 'by' layer wins"
     )
     sum: list[str] = Field(
         default_factory=list,
@@ -44,10 +43,13 @@ class RepeatedCells(ModelBase):
 
     @model_validator(mode="after")
     def _ranking_only_for_keep_best(self) -> RepeatedCells:
-        if (self.mode == "keep_best") != (self.by is not None):
+        keep_best = self.mode == "keep_best"
+        if keep_best != (self.by is not None):
             raise ValueError("'by' names the ranking layer exactly when mode is keep_best")
-        if self.mode != "keep_best" and (self.best != "highest" or self.sum):
-            raise ValueError("'best' and 'sum' apply only to keep_best")
+        if keep_best != (self.best is not None):
+            raise ValueError("'best' names the winning value exactly when mode is keep_best")
+        if not keep_best and self.sum:
+            raise ValueError("'sum' applies only to keep_best")
         if self.by in self.sum:
             raise ValueError(f"keep_best ranks by {self.by!r}, so it cannot also sum it")
         return self
@@ -85,10 +87,14 @@ type ValuePattern = Annotated[
 
 
 class NumericLayer(ModelBase):
-    """A quantitative layer encoded numerically only at an output boundary."""
+    """A quantitative layer encoded numerically only at an output boundary.
 
-    encoding_mode: Literal["numeric"] = "numeric"
-    type: Literal["number", "integer"] = "number"
+    ``encoding_mode``, ``type`` and ``required`` come from the layer or its table's
+    ``defaults``.
+    """
+
+    encoding_mode: Literal["numeric"]
+    type: Literal["number", "integer"]
     name: str
     source: str
     missing_values: list[float | MissingBound] = Field(default_factory=list)
@@ -96,7 +102,7 @@ class NumericLayer(ModelBase):
     """Text the vendor writes for a missing value, such as ``-`` or ``NA``; such cells are
     missing, not unreadable."""
     value_pattern: ValuePattern = Field(default_factory=NoValuePattern)
-    required: bool = False
+    required: bool
     roles: list[SemanticRole] = Field(default_factory=list)
     note: Note = None
 
@@ -130,21 +136,12 @@ class FactorLayer(ModelBase):
     name: str
     source: str
     categories: dict[str, int] = Field(min_length=1)
-    required: bool = False
+    required: bool
     roles: list[SemanticRole] = Field(default_factory=list)
     note: Note = None
 
 
-def _layer_encoding(value: object) -> str:
-    if isinstance(value, Mapping):
-        return str(value.get("encoding_mode", "numeric"))
-    return str(getattr(value, "encoding_mode", "numeric"))
-
-
-type Layer = Annotated[
-    Annotated[NumericLayer, Tag("numeric")] | Annotated[FactorLayer, Tag("factor")],
-    Discriminator(_layer_encoding),
-]
+type Layer = Annotated[NumericLayer | FactorLayer, Field(discriminator="encoding_mode")]
 
 
 class Measurements(ModelBase):
@@ -156,7 +153,7 @@ class Measurements(ModelBase):
 
     primary_layer: str
     sample_layer: str | None = None
-    repeated_cells: RepeatedCells = Field(default_factory=RepeatedCells)
+    repeated_cells: RepeatedCells
     layers: list[Layer] = Field(min_length=1)
 
     @model_validator(mode="after")

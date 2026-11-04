@@ -1,17 +1,27 @@
 {
   "schema_version": "0.10",
-  "file_version": "3",
+  "file_version": "4",
   "software_name": "DIA-NN",
   "software_version_pattern": "^1\\.[0-7](\\.|$)",
+  "hierarchy": "lfq",
+  "parameter_file": "required",
   "sample_annotation": {"matching": {"mode": "exact", "normalize": "mass_spec_basename"}},
   "tables": [
     {
       "input": {
         "shape": "long",
         "extensions": [".tsv"],
-        "without_parameter_file": {"forbidden_columns": ["Lib.PG.Q.Value"]}
+        "without_parameter_file": {
+          "forbidden_columns": ["Lib.PG.Q.Value"],
+          "acquisition_method": {"otherwise": "unknown"}
+        }
       },
       "base": {
+        "defaults": {
+          "var": {"type": "string", "required": true, "per_feature": "first"},
+          "obs": {"type": "string", "required": true},
+          "layers": {"encoding_mode": "numeric", "type": "number", "required": false}
+        },
         "axis": {"obs_keys": ["Run"]},
         "columns": {
           "obs": [
@@ -27,7 +37,8 @@
         "sequence_syntax": {
           "vendor_sequence": {
             "parser": "token_regex",
-            "token_pattern": "^\\((?P<nterm>[^()]*)\\)|\\((?P<residue>[^()]*)\\)"
+            "token_pattern": "^\\((?P<nterm>[^()]*)\\)|\\((?P<residue>[^()]*)\\)",
+            "token_position": "after_residue"
           }
         },
         "modification_maps": {
@@ -45,6 +56,7 @@
           "axis": {"var_keys": ["ProForma_ion"]},
           "measurements": {
             "primary_layer": "Precursor_Normalised",
+            "repeated_cells": {"mode": "error"},
             "layers": [
               {
                 "name": "Precursor_Normalised",
@@ -117,6 +129,8 @@
               {
                 "name": "ProForma_peptidoform",
                 "inputs": ["Modified_Sequence"],
+                "case_sensitive": false,
+                "unknown_policy": "preserve",
                 "how": "proforma_sequence"
               },
               {
@@ -150,6 +164,7 @@
           "axis": {"var_keys": ["ProForma_fragment"]},
           "measurements": {
             "primary_layer": "Fragment_Quant_Raw",
+            "repeated_cells": {"mode": "error"},
             "layers": [
               {
                 "name": "Fragment_Quant_Raw",
@@ -173,6 +188,8 @@
               {
                 "name": "ProForma_peptidoform",
                 "inputs": ["Modified_Sequence"],
+                "case_sensitive": false,
+                "unknown_policy": "preserve",
                 "how": "proforma_sequence"
               },
               {

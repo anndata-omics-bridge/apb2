@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 from pathlib import Path
 from typing import Literal
@@ -22,15 +23,17 @@ from parserV2 import synthetic
 from parserV2.fixtures import committed_sample
 
 _DOCUMENT = {
-    "hierarchy": "lfq",
     "schema_version": "0.10",
     "file_version": "1",
     "software_name": "CliTest",
     "software_version_pattern": "^1$",
+    "hierarchy": "lfq",
+    "parameter_file": "required",
     "tables": [
         {
             "input": {"shape": "long", "extensions": [".tsv"]},
             "base": {
+                "defaults": copy.deepcopy(synthetic.LONG_DEFAULTS),
                 "axis": {"obs_keys": ["sample"], "var_keys": ["feature"]},
                 "columns": {
                     "obs": [{"name": "sample", "source": "Run"}],
@@ -38,6 +41,7 @@ _DOCUMENT = {
                 },
                 "measurements": {
                     "primary_layer": "Abundance",
+                    "repeated_cells": {"mode": "error"},
                     "layers": [{"name": "Abundance", "source": "Intensity"}],
                 },
             },
@@ -100,15 +104,17 @@ def test_convert_diann_with_software_and_no_params(tmp_path: Path) -> None:
 
 
 _MULTILEVEL_DOCUMENT = {
-    "hierarchy": "lfq",
     "schema_version": "0.10",
     "file_version": "1",
     "software_name": "CliTest",
     "software_version_pattern": "^1$",
+    "hierarchy": "lfq",
+    "parameter_file": "required",
     "tables": [
         {
             "input": {"shape": "long", "extensions": [".tsv"]},
             "base": {
+                "defaults": copy.deepcopy(synthetic.LONG_DEFAULTS),
                 "axis": {"obs_keys": ["sample"], "var_keys": ["feature"]},
                 "columns": {
                     "obs": [{"name": "sample", "source": "Run"}],
@@ -121,6 +127,7 @@ _MULTILEVEL_DOCUMENT = {
                 },
                 "measurements": {
                     "primary_layer": "Abundance",
+                    "repeated_cells": {"mode": "error"},
                     "layers": [{"name": "Abundance", "source": "Intensity"}],
                 },
             },

@@ -25,13 +25,13 @@ The function in [joins/metamorpheus.py](https://github.com/anndata-omics-bridge/
 
 The function in [joins/wombat.py](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/joins/wombat.py) drops WOMBAT-P rows whose `modified_peptide` names several peptides (`SEQA|SEQB`, FlashLFQ's ambiguous peak) and logs how many; such a row is no single ion. Prepared delimited tables are read with a comma for a `.csv` file and a tab otherwise; a preparation that names workbook sheets reads those sheets instead.
 
-The function in [joins/msangel.py](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/joins/msangel.py) joins MSAngel's "Protein sets" sheet onto its "Quantified peptide ions" sheet by `protein_set_id`. A preparation names the workbook sheets it reads, and the preparation reads only those, as text; it declares no `sheet_name`. The ion sheet lists a shared peptide once per protein set, so every joined row is one ion in one protein set: the ion level keeps the best-scoring set's row (`"rank_rows": {"by": "Protein_Set_Score"}`, its columns `"per_feature": "best_row"`), so its quantities and `Same_Set_Proteins`, its `protein_assignment`, come from that row; `Proteins` keeps only the `fasta_accessions` role. The protein level, keyed by the same `Same_Set_Proteins` (`samesets_accessions`), reads each set's own columns. Without a "Protein sets" sheet only the ions convert.
+The function in [joins/msangel.py](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/joins/msangel.py) joins MSAngel's "Protein sets" sheet onto its "Quantified peptide ions" sheet by `protein_set_id`. A preparation names the workbook sheets it reads, and the preparation reads only those, as text; it declares no `sheet_name`. The ion sheet lists a shared peptide once per protein set, so every joined row is one ion in one protein set: the ion level keeps the best-scoring set's row (`"rank_rows": {"by": "Protein_Set_Score", "best": "highest"}`, its columns `"per_feature": "best_row"`), so its quantities and `Same_Set_Proteins`, its `protein_assignment`, come from that row; `Proteins` keeps only the `fasta_accessions` role. The protein level, keyed by the same `Same_Set_Proteins` (`samesets_accessions`), reads each set's own columns. Without a "Protein sets" sheet only the ions convert.
 
 ## Column evidence without a parameter file
 
 When a caller supplies `--software` but no parameter file, the table's optional `input.without_parameter_file` declaration can distinguish rule variants beyond their normal required columns. `required_columns` and `forbidden_columns` are exact header signatures used only for this parameter-free route; parameter-backed version selection still uses the parsed software version. For example, DIA-NN 1.8/1.9 requires `PG.Normalised` and `Lib.PG.Q.Value`, while its 2.x rule requires `PG.TopN`.
 
-For a rule with an acquisition-dependent primary layer, `acquisition_method` names the columns that establish DDA, `DDA_if_any_column`, and the fallback, `otherwise`. DIA-NN 2.x uses `Ms1.Q.Value` or `Global.Ms1.Q.Value` as DDA evidence and otherwise selects its DIA default. This is authored evidence, not a generic claim that missing columns always mean DIA: only declare a fallback after validating its signature against the supported exports. Unresolved settings such as Sage's charge combination still raise an error rather than being guessed.
+`acquisition_method` states what the header says about acquisition: the columns that establish DDA, `DDA_if_any_column`, and the method without them, `otherwise`, which is `unknown` where the columns cannot tell, as for every such table but DIA-NN 2.x. DIA-NN 2.x uses `Ms1.Q.Value` or `Global.Ms1.Q.Value` as DDA evidence and otherwise selects its DIA default. This is authored evidence, not a generic claim that missing columns always mean DIA: only declare a fallback after validating its signature against the supported exports. Unresolved settings such as Sage's charge combination still raise an error rather than being guessed.
 
 ## Long format
 
@@ -51,6 +51,8 @@ P2	b	21
   "file_version": "1",
   "software_name": "MinimalLongExample",
   "software_version_pattern": "^1$",
+  "hierarchy": "lfq",
+  "parameter_file": "required",
   "tables": [
     {
       "input": {
@@ -60,6 +62,11 @@ P2	b	21
         ]
       },
       "base": {
+        "defaults": {
+          "var": {"type": "string", "required": true, "per_feature": "first"},
+          "obs": {"type": "string", "required": true},
+          "layers": {"encoding_mode": "numeric", "type": "number", "required": false}
+        },
         "axis": {
           "obs_keys": [
             "sample"
@@ -90,6 +97,7 @@ P2	b	21
         },
         "measurements": {
           "primary_layer": "Intensity",
+          "repeated_cells": {"mode": "error"},
           "layers": [
             {
               "name": "Intensity",
@@ -109,7 +117,7 @@ P2	b	21
 }
 ```
 
-`hierarchy`, `lfq` unless written, names a level hierarchy from [hierarchies.json](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/schema/hierarchies.json), and every level the document declares must belong to it. Quantification tables use `lfq`, which runs from `peptidoform_fragment` to `protein` and identifies a `protein` feature by its `protein_assignment` column; `psm` and `ptm_site` cover PSM and modification-site tables.
+`hierarchy` names a level hierarchy from [hierarchies.json](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/schema/hierarchies.json), and every level the document declares must belong to it. Quantification tables use `lfq`, which runs from `peptidoform_fragment` to `protein` and identifies a `protein` feature by its `protein_assignment` column; `psm` and `ptm_site` cover PSM and modification-site tables.
 
 Convert it with:
 
@@ -133,6 +141,8 @@ P2	20	21
   "file_version": "1",
   "software_name": "MinimalWideExample",
   "software_version_pattern": "^1$",
+  "hierarchy": "lfq",
+  "parameter_file": "required",
   "tables": [
     {
       "input": {
@@ -142,6 +152,11 @@ P2	20	21
         ]
       },
       "base": {
+        "defaults": {
+          "var": {"type": "string", "required": true, "per_feature": "first"},
+          "layers": {"encoding_mode": "numeric", "type": "number", "required": false}
+        },
+        "sample_pattern": "(?P<sample>.+)",
         "axis": {
           "obs_keys": [
             "sample"
@@ -166,6 +181,7 @@ P2	20	21
         },
         "measurements": {
           "primary_layer": "Intensity",
+          "repeated_cells": {"mode": "error"},
           "layers": [
             {
               "name": "Intensity",
@@ -187,7 +203,7 @@ P2	20	21
 
 The source matches both measurement headers and captures `a` and `b` as observation keys. Long and wide inputs produce the same observations-by-variables result contract.
 
-The text around `{sample}` matches literally, `source_prefix` first. `{sample}` stands for the table's `sample_pattern`, a regular expression with a `sample` capture group, written once in the `base` or a level, the level's first; it defaults to `(?P<sample>.+)`. A tool that writes more than the sample name declares it there, as PEAKS does for an optional `.raw` suffix:
+The text around `{sample}` matches literally, `source_prefix` first. `{sample}` stands for the table's `sample_pattern`, a regular expression with a `sample` capture group, written once in the `base` or a level, the level's first. Every table whose layers write `{sample}` declares it: `(?P<sample>.+)` where the header holds the sample name alone, more where the tool adds to it, as PEAKS does with an optional `.raw` suffix:
 
 ```json
 "sample_pattern": "(?P<sample>.+?)(?:\\.raw|_raw)?"
@@ -197,19 +213,43 @@ A source without `{sample}` is a regular expression itself, starting with `^` an
 
 By default the primary layer's captures are the sample names, and every other layer keeps only columns whose capture is one of them. When the primary layer's header shape is shared by non-sample columns, `measurements.sample_layer` names the layer whose captures are the sample names instead. PEAKS sets it to `Sample_Mz`: only runs have `<run> m/z` columns, so group averages such as `A Normalized Area` are not samples. The sample layer is required, and long rules reject the field because their observations come from `columns.obs`.
 
+## Table defaults
+
+Each table's `base` opens with `defaults`: the values its column entries and layers take where they state none, written once.
+
+```json
+"defaults": {
+  "var": {"type": "string", "required": true, "per_feature": "first"},
+  "obs": {"type": "string", "required": true},
+  "layers": {"encoding_mode": "numeric", "type": "number", "required": false}
+}
+```
+
+- Every table declares it, with every field; `obs` exactly for a long table, as a wide table has no obs columns
+- The base declares it; a level does not
+- Each table chooses its own values: MaxQuant's protein table makes var columns optional, as most of its columns are
+- An entry writes a value only where it differs from its table's, such as `"required": false` on an optional column
+- A factor layer takes `encoding_mode` and `required`; it has no `type`
+- Computed entries take none: they declare no `type` or `required`
+- The stored `rule_json` states every value on every entry and keeps no `defaults`
+
+`required: true` means the source column must exist: a file without it stops the conversion, and detection does not choose the level for that file. `required: false` leaves the entry out when the source is absent, together with the computed columns built on it.
+
+Every other value with a real choice is written where it applies: `hierarchy` and `parameter_file` at the top, `measurements.repeated_cells` with its `mode` (and `by` and `best` for `keep_best`), `rank_rows.best`, a sequence computation's `case_sensitive` and `unknown_policy`, and a syntax's `token_position`, `delimiter` and `site_base`. A field with one possible value is written nowhere, and one whose absence means none, such as `note`, `roles` or `missing_values`, stays absent.
+
 ## Column entries
 
 `columns.obs` and `columns.var` are ordered lists. Every physical column entry carries its own facts:
 
 - `name`: logical output name
 - `source`: physical vendor column
-- `required`: source must exist; defaults to `true`
-- `type`: `string`, `integer`, `number`, or `boolean`; defaults to `string`
+- `required`: whether the source must exist; from the table's `defaults` unless written
+- `type`: `string`, `integer`, `number`, or `boolean`; from the table's `defaults` unless written
 - `roles`: semantic meanings owned by this entry
 - `note`: why the entry is placed or read as it is; parsing ignores it. Layers and computed entries take one too
-- `per_feature` (var only): how a feature's repeated rows become one value. `first` (default) keeps the first nonblank value and reports features whose rows disagree as `var_disagreements`; `min` and `max` keep the smallest or largest number, for a tool that writes a placeholder into some rows; `best_row` takes the value from the row the level's `rank_rows` keeps
+- `per_feature` (var only; from the table's `defaults` unless written): how a feature's repeated rows become one value. `first` keeps the first nonblank value and reports features whose rows disagree as `var_disagreements`; `min` and `max` keep the smallest or largest number, for a tool that writes a placeholder into some rows; `best_row` takes the value from the row the level's `rank_rows` keeps
 
-`rank_rows`, written once per level beside its `columns`, names the required numeric var column that ranks a feature's repeated rows, `by`, and which value wins, `best` (`highest`, the default, or `lowest`). The level keeps that row before the feature table and the layers are built, so its `best_row` columns and every layer describe the same row, such as the protein set a shared peptide is assigned to; a long table keeps the best row's rows in every run.
+`rank_rows`, written once per level beside its `columns`, names the required numeric var column that ranks a feature's repeated rows, `by`, and which value wins, `best` (`highest` or `lowest`). The level keeps that row before the feature table and the layers are built, so its `best_row` columns and every layer describe the same row, such as the protein set a shared peptide is assigned to; a long table keeps the best row's rows in every run.
 
 A long report repeats a feature's values in every row of it, so a value per feature belongs in `columns.var` even where every run row carries it; a value per run and feature is a layer. DIA-NN's experiment-wide protein-group q-value is one such column, with a 1.0 placeholder on precursors without a global q-value:
 
@@ -224,7 +264,7 @@ A long report repeats a feature's values in every row of it, so a value per feat
 }
 ```
 
-Computed entries replace `source` with `how` and `inputs`. They appear after the entries they consume:
+Computed entries replace `source` with `how` and `inputs`, and declare no `type` or `required`: a computed value is text, and an entry that also reads a source of its own, as FragPipe's `Protein` does before joining it with `Mapped_Proteins`, requires that source. They appear after the entries they consume:
 
 ```json
 "obs": [
@@ -261,7 +301,8 @@ Map vendor columns to logical names first. A sequence computation consumes exact
   "sequence_syntax": {
     "vendor_sequence": {
       "parser": "token_regex",
-      "token_pattern": "^n\\[(?P<nterm>[^\\]]+)\\]|\\[(?P<residue>[^\\]]+)\\]"
+      "token_pattern": "^n\\[(?P<nterm>[^\\]]+)\\]|\\[(?P<residue>[^\\]]+)\\]",
+      "token_position": "after_residue"
     }
   },
   "modification_maps": {
@@ -274,7 +315,7 @@ Map vendor columns to logical names first. A sequence computation consumes exact
       {"name": "ProForma_peptide", "how": "stripped_sequence", "inputs": ["Modified_Sequence"]},
       {
         "name": "ProForma_peptidoform", "how": "proforma_sequence",
-        "inputs": ["Modified_Sequence"]
+        "inputs": ["Modified_Sequence"], "case_sensitive": false, "unknown_policy": "preserve"
       },
       {
         "name": "ProForma_ion", "how": "proforma_ion",
@@ -299,7 +340,7 @@ Every character that is not part of a declared token must be a residue letter (P
 
 A tool that names modifications but not their positions writes `ProForma_peptidoform_unlocalized` instead of `ProForma_peptidoform`: a `proforma_sequence` column of that name, which requires `embedded_site_list` syntax. Its sites may name residues only, as MaxQuant's `Oxidation (M)` does, and such a modification goes to ProForma's unknown-position group, `[UNIMOD:35]?PEPTMIDEMK`; a terminal site keeps its terminus. An optional `count` group in `entry_pattern` repeats the modification, `[UNIMOD:35][UNIMOD:35]?…` for `2 Oxidation (M)`, and an entry the pattern matches without a `token` group, such as `Unmodified`, adds none. `ProForma_peptidoform` refuses a site without a position.
 
-Stripping takes one logical sequence input and either token-regex syntax or `{"parser": "plain_sequence"}` for a bare sequence. It needs no modification map, Unimod lookup, or normalization operation. Normalization alone takes `modification_map`, `case_sensitive` (default `false`), and `unknown_policy` (`preserve`, `drop`, or `error`; default `preserve`). Unknown tokens are diagnostic metadata, not intermediate columns. Each operation memoizes its own distinct inputs.
+Stripping takes one logical sequence input and either token-regex syntax or `{"parser": "plain_sequence"}` for a bare sequence. It needs no modification map, Unimod lookup, or normalization operation. Normalization alone takes `modification_map`, `case_sensitive` (`true` or `false`), and `unknown_policy` (`preserve`, `drop`, or `error`), each written on the column. Unknown tokens are diagnostic metadata, not intermediate columns. Each operation memoizes its own distinct inputs.
 
 When migrating from `0.7`, replace the global `modifications` block with named syntax/map definitions, add references to computations, and declare all site-list inputs through logical columns. Remove `source_column`, `sequence_column`, `modification_column`, `site_column`, and `output_column` from configuration definitions; column entries now own those dependencies and outputs. Schema `0.7` conversion rules are rejected, while previously written result artifacts remain readable without rewriting their provenance.
 
@@ -317,11 +358,12 @@ A var role identifies one logical column. Both var roles name a protein list, so
 
 `measurements.primary_layer` is separate: it names the one layer projected to AnnData `X` and makes that source required. It does not imply that sibling abundance layers are auxiliary or semantically unclassified.
 
-Numeric layers default to logical `"type": "number"`. Declare `"type": "integer"` only when every non-missing measurement is a whole count; conversion rejects fractional and infinite values. Null and NaN remain valid missing cells, so AnnData may still store an integer layer in a `Float64` matrix. Factor layers continue to use `encoding_mode` and have no numeric type.
+A numeric layer takes its logical `type`, `number` or `integer`, from the table's `defaults` unless it writes its own. Declare `"type": "integer"` only when every non-missing measurement is a whole count; conversion rejects fractional and infinite values. Null and NaN remain valid missing cells, so AnnData may still store an integer layer in a `Float64` matrix. Factor layers continue to use `encoding_mode` and have no numeric type.
 
 ```json
 "measurements": {
   "primary_layer": "Intensity",
+  "repeated_cells": {"mode": "error"},
   "layers": [
     {"name": "Intensity", "source": "Intensity", "roles": ["abundance"], "missing_values": ["<=0"]},
     {"name": "LFQ_Intensity", "source": "LFQ intensity", "roles": ["abundance"], "missing_values": ["<=0"]}

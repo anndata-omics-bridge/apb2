@@ -1,17 +1,25 @@
 {
   "schema_version": "0.10",
-  "file_version": "4",
+  "file_version": "5",
   "software_name": "AlphaDIA",
   "software_version_pattern": "^1\\.12(?:\\.|-|$)",
+  "hierarchy": "lfq",
+  "parameter_file": "required",
   "tables": [
     {
       "prepare": {"how": "alphadia"},
       "input": {"shape": "long", "extensions": [".tsv"]},
       "base": {
+        "defaults": {
+          "var": {"type": "string", "required": true, "per_feature": "first"},
+          "obs": {"type": "string", "required": true},
+          "layers": {"encoding_mode": "numeric", "type": "number", "required": false}
+        },
         "axis": {"obs_keys": ["run"]},
+        "measurements": {"repeated_cells": {"mode": "error"}},
         "columns": {"obs": [{"name": "run", "source": "run"}]},
         "sequence_syntax": {
-          "vendor_sequence": {"parser": "site_list"},
+          "vendor_sequence": {"parser": "site_list", "delimiter": ";", "site_base": 1},
           "plain_sequence": {"parser": "plain_sequence"}
         },
         "modification_maps": {
@@ -80,7 +88,9 @@
                 "name": "ProForma_peptidoform",
                 "inputs": ["Sequence", "Mods", "Mod_Sites"],
                 "how": "proforma_sequence",
-                "syntax": "vendor_sequence"
+                "syntax": "vendor_sequence",
+                "case_sensitive": false,
+                "unknown_policy": "preserve"
               },
               {
                 "name": "ProForma_peptide",

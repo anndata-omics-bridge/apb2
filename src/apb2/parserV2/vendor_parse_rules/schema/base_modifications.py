@@ -26,7 +26,6 @@ class TokenRegexSyntax(ModelBase):
         description="each capturing group named for its token's site: nterm, cterm or residue"
     )
     token_position: TokenPosition = Field(
-        default="after_residue",
         description="whether a 'residue' token follows or precedes its residue",
     )
     marker_pattern: str | None = Field(
@@ -61,17 +60,17 @@ class SiteListSyntax(ModelBase):
     """Parallel modification-name and modification-site lists."""
 
     parser: Literal["site_list"]
-    delimiter: str = Field(default=";", min_length=1)
-    site_base: int = Field(default=1, ge=0, le=1)
+    delimiter: str = Field(min_length=1)
+    site_base: int = Field(ge=0, le=1)
 
 
 class EmbeddedSiteListSyntax(ModelBase):
     """Modification-name list entries that also contain their localization."""
 
     parser: Literal["embedded_site_list"]
-    delimiter: str = Field(default=";", min_length=1)
+    delimiter: str = Field(min_length=1)
     entry_pattern: str
-    site_base: int = Field(default=1, ge=0, le=1)
+    site_base: int = Field(ge=0, le=1)
 
     @model_validator(mode="after")
     def _pattern_captures_token_and_site(self) -> EmbeddedSiteListSyntax:

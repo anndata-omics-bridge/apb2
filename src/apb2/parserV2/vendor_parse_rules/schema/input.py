@@ -19,7 +19,7 @@ class AcquisitionFromColumns(ModelBase):
     """The acquisition method a header implies: DDA when any listed column is present."""
 
     DDA_if_any_column: list[str] = Field(default_factory=list)
-    otherwise: Literal["DDA", "DIA", "unknown"] = "unknown"
+    otherwise: Literal["DDA", "DIA", "unknown"]
 
 
 class WithoutParameterFile(ModelBase):
@@ -27,7 +27,7 @@ class WithoutParameterFile(ModelBase):
 
     required_columns: list[str] = Field(default_factory=list)
     forbidden_columns: list[str] = Field(default_factory=list)
-    acquisition_method: AcquisitionFromColumns = Field(default_factory=AcquisitionFromColumns)
+    acquisition_method: AcquisitionFromColumns
 
 
 class Input(ModelBase):

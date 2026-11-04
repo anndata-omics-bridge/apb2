@@ -1133,7 +1133,7 @@ def test_keep_best_takes_a_column_from_the_row_another_column_ranks_best() -> No
             {"name": "Set_Score", "per_feature": "max"},
         ],
         var_keys=["Feature"],
-        rank_rows={"by": "Set_Score"},
+        rank_rows={"by": "Set_Score", "best": "highest"},
         duplicates="keep_best",
         rank_by="Quantity",
     )
@@ -1176,7 +1176,7 @@ def test_a_feature_column_ranking_selects_the_rows_of_the_feature_table_and_the_
             {"name": "Set_Score", "per_feature": "max"},
         ],
         var_keys=["Feature"],
-        rank_rows={"by": "Set_Score"},
+        rank_rows={"by": "Set_Score", "best": "highest"},
     )
     strategy = synthetic.facade(document).resolve_source(
         delimited(("Sample", "Feature", "samesets", "score", "Quantity"))

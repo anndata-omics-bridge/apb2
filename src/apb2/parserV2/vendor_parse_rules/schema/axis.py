@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Annotated, Literal
 
 from pydantic import Field, model_validator
@@ -32,13 +33,27 @@ class Axis(ModelBase):
 
 
 class ComputedColumnBase(ModelBase):
-    """Facts shared by every computed column entry."""
+    """Facts shared by every computed column entry.
+
+    A computed entry declares neither a type nor whether it is required; neither is a choice.
+    """
 
     source: str | None = None
-    type: AxisColumnType = "string"
-    required: bool = True
     roles: list[SemanticRole] = Field(default_factory=list)
     note: Note = None
+
+    @property
+    def required(self) -> Literal[True]:
+        """A computed entry's own source, where it has one, must exist.
+
+        An entry whose inputs a source lacks is still left out, as its inputs decide that.
+        """
+        return True
+
+    @property
+    def type(self) -> Literal["string"]:
+        """Every computed value is text: a ProForma identifier, a coalesced or joined value."""
+        return "string"
 
 
 class Coalesce(ComputedColumnBase):
@@ -71,14 +86,12 @@ class ProformaSequence(ComputedColumnBase):
     """Normalize all declared logical inputs using named syntax and a token map."""
 
     how: Literal["proforma_sequence"]
-    name: Literal["ProForma_peptidoform", "ProForma_peptidoform_unlocalized"] = (
-        "ProForma_peptidoform"
-    )
+    name: Literal["ProForma_peptidoform", "ProForma_peptidoform_unlocalized"]
     inputs: list[str] = Field(min_length=1, max_length=3)
     syntax: str
     modification_map: str
-    case_sensitive: bool = False
-    unknown_policy: UnknownPolicy = "preserve"
+    case_sensitive: bool
+    unknown_policy: UnknownPolicy
 
 
 class ProformaIon(ComputedColumnBase):
@@ -197,32 +210,23 @@ class RankRows(ModelBase):
     """
 
     by: str = Field(description="the numeric var column that ranks a feature's repeated rows")
-    best: Literal["highest", "lowest"] = Field(
-        default="highest", description="which value of the 'by' column wins"
-    )
+    best: Literal["highest", "lowest"] = Field(description="which value of the 'by' column wins")
 
 
 class SourcedColumn(ModelBase):
     """One logical axis column read from one physical vendor column.
 
     A protein-list column may declare the vendor's own further list ``separator``, such as
-    PEAKS's ``:``; ``;`` and ``,`` separate every protein list already.
-
-    ``per_feature`` says how a var column resolves the values a feature's repeated rows give
-    it; a long report repeats a feature in every row of it, one per run. ``first`` keeps the
-    first nonblank value and reports features whose rows disagree. ``min`` and ``max`` keep the
-    smallest or largest number, for a tool that writes a placeholder into some of a feature's
-    rows, such as DIA-NN's protein-group q-value of 1.0. ``best_row`` takes the value from the
-    row the level's ``rank_rows`` keeps.
+    PEAKS's ``:``; ``;`` and ``,`` separate every protein list already. ``type`` and
+    ``required`` come from the entry or from its table's ``defaults``.
     """
 
     name: str
     source: str
-    type: AxisColumnType = "string"
-    required: bool = True
+    type: AxisColumnType
+    required: bool
     roles: list[SemanticRole] = Field(default_factory=list)
     separator: str | None = Field(default=None, min_length=1)
-    per_feature: PerFeature = "first"
     note: Note = None
 
     @model_validator(mode="after")
@@ -233,8 +237,22 @@ class SourcedColumn(ModelBase):
             raise ValueError(f"{self.name}: only a protein-list column declares a separator")
         return self
 
+
+class SourcedVarColumn(SourcedColumn):
+    """A var column read from one vendor column, and how it resolves a feature's repeated rows.
+
+    A long report repeats a feature in every row of it, one per run. ``per_feature`` ``first``
+    keeps the first nonblank value and reports features whose rows disagree. ``min`` and
+    ``max`` keep the smallest or largest number, for a tool that writes a placeholder into some
+    of a feature's rows, such as DIA-NN's protein-group q-value of 1.0. ``best_row`` takes the
+    value from the row the level's ``rank_rows`` keeps. An observation has no repeated rows to
+    resolve, so obs columns carry no ``per_feature``.
+    """
+
+    per_feature: PerFeature
+
     @model_validator(mode="after")
-    def _extremes_are_numbers(self) -> SourcedColumn:
+    def _extremes_are_numbers(self) -> SourcedVarColumn:
         mode = self.per_feature
         if mode in {"min", "max"} and self.type not in {"number", "integer"}:
             raise ValueError(f"{self.name}: per_feature {mode!r} needs a numeric column")
@@ -242,9 +260,13 @@ class SourcedColumn(ModelBase):
 
 
 type ColumnEntry = SourcedColumn | ComputedColumn
+"""An obs entry, or any entry for a reader of either group."""
 
+type VarEntry = SourcedVarColumn | ComputedColumn
+"""A var entry: its sourced columns say how they resolve a feature's repeated rows."""
 
-type ColumnGroup = list[ColumnEntry]
+type ColumnGroup = Sequence[ColumnEntry]
+"""Either group, for a reader of both: var entries are column entries too."""
 
 
 def computed_columns(group: ColumnGroup) -> tuple[ComputedColumn, ...]:
@@ -255,11 +277,11 @@ def computed_columns(group: ColumnGroup) -> tuple[ComputedColumn, ...]:
 class LongColumns(ModelBase):
     """Observation and variable declarations for a long source."""
 
-    obs: ColumnGroup
-    var: ColumnGroup
+    obs: list[ColumnEntry]
+    var: list[VarEntry]
 
 
 class WideColumns(ModelBase):
     """Variable declarations for a wide source."""
 
-    var: ColumnGroup
+    var: list[VarEntry]

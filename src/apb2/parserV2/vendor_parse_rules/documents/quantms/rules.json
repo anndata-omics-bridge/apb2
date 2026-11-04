@@ -1,26 +1,35 @@
 {
   "schema_version": "0.10",
-  "file_version": "2",
+  "file_version": "3",
   "software_name": "quantms",
   "software_version_pattern": "^v?1\\..*",
+  "hierarchy": "lfq",
+  "parameter_file": "required",
   "sample_annotation": {"matching": {"mode": "exact", "normalize": "mass_spec_basename"}},
   "tables": [
     {
       "input": {"shape": "long", "extensions": [".csv"]},
       "base": {
+        "defaults": {
+          "var": {"type": "string", "required": true, "per_feature": "first"},
+          "obs": {"type": "string", "required": false},
+          "layers": {"encoding_mode": "numeric", "type": "number", "required": false}
+        },
         "axis": {"obs_keys": ["Raw_File"]},
+        "measurements": {"repeated_cells": {"mode": "error"}},
         "columns": {
           "obs": [
-            {"name": "Raw_File", "source": "Reference"},
-            {"name": "Condition", "source": "Condition", "required": false},
-            {"name": "Bio_Replicate", "source": "BioReplicate", "required": false},
-            {"name": "Run", "source": "Run", "required": false}
+            {"name": "Raw_File", "source": "Reference", "required": true},
+            {"name": "Condition", "source": "Condition"},
+            {"name": "Bio_Replicate", "source": "BioReplicate"},
+            {"name": "Run", "source": "Run"}
           ]
         },
         "sequence_syntax": {
           "vendor_sequence": {
             "parser": "token_regex",
-            "token_pattern": "^\\((?P<nterm>[^)]+)\\)|\\((?P<residue>[^)]+)\\)"
+            "token_pattern": "^\\((?P<nterm>[^)]+)\\)|\\((?P<residue>[^)]+)\\)",
+            "token_position": "after_residue"
           }
         },
         "modification_maps": {
@@ -57,6 +66,8 @@
               {
                 "name": "ProForma_peptidoform",
                 "inputs": ["Modified_Sequence"],
+                "case_sensitive": false,
+                "unknown_policy": "preserve",
                 "how": "proforma_sequence"
               },
               {

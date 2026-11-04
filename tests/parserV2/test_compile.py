@@ -8,6 +8,7 @@ the compiler objects for the ordering and skipping behaviour a multi-level calle
 
 from __future__ import annotations
 
+import copy
 import dataclasses
 from pathlib import Path
 from typing import Literal, get_args
@@ -165,9 +166,12 @@ def test_every_executable_duplicate_mode_names_one_policy(mode: DuplicateMode) -
         (
             ProformaSequence(
                 how="proforma_sequence",
+                name="ProForma_peptidoform",
                 inputs=["Modified_Sequence"],
                 syntax="tokens",
                 modification_map="basic",
+                case_sensitive=False,
+                unknown_policy="preserve",
             ),
             SequenceColumn,
         ),
@@ -212,6 +216,7 @@ def test_every_computed_column_declaration_names_one_computer(
                 "tokens": {
                     "parser": "token_regex",
                     "token_pattern": r"^\((?P<nterm>[^()]*)\)|\((?P<residue>[^()]*)\)",
+                    "token_position": "after_residue",
                 },
             },
             "modification_maps": {"basic": {"ox": "UNIMOD:35"}},
@@ -347,7 +352,13 @@ def test_source_resolution_constructs_the_separator_and_long_decomposer(
                 "fragments": {
                     "label_strategy": label_strategy,
                     "value_columns": ["Quantity"],
-                    **({"label_column": "Info"} if label_strategy == "column" else {}),
+                    **(
+                        {"label_column": "Info", "label_required": True}
+                        if label_strategy == "column"
+                        else {}
+                    ),
+                    "delimiter": ";",
+                    "label_output": "fragment_label",
                 }
             }
         },
@@ -400,6 +411,8 @@ def test_an_optional_label_column_labels_by_position_when_the_source_lacks_it(
                     "value_columns": ["Quantity"],
                     "label_column": "Info",
                     "label_required": label_required,
+                    "delimiter": ";",
+                    "label_output": "fragment_label",
                 }
             }
         },
@@ -484,11 +497,12 @@ def test_compilation_injects_the_detected_number_notation_into_axis_coercers(
     document = make_rule_document(
         tmp_path / "rules.json",
         {
-            "hierarchy": "lfq",
             "schema_version": SCHEMA_VERSION,
             "file_version": "1",
             "software_name": "Localized",
             "software_version_pattern": "^1$",
+            "hierarchy": "lfq",
+            "parameter_file": "required",
             "tables": [
                 {
                     "input": {
@@ -501,6 +515,7 @@ def test_compilation_injects_the_detected_number_notation_into_axis_coercers(
                         },
                     },
                     "base": {
+                        "defaults": copy.deepcopy(synthetic.LONG_DEFAULTS),
                         "axis": {"obs_keys": ["sample"], "var_keys": ["Feature"]},
                         "columns": {
                             "obs": [{"name": "sample", "source": "Sample"}],
@@ -513,6 +528,7 @@ def test_compilation_injects_the_detected_number_notation_into_axis_coercers(
                         },
                         "measurements": {
                             "primary_layer": "Quantity",
+                            "repeated_cells": {"mode": "error"},
                             "layers": [{"name": "Quantity", "source": "Quantity"}],
                         },
                     },

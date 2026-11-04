@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import re
 from collections.abc import Callable
@@ -9,7 +10,7 @@ from pathlib import Path
 from typing import Any, get_args
 
 import pytest
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from apb2 import api
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
@@ -21,12 +22,15 @@ from apb2.parserV2.vendor_parse_rules.document import (
 from apb2.parserV2.vendor_parse_rules.loader import PACKAGED, load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.axis import (
     FIXED_COLUMNS,
+    Coalesce,
     ContaminantFlag,
     DecoyFlag,
     ProformaFragment,
     ProformaIon,
     ProformaSequence,
+    RankRows,
     SourcedColumn,
+    SourcedVarColumn,
     StrippedSequence,
     computed_columns,
 )
@@ -34,13 +38,27 @@ from apb2.parserV2.vendor_parse_rules.schema.base import (
     SCHEMA_VERSION,
     QuantificationLevel,
 )
-from apb2.parserV2.vendor_parse_rules.schema.fragments import ColumnLabeledFragments
+from apb2.parserV2.vendor_parse_rules.schema.base_modifications import (
+    EmbeddedSiteListSyntax,
+    SiteListSyntax,
+    TokenRegexSyntax,
+)
+from apb2.parserV2.vendor_parse_rules.schema.fragments import (
+    ColumnLabeledFragments,
+    PositionalFragments,
+)
 from apb2.parserV2.vendor_parse_rules.schema.hierarchy import HIERARCHIES
-from apb2.parserV2.vendor_parse_rules.schema.input import Input
+from apb2.parserV2.vendor_parse_rules.schema.input import (
+    AcquisitionFromColumns,
+    Input,
+    WithoutParameterFile,
+)
 from apb2.parserV2.vendor_parse_rules.schema.measurements import (
     FactorLayer,
+    Measurements,
     NumericLayer,
     RegexValuePattern,
+    RepeatedCells,
     layer_required,
 )
 from apb2.parserV2.vendor_parse_rules.schema.roles import ROLE_CONFIG, VAR_ROLES
@@ -111,7 +129,7 @@ def _without_primary_layer(rule: V2Rule) -> dict[str, Any]:
 
 def test_only_a_protein_list_column_declares_a_separator() -> None:
     with pytest.raises(ValidationError, match="only a protein-list column declares a separator"):
-        SourcedColumn(name="Gene", source="Gene", separator=":")
+        SourcedColumn(name="Gene", source="Gene", type="string", required=True, separator=":")
 
 
 def test_entry_shaped_columns_project_roles_and_runtime_selections(tmp_path: Path) -> None:
@@ -225,9 +243,15 @@ def test_a_vendor_marking_names_its_inputs_and_one_way_to_read_them(
 @pytest.mark.parametrize(
     ("repeated_cells", "message"),
     [
-        ({"mode": "sum", "sum": ["quantity"]}, "apply only to keep_best"),
-        ({"mode": "keep_best", "by": "quantity", "sum": ["quantity"]}, "cannot also sum it"),
-        ({"mode": "keep_best", "by": "quantity", "sum": ["absent"]}, "sums undeclared layers"),
+        ({"mode": "sum", "sum": ["quantity"]}, "'sum' applies only to keep_best"),
+        (
+            {"mode": "keep_best", "by": "quantity", "best": "highest", "sum": ["quantity"]},
+            "cannot also sum it",
+        ),
+        (
+            {"mode": "keep_best", "by": "quantity", "best": "highest", "sum": ["absent"]},
+            "sums undeclared layers",
+        ),
     ],
 )
 def test_keep_best_sums_only_declared_layers_other_than_its_ranking(
@@ -317,8 +341,15 @@ def test_every_abundance_layer_treats_zero_and_negative_values_as_missing(
     assert unmasked == []
 
 
+def _numeric_layer(**fields: object) -> NumericLayer:
+    """A numeric layer stating the values a table's ``defaults`` would give it."""
+    return NumericLayer.model_validate(
+        {"encoding_mode": "numeric", "type": "number", "required": False, **fields}
+    )
+
+
 def test_missing_values_combine_exact_sentinels_with_one_at_or_below_bound() -> None:
-    layer = NumericLayer(name="I", source="I", missing_values=[-1, "<= 0", 7])
+    layer = _numeric_layer(name="I", source="I", missing_values=[-1, "<= 0", 7])
 
     assert layer.missing_sentinels == (-1.0, 7.0)
     assert layer.missing_at_or_below == 0.0
@@ -326,18 +357,18 @@ def test_missing_values_combine_exact_sentinels_with_one_at_or_below_bound() -> 
 
 def test_missing_values_reject_a_second_threshold() -> None:
     with pytest.raises(ValidationError, match="more than one threshold"):
-        NumericLayer(name="I", source="I", missing_values=["<=0", "<=-2.5"])
+        _numeric_layer(name="I", source="I", missing_values=["<=0", "<=-2.5"])
 
 
 def test_missing_tokens_reject_blank_text() -> None:
     with pytest.raises(ValidationError, match="blank text"):
-        NumericLayer(name="I", source="I", missing_tokens=["-", " "])
+        _numeric_layer(name="I", source="I", missing_tokens=["-", " "])
 
 
 @pytest.mark.parametrize("token", [">=0", "<0", "<=zero"])
 def test_a_missing_value_text_must_be_an_at_or_below_bound(token: str) -> None:
     with pytest.raises(ValidationError):
-        NumericLayer(name="I", source="I", missing_values=[token])
+        _numeric_layer(name="I", source="I", missing_values=[token])
 
 
 def test_packaged_integer_measurements_are_exactly_the_declared_counts() -> None:
@@ -623,11 +654,12 @@ def test_a_level_without_a_gate_is_applicable_without_any_evidence() -> None:
 
 def _document_payload() -> dict[str, Any]:
     return {
-        "hierarchy": "lfq",
         "schema_version": SCHEMA_VERSION,
         "file_version": "1",
         "software_name": "Test",
         "software_version_pattern": "^1$",
+        "hierarchy": "lfq",
+        "parameter_file": "required",
         "tables": [
             {
                 "input": {
@@ -635,6 +667,7 @@ def _document_payload() -> dict[str, Any]:
                     "extensions": [".tsv"],
                 },
                 "base": {
+                    "defaults": copy.deepcopy(synthetic.LONG_DEFAULTS),
                     "axis": {"obs_keys": ["sample"], "var_keys": ["feature"]},
                     "columns": {
                         "obs": [{"name": "sample", "source": "Sample"}],
@@ -642,6 +675,7 @@ def _document_payload() -> dict[str, Any]:
                     },
                     "measurements": {
                         "primary_layer": "quantity",
+                        "repeated_cells": {"mode": "error"},
                         "layers": [{"name": "quantity", "source": "Quantity"}],
                     },
                 },
@@ -674,7 +708,8 @@ def _with_ranking(rank_rows: dict[str, Any], columns: list[dict[str, Any]]) -> M
 def _ranked_by(by: str, ranking: list[dict[str, Any]]) -> MutatePayload:
     """Declare ``ranking`` and a var column taking its value from the row ``by`` ranks best."""
     return _with_ranking(
-        {"by": by}, [*ranking, {"name": "set", "source": "Set", "per_feature": "best_row"}]
+        {"by": by, "best": "highest"},
+        [*ranking, {"name": "set", "source": "Set", "per_feature": "best_row"}],
     )
 
 
@@ -716,6 +751,7 @@ def _wide_payload(layer_source: str) -> dict[str, Any]:
     table = payload["tables"][0]
     table["input"]["shape"] = "wide"
     del table["base"]["columns"]["obs"]
+    del table["base"]["defaults"]["obs"]
     table["base"]["measurements"]["layers"] = [{"name": "quantity", "source": layer_source}]
     table["levels"]["peptidoform_ion"]["source_prefix"] = "peptide."
     return payload
@@ -736,10 +772,10 @@ def test_a_wide_source_takes_its_escaped_prefix_after_the_anchor(tmp_path: Path)
 def test_a_wide_placeholder_source_reads_as_text_around_the_sample_pattern(
     tmp_path: Path,
 ) -> None:
-    """``{sample}`` takes the default pattern, or the table's; the text matches literally."""
-    rule = make_rule_document(
-        tmp_path / "rules.json", _wide_payload("Intensity {sample}")
-    ).declared("peptidoform_ion")
+    """``{sample}`` stands for the table's ``sample_pattern``; the text matches literally."""
+    payload = _wide_payload("Intensity {sample}")
+    payload["tables"][0]["base"]["sample_pattern"] = "(?P<sample>.+)"
+    rule = make_rule_document(tmp_path / "rules.json", payload).declared("peptidoform_ion")
     assert rule.declaration.measurements.layers[0].source == r"^peptide\.Intensity (?P<sample>.+)$"
 
     payload = _wide_payload("abundance_{sample} m/z")
@@ -756,7 +792,9 @@ def test_a_wide_placeholder_source_reads_as_text_around_the_sample_pattern(
     ("source", "pattern", "message"),
     [
         ("Intensity {sample}", ".+", r"must contain '\(\?P<sample>"),
-        ("{sample} and {sample}", None, "names {sample} once"),
+        ("{sample} and {sample}", "(?P<sample>.+)", "names {sample} once"),
+        ("Intensity {sample}", None, "declares no sample_pattern"),
+        ("^Intensity (?P<sample>.+)$", "(?P<sample>.+)", "no layer writes {sample}"),
     ],
 )
 def test_a_wide_placeholder_needs_one_sample_group(
@@ -778,17 +816,333 @@ def test_a_long_table_declares_no_sample_pattern(tmp_path: Path) -> None:
         _declared(payload, tmp_path)
 
 
+# ------------------------------------------------------------------------ table defaults
+
+
+def test_entries_take_the_tables_defaults_and_their_own_values_win(tmp_path: Path) -> None:
+    """An entry states only what differs from its table; the stored rule states everything."""
+    payload = _document_payload()
+    table = payload["tables"][0]
+    table["base"]["defaults"]["var"]["required"] = False
+    var = table["levels"]["peptidoform_ion"]["columns"]["var"]
+    var[0]["required"] = True
+    var.append({"name": "gene", "source": "Gene"})
+    table["base"]["measurements"]["layers"].append(
+        {"name": "count", "source": "Count", "type": "integer", "required": True}
+    )
+
+    rule = make_rule_document(tmp_path / "rules.json", payload).declared("peptidoform_ion")
+
+    declaration = rule.declaration
+    assert isinstance(declaration, LongRule)
+    columns = {column.name: column for column in declaration.columns.var}
+    gene = columns["gene"]
+    assert isinstance(gene, SourcedVarColumn)
+    assert (gene.type, gene.required, gene.per_feature) == ("string", False, "first")
+    assert columns["feature"].required
+    sample = declaration.columns.obs[0]
+    assert (sample.type, sample.required) == ("string", True)
+    layers = declaration.measurements.layers
+    assert all(isinstance(layer, NumericLayer) for layer in layers)
+    assert [
+        (layer.type, layer.required) for layer in layers if isinstance(layer, NumericLayer)
+    ] == [("number", False), ("integer", True)]
+    assert "defaults" not in json.dumps(declaration.model_dump(mode="json"))
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        pytest.param(
+            lambda payload: payload["tables"][0]["base"].pop("defaults"),
+            "base declares no defaults",
+            id="missing",
+        ),
+        pytest.param(
+            lambda payload: payload["tables"][0]["levels"]["peptidoform_ion"].update(
+                {"defaults": payload["tables"][0]["base"]["defaults"]}
+            ),
+            "defaults belong to the table's base",
+            id="in-a-level",
+        ),
+        pytest.param(
+            lambda payload: payload["tables"][0]["base"]["defaults"].pop("obs"),
+            "names obs exactly for a long table",
+            id="long-table-without-obs",
+        ),
+        pytest.param(
+            lambda payload: payload["tables"][0]["base"]["defaults"]["var"].pop("per_feature"),
+            r"base\.defaults\.var\.per_feature: Field required",
+            id="a-field-missing",
+        ),
+        pytest.param(
+            lambda payload: payload["tables"][0]["base"]["defaults"]["layers"].update(
+                {"roles": ["abundance"]}
+            ),
+            r"base\.defaults\.layers\.roles: Extra inputs are not permitted",
+            id="a-field-no-choice-needs",
+        ),
+    ],
+)
+def test_a_tables_defaults_are_complete_and_stated_once_in_its_base(
+    mutate: MutatePayload, message: str, tmp_path: Path
+) -> None:
+    payload = _document_payload()
+    mutate(payload)
+
+    with pytest.raises(ValidationError, match=message):
+        make_rule_document(tmp_path / "rules.json", payload)
+
+
+def test_a_wide_tables_defaults_name_no_obs(tmp_path: Path) -> None:
+    payload = _wide_payload("^Intensity (?P<sample>.+)$")
+    payload["tables"][0]["base"]["defaults"]["obs"] = copy.deepcopy(synthetic.LONG_DEFAULTS["obs"])
+
+    with pytest.raises(ValidationError, match="names obs exactly for a long table"):
+        make_rule_document(tmp_path / "rules.json", payload)
+
+
+def test_a_factor_layer_takes_no_type_from_the_defaults(tmp_path: Path) -> None:
+    payload = _document_payload()
+    payload["tables"][0]["base"]["measurements"]["layers"].append(
+        {
+            "name": "status",
+            "source": "Status",
+            "encoding_mode": "factor",
+            "categories": {"identified": 1},
+        }
+    )
+
+    rule = make_rule_document(tmp_path / "rules.json", payload).declared("peptidoform_ion")
+
+    status = rule.declaration.measurements.layers[-1]
+    assert isinstance(status, FactorLayer)
+    assert status.required is False
+
+
+def test_a_computed_entry_states_no_type_or_required(tmp_path: Path) -> None:
+    """A computed value is text, and an own source must exist; neither is a choice."""
+    payload = _document_payload()
+    var = payload["tables"][0]["levels"]["peptidoform_ion"]["columns"]["var"]
+    var.extend(
+        [
+            {"name": "alias", "source": "Alias"},
+            {"name": "either", "how": "coalesce", "inputs": ["feature", "alias"]},
+        ]
+    )
+
+    rule = make_rule_document(tmp_path / "rules.json", payload).declared("peptidoform_ion")
+
+    either = rule.declaration.columns.var[-1]
+    assert isinstance(either, Coalesce)
+    assert (either.required, either.type) == (True, "string")
+    assert {"type", "required"}.isdisjoint(either.model_dump(mode="json"))
+    for key, value in (("required", True), ("type", "string")):
+        var[-1] = {"name": "either", "how": "coalesce", "inputs": ["feature", "alias"], key: value}
+        with pytest.raises(ValidationError, match=rf"coalesce\.{key}\n\s+Extra inputs"):
+            _declared(payload, tmp_path)
+
+
+_COMPLETE_DECLARATIONS: tuple[tuple[type[BaseModel], dict[str, Any]], ...] = (
+    (SourcedColumn, {"name": "gene", "source": "Gene", "type": "string", "required": True}),
+    (
+        SourcedVarColumn,
+        {
+            "name": "gene",
+            "source": "Gene",
+            "type": "string",
+            "required": True,
+            "per_feature": "first",
+        },
+    ),
+    (
+        NumericLayer,
+        {
+            "encoding_mode": "numeric",
+            "type": "number",
+            "name": "q",
+            "source": "Q",
+            "required": False,
+        },
+    ),
+    (
+        FactorLayer,
+        {
+            "encoding_mode": "factor",
+            "name": "status",
+            "source": "Status",
+            "categories": {"identified": 1},
+            "required": False,
+        },
+    ),
+    (
+        Measurements,
+        {
+            "primary_layer": "q",
+            "repeated_cells": {"mode": "error"},
+            "layers": [
+                {
+                    "encoding_mode": "numeric",
+                    "type": "number",
+                    "name": "q",
+                    "source": "Q",
+                    "required": False,
+                }
+            ],
+        },
+    ),
+    (RepeatedCells, {"mode": "error"}),
+    (RankRows, {"by": "score", "best": "highest"}),
+    (
+        ProformaSequence,
+        {
+            "how": "proforma_sequence",
+            "name": "ProForma_peptidoform",
+            "inputs": ["Sequence"],
+            "syntax": "vendor",
+            "modification_map": "mods",
+            "case_sensitive": False,
+            "unknown_policy": "preserve",
+        },
+    ),
+    (
+        TokenRegexSyntax,
+        {
+            "parser": "token_regex",
+            "token_pattern": r"\((?P<residue>[^)]+)\)",
+            "token_position": "after_residue",
+        },
+    ),
+    (SiteListSyntax, {"parser": "site_list", "delimiter": ";", "site_base": 1}),
+    (
+        EmbeddedSiteListSyntax,
+        {
+            "parser": "embedded_site_list",
+            "delimiter": ";",
+            "entry_pattern": r"(?P<token>[^@]+)@(?P<site>\d+)",
+            "site_base": 1,
+        },
+    ),
+    (
+        PositionalFragments,
+        {
+            "label_strategy": "positional",
+            "value_columns": ["Quantity"],
+            "delimiter": ";",
+            "label_output": "fragment_label",
+        },
+    ),
+    (
+        ColumnLabeledFragments,
+        {
+            "label_strategy": "column",
+            "value_columns": ["Quantity"],
+            "label_column": "Info",
+            "label_required": True,
+            "delimiter": ";",
+            "label_output": "fragment_label",
+        },
+    ),
+    (WithoutParameterFile, {"acquisition_method": {"otherwise": "unknown"}}),
+    (AcquisitionFromColumns, {"otherwise": "unknown"}),
+)
+"""A complete declaration of each model that holds a real choice."""
+
+_REAL_CHOICES: dict[type[BaseModel], tuple[str, ...]] = {
+    SourcedColumn: ("type", "required"),
+    SourcedVarColumn: ("per_feature",),
+    NumericLayer: ("encoding_mode", "type", "required"),
+    FactorLayer: ("required",),
+    Measurements: ("repeated_cells",),
+    RepeatedCells: ("mode",),
+    RankRows: ("best",),
+    ProformaSequence: ("name", "case_sensitive", "unknown_policy"),
+    TokenRegexSyntax: ("token_position",),
+    SiteListSyntax: ("delimiter", "site_base"),
+    EmbeddedSiteListSyntax: ("delimiter", "site_base"),
+    PositionalFragments: ("delimiter", "label_output"),
+    ColumnLabeledFragments: ("label_required", "delimiter", "label_output"),
+    WithoutParameterFile: ("acquisition_method",),
+    AcquisitionFromColumns: ("otherwise",),
+}
+"""Each model's fields with more than one valid value: a rule states them, no model default."""
+
+
+@pytest.mark.parametrize(
+    ("model", "complete", "choice"),
+    [
+        pytest.param(model, complete, choice, id=f"{model.__name__}.{choice}")
+        for model, complete in _COMPLETE_DECLARATIONS
+        for choice in _REAL_CHOICES[model]
+    ],
+)
+def test_a_real_choice_has_no_model_default(
+    model: type[BaseModel], complete: dict[str, Any], choice: str
+) -> None:
+    model.model_validate(complete)
+    with pytest.raises(ValidationError) as missing:
+        model.model_validate({key: value for key, value in complete.items() if key != choice})
+    assert _problems(missing.value) == [("missing", (choice,))]
+
+
+@pytest.mark.parametrize("choice", ["hierarchy", "parameter_file"])
+def test_a_document_states_its_hierarchy_and_parameter_file(choice: str, tmp_path: Path) -> None:
+    payload = _document_payload()
+    del payload[choice]
+
+    with pytest.raises(ValidationError) as missing:
+        make_rule_document(tmp_path / "rules.json", payload)
+    assert _problems(missing.value) == [("missing", (choice,))]
+
+
+def test_no_packaged_entry_restates_its_tables_defaults() -> None:
+    """The files say each shared value once, in their table's ``defaults``."""
+    restated: list[tuple[str, str, str]] = []
+    for path in PACKAGED:
+        document = json.loads(path.read_text(encoding="utf-8"))
+        rule = path.as_posix().split("/documents/")[1]
+        for table in document["tables"]:
+            defaults = table["base"]["defaults"]
+            for fragment in [table["base"], *table["levels"].values()]:
+                entries = [
+                    (axis, entry)
+                    for axis in ("obs", "var")
+                    for entry in fragment.get("columns", {}).get(axis, [])
+                    if "how" not in entry
+                ] + [
+                    ("layers", layer)
+                    for layer in fragment.get("measurements", {}).get("layers", [])
+                ]
+                restated += [
+                    (rule, entry["name"], key)
+                    for axis, entry in entries
+                    for key, value in defaults[axis].items()
+                    if entry.get(key) == value
+                ]
+    assert restated == []
+
+
 def test_a_sequence_column_takes_the_levels_only_syntax_and_map(tmp_path: Path) -> None:
     payload = _document_payload()
     base = payload["tables"][0]["base"]
     base["sequence_syntax"] = {
-        "vendor": {"parser": "token_regex", "token_pattern": r"\((?P<residue>[^)]+)\)"}
+        "vendor": {
+            "parser": "token_regex",
+            "token_pattern": r"\((?P<residue>[^)]+)\)",
+            "token_position": "after_residue",
+        }
     }
     base["modification_maps"] = {"mods": {"ox": "UNIMOD:35"}}
     payload["tables"][0]["levels"]["peptidoform_ion"]["columns"]["var"].extend(
         [
             {"name": "Sequence", "source": "Sequence"},
-            {"name": "ProForma_peptidoform", "inputs": ["Sequence"], "how": "proforma_sequence"},
+            {
+                "name": "ProForma_peptidoform",
+                "inputs": ["Sequence"],
+                "how": "proforma_sequence",
+                "case_sensitive": False,
+                "unknown_policy": "preserve",
+            },
             {"name": "ProForma_peptide", "inputs": ["Sequence"], "how": "stripped_sequence"},
         ]
     )
@@ -831,15 +1185,34 @@ def test_every_column_and_layer_takes_a_note_and_a_var_column_its_per_feature(
     )
 
     _declared(payload, tmp_path)
-    assert SourcedColumn(name="gene", source="Gene").per_feature == "first"
+    with pytest.raises(ValidationError) as missing:
+        SourcedVarColumn.model_validate(
+            {"name": "gene", "source": "Gene", "type": "string", "required": True}
+        )
+    assert [error["loc"] for error in missing.value.errors()] == [("per_feature",)]
 
 
-def test_numeric_layer_type_defaults_to_number_and_rejects_unknown_values() -> None:
-    assert NumericLayer(name="quantity", source="Quantity").type == "number"
-    assert NumericLayer(name="count", source="Count", type="integer").type == "integer"
+def _problems(error: ValidationError) -> list[tuple[str, tuple[int | str, ...]]]:
+    """Each problem's pydantic type and location, which a message pattern cannot tell apart."""
+    return [(problem["type"], problem["loc"]) for problem in error.errors()]
 
-    with pytest.raises(ValidationError, match="type"):
-        NumericLayer.model_validate({"name": "quantity", "source": "Quantity", "type": "float"})
+
+def test_numeric_layer_type_is_stated_and_rejects_unknown_values() -> None:
+    assert _numeric_layer(name="count", source="Count", type="integer").type == "integer"
+
+    with pytest.raises(ValidationError) as missing:
+        NumericLayer.model_validate(
+            {
+                "encoding_mode": "numeric",
+                "name": "quantity",
+                "source": "Quantity",
+                "required": False,
+            }
+        )
+    assert _problems(missing.value) == [("missing", ("type",))]
+    with pytest.raises(ValidationError) as unknown:
+        _numeric_layer(name="quantity", source="Quantity", type="float")
+    assert _problems(unknown.value) == [("literal_error", ("type",))]
 
 
 def test_factor_layers_do_not_acquire_a_numeric_type() -> None:
@@ -848,11 +1221,13 @@ def test_factor_layers_do_not_acquire_a_numeric_type() -> None:
         "name": "status",
         "source": "Status",
         "categories": {"identified": 1},
+        "required": False,
         "type": "integer",
     }
 
-    with pytest.raises(ValidationError, match="type"):
+    with pytest.raises(ValidationError) as refused:
         FactorLayer.model_validate(payload)
+    assert _problems(refused.value) == [("extra_forbidden", ("type",))]
 
 
 @pytest.mark.parametrize(
@@ -937,7 +1312,7 @@ def test_factor_layers_do_not_acquire_a_numeric_type() -> None:
             lambda payload: payload["tables"][0]["base"]["columns"]["obs"][0].update(
                 {"per_feature": "best_row"}
             ),
-            "var columns only",
+            r"per_feature\n\s+Extra inputs are not permitted",
             id="obs-per-feature",
         ),
         pytest.param(
@@ -982,7 +1357,8 @@ def test_factor_layers_do_not_acquire_a_numeric_type() -> None:
         ),
         pytest.param(
             _with_ranking(
-                {"by": "score"}, [{"name": "score", "source": "Score", "type": "number"}]
+                {"by": "score", "best": "highest"},
+                [{"name": "score", "source": "Score", "type": "number"}],
             ),
             "no column is best_row",
             id="rank-rows-without-best-row",
@@ -1125,6 +1501,7 @@ def test_a_fragment_label_output_colliding_with_a_source_is_refused(tmp_path: Pa
             "fragments": {
                 "label_strategy": "positional",
                 "value_columns": ["Quantity"],
+                "delimiter": ";",
                 "label_output": "Quantity",
             },
         }
@@ -1149,6 +1526,9 @@ def test_a_column_labeled_fragment_label_may_not_be_selected(tmp_path: Path) -> 
                 "label_strategy": "column",
                 "value_columns": ["Quantity"],
                 "label_column": "Info",
+                "label_required": True,
+                "delimiter": ";",
+                "label_output": "fragment_label",
             },
         }
     }
@@ -1167,6 +1547,9 @@ def test_column_labeled_recognition_requires_its_packed_label_column() -> None:
                 "label_strategy": "column",
                 "value_columns": ["Quantity"],
                 "label_column": "Info",
+                "label_required": True,
+                "delimiter": ";",
+                "label_output": "fragment_label",
             },
         }
     }

@@ -27,8 +27,8 @@ src/apb2/parserV2/vendor_parse_rules/documents/
 
 - Discovered: `documents/<folder>/rules.json` and `documents/<folder>/v<suffix>/rules.json`; any other path is silently ignored
 - Folder name: free; `--software` matches `software_name` lowercased, alphanumerics only (`DIA-NN` → `diann`)
-- Required: `schema_version`, `file_version`, `software_name`, `software_version_pattern`; per table `input.shape`, `input.extensions`, `base`, `levels`; `hierarchy` defaults to `lfq`
-- Optional: `parameter_file: "none"` when no parameter file exists (`pb_custom`)
+- Required: `schema_version`, `file_version`, `software_name`, `software_version_pattern`, `hierarchy`, `parameter_file` (`"required"`, or `"none"` where the tool writes none, as `pb_custom`); per table `input.shape`, `input.extensions`, `base` opening with its `defaults`, `levels`; for every level `measurements.repeated_cells`
+- Real choices are written, in the table's `defaults` or on the entry; an entry writes only the values that differ from its table's ([Table defaults](rule-based.md#table-defaults))
 - Placement: a value per run and feature is a layer, a value per run alone an `obs` column, and a value per feature, experiment-wide or from the spectral library, a `var` column. Decide from the tool's documentation and the data, not from one dataset
 
 ```json title="toyquant/v1/rules.json"
@@ -37,14 +37,24 @@ src/apb2/parserV2/vendor_parse_rules/documents/
   "file_version": "1",
   "software_name": "ToyQuant",
   "software_version_pattern": "^1\\.",
+  "hierarchy": "lfq",
+  "parameter_file": "required",
   "tables": [
     {
       "input": {
         "shape": "long",
         "extensions": [".tsv"],
-        "without_parameter_file": {"forbidden_columns": ["Gene Name"]}
+        "without_parameter_file": {
+          "forbidden_columns": ["Gene Name"],
+          "acquisition_method": {"otherwise": "unknown"}
+        }
       },
       "base": {
+        "defaults": {
+          "var": {"type": "string", "required": true, "per_feature": "first"},
+          "obs": {"type": "string", "required": true},
+          "layers": {"encoding_mode": "numeric", "type": "number", "required": false}
+        },
         "axis": {"obs_keys": ["Run"], "var_keys": ["Protein"]},
         "columns": {
           "obs": [{"name": "Run", "source": "Run Name"}],
@@ -56,6 +66,7 @@ src/apb2/parserV2/vendor_parse_rules/documents/
         },
         "measurements": {
           "primary_layer": "Abundance",
+          "repeated_cells": {"mode": "error"},
           "layers": [
             {"name": "Abundance", "source": "Abundance", "roles": ["abundance"], "missing_values": ["<=0"]}
           ]
@@ -74,7 +85,10 @@ ToyQuant 2.x adds a `Gene Name` column:
 +  "software_version_pattern": "^2\\.",
  ...
 -        "extensions": [".tsv"],
--        "without_parameter_file": {"forbidden_columns": ["Gene Name"]}
+-        "without_parameter_file": {
+-          "forbidden_columns": ["Gene Name"],
+-          "acquisition_method": {"otherwise": "unknown"}
+-        }
 +        "extensions": [".tsv"]
  ...
 -            {"name": "Protein", "source": "Protein Accession", "roles": ["protein_assignment", "fasta_accessions"]}

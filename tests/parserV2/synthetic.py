@@ -8,6 +8,7 @@ declares one is how those paths get tested without inventing a vendor.
 
 from __future__ import annotations
 
+import copy
 import json
 from pathlib import Path
 from typing import Any
@@ -29,6 +30,15 @@ FLAGS: tuple[dict[str, Any], ...] = (
     {"name": "apb_Contaminant", "how": "unmarked"},
 )
 """The vendor markings every rule declares once; a synthetic vendor writes none."""
+
+LONG_DEFAULTS: dict[str, Any] = {
+    "var": {"type": "string", "required": True, "per_feature": "first"},
+    "obs": {"type": "string", "required": True},
+    "layers": {"encoding_mode": "numeric", "type": "number", "required": False},
+}
+"""A long table's ``base.defaults``; a test's entries state only the values that differ."""
+WIDE_DEFAULTS: dict[str, Any] = {key: LONG_DEFAULTS[key] for key in ("var", "layers")}
+"""A wide table's ``base.defaults``: it has no obs columns."""
 
 
 def without_flags(computers: tuple[Any, ...]) -> tuple[Any, ...]:
@@ -88,8 +98,13 @@ def document(
     shape: str,
     base: dict[str, Any],
     levels: dict[str, dict[str, Any]],
+    defaults: bool = True,
 ) -> RuleDocument:
-    """One in-memory rules.json, validated exactly as a packaged file would be."""
+    """One in-memory rules.json, validated exactly as a packaged file would be.
+
+    A base without them gets the shape's defaults, unless ``defaults`` is false, and
+    repeated cells that are an error where no fragment says otherwise.
+    """
     declared: dict[str, Any] = {"shape": shape, "extensions": [".tsv"]}
     return make_rule_document(
         Path("synthetic/rules.json"),
@@ -97,11 +112,33 @@ def document(
             "schema_version": SCHEMA_VERSION,
             "file_version": "1",
             "software_name": "Synthetic",
-            "hierarchy": "lfq",
             "software_version_pattern": "^1$",
-            "tables": [{"input": declared, "base": base, "levels": levels}],
+            "hierarchy": "lfq",
+            "parameter_file": "required",
+            "tables": [
+                {
+                    "input": declared,
+                    "base": complete_base(shape, base, levels, defaults),
+                    "levels": levels,
+                }
+            ],
         },
     )
+
+
+def complete_base(
+    shape: str, base: dict[str, Any], levels: dict[str, dict[str, Any]], defaults: bool = True
+) -> dict[str, Any]:
+    """``base`` with the values a test leaves to the table stated: defaults, repeated cells."""
+    completed = dict(base)
+    if defaults and "defaults" not in completed:
+        chosen = LONG_DEFAULTS if shape == "long" else WIDE_DEFAULTS
+        completed = {"defaults": copy.deepcopy(chosen), **completed}
+    fragments = [completed, *levels.values()]
+    if not any("repeated_cells" in fragment.get("measurements", {}) for fragment in fragments):
+        measurements = completed.get("measurements", {})
+        completed["measurements"] = {"repeated_cells": {"mode": "error"}, **measurements}
+    return completed
 
 
 def facade(
@@ -124,12 +161,14 @@ def long_document(
     primary_layer: str = "Quantity",
     duplicates: str = "error",
     rank_by: str | None = None,
+    rank_best: str = "highest",
     rank_rows: dict[str, Any] | None = None,
 ) -> RuleDocument:
     """A long rule with one obs key and whatever var declarations a test needs.
 
-    ``rank_by`` names the layer a ``keep_best`` rule ranks repeated cells by; ``rank_rows``
-    the var column a level ranks a feature's repeated rows by.
+    ``rank_by`` names the layer a ``keep_best`` rule ranks repeated cells by, and
+    ``rank_best`` its winning value; ``rank_rows`` the var column a level ranks a feature's
+    repeated rows by.
     """
     return document(
         shape="long",
@@ -144,7 +183,8 @@ def long_document(
             },
             "measurements": {
                 "primary_layer": primary_layer,
-                "repeated_cells": {"mode": duplicates} | ({"by": rank_by} if rank_by else {}),
+                "repeated_cells": {"mode": duplicates}
+                | ({"by": rank_by, "best": rank_best} if rank_by else {}),
                 "layers": layers or [{"name": "Quantity", "source": "Quantity"}],
             },
             **({"rank_rows": rank_rows} if rank_rows is not None else {}),

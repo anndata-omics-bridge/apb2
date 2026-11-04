@@ -1,15 +1,21 @@
 {
   "schema_version": "0.10",
-  "file_version": "2",
+  "file_version": "3",
   "software_name": "pb_custom",
   "software_version_pattern": "^.*$",
+  "hierarchy": "lfq",
   "parameter_file": "none",
   "sample_annotation": {"matching": {"mode": "exact", "normalize": "mass_spec_basename"}},
   "tables": [
     {
       "input": {"shape": "wide", "extensions": [".txt", ".tsv"]},
       "base": {
+        "defaults": {
+          "var": {"type": "string", "required": true, "per_feature": "first"},
+          "layers": {"encoding_mode": "numeric", "type": "number", "required": false}
+        },
         "axis": {"obs_keys": ["sample"]},
+        "measurements": {"repeated_cells": {"mode": "error"}},
         "columns": {
           "var": [
             {"name": "Sequence", "source": "Sequence"},

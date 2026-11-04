@@ -1,13 +1,19 @@
 {
   "schema_version": "0.10",
-  "file_version": "4",
+  "file_version": "5",
   "software_name": "MSAngel",
   "software_version_pattern": "^2\\..*",
+  "hierarchy": "lfq",
+  "parameter_file": "required",
   "tables": [
     {
       "input": {"shape": "wide", "extensions": [".txt", ".xlsx"]},
       "prepare": {"how": "msangel"},
       "base": {
+        "defaults": {
+          "var": {"type": "string", "required": true, "per_feature": "first"},
+          "layers": {"encoding_mode": "numeric", "type": "number", "required": false}
+        },
         "sample_pattern": "(?:DDA_)?(?P<sample>.+)",
         "axis": {"obs_keys": ["sample"]},
         "columns": {
@@ -19,7 +25,9 @@
         "sequence_syntax": {
           "vendor_sequence": {
             "parser": "embedded_site_list",
-            "entry_pattern": "^(?P<token>.+?)\\s+\\((?P<site>[^)]+)\\)$"
+            "delimiter": ";",
+            "entry_pattern": "^(?P<token>.+?)\\s+\\((?P<site>[^)]+)\\)$",
+            "site_base": 1
           },
           "plain_sequence": {"parser": "plain_sequence"}
         },
@@ -37,6 +45,7 @@
           "axis": {"var_keys": ["ProForma_ion"]},
           "measurements": {
             "primary_layer": "Abundance",
+            "repeated_cells": {"mode": "error"},
             "layers": [
               {
                 "name": "Abundance",
@@ -57,7 +66,7 @@
               {"name": "Corrected_Time", "source": "corrected_time_{sample}"}
             ]
           },
-          "rank_rows": {"by": "Protein_Set_Score"},
+          "rank_rows": {"by": "Protein_Set_Score", "best": "highest"},
           "columns": {
             "var": [
               {"name": "Sequence", "source": "sequence"},
@@ -110,7 +119,9 @@
                 "name": "ProForma_peptidoform",
                 "inputs": ["Sequence", "Modifications"],
                 "how": "proforma_sequence",
-                "syntax": "vendor_sequence"
+                "syntax": "vendor_sequence",
+                "case_sensitive": false,
+                "unknown_policy": "preserve"
               },
               {
                 "name": "ProForma_peptide",

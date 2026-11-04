@@ -109,6 +109,7 @@ from apb2.parserV2.vendor_parse_rules.schema.axis import (
     ProformaSequence,
     RankRows,
     SourcedColumn,
+    SourcedVarColumn,
     StrippedSequence,
     UnmarkedFlag,
     computed_columns,
@@ -437,7 +438,7 @@ class ParseRuleFacade:
         column: ColumnEntry, sources: Mapping[str, str], rank_rows: RankRows | None
     ) -> FeatureDuplicates:
         """A var column's resolution; ``best_row`` ranks by the physical source of ``by``."""
-        if not isinstance(column, SourcedColumn) or column.per_feature == "first":
+        if not isinstance(column, SourcedVarColumn) or column.per_feature == "first":
             return "keep_first"
         if column.per_feature != "best_row":
             return column.per_feature

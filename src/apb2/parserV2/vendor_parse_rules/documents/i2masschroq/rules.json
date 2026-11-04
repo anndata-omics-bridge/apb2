@@ -1,14 +1,22 @@
 {
   "schema_version": "0.10",
-  "file_version": "2",
+  "file_version": "3",
   "software_name": "i2MassChroQ",
   "software_version_pattern": "^1\\..*",
+  "hierarchy": "lfq",
+  "parameter_file": "required",
   "sample_annotation": {"matching": {"mode": "exact", "normalize": "mass_spec_basename"}},
   "tables": [
     {
       "input": {"shape": "long", "extensions": [".tsv", ".txt"]},
       "base": {
+        "defaults": {
+          "var": {"type": "string", "required": true, "per_feature": "first"},
+          "obs": {"type": "string", "required": true},
+          "layers": {"encoding_mode": "numeric", "type": "number", "required": false}
+        },
         "axis": {"obs_keys": ["Raw_File"]},
+        "measurements": {"repeated_cells": {"mode": "error"}},
         "columns": {
           "obs": [{"name": "Raw_File", "source": "rawfile"}],
           "var": [
@@ -52,7 +60,8 @@
           "sequence_syntax": {
             "vendor_sequence": {
               "parser": "token_regex",
-              "token_pattern": "^\\[(?P<nterm>[^\\]]+)\\]-|-\\[(?P<cterm>[^\\]]+)\\]$|\\[(?P<residue>[^\\]]+)\\]"
+              "token_pattern": "^\\[(?P<nterm>[^\\]]+)\\]-|-\\[(?P<cterm>[^\\]]+)\\]$|\\[(?P<residue>[^\\]]+)\\]",
+              "token_position": "after_residue"
             }
           }
         }

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from typing import Annotated, Literal
 
 from pydantic import Field, TypeAdapter, model_validator
@@ -21,8 +21,9 @@ from apb2.parserV2.vendor_parse_rules.schema.axis import (
     ProformaIon,
     ProformaSequence,
     RankRows,
-    SourcedColumn,
+    SourcedVarColumn,
     StrippedSequence,
+    VarEntry,
     WideColumns,
     computed_columns,
 )
@@ -124,8 +125,9 @@ class LongRule(_RuleCore):
                 "measurements.sample_layer is valid only for wide rules; long observations "
                 "come from columns.obs"
             )
-        _check_column_group(self.axis.obs_keys, self.columns.obs, "obs", None)
-        _check_column_group(self.axis.var_keys, self.columns.var, "var", self.rank_rows)
+        _check_column_group(self.axis.obs_keys, self.columns.obs, "obs")
+        _check_column_group(self.axis.var_keys, self.columns.var, "var")
+        _check_per_feature(self.axis.var_keys, self.columns.var, self.rank_rows)
         _check_computed_columns(self, self.columns.var)
         self._check_obs_computed_columns(self.columns.obs)
         _check_one_type_per_source((self.columns.obs, self.columns.var))
@@ -171,7 +173,8 @@ class WideRule(_RuleCore):
                     f"Layer {layer.name!r}: wide source must contain "
                     f"'(?P<{_SAMPLE_GROUP}>...)'; got {layer.source!r}"
                 )
-        _check_column_group(self.axis.var_keys, self.columns.var, "var", self.rank_rows)
+        _check_column_group(self.axis.var_keys, self.columns.var, "var")
+        _check_per_feature(self.axis.var_keys, self.columns.var, self.rank_rows)
         _check_computed_columns(self, self.columns.var)
         _check_one_type_per_source((self.columns.var,))
         return self
@@ -192,9 +195,7 @@ def rule_json_schema() -> dict[str, object]:
     return _RULE_ADAPTER.json_schema()
 
 
-def _check_column_group(
-    keys: list[str], group: ColumnGroup, owner: RoleOwner, rank_rows: RankRows | None
-) -> None:
+def _check_column_group(keys: list[str], group: ColumnGroup, owner: RoleOwner) -> None:
     names = [entry.name for entry in group]
     if len(set(names)) != len(names):
         raise ValueError("column entry names must be unique")
@@ -216,18 +217,15 @@ def _check_column_group(
     _check_role_owners(owner, (role for role, _name in role_columns))
     if len(dict(role_columns)) != len(role_columns):
         raise ValueError(f"roles must be unique on columns.{owner}")
-    _check_per_feature(keys, group, owner, rank_rows)
 
 
 def _check_per_feature(
-    keys: list[str], group: ColumnGroup, owner: RoleOwner, rank_rows: RankRows | None
+    keys: list[str], var: Sequence[VarEntry], rank_rows: RankRows | None
 ) -> None:
-    """Only var payload columns resolve repeated rows, each vendor column one way, and
+    """Only payload columns resolve repeated rows, each vendor column one way, and
     ``best_row`` columns exactly when the level ranks its rows."""
-    sourced = [entry for entry in group if isinstance(entry, SourcedColumn)]
+    sourced = [entry for entry in var if isinstance(entry, SourcedVarColumn)]
     declared = [entry.name for entry in sourced if entry.per_feature != "first"]
-    if owner == "obs" and declared:
-        raise ValueError(f"per_feature applies to var columns only: {declared}")
     keyed = [name for name in declared if name in keys]
     if keyed:
         raise ValueError(f"axis.var_keys identify a feature and resolve no repeated rows: {keyed}")

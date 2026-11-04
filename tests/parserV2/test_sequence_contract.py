@@ -49,6 +49,8 @@ NORMALIZE: dict[str, Any] = {
     "inputs": ["Modified_Sequence"],
     "syntax": "vendor_sequence",
     "modification_map": "basic_modification_map",
+    "case_sensitive": False,
+    "unknown_policy": "preserve",
 }
 
 
@@ -306,9 +308,11 @@ def test_forward_references_and_cycles_are_not_silently_reordered() -> None:
 @pytest.mark.parametrize("operation", [STRIP, NORMALIZE])
 def test_operation_rejects_incompatible_syntax(operation: dict[str, Any]) -> None:
     declaration = base([operation])
-    declaration["sequence_syntax"]["vendor_sequence"] = {
-        "parser": "site_list" if operation == STRIP else "plain_sequence",
-    }
+    declaration["sequence_syntax"]["vendor_sequence"] = (
+        {"parser": "site_list", "delimiter": ";", "site_base": 1}
+        if operation == STRIP
+        else {"parser": "plain_sequence"}
+    )
     with pytest.raises(ValidationError, match="syntax"):
         document(declaration).declared("peptidoform_ion")
 
@@ -320,6 +324,7 @@ def test_named_definitions_are_replaced_whole_after_base_composition(tmp_path: P
             "vendor_sequence": {
                 "parser": "token_regex",
                 "token_pattern": r"\[(?P<residue>[^\]]+)\]",
+                "token_position": "after_residue",
             }
         },
         "modification_maps": {"basic_modification_map": {"new": "UNIMOD:35"}},
@@ -339,7 +344,13 @@ def test_named_definitions_are_replaced_whole_after_base_composition(tmp_path: P
 @pytest.mark.parametrize("pattern", [r"\[([^\]]+)\]", r"\[(?P<site>[^\]]+)\]", r"\[[^\]]+\]"])
 def test_a_token_pattern_names_every_group_after_its_site(pattern: str) -> None:
     level: dict[str, Any] = {
-        "sequence_syntax": {"vendor_sequence": {"parser": "token_regex", "token_pattern": pattern}}
+        "sequence_syntax": {
+            "vendor_sequence": {
+                "parser": "token_regex",
+                "token_pattern": pattern,
+                "token_position": "after_residue",
+            }
+        }
     }
     with pytest.raises(ValidationError, match="must name every capturing group"):
         document(base([NORMALIZE]), level).declared("peptidoform_ion")

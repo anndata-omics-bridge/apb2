@@ -36,30 +36,32 @@ from parserV2 import synthetic
 
 
 def _table(level: str, filename: str) -> dict[str, Any]:
+    base: dict[str, Any] = {
+        "axis": {"obs_keys": ["sample"], "var_keys": ["feature"]},
+        "columns": {
+            "obs": [{"name": "sample", "source": "Run"}],
+            "var": synthetic.with_flags([{"name": "feature", "source": "Feature"}]),
+        },
+        "measurements": {
+            "primary_layer": "Quantity",
+            "layers": [{"name": "Quantity", "source": "Intensity"}],
+        },
+    }
     return {
         "input": {"shape": "long", "extensions": [".tsv"], "file_name": filename},
-        "base": {
-            "axis": {"obs_keys": ["sample"], "var_keys": ["feature"]},
-            "columns": {
-                "obs": [{"name": "sample", "source": "Run"}],
-                "var": synthetic.with_flags([{"name": "feature", "source": "Feature"}]),
-            },
-            "measurements": {
-                "primary_layer": "Quantity",
-                "layers": [{"name": "Quantity", "source": "Intensity"}],
-            },
-        },
+        "base": synthetic.complete_base("long", base, {}),
         "levels": {level: {}},
     }
 
 
 def _payload() -> dict[str, Any]:
     return {
-        "hierarchy": "lfq",
         "schema_version": "0.10",
         "file_version": "1",
         "software_name": "Synthetic",
         "software_version_pattern": "^1$",
+        "hierarchy": "lfq",
+        "parameter_file": "required",
         "tables": [_table("protein", "proteins.tsv"), _table("peptidoform_ion", "ions.tsv")],
     }
 
@@ -80,6 +82,7 @@ def test_table_local_shapes_and_merges_cannot_leak() -> None:
     table = payload["tables"][0]
     table["input"]["shape"] = "wide"
     del table["base"]["columns"]["obs"]
+    del table["base"]["defaults"]["obs"]
     table["base"]["measurements"]["layers"][0]["source"] = "^Intensity (?P<sample>.+)$"
     document = make_rule_document(Path("rules.json"), payload)
 

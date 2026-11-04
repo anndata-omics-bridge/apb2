@@ -53,15 +53,6 @@
           "default": null,
           "title": "Source"
         },
-        "type": {
-          "$ref": "#/$defs/AxisColumnType",
-          "default": "string"
-        },
-        "required": {
-          "default": true,
-          "title": "Required",
-          "type": "boolean"
-        },
         "roles": {
           "items": {
             "$ref": "#/$defs/SemanticRole"
@@ -109,12 +100,6 @@
         }
       ]
     },
-    "ColumnGroup": {
-      "items": {
-        "$ref": "#/$defs/ColumnEntry"
-      },
-      "type": "array"
-    },
     "ColumnLabeledFragments": {
       "additionalProperties": false,
       "description": "Packed fragment values with labels stored in a parallel packed column.",
@@ -137,16 +122,13 @@
           "type": "string"
         },
         "label_required": {
-          "default": true,
           "title": "Label Required",
           "type": "boolean"
         },
         "delimiter": {
-          "$ref": "#/$defs/Delimiter",
-          "default": ";"
+          "$ref": "#/$defs/Delimiter"
         },
         "label_output": {
-          "default": "fragment_label",
           "title": "Label Output",
           "type": "string"
         }
@@ -154,7 +136,10 @@
       "required": [
         "label_strategy",
         "value_columns",
-        "label_column"
+        "label_column",
+        "label_required",
+        "delimiter",
+        "label_output"
       ],
       "title": "ColumnLabeledFragments",
       "type": "object"
@@ -445,7 +430,6 @@
           "type": "string"
         },
         "delimiter": {
-          "default": ";",
           "minLength": 1,
           "title": "Delimiter",
           "type": "string"
@@ -455,7 +439,6 @@
           "type": "string"
         },
         "site_base": {
-          "default": 1,
           "maximum": 1,
           "minimum": 0,
           "title": "Site Base",
@@ -464,7 +447,9 @@
       },
       "required": [
         "parser",
-        "entry_pattern"
+        "delimiter",
+        "entry_pattern",
+        "site_base"
       ],
       "title": "EmbeddedSiteListSyntax",
       "type": "object"
@@ -515,7 +500,6 @@
           "type": "object"
         },
         "required": {
-          "default": false,
           "title": "Required",
           "type": "boolean"
         },
@@ -535,7 +519,8 @@
         "encoding_mode",
         "name",
         "source",
-        "categories"
+        "categories",
+        "required"
       ],
       "title": "FactorLayer",
       "type": "object"
@@ -621,15 +606,6 @@
           "default": null,
           "title": "Source"
         },
-        "type": {
-          "$ref": "#/$defs/AxisColumnType",
-          "default": "string"
-        },
-        "required": {
-          "default": true,
-          "title": "Required",
-          "type": "boolean"
-        },
         "roles": {
           "items": {
             "$ref": "#/$defs/SemanticRole"
@@ -674,6 +650,13 @@
       "type": "object"
     },
     "Layer": {
+      "discriminator": {
+        "mapping": {
+          "factor": "#/$defs/FactorLayer",
+          "numeric": "#/$defs/NumericLayer"
+        },
+        "propertyName": "encoding_mode"
+      },
       "oneOf": [
         {
           "$ref": "#/$defs/NumericLayer"
@@ -688,10 +671,18 @@
       "description": "Observation and variable declarations for a long source.",
       "properties": {
         "obs": {
-          "$ref": "#/$defs/ColumnGroup"
+          "items": {
+            "$ref": "#/$defs/ColumnEntry"
+          },
+          "title": "Obs",
+          "type": "array"
         },
         "var": {
-          "$ref": "#/$defs/ColumnGroup"
+          "items": {
+            "$ref": "#/$defs/VarEntry"
+          },
+          "title": "Var",
+          "type": "array"
         }
       },
       "required": [
@@ -855,6 +846,7 @@
       },
       "required": [
         "primary_layer",
+        "repeated_cells",
         "layers"
       ],
       "title": "Measurements",
@@ -899,16 +891,14 @@
     },
     "NumericLayer": {
       "additionalProperties": false,
-      "description": "A quantitative layer encoded numerically only at an output boundary.",
+      "description": "A quantitative layer encoded numerically only at an output boundary.\n\n``encoding_mode``, ``type`` and ``required`` come from the layer or its table's\n``defaults``.",
       "properties": {
         "encoding_mode": {
           "const": "numeric",
-          "default": "numeric",
           "title": "Encoding Mode",
           "type": "string"
         },
         "type": {
-          "default": "number",
           "enum": [
             "number",
             "integer"
@@ -949,7 +939,6 @@
           "$ref": "#/$defs/ValuePattern"
         },
         "required": {
-          "default": false,
           "title": "Required",
           "type": "boolean"
         },
@@ -966,8 +955,11 @@
         }
       },
       "required": [
+        "encoding_mode",
+        "type",
         "name",
-        "source"
+        "source",
+        "required"
       ],
       "title": "NumericLayer",
       "type": "object"
@@ -1015,18 +1007,18 @@
           "type": "array"
         },
         "delimiter": {
-          "$ref": "#/$defs/Delimiter",
-          "default": ";"
+          "$ref": "#/$defs/Delimiter"
         },
         "label_output": {
-          "default": "fragment_label",
           "title": "Label Output",
           "type": "string"
         }
       },
       "required": [
         "label_strategy",
-        "value_columns"
+        "value_columns",
+        "delimiter",
+        "label_output"
       ],
       "title": "PositionalFragments",
       "type": "object"
@@ -1046,15 +1038,6 @@
           ],
           "default": null,
           "title": "Source"
-        },
-        "type": {
-          "$ref": "#/$defs/AxisColumnType",
-          "default": "string"
-        },
-        "required": {
-          "default": true,
-          "title": "Required",
-          "type": "boolean"
         },
         "roles": {
           "items": {
@@ -1111,15 +1094,6 @@
           "default": null,
           "title": "Source"
         },
-        "type": {
-          "$ref": "#/$defs/AxisColumnType",
-          "default": "string"
-        },
-        "required": {
-          "default": true,
-          "title": "Required",
-          "type": "boolean"
-        },
         "roles": {
           "items": {
             "$ref": "#/$defs/SemanticRole"
@@ -1175,15 +1149,6 @@
           "default": null,
           "title": "Source"
         },
-        "type": {
-          "$ref": "#/$defs/AxisColumnType",
-          "default": "string"
-        },
-        "required": {
-          "default": true,
-          "title": "Required",
-          "type": "boolean"
-        },
         "roles": {
           "items": {
             "$ref": "#/$defs/SemanticRole"
@@ -1201,7 +1166,6 @@
           "type": "string"
         },
         "name": {
-          "default": "ProForma_peptidoform",
           "enum": [
             "ProForma_peptidoform",
             "ProForma_peptidoform_unlocalized"
@@ -1227,20 +1191,21 @@
           "type": "string"
         },
         "case_sensitive": {
-          "default": false,
           "title": "Case Sensitive",
           "type": "boolean"
         },
         "unknown_policy": {
-          "$ref": "#/$defs/UnknownPolicy",
-          "default": "preserve"
+          "$ref": "#/$defs/UnknownPolicy"
         }
       },
       "required": [
         "how",
+        "name",
         "inputs",
         "syntax",
-        "modification_map"
+        "modification_map",
+        "case_sensitive",
+        "unknown_policy"
       ],
       "title": "ProformaSequence",
       "type": "object"
@@ -1258,7 +1223,6 @@
           "type": "string"
         },
         "best": {
-          "default": "highest",
           "description": "which value of the 'by' column wins",
           "enum": [
             "highest",
@@ -1269,7 +1233,8 @@
         }
       },
       "required": [
-        "by"
+        "by",
+        "best"
       ],
       "title": "RankRows",
       "type": "object"
@@ -1301,8 +1266,7 @@
       "description": "How repeated raw measurement cells are resolved: one row for every layer, or all rows.\n\n``error`` stops at a second row for a cell, whatever it holds. ``same`` takes the value\nthe rows share, for rows that are copies, such as a protein value repeated on each\nprecursor row, and stops where their values differ. ``sum`` adds up every layer over the\nrepeated rows, so it suits only levels whose layers are all additive.\n``keep_best`` keeps, in each cell, the repeated row whose ``by`` layer is ``best``, and\ntakes every layer's value from that one row, so one feature's intensity, score and\nq-value describe the same identification, such as one PSM. Layers listed in ``sum`` are\nadded up over the repeated rows instead, such as quantities split across several of them.",
       "properties": {
         "mode": {
-          "$ref": "#/$defs/DuplicateMode",
-          "default": "error"
+          "$ref": "#/$defs/DuplicateMode"
         },
         "by": {
           "anyOf": [
@@ -1318,14 +1282,21 @@
           "title": "By"
         },
         "best": {
-          "default": "highest",
-          "description": "keep_best: which value of the 'by' layer wins",
-          "enum": [
-            "highest",
-            "lowest"
+          "anyOf": [
+            {
+              "enum": [
+                "highest",
+                "lowest"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
           ],
-          "title": "Best",
-          "type": "string"
+          "default": null,
+          "description": "keep_best: which value of the 'by' layer wins",
+          "title": "Best"
         },
         "sum": {
           "description": "keep_best: layers added up over the repeated rows, not taken from the winning row",
@@ -1336,6 +1307,9 @@
           "type": "array"
         }
       },
+      "required": [
+        "mode"
+      ],
       "title": "RepeatedCells",
       "type": "object"
     },
@@ -1455,13 +1429,11 @@
           "type": "string"
         },
         "delimiter": {
-          "default": ";",
           "minLength": 1,
           "title": "Delimiter",
           "type": "string"
         },
         "site_base": {
-          "default": 1,
           "maximum": 1,
           "minimum": 0,
           "title": "Site Base",
@@ -1469,14 +1441,16 @@
         }
       },
       "required": [
-        "parser"
+        "parser",
+        "delimiter",
+        "site_base"
       ],
       "title": "SiteListSyntax",
       "type": "object"
     },
     "SourcedColumn": {
       "additionalProperties": false,
-      "description": "One logical axis column read from one physical vendor column.\n\nA protein-list column may declare the vendor's own further list ``separator``, such as\nPEAKS's ``:``; ``;`` and ``,`` separate every protein list already.\n\n``per_feature`` says how a var column resolves the values a feature's repeated rows give\nit; a long report repeats a feature in every row of it, one per run. ``first`` keeps the\nfirst nonblank value and reports features whose rows disagree. ``min`` and ``max`` keep the\nsmallest or largest number, for a tool that writes a placeholder into some of a feature's\nrows, such as DIA-NN's protein-group q-value of 1.0. ``best_row`` takes the value from the\nrow the level's ``rank_rows`` keeps.",
+      "description": "One logical axis column read from one physical vendor column.\n\nA protein-list column may declare the vendor's own further list ``separator``, such as\nPEAKS's ``:``; ``;`` and ``,`` separate every protein list already. ``type`` and\n``required`` come from the entry or from its table's ``defaults``.",
       "properties": {
         "name": {
           "title": "Name",
@@ -1487,11 +1461,9 @@
           "type": "string"
         },
         "type": {
-          "$ref": "#/$defs/AxisColumnType",
-          "default": "string"
+          "$ref": "#/$defs/AxisColumnType"
         },
         "required": {
-          "default": true,
           "title": "Required",
           "type": "boolean"
         },
@@ -1515,10 +1487,6 @@
           "default": null,
           "title": "Separator"
         },
-        "per_feature": {
-          "$ref": "#/$defs/PerFeature",
-          "default": "first"
-        },
         "note": {
           "$ref": "#/$defs/Note",
           "default": null
@@ -1526,9 +1494,68 @@
       },
       "required": [
         "name",
-        "source"
+        "source",
+        "type",
+        "required"
       ],
       "title": "SourcedColumn",
+      "type": "object"
+    },
+    "SourcedVarColumn": {
+      "additionalProperties": false,
+      "description": "A var column read from one vendor column, and how it resolves a feature's repeated rows.\n\nA long report repeats a feature in every row of it, one per run. ``per_feature`` ``first``\nkeeps the first nonblank value and reports features whose rows disagree. ``min`` and\n``max`` keep the smallest or largest number, for a tool that writes a placeholder into some\nof a feature's rows, such as DIA-NN's protein-group q-value of 1.0. ``best_row`` takes the\nvalue from the row the level's ``rank_rows`` keeps. An observation has no repeated rows to\nresolve, so obs columns carry no ``per_feature``.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/AxisColumnType"
+        },
+        "required": {
+          "title": "Required",
+          "type": "boolean"
+        },
+        "roles": {
+          "items": {
+            "$ref": "#/$defs/SemanticRole"
+          },
+          "title": "Roles",
+          "type": "array"
+        },
+        "separator": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Separator"
+        },
+        "note": {
+          "$ref": "#/$defs/Note",
+          "default": null
+        },
+        "per_feature": {
+          "$ref": "#/$defs/PerFeature"
+        }
+      },
+      "required": [
+        "name",
+        "source",
+        "type",
+        "required",
+        "per_feature"
+      ],
+      "title": "SourcedVarColumn",
       "type": "object"
     },
     "StrippedSequence": {
@@ -1546,15 +1573,6 @@
           ],
           "default": null,
           "title": "Source"
-        },
-        "type": {
-          "$ref": "#/$defs/AxisColumnType",
-          "default": "string"
-        },
-        "required": {
-          "default": true,
-          "title": "Required",
-          "type": "boolean"
         },
         "roles": {
           "items": {
@@ -1627,7 +1645,6 @@
         },
         "token_position": {
           "$ref": "#/$defs/TokenPosition",
-          "default": "after_residue",
           "description": "whether a 'residue' token follows or precedes its residue"
         },
         "marker_pattern": {
@@ -1646,7 +1663,8 @@
       },
       "required": [
         "parser",
-        "token_pattern"
+        "token_pattern",
+        "token_position"
       ],
       "title": "TokenRegexSyntax",
       "type": "object"
@@ -1738,12 +1756,26 @@
         }
       ]
     },
+    "VarEntry": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SourcedVarColumn"
+        },
+        {
+          "$ref": "#/$defs/ComputedColumn"
+        }
+      ]
+    },
     "WideColumns": {
       "additionalProperties": false,
       "description": "Variable declarations for a wide source.",
       "properties": {
         "var": {
-          "$ref": "#/$defs/ColumnGroup"
+          "items": {
+            "$ref": "#/$defs/VarEntry"
+          },
+          "title": "Var",
+          "type": "array"
         }
       },
       "required": [
