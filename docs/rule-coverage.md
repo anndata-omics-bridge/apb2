@@ -10,6 +10,7 @@ A rule document and the standard reader handle everything listed here. A prepara
 - Header signatures for `--software` without a parameter file (`input.without_parameter_file`)
 - Version selection by `software_version_pattern`
 - Levels that apply only under declared search-parameter values (`requires_search_parameters`)
+- Levels a table's header rules out (`forbidden_columns`), such as an ion table at a peptidoform level
 
 ## Table shapes
 

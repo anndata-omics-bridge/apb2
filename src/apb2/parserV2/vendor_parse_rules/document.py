@@ -155,6 +155,15 @@ class _RuleTableSchema(ModelBase):
         return self
 
     @model_validator(mode="after")
+    def _forbidden_columns_are_a_levels(self) -> _RuleTableSchema:
+        """Forbidden columns tell a table's levels apart, so only a level declares them."""
+        if "forbidden_columns" in self.base:
+            raise ValueError(
+                "forbidden_columns belong to a level: they tell the table's levels apart"
+            )
+        return self
+
+    @model_validator(mode="after")
     def _prepared_input_declares_no_detection(self) -> _RuleTableSchema:
         """A preparation reads its files by extension, so declared detection would go unread."""
         declared = (self.input.delimiter, self.input.numbers, self.input.encoding)

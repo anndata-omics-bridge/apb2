@@ -1,6 +1,6 @@
 {
   "schema_version": "0.10",
-  "file_version": "5",
+  "file_version": "6",
   "software_name": "WOMBAT-P",
   "software_version_pattern": "^0\\.9\\.11$",
   "hierarchy": "lfq",
@@ -89,6 +89,7 @@
           }
         },
         "peptidoform": {
+          "forbidden_columns": ["charge"],
           "axis": {"var_keys": ["ProForma_peptidoform"]},
           "measurements": {
             "primary_layer": "Abundance",

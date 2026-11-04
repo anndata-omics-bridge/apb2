@@ -120,6 +120,7 @@ class WorkingParseConfiguration:
     hierarchy: LevelHierarchy
     input: InputContract
     source_layout: SourceLayoutDeclaration
+    forbidden_columns: frozenset[str]
     obs: WorkingAxisConfiguration
     var: WorkingAxisConfiguration
     measurements: WorkingMeasurements

@@ -131,6 +131,12 @@ class SourcePlanResolver:
         """Compile source-dependent decisions directly into the executable strategy."""
         working = self._configuration
         present = frozenset(evidence.columns)
+        refused = sorted(working.forbidden_columns & present)
+        if refused:
+            raise IncompatibleSourceError(
+                f"{self._label()} reads no table carrying column(s) {refused}; such a table "
+                "reports another level"
+            )
         numbers = evidence.number_format
         var_source, var, var_json = self._resolve_axis(
             working.var, present, self._var_synthesized(), numbers

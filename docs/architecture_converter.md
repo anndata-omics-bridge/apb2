@@ -23,7 +23,7 @@ invariant or test explicitly adopts them.
 
 The [APB metadata specification](metadata_specification.md) is authoritative for persisted namespace ownership, tool integration, composition and result-format versions. Converter examples below do not define a separate metadata contract.
 
-The current rule storage version is schema `0.10`; [How rules-driven conversion works](rule-based.md) is the authoring guide. Earlier schema migrations remain historical context. Schema `0.10` renames for readability: layers' `measurements.repeated_cells` (was `duplicates`); a var column's `per_feature` (`first`, `min`, `max`, `best_row`), with the level's ranking written once as `rank_rows`; `input.without_parameter_file` (was `software_only`), whose `acquisition_method` names DDA; and modification maps as token-to-accession objects. It adds authoring shorthand that composition resolves, so the stored `rule_json` stays explicit: `source_prefix` for a prepared table's namespace, a sequence column's `syntax` and `modification_map` when the level declares only one, a wide layer's `{sample}` for the table's `sample_pattern`, and each table's `base.defaults`, the column and layer values its entries take where they state none. Every other real choice is written in the file; the models hold no default for one. Schema `0.9` added an optional `note` to every column and layer entry, a `duplicates` block on var columns (`keep_first` by default, `min`, `max`, or `keep_best` by another numeric var column). Its layer duplicate modes are `error`, `same`, `sum` and `keep_best`: each selects one row for every layer of a cell, takes the value copied rows share, or adds up all rows. Schema `0.8` adds explicit, independent sequence computations and named syntax/modification-map references; axis, measurement, physical-input, role, and preparation declarations retain their existing shapes.
+The current rule storage version is schema `0.10`; [How rules-driven conversion works](rule-based.md) is the authoring guide. Earlier schema migrations remain historical context. Schema `0.10` renames for readability: layers' `measurements.repeated_cells` (was `duplicates`); a var column's `per_feature` (`first`, `min`, `max`, `best_row`), with the level's ranking written once as `rank_rows`; `input.without_parameter_file` (was `software_only`), whose `acquisition_method` names DDA; and modification maps as token-to-accession objects. It adds authoring shorthand that composition resolves, so the stored `rule_json` stays explicit: `source_prefix` for a prepared table's namespace, a sequence column's `syntax` and `modification_map` when the level declares only one, a wide layer's `{sample}` for the table's `sample_pattern`, and each table's `base.defaults`, the column and layer values its entries take where they state none. Every other real choice is written in the file; the models hold no default for one. A level's optional `forbidden_columns` names header columns that rule a table out of it, such as `charge` for WOMBAT-P's peptidoform level. Schema `0.9` added an optional `note` to every column and layer entry, a `duplicates` block on var columns (`keep_first` by default, `min`, `max`, or `keep_best` by another numeric var column). Its layer duplicate modes are `error`, `same`, `sum` and `keep_best`: each selects one row for every layer of a cell, takes the value copied rows share, or adds up all rows. Schema `0.8` adds explicit, independent sequence computations and named syntax/modification-map references; axis, measurement, physical-input, role, and preparation declarations retain their existing shapes.
 
 ## Current source-compilation boundary
 
@@ -2046,6 +2046,7 @@ class SearchParameterOverride(ModelBase):
 
 
 class _RuleCore(ModelBase):
+    forbidden_columns: list[str] = Field(default_factory=list)
     axis: Axis
     measurements: Measurements
     requires_search_parameters: dict[SearchParameterField, ConditionValue] = Field(
@@ -2481,6 +2482,7 @@ Source binding is allowed to branch on evidence outcomes:
 
 - several physical interpretations exist and none accepts the extension: incompatible source;
 - no delimiter candidate exposes the required header: incompatible source;
+- the header carries a column the level forbids: incompatible source, so detection skips that level;
 - several candidates expose a compatible header: ambiguous dialect;
 - a folder contract has no exact `file_name`, or the named file is absent: incompatible source.
 

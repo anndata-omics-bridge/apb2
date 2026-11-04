@@ -66,6 +66,7 @@ from apb2.parserV2.vendor_parse_rules.schema.rule import (
     LongRule,
     WideRule,
     rule_json_schema,
+    validate_rule,
 )
 from apb2.parserV2.vendor_parse_rules.schema_artifact import artifact_path
 from parserV2 import synthetic
@@ -941,6 +942,96 @@ def test_a_computed_entry_states_no_type_or_required(tmp_path: Path) -> None:
         var[-1] = {"name": "either", "how": "coalesce", "inputs": ["feature", "alias"], key: value}
         with pytest.raises(ValidationError, match=rf"coalesce\.{key}\n\s+Extra inputs"):
             _declared(payload, tmp_path)
+
+
+def _forbidding(forbidden: list[str], *entries: dict[str, Any]) -> MutatePayload:
+    """Declare the level's ``forbidden_columns`` and append ``entries`` to its var columns."""
+
+    def mutate(payload: dict[str, Any]) -> None:
+        level = payload["tables"][0]["levels"]["peptidoform_ion"]
+        level["forbidden_columns"] = forbidden
+        level["columns"]["var"].extend(entries)
+
+    return mutate
+
+
+def test_a_level_names_the_columns_that_rule_its_table_out(tmp_path: Path) -> None:
+    payload = _document_payload()
+    _forbidding(["Charge"])(payload)
+
+    rule = make_rule_document(tmp_path / "rules.json", payload).declared("peptidoform_ion")
+
+    assert rule.declaration.forbidden_columns == ["Charge"]
+    assert rule.declaration.model_dump(mode="json")["forbidden_columns"] == ["Charge"]
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        pytest.param(
+            lambda payload: payload["tables"][0]["base"].update({"forbidden_columns": ["Charge"]}),
+            "forbidden_columns belong to a level",
+            id="in-the-base",
+        ),
+        pytest.param(
+            _forbidding(["Feature"]),
+            r"forbidden_columns \['Feature'\] are sources the level reads",
+            id="a-var-source",
+        ),
+        pytest.param(
+            _forbidding(["Sample"]),
+            r"forbidden_columns \['Sample'\] are sources the level reads",
+            id="an-obs-source",
+        ),
+        pytest.param(
+            _forbidding(["Quantity"]),
+            r"forbidden_columns \['Quantity'\] are sources the level reads",
+            id="a-layer-source",
+        ),
+        pytest.param(
+            _forbidding(["Alias"], {"name": "alias", "source": "Alias", "required": False}),
+            r"forbidden_columns \['Alias'\] are sources the level reads",
+            id="an-optional-source",
+        ),
+    ],
+)
+def test_forbidden_columns_belong_to_a_level_that_names_no_such_source(
+    mutate: MutatePayload, message: str, tmp_path: Path
+) -> None:
+    payload = _document_payload()
+    mutate(payload)
+
+    with pytest.raises(ValidationError, match=message):
+        _declared(payload, tmp_path)
+
+
+def test_a_wide_level_may_forbid_a_column_its_layer_pattern_claims(tmp_path: Path) -> None:
+    """A layer pattern claims a family of columns, so a level may forbid one; not a var source."""
+    payload = _wide_payload("^Intensity (?P<sample>.+)$")
+    level = payload["tables"][0]["levels"]["peptidoform_ion"]
+    level["forbidden_columns"] = ["peptide.Intensity A"]
+
+    rule = make_rule_document(tmp_path / "rules.json", payload).declared("peptidoform_ion")
+
+    assert rule.declaration.forbidden_columns == ["peptide.Intensity A"]
+    level["forbidden_columns"] = ["peptide.Feature"]
+    with pytest.raises(ValidationError, match=r"forbidden_columns \['peptide\.Feature'\] are"):
+        _declared(payload, tmp_path)
+
+
+def test_a_level_cannot_forbid_its_fragments_label_column() -> None:
+    pair = next(candidate for candidate in document_pairs() if candidate.key == "diann/v1_8")
+    rule = load_rule_document(pair.parser_v2_path).declared("peptidoform_fragment").declaration
+    assert isinstance(rule, LongRule)
+    assert isinstance(rule.fragments, ColumnLabeledFragments)
+    label = rule.fragments.label_column
+    entries = (*rule.columns.obs, *rule.columns.var, *rule.measurements.layers)
+    assert label not in {entry.source for entry in entries}, "only the fragments name it"
+    payload = rule.model_dump(mode="python")
+    payload["forbidden_columns"] = [label]
+
+    with pytest.raises(ValidationError, match=rf"forbidden_columns \['{re.escape(label)}'\]"):
+        validate_rule(payload)
 
 
 _COMPLETE_DECLARATIONS: tuple[tuple[type[BaseModel], dict[str, Any]], ...] = (

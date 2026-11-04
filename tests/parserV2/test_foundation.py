@@ -251,6 +251,7 @@ def test_a_working_configuration_derives_presence_and_canonical_values() -> None
             ),
         ),
         source_layout=LongSourceLayout(),
+        forbidden_columns=frozenset(),
         obs=WorkingAxisConfiguration(
             final_key_columns=("sample",),
             required_selections=(

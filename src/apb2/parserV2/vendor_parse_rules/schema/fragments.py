@@ -19,6 +19,11 @@ class PositionalFragments(ModelBase):
     delimiter: Delimiter
     label_output: str
 
+    @property
+    def read_columns(self) -> tuple[str, ...]:
+        """The source columns the fragments read: the packed values."""
+        return tuple(self.value_columns)
+
 
 class ColumnLabeledFragments(ModelBase):
     """Packed fragment values with labels stored in a parallel packed column."""
@@ -30,6 +35,11 @@ class ColumnLabeledFragments(ModelBase):
     label_required: bool
     delimiter: Delimiter
     label_output: str
+
+    @property
+    def read_columns(self) -> tuple[str, ...]:
+        """The source columns the fragments read: the packed values, then their labels."""
+        return (*self.value_columns, self.label_column)
 
     @model_validator(mode="after")
     def _label_is_not_a_value_column(self) -> ColumnLabeledFragments:

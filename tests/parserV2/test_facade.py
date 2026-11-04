@@ -1228,6 +1228,21 @@ def test_parquet_evidence_keeps_its_physical_schema() -> None:
     assert read.native_numeric_sources == frozenset()
 
 
+def test_a_level_names_the_forbidden_column_that_refuses_a_table() -> None:
+    """WOMBAT-P's peptidoform level reads no ion table: its rows carry a charge."""
+    pair = next(candidate for candidate in document_pairs() if candidate.key == "wombat")
+    unknown = SearchParameterEvidence(acquisition_method="unknown", combine_charge_states=None)
+    facade = ParseRuleFacade(load_rule_document(pair.parser_v2_path), "peptidoform", unknown)
+    columns = ("modified_peptide", "protein_group", "charge", "abundance_A_1", "abundance_B_1")
+    evidence = FrameSourceEvidence(columns, tuple((name, pl.String()) for name in columns))
+
+    with pytest.raises(
+        IncompatibleSourceError,
+        match=r"'WOMBAT-P' level 'peptidoform' reads no table carrying column\(s\) \['charge'\]",
+    ):
+        facade.resolve_source(evidence)
+
+
 def test_a_reducing_rule_needs_layer_values_this_source_delivers_as_numbers() -> None:
     document = synthetic.long_document(
         obs_select={"sample": "Sample"},

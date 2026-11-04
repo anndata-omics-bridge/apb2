@@ -369,6 +369,8 @@ class _RuleColumns:
                 else tuple(rule.columns.var)
             )
             names.update(entry.source for entry in entries if entry.source is not None)
+            # A preparation that selects columns must keep the ones that rule a level out.
+            names.update(rule.forbidden_columns)
             for layer in rule.measurements.layers:
                 if isinstance(rule, LongRule):
                     names.add(layer.source)

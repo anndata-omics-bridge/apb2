@@ -33,6 +33,26 @@ When a caller supplies `--software` but no parameter file, the table's optional 
 
 `acquisition_method` states what the header says about acquisition: the columns that establish DDA, `DDA_if_any_column`, and the method without them, `otherwise`, which is `unknown` where the columns cannot tell, as for every such table but DIA-NN 2.x. DIA-NN 2.x uses `Ms1.Q.Value` or `Global.Ms1.Q.Value` as DDA evidence and otherwise selects its DIA default. This is authored evidence, not a generic claim that missing columns always mean DIA: only declare a fallback after validating its signature against the supported exports. Unresolved settings such as Sage's charge combination still raise an error rather than being guessed.
 
+## A level's forbidden columns
+
+A level reads any table that carries its required columns, so a table with another level's rows can pass a level's check. ProteoBench's ion module receives WOMBAT-P tables with one row per peptide and charge; they carry every column the peptidoform level needs, plus `charge`. A level names the columns that rule such a table out:
+
+```json
+"peptidoform": {
+  "forbidden_columns": ["charge"],
+  "axis": {"var_keys": ["ProForma_peptidoform"]},
+  ...
+}
+```
+
+- A level skips a table whose header holds any of its `forbidden_columns`; the table's other levels still read it. An ion table converts at WOMBAT-P's ion level only, and a peptidoform table, which has no `charge`, at the peptidoform level only
+- Names are those of the header the level reads: for a prepared table the prepared header, such as MaxQuant's `evidence.Charge`; `source_prefix` does not apply
+- The check reads the header alone, so it holds with or without a parameter file. It decides which levels a table reports, not which software wrote it
+- Only a level declares it, never the table's `base`, and it names no source the level itself reads. Absent means none
+- `input.without_parameter_file.forbidden_columns` is a different check: it tells rule variants apart when no parameter file names the version, for a whole table
+
+apb2 converts only the levels an input reports. A table whose rows are another level's is refused, never aggregated into this one.
+
 ## Long format
 
 In a long table, every row holds one observation-variable measurement.

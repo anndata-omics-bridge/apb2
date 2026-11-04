@@ -82,6 +82,7 @@ Parser V2 layers stay long until they are widened, last. A layer row names its c
 - A column or layer that holds one value, or none, in a result is not created; the parse record keeps what it held. That says nothing about placement, so declare it where its meaning belongs. Keys, role and computed columns, the flags' inputs and the primary and sample layers are kept.
 - A moved layer becomes a `var` entry that writes `"type": "number"` and `"required": false` where its table's `defaults` say otherwise: a required column decides which files the rule accepts.
 - A rule states every real choice: a value with more than one option is written, once in the table's `base.defaults` for column and layer fields, or where it applies (`hierarchy`, `parameter_file`, `repeated_cells`, sequence and syntax settings). An entry writes only what differs from its table's `defaults`. A field with one possible value, such as a computed entry's `type` or `required`, is written nowhere; one whose absence means none, such as `note`, stays absent.
+- A level whose required columns another level's tables also carry names the column that tells them apart as its `forbidden_columns`, as WOMBAT-P's peptidoform level names `charge`, so an ion table converts at the ion level only. Never drop the column in a hook, and never aggregate the other level's rows into this one.
 - The steps for a new format are in [docs/adding_a_format.md](docs/adding_a_format.md).
 
 ## Dependency rules

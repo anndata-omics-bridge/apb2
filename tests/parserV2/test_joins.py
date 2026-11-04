@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from io import StringIO
 from itertools import combinations
 from pathlib import Path
@@ -35,6 +36,7 @@ from apb2.parserV2.parse_quant.parser import ParserCollection
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.prepare_source import InputPreparationError, PreparationInputs, PreparedTable
 from apb2.parserV2.search_parameters.model import Parameters
+from apb2.parserV2.vendor_parse_rules.document import make_rule_document
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
 from parserV2.fixtures import committed_dir, committed_sample, input_files, parse_section
@@ -574,6 +576,32 @@ def test_ion_only_reads_evidence_and_protein_groups_but_no_peptide_table(
     assert sorted(calls) == sorted(
         tmp_path / MAXQUANT_FILES[role] for role in ("evidence", "protein")
     )
+
+
+def test_a_forbidden_column_survives_a_preparations_column_selection(tmp_path: Path) -> None:
+    """The evidence join reads only the columns its rules can use, and a forbidden one counts.
+
+    No rule reads ``Mod. peptide ID`` and the join needs no such key, so the preparation would
+    drop it; the ion level could then never see it. The test above is the positive control.
+    """
+    inputs = tmp_path / "input"
+    inputs.mkdir()
+    for role, frame in maxquant_tables().items():
+        frame.write_csv(inputs / MAXQUANT_FILES[role], separator="\t")
+    payload = json.loads((RULES / "maxquant_wide/rules.json").read_text())
+    ion = next(
+        table["levels"]["peptidoform_ion"]
+        for table in payload["tables"]
+        if "peptidoform_ion" in table["levels"]
+    )
+    ion["forbidden_columns"] = ["evidence.Mod. peptide ID"]
+    document = make_rule_document(tmp_path / "rules.json", payload)
+
+    selected = select_document_levels(
+        document, Folder(inputs), ("peptidoform_ion",), KnownParameters(UNKNOWN_SEARCH_PARAMETERS)
+    )
+
+    assert selected == ()
 
 
 def test_each_preparation_reads_each_of_its_inputs_once(

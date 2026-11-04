@@ -60,6 +60,8 @@ A check mark means that the linked rule document can convert that level. APB2 re
 | [Spectronaut 15](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/spectronaut/v15/rules.json) | ✓ | — | — | ✓ | ✓ |
 | [WOMBAT-P](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/wombat/rules.json) | ✓ | ✓ | — | — | — |
 
+A WOMBAT-P table holds one of its two levels, and its header decides which: a table with `charge` converts at the peptidoform-ion level, one without at the peptidoform level ([a level's forbidden columns](rule-based.md#a-levels-forbidden-columns)).
+
 ## Planned prolfquapp migrations
 
 Another motivation for APB2 is to replace hand-written, application-local readers with reusable,

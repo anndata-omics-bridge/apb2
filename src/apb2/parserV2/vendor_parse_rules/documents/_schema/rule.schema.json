@@ -718,6 +718,13 @@
           "title": "Hierarchy",
           "type": "string"
         },
+        "forbidden_columns": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Forbidden Columns",
+          "type": "array"
+        },
         "axis": {
           "$ref": "#/$defs/Axis"
         },
@@ -1809,6 +1816,13 @@
         "hierarchy": {
           "title": "Hierarchy",
           "type": "string"
+        },
+        "forbidden_columns": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Forbidden Columns",
+          "type": "array"
         },
         "axis": {
           "$ref": "#/$defs/Axis"

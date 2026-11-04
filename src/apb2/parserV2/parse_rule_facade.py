@@ -185,6 +185,7 @@ class ParseRuleFacade:
             hierarchy=LevelHierarchy(rule.hierarchy, HIERARCHIES[rule.hierarchy]),
             input=ParseRuleFacade._project_input(effective.input),
             source_layout=ParseRuleFacade._project_layout(rule),
+            forbidden_columns=frozenset(rule.forbidden_columns),
             obs=ParseRuleFacade._project_axis(rule.axis.obs_keys, obs_group, rule),
             var=ParseRuleFacade._project_axis(rule.axis.var_keys, rule.columns.var, rule),
             measurements=ParseRuleFacade._project_measurements(rule),

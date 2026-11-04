@@ -55,6 +55,46 @@ def test_wombat_peptidoform_without_optional_psm_counts(tmp_path: Path) -> None:
     assert parsed.levels["peptidoform"].var.frame.height == 1
 
 
+_WOMBAT_ION = (
+    "modified_peptide,protein_group,charge,abundance_A_1,abundance_B_1\n"
+    "PEPTIDEK,P12345,2,10,20\n"
+    "PEPTIDEK,P12345,3,30,40\n"
+)
+"""A WOMBAT-P table from ProteoBench's ion module: one row per peptide and charge."""
+
+
+def _wombat(
+    source: Path, route: str, levels: tuple[QuantificationLevel, ...] | None
+) -> ParseRuleCompiler:
+    """Compile WOMBAT-P's rule with its parameter file, or from the software name alone."""
+    if route == "parameters":
+        return ParseRuleCompiler.detect(
+            source, inputs("wombat")[1], requested_levels=levels, software="wombatp"
+        )
+    return ParseRuleCompiler.from_software(source, software="WOMBAT-P", requested_levels=levels)
+
+
+@pytest.mark.parametrize("route", ["parameters", "software"])
+def test_a_wombat_ion_table_converts_at_the_ion_level_only(tmp_path: Path, route: str) -> None:
+    """The peptidoform level forbids ``charge``, so an ion table never reaches it."""
+    source = tmp_path / "wombat.csv"
+    source.write_text(_WOMBAT_ION, encoding="utf-8")
+
+    parsed = _wombat(source, route, None).compile().parse()
+
+    assert set(parsed.levels) == {"peptidoform_ion"}
+    assert parsed.levels["peptidoform_ion"].var.frame.height == 2
+
+
+@pytest.mark.parametrize("route", ["parameters", "software"])
+def test_a_wombat_ion_table_reports_no_peptidoform_level(tmp_path: Path, route: str) -> None:
+    source = tmp_path / "wombat.csv"
+    source.write_text(_WOMBAT_ION, encoding="utf-8")
+
+    with pytest.raises(RuleUnavailableError, match="peptidoform"):
+        _wombat(source, route, ("peptidoform",))
+
+
 @pytest.mark.parametrize(
     "key",
     [

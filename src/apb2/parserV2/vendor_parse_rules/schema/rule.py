@@ -68,6 +68,8 @@ class _RuleCore(ModelBase):
     software_version_pattern: str
     quantification_level: QuantificationLevel
     hierarchy: str
+    # Header columns that mean a table reports another level: the level skips such a table.
+    forbidden_columns: list[str] = Field(default_factory=list)
     axis: Axis
     measurements: Measurements
     sequence_syntax: dict[str, SequenceSyntax] = Field(default_factory=dict)
@@ -131,7 +133,17 @@ class LongRule(_RuleCore):
         _check_computed_columns(self, self.columns.var)
         self._check_obs_computed_columns(self.columns.obs)
         _check_one_type_per_source((self.columns.obs, self.columns.var))
+        _check_forbidden_columns(self.forbidden_columns, self._named_sources())
         return self
+
+    def _named_sources(self) -> tuple[str, ...]:
+        """Every source column the level names exactly: its entries', layers' and fragments'."""
+        entries = (*self.columns.obs, *self.columns.var)
+        return (
+            *(entry.source for entry in entries if entry.source is not None),
+            *(layer.source for layer in self.measurements.layers),
+            *(self.fragments.read_columns if self.fragments is not None else ()),
+        )
 
     @staticmethod
     def _check_obs_computed_columns(obs: ColumnGroup) -> None:
@@ -177,6 +189,11 @@ class WideRule(_RuleCore):
         _check_per_feature(self.axis.var_keys, self.columns.var, self.rank_rows)
         _check_computed_columns(self, self.columns.var)
         _check_one_type_per_source((self.columns.var,))
+        # Layer sources are patterns claiming a family of columns; a level may forbid one.
+        _check_forbidden_columns(
+            self.forbidden_columns,
+            (entry.source for entry in self.columns.var if entry.source is not None),
+        )
         return self
 
 
@@ -193,6 +210,13 @@ def validate_rule(payload: object) -> LongRule | WideRule:
 def rule_json_schema() -> dict[str, object]:
     """Return the JSON Schema for complete schema-0.10 effective rules."""
     return _RULE_ADAPTER.json_schema()
+
+
+def _check_forbidden_columns(forbidden: Sequence[str], sources: Iterable[str]) -> None:
+    """A level cannot forbid a source it names: it would match no table or never read it."""
+    read = sorted(set(forbidden) & set(sources))
+    if read:
+        raise ValueError(f"forbidden_columns {read} are sources the level reads")
 
 
 def _check_column_group(keys: list[str], group: ColumnGroup, owner: RoleOwner) -> None:
