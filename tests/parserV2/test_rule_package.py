@@ -83,10 +83,10 @@ _LEVEL_CASES = [
 _DOCUMENT_CASES = [pytest.param(pair, id=pair.key) for pair in document_pairs()]
 _NON_PRIMARY_ABUNDANCE: dict[tuple[str, QuantificationLevel], tuple[str, ...]] = {
     ("alphapept", "peptidoform_ion"): (
-        "MS1_Int_Sum_Apex",
-        "MS1_Int_Sum_Area",
-        "MS1_Int_Max_Apex",
-        "MS1_Int_Max_Area",
+        "ms1_int_sum_apex",
+        "ms1_int_sum_area",
+        "ms1_int_max_apex",
+        "ms1_int_max_area",
     ),
     ("diann/v1_8", "peptidoform_ion"): ("Ms1_Normalised", "Precursor_Quantity", "Ms1_Area"),
     ("diann/v1_8", "protein"): ("PG_Normalised", "PG_Quantity", "Genes_MaxLFQ"),
@@ -94,10 +94,10 @@ _NON_PRIMARY_ABUNDANCE: dict[tuple[str, QuantificationLevel], tuple[str, ...]] =
     ("diann/v1_7", "protein"): ("PG_Quantity", "PG_MaxLFQ", "Genes_MaxLFQ"),
     ("diann/v2", "peptidoform_ion"): ("Ms1_Normalised", "Precursor_Quantity", "Ms1_Area"),
     ("diann/v2", "protein"): ("Genes_MaxLFQ",),
-    ("maxquant_wide", "peptide"): ("LFQ_Intensity",),
-    ("maxquant_wide", "protein"): ("LFQ_Intensity", "iBAQ"),
-    ("msangel", "peptidoform_ion"): ("Raw_Abundance",),
-    ("msangel", "protein"): ("Raw_Abundance",),
+    ("maxquant_wide", "peptide"): ("LFQ_intensity",),
+    ("maxquant_wide", "protein"): ("LFQ_intensity", "iBAQ"),
+    ("msangel", "peptidoform_ion"): ("raw_abundance",),
+    ("msangel", "protein"): ("raw_abundance",),
     ("spectronaut", "peptidoform_ion"): (
         "EG_ReferenceQuantity_Settings",
         "EG_TargetQuantity_Settings",
@@ -123,10 +123,13 @@ type V2Rule = LongRule | WideRule
 
 
 def _without_primary_layer(rule: V2Rule) -> dict[str, Any]:
+    """The declaration without its primary layer and the ``required`` that follows it."""
     payload = rule.model_dump(mode="json")
     measurements = payload["measurements"]
     assert isinstance(measurements, dict)
     measurements.pop("primary_layer")
+    for layer in measurements["layers"]:
+        layer.pop("required")
     return payload
 
 
@@ -389,14 +392,14 @@ def test_packaged_integer_measurements_are_exactly_the_declared_counts() -> None
 
     assert actual == {
         ("fragpipe", "peptidoform_ion", "Spectral_Count"),
-        ("maxquant_wide", "peptidoform_ion", "MS_MS_Count"),
-        ("msangel", "peptidoform_ion", "PSM_Count"),
-        ("msangel", "protein", "PSM_Count"),
-        ("msangel", "protein", "Peptides_Count"),
-        ("prolinestudio", "peptidoform_ion", "PSM_Count"),
+        ("maxquant_wide", "peptidoform_ion", "MS_MS_count"),
+        ("msangel", "peptidoform_ion", "psm_count"),
+        ("msangel", "protein", "psm_count"),
+        ("msangel", "protein", "peptides_count"),
+        ("prolinestudio", "peptidoform_ion", "psm_count"),
         ("spectronaut", "protein", "PG_RunEvidenceCount"),
         ("spectronaut/v21", "protein", "PG_RunEvidenceCount"),
-        ("wombat", "peptidoform", "Number_Of_Psms"),
+        ("wombat", "peptidoform", "number_of_psms"),
     }
 
 
@@ -549,11 +552,9 @@ def test_msangel_measurements_canonicalize_the_dda_run_prefix(level: Quantificat
             id="spectronaut-protein",
         ),
         pytest.param(
-            "alphadia/v2", "peptidoform_ion", "Protein_Group", "Proteins", id="alphadia-v2-ion"
+            "alphadia/v2", "peptidoform_ion", "pg_name", "pg_proteins", id="alphadia-v2-ion"
         ),
-        pytest.param(
-            "alphadia/v2", "protein", "Protein_Group", "Protein_Group", id="alphadia-v2-protein"
-        ),
+        pytest.param("alphadia/v2", "protein", "pg_name", "pg_name", id="alphadia-v2-protein"),
         pytest.param(
             "maxquant_wide", "peptidoform_ion", "Protein_IDs", "Proteins", id="maxquant-wide-ion"
         ),
@@ -561,13 +562,13 @@ def test_msangel_measurements_canonicalize_the_dda_run_prefix(level: Quantificat
             "maxquant_wide", "protein", "Protein_IDs", "Protein_IDs", id="maxquant-wide-protein"
         ),
         pytest.param(
-            "msangel", "peptidoform_ion", "Same_Set_Proteins", "Proteins", id="msangel-ion"
+            "msangel", "peptidoform_ion", "samesets_accessions", "Proteins", id="msangel-ion"
         ),
-        pytest.param("msangel", "protein", "Same_Set_Proteins", "Proteins", id="msangel-protein"),
+        pytest.param("msangel", "protein", "samesets_accessions", "Proteins", id="msangel-protein"),
         pytest.param(
             "prolinestudio",
             "peptidoform_ion",
-            "Same_Set_Proteins",
+            "samesets_accessions",
             "Proteins",
             id="prolinestudio-ion",
         ),
@@ -597,7 +598,7 @@ def test_alphadia_v1_10_genes_are_both_assignment_and_fasta_identifiers() -> Non
         document, "peptidoform_ion", NO_EVIDENCE
     ).working_parameters.column_roles
 
-    assert roles == {"protein_assignment": "Genes", "fasta_accessions": "Genes"}
+    assert roles == {"protein_assignment": "genes", "fasta_accessions": "genes"}
 
 
 def test_spectronaut_fragment_exposes_its_parent_ion_identity() -> None:
@@ -639,6 +640,12 @@ def test_diann_v2_swaps_only_the_primary_layer_for_dda_evidence() -> None:
 
     assert dda.measurements.primary_layer == "Ms1_Normalised"
     assert dia.measurements.primary_layer == "Precursor_Normalised"
+    required = {
+        evidence: {layer.name for layer in rule.measurements.layers if layer.required}
+        for evidence, rule in (("DDA", dda), ("DIA", dia))
+    }
+    assert "Ms1_Normalised" in required["DDA"] - required["DIA"]
+    assert "Precursor_Normalised" in required["DIA"] - required["DDA"]
     assert document.declared("peptidoform_ion").declaration.measurements.primary_layer == (
         "Precursor_Normalised"
     )
@@ -656,7 +663,7 @@ def test_a_level_without_a_gate_is_applicable_without_any_evidence() -> None:
         document.rule("peptide", NO_EVIDENCE)
 
 
-# ------------------------------------------------------------------ what schema 0.10 refuses
+# ------------------------------------------------------------------ what schema 0.11 refuses
 
 
 def _document_payload() -> dict[str, Any]:
@@ -834,8 +841,11 @@ def test_entries_take_the_tables_defaults_and_their_own_values_win(tmp_path: Pat
     var = table["levels"]["peptidoform_ion"]["columns"]["var"]
     var[0]["required"] = True
     var.append({"name": "gene", "source": "Gene"})
-    table["base"]["measurements"]["layers"].append(
-        {"name": "count", "source": "Count", "type": "integer", "required": True}
+    table["base"]["measurements"]["layers"].extend(
+        [
+            {"name": "count", "source": "Count", "type": "integer", "required": True},
+            {"name": "area", "source": "Area"},
+        ]
     )
 
     rule = make_rule_document(tmp_path / "rules.json", payload).declared("peptidoform_ion")
@@ -853,7 +863,7 @@ def test_entries_take_the_tables_defaults_and_their_own_values_win(tmp_path: Pat
     assert all(isinstance(layer, NumericLayer) for layer in layers)
     assert [
         (layer.type, layer.required) for layer in layers if isinstance(layer, NumericLayer)
-    ] == [("number", False), ("integer", True)]
+    ] == [("number", True), ("integer", True), ("number", False)]
     assert "defaults" not in json.dumps(declaration.model_dump(mode="json"))
 
 
@@ -907,6 +917,46 @@ def test_a_wide_tables_defaults_name_no_obs(tmp_path: Path) -> None:
 
     with pytest.raises(ValidationError, match="names obs exactly for a long table"):
         make_rule_document(tmp_path / "rules.json", payload)
+
+
+def test_the_primary_and_ranking_layers_are_required_and_state_no_required(
+    tmp_path: Path,
+) -> None:
+    """apb2 converts no table without them, so composition writes the only possible value."""
+    payload = _document_payload()
+    measurements = payload["tables"][0]["base"]["measurements"]
+    measurements["repeated_cells"] = {"mode": "keep_best", "by": "score", "best": "highest"}
+    measurements["layers"].extend(
+        [{"name": "score", "source": "Score"}, {"name": "area", "source": "Area"}]
+    )
+
+    rule = make_rule_document(tmp_path / "rules.json", payload).declared("peptidoform_ion")
+
+    layers = rule.declaration.measurements.layers
+    assert [(layer.name, layer.required) for layer in layers] == [
+        ("quantity", True),
+        ("score", True),
+        ("area", False),
+    ]
+
+    measurements["layers"][0]["required"] = True
+    with pytest.raises(ValueError, match="'quantity' is the level's primary, sample or ranking"):
+        _declared(payload, tmp_path)
+
+
+def test_a_var_column_declares_missing_text_but_never_blank_text(tmp_path: Path) -> None:
+    payload = _document_payload()
+    var = payload["tables"][0]["levels"]["peptidoform_ion"]["columns"]["var"]
+    var.append({"name": "score", "source": "Score", "type": "number", "missing_tokens": ["NaN"]})
+
+    rule = make_rule_document(tmp_path / "rules.json", payload).declared("peptidoform_ion")
+
+    score = {column.name: column for column in rule.declaration.columns.var}["score"]
+    assert isinstance(score, SourcedVarColumn)
+    assert score.missing_tokens == ["NaN"]
+    var[-1]["missing_tokens"] = [" "]
+    with pytest.raises(ValidationError, match="blank text"):
+        _declared(payload, tmp_path)
 
 
 def test_a_factor_layer_takes_no_type_from_the_defaults(tmp_path: Path) -> None:
@@ -1097,7 +1147,6 @@ _COMPLETE_DECLARATIONS: tuple[tuple[type[BaseModel], dict[str, Any]], ...] = (
             "name": "ProForma_peptidoform",
             "inputs": ["Sequence"],
             "syntax": "vendor",
-            "modification_map": "mods",
             "case_sensitive": False,
             "unknown_policy": "preserve",
         },
@@ -1192,6 +1241,17 @@ def test_a_document_states_its_hierarchy_and_parameter_file(choice: str, tmp_pat
     assert _problems(missing.value) == [("missing", (choice,))]
 
 
+def test_no_packaged_note_ends_with_a_period() -> None:
+    """A note is a fragment, as the rules write them; a trailing period marks one that is not."""
+    ended: list[str] = []
+    for path in PACKAGED:
+        text = path.read_text(encoding="utf-8")
+        rule = path.as_posix().split("/documents/")[1]
+        ended += [f"{rule}: {note}" for note in re.findall(r'"note": "((?:[^"\\]|\\.)*)"', text)]
+    assert ended
+    assert [note for note in ended if note.endswith(".")] == []
+
+
 def test_no_packaged_entry_restates_its_tables_defaults() -> None:
     """The files say each shared value once, in their table's ``defaults``."""
     restated: list[tuple[str, str, str]] = []
@@ -1229,7 +1289,7 @@ def test_a_sequence_column_takes_the_levels_only_syntax_and_map(tmp_path: Path) 
             "token_position": "after_residue",
         }
     }
-    base["modification_maps"] = {"mods": {"ox": "UNIMOD:35"}}
+    base["modification_map"] = {"ox": "UNIMOD:35"}
     payload["tables"][0]["levels"]["peptidoform_ion"]["columns"]["var"].extend(
         [
             {"name": "Sequence", "source": "Sequence"},
@@ -1251,11 +1311,8 @@ def test_a_sequence_column_takes_the_levels_only_syntax_and_map(tmp_path: Path) 
     peptide = columns["ProForma_peptide"]
     assert isinstance(peptidoform, ProformaSequence)
     assert isinstance(peptide, StrippedSequence)
-    assert (peptidoform.syntax, peptidoform.modification_map, peptide.syntax) == (
-        "vendor",
-        "mods",
-        "vendor",
-    )
+    assert (peptidoform.syntax, peptide.syntax) == ("vendor", "vendor")
+    assert rule.declaration.modification_map == {"ox": "UNIMOD:35"}
     base["sequence_syntax"]["plain"] = {"parser": "plain_sequence"}
     with pytest.raises(ValueError, match="the level declares 2"):
         _declared(payload, tmp_path)

@@ -56,7 +56,7 @@ def _table(level: str, filename: str) -> dict[str, Any]:
 
 def _payload() -> dict[str, Any]:
     return {
-        "schema_version": "0.10",
+        "schema_version": "0.11",
         "file_version": "1",
         "software_name": "Synthetic",
         "software_version_pattern": "^1$",

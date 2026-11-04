@@ -450,7 +450,7 @@ def test_maxquant_every_nonempty_subset_round_trips_available_levels(
         # HDF5 represents missing numeric cells as NaN; table backends retain nulls.
         values = level.layers["Intensity"].wide().cast(pl.Float64).fill_nan(None)
         assert values.rows() == [tuple(row) for row in expected_values[name]]
-        obs_key = "Raw_File" if name == "peptidoform_ion" else "Experiment"
+        obs_key = "Raw_file" if name == "peptidoform_ion" else "Experiment"
         expected_samples = {"peptidoform_ion": ["raw1", "raw2"], "protein": ["A", "B"]}.get(
             name, ["A", "B"] if "protein" in parsed else ["A"]
         )
@@ -464,7 +464,7 @@ def test_maxquant_every_nonempty_subset_round_trips_available_levels(
         assert names == {MAXQUANT_FILES[role] for role in roles}
     if "protein" in parsed:
         protein = parsed["protein"]
-        lfq = protein.layers["LFQ_Intensity"].wide().cast(pl.Float64).fill_nan(None)
+        lfq = protein.layers["LFQ_intensity"].wide().cast(pl.Float64).fill_nan(None)
         assert lfq.rows() == [(110.0, 111.0), (210.0, None), (310.0, 311.0)]
 
 
@@ -539,9 +539,9 @@ def test_maxquant_one_to_one_experiments_align_to_raw_files(tmp_path: Path, suff
     )
     assert summary.outputs == (target,)
     result = read_parsed_levels(target)
-    assert all(level.obs.key_columns == ("Raw_File",) for level in result.levels.values())
+    assert all(level.obs.key_columns == ("Raw_file",) for level in result.levels.values())
     protein = result.levels["protein"]
-    assert protein.obs.frame["Raw_File"].to_list() == ["raw1", "raw2"]
+    assert protein.obs.frame["Raw_file"].to_list() == ["raw1", "raw2"]
     assert protein.obs.frame["Experiment"].to_list() == ["B", "A"]
     values = protein.layers["Intensity"].wide().cast(pl.Float64).fill_nan(None)
     assert values.rows() == [(101.0, 100.0), (None, 200.0), (301.0, 300.0)]
@@ -725,7 +725,7 @@ def test_cli_directory_joins_before_ion_conversion(tmp_path: Path) -> None:
         )
     assert result.value.code == 0
     parsed = read_parsed_levels(tmp_path / "output.parquet").levels["peptidoform_ion"]
-    assert parsed.layers["Intensity"].wide().row(0) == (12.0, None)
-    assert parsed.layers["QValue"].wide().row(0) == (0.001, 0.002)
-    assert parsed.layers["Proba"].wide().row(0) == (0.1, 0.2)
+    assert parsed.layers["intensity"].wide().row(0) == (12.0, None)
+    assert parsed.layers["qval"].wide().row(0) == (0.001, 0.002)
+    assert parsed.layers["proba"].wide().row(0) == (0.1, 0.2)
     assert "Protein_Group_QValue" not in parsed.var.frame.columns

@@ -761,7 +761,10 @@ class SourcePlanResolver:
         return AxisPhaseRuntimePlan(
             selections=tuple(
                 SelectedAxisColumn(
-                    s.name, s.source, make_axis_coercer(s.logical_type, numbers, s.separator)
+                    s.name,
+                    s.source,
+                    make_axis_coercer(s.logical_type, numbers, s.separator),
+                    s.missing_tokens,
                 )
                 for s in selections
             ),

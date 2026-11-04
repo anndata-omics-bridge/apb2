@@ -1,6 +1,6 @@
 {
-  "schema_version": "0.10",
-  "file_version": "3",
+  "schema_version": "0.11",
+  "file_version": "4",
   "software_name": "MetaMorpheus",
   "software_version_pattern": "^1\\.",
   "hierarchy": "lfq",
@@ -14,57 +14,35 @@
           "var": {"type": "string", "required": true, "per_feature": "first"},
           "obs": {"type": "string", "required": true},
           "layers": {"encoding_mode": "numeric", "type": "number", "required": false}
-        },
-        "axis": {"obs_keys": ["Raw_File"]},
-        "measurements": {
-          "repeated_cells": {"mode": "keep_best", "by": "Intensity", "best": "highest"}
-        },
-        "columns": {"obs": [{"name": "Raw_File", "source": "File Name"}]},
-        "sequence_syntax": {
-          "vendor_sequence": {
-            "parser": "token_regex",
-            "token_pattern": "^\\[(?P<nterm>[^\\]]+)\\]|\\[(?P<residue>[^\\]]+)\\]",
-            "token_position": "after_residue"
-          }
-        },
-        "modification_maps": {
-          "basic_modification_map": {
-            "Common Fixed:Carbamidomethyl on C": "UNIMOD:4",
-            "Common Variable:Oxidation on M": "UNIMOD:35",
-            "Common Biological:Acetylation on X": "UNIMOD:1"
-          }
         }
       },
       "levels": {
         "peptidoform_ion": {
-          "axis": {"var_keys": ["ProForma_ion"]},
+          "axis": {"obs_keys": ["File_Name"], "var_keys": ["ProForma_ion"]},
           "measurements": {
-            "primary_layer": "Intensity",
+            "primary_layer": "Peak_intensity",
+            "repeated_cells": {"mode": "keep_best", "by": "Peak_intensity", "best": "highest"},
             "layers": [
               {
-                "name": "Intensity",
+                "name": "Peak_intensity",
                 "source": "Peak intensity",
-                "note": "Ranks an ion's repeated peaks in one run: every layer comes from the most intense peak, the one FlashLFQ's own peptide table keeps",
                 "roles": ["abundance"],
                 "missing_values": ["<=0"]
               },
-              {
-                "name": "MS2_Retention_Time",
-                "source": "MS2 Retention Time",
-                "note": "Time of the MS/MS scan that identified the peptide, not the apex of its MS1 peak"
-              },
+              {"name": "MS2_Retention_Time", "source": "MS2 Retention Time"},
               {"name": "Peak_RT_Start", "source": "Peak RT Start", "missing_tokens": ["-"]},
               {"name": "Peak_RT_Apex", "source": "Peak RT Apex", "missing_tokens": ["-"]},
               {"name": "Peak_RT_End", "source": "Peak RT End", "missing_tokens": ["-"]}
             ]
           },
           "columns": {
+            "obs": [{"name": "File_Name", "source": "File Name"}],
             "var": [
-              {"name": "Sequence", "source": "Base Sequence"},
+              {"name": "Base_Sequence", "source": "Base Sequence"},
               {"name": "Full_Sequence", "source": "Full Sequence"},
-              {"name": "Charge", "source": "Precursor Charge", "type": "integer"},
+              {"name": "Precursor_Charge", "source": "Precursor Charge", "type": "integer"},
               {
-                "name": "Proteins",
+                "name": "Protein_Group",
                 "source": "Protein Group",
                 "roles": ["protein_assignment", "fasta_accessions"]
               },
@@ -72,19 +50,31 @@
               {
                 "name": "ProForma_peptidoform",
                 "inputs": ["Full_Sequence"],
+                "how": "proforma_sequence",
                 "case_sensitive": false,
-                "unknown_policy": "preserve",
-                "how": "proforma_sequence"
+                "unknown_policy": "preserve"
               },
               {
                 "name": "ProForma_ion",
-                "inputs": ["ProForma_peptidoform", "Charge"],
+                "inputs": ["ProForma_peptidoform", "Precursor_Charge"],
                 "how": "proforma_ion"
               },
               {"name": "Decoy_Peptide", "source": "Decoy Peptide"},
               {"name": "apb_Decoy", "inputs": ["Decoy_Peptide"], "how": "decoy", "equals": "True"},
               {"name": "apb_Contaminant", "how": "unmarked"}
             ]
+          },
+          "sequence_syntax": {
+            "vendor_sequence": {
+              "parser": "token_regex",
+              "token_pattern": "^\\[(?P<nterm>[^\\]]+)\\]|\\[(?P<residue>[^\\]]+)\\]",
+              "token_position": "after_residue"
+            }
+          },
+          "modification_map": {
+            "Common Fixed:Carbamidomethyl on C": "UNIMOD:4",
+            "Common Variable:Oxidation on M": "UNIMOD:35",
+            "Common Biological:Acetylation on X": "UNIMOD:1"
           }
         }
       }

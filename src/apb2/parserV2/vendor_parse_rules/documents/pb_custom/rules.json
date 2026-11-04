@@ -1,6 +1,6 @@
 {
-  "schema_version": "0.10",
-  "file_version": "3",
+  "schema_version": "0.11",
+  "file_version": "4",
   "software_name": "pb_custom",
   "software_version_pattern": "^.*$",
   "hierarchy": "lfq",
@@ -13,30 +13,14 @@
         "defaults": {
           "var": {"type": "string", "required": true, "per_feature": "first"},
           "layers": {"encoding_mode": "numeric", "type": "number", "required": false}
-        },
-        "axis": {"obs_keys": ["sample"]},
-        "measurements": {"repeated_cells": {"mode": "error"}},
-        "columns": {
-          "var": [
-            {"name": "Sequence", "source": "Sequence"},
-            {
-              "name": "Proteins",
-              "source": "Proteins",
-              "roles": ["protein_assignment", "fasta_accessions"]
-            },
-            {"name": "Charge", "source": "Charge", "type": "integer"},
-            {"name": "ProForma_peptidoform", "source": "Modified sequence"},
-            {"name": "ProForma_peptide", "source": "Sequence"},
-            {"name": "apb_Decoy", "how": "unmarked"},
-            {"name": "apb_Contaminant", "how": "unmarked"}
-          ]
         }
       },
       "levels": {
         "peptidoform_ion": {
-          "axis": {"var_keys": ["ProForma_ion"]},
+          "axis": {"obs_keys": ["sample"], "var_keys": ["ProForma_ion"]},
           "measurements": {
             "primary_layer": "Intensity",
+            "repeated_cells": {"mode": "error"},
             "layers": [
               {
                 "name": "Intensity",
@@ -48,13 +32,25 @@
           },
           "columns": {
             "var": [
+              {"name": "Sequence", "source": "Sequence"},
+              {
+                "name": "Proteins",
+                "source": "Proteins",
+                "roles": ["protein_assignment", "fasta_accessions"]
+              },
+              {"name": "Charge", "source": "Charge", "type": "integer"},
+              {"name": "ProForma_peptidoform", "source": "Modified sequence"},
+              {"name": "apb_Decoy", "how": "unmarked"},
+              {"name": "apb_Contaminant", "how": "unmarked"},
               {
                 "name": "ProForma_ion",
                 "inputs": ["ProForma_peptidoform", "Charge"],
                 "how": "proforma_ion"
-              }
+              },
+              {"name": "ProForma_peptide", "inputs": ["Sequence"], "how": "stripped_sequence"}
             ]
-          }
+          },
+          "sequence_syntax": {"plain_sequence": {"parser": "plain_sequence"}}
         }
       }
     }

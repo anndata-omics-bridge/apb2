@@ -75,9 +75,9 @@ def test_peaks_retains_the_minus_10lgp_identification_score(tmp_path: Path) -> N
 
     var = read_parsed_levels(target).levels["peptidoform_ion"].var.frame
     source = pl.read_csv(data).get_column("-10LgP")
-    assert var.schema["Minus_10LgP"] == pl.Float64
+    assert var.schema["neg10LgP"] == pl.Float64
     assert_series_equal(
-        var.get_column("Minus_10LgP").sort(),
+        var.get_column("neg10LgP").sort(),
         source.sort(),
         check_names=False,
     )
@@ -120,5 +120,5 @@ def test_peaks_samples_come_from_run_mz_columns_not_group_averages(tmp_path: Pat
 
     level = read_parsed_levels(target).levels["peptidoform_ion"]
     assert level.obs.frame.get_column("sample").to_list() == list(runs)
-    assert set(level.layers) == {"Normalized_Area", "Sample_Mz", "Sample_RT_Mean"}
+    assert set(level.layers) == {"Normalized_Area", "m_z", "RT_mean"}
     assert level.layers["Normalized_Area"].wide().width == len(runs)

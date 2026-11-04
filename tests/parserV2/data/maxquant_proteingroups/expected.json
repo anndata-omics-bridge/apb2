@@ -9,8 +9,8 @@
       "variables": 250,
       "layers": [
         "Intensity",
-        "LFQ_Intensity",
-        "Identification_Type"
+        "LFQ_intensity",
+        "Identification_type"
       ]
     }
   }

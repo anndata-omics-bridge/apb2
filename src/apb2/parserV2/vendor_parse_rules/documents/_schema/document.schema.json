@@ -320,7 +320,7 @@
       ]
     },
     "SchemaVersion": {
-      "const": "0.10",
+      "const": "0.11",
       "type": "string"
     },
     "SingleCharacter": {

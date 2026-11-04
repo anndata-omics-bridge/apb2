@@ -1,6 +1,6 @@
 {
-  "schema_version": "0.10",
-  "file_version": "6",
+  "schema_version": "0.11",
+  "file_version": "7",
   "software_name": "Spectronaut",
   "software_version_pattern": "^(19|20)\\..*",
   "hierarchy": "lfq",
@@ -56,13 +56,11 @@
             "token_position": "after_residue"
           }
         },
-        "modification_maps": {
-          "basic_modification_map": {
-            "Acetyl (Protein N-term)": "UNIMOD:1",
-            "Oxidation (M)": "UNIMOD:35",
-            "Carbamidomethyl (C)": "UNIMOD:4",
-            "Deamidation (NQ)": "UNIMOD:7"
-          }
+        "modification_map": {
+          "Acetyl (Protein N-term)": "UNIMOD:1",
+          "Oxidation (M)": "UNIMOD:35",
+          "Carbamidomethyl (C)": "UNIMOD:4",
+          "Deamidation (NQ)": "UNIMOD:7"
         }
       },
       "levels": {
@@ -97,7 +95,7 @@
               {
                 "name": "EG_MeanApexRT",
                 "source": "EG.MeanApexRT",
-                "note": "Differs between runs for the same precursor, so a layer; equal to EG.ApexRT in most rows"
+                "note": "A layer: differs between runs for the same precursor"
               },
               {"name": "EG_iRTEmpirical", "source": "EG.iRTEmpirical"},
               {"name": "EG_RTPredicted", "source": "EG.RTPredicted"},
@@ -169,9 +167,9 @@
               {
                 "name": "ProForma_peptidoform",
                 "inputs": ["EG_ModifiedSequence"],
+                "how": "proforma_sequence",
                 "case_sensitive": false,
-                "unknown_policy": "preserve",
-                "how": "proforma_sequence"
+                "unknown_policy": "preserve"
               },
               {
                 "name": "ProForma_peptide",
@@ -220,24 +218,14 @@
               {"name": "F_FrgLossType", "source": "F.FrgLossType"},
               {"name": "F_FrgType", "source": "F.FrgType"},
               {"name": "F_FrgNum", "source": "F.FrgNum", "type": "integer"},
-              {
-                "name": "F_FrgMz",
-                "source": "F.FrgMz",
-                "type": "number",
-                "note": "Fragment m/z, one per fragment, repeated in every run row; F.MeasuredMz is the per-run value"
-              },
-              {
-                "name": "F_TheoreticalMz",
-                "source": "F.TheoreticalMz",
-                "type": "number",
-                "note": "Theoretical fragment m/z, one per fragment, repeated in every run row"
-              },
+              {"name": "F_FrgMz", "source": "F.FrgMz", "type": "number"},
+              {"name": "F_TheoreticalMz", "source": "F.TheoreticalMz", "type": "number"},
               {
                 "name": "ProForma_peptidoform",
                 "inputs": ["EG_ModifiedSequence"],
+                "how": "proforma_sequence",
                 "case_sensitive": false,
-                "unknown_policy": "preserve",
-                "how": "proforma_sequence"
+                "unknown_policy": "preserve"
               },
               {
                 "name": "ProForma_peptide",

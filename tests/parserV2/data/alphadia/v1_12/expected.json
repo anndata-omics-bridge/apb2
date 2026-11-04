@@ -11,13 +11,13 @@
       "observations": 6,
       "variables": 458,
       "layers": [
-        "Intensity",
-        "Proba",
-        "RT_Observed",
-        "RT_Calibrated",
-        "RT_Library",
-        "Cycle_FWHM",
-        "Mz_Observed"
+        "intensity",
+        "proba",
+        "rt_observed",
+        "rt_calibrated",
+        "rt_library",
+        "cycle_fwhm",
+        "mz_observed"
       ]
     }
   }

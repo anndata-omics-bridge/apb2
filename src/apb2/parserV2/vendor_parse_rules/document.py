@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
@@ -266,9 +266,8 @@ class RuleDocument(ModelBase):
             )
         if not primary_layers:
             return effective
-        payload = rule.model_dump(mode="python")
-        payload["measurements"]["primary_layer"] = primary_layers.pop()
-        return replace(effective, declaration=validate_rule(payload))
+        table = self._table_for(level)
+        return self._effective(self._payload_for(level, table, primary_layers.pop()), table)
 
     def _effective(self, payload: JsonDict, table: _RuleTableSchema) -> EffectiveRule:
         declaration = validate_rule(payload)
@@ -282,9 +281,18 @@ class RuleDocument(ModelBase):
             f"{self.path} has no level {level!r}; available: {list(self.levels)}"
         )
 
-    def _payload_for(self, level: QuantificationLevel, table: _RuleTableSchema) -> JsonDict:
-        """Compose one declared level over its own table's base."""
-        level_fragment = table.levels[level]
+    def _payload_for(
+        self, level: QuantificationLevel, table: _RuleTableSchema, primary_layer: str | None = None
+    ) -> JsonDict:
+        """Compose one declared level over its own table's base.
+
+        ``primary_layer`` is a search-parameter override's, composed in place of the level's own
+        so that the layer it names is the required one.
+        """
+        merged = _merge_fragments(table.base, table.levels[level])
+        measurements = merged.get("measurements")
+        if primary_layer is not None and isinstance(measurements, dict):
+            merged["measurements"] = {**measurements, "primary_layer": primary_layer}
         return {
             "schema_version": self.schema_version,
             "file_version": self.file_version,
@@ -298,9 +306,7 @@ class RuleDocument(ModelBase):
                 if self.sample_annotation is not None
                 else {}
             ),
-            **_compose_shorthand(
-                _merge_fragments(table.base, level_fragment), table.input.shape, table.defaults()
-            ),
+            **_compose_shorthand(merged, table.input.shape, table.defaults()),
         }
 
 
@@ -327,8 +333,7 @@ def _compose_shorthand(merged: JsonDict, shape: str, defaults: _TableDefaults) -
     ``source_prefix`` names the table a preparation step's join prefixes, such as MaxQuant's
     ``peptide.``: an entry's own prefix wins over the level's, which wins over the base's. A
     wide layer's ``{sample}`` stands for the table's ``sample_pattern``, the level's over the
-    base's. A sequence column that names no ``syntax`` or ``modification_map`` takes the level's
-    only one. Column entries read from a vendor column, and layers, take the table's
+    base's. A sequence column that names no ``syntax`` takes the level's only one. Column entries read from a vendor column, and layers, take the table's
     ``defaults`` for each value they state none of. New dicts carry the result, so the
     document's fragments stay as authored.
     """
@@ -351,6 +356,7 @@ def _compose_shorthand(merged: JsonDict, shape: str, defaults: _TableDefaults) -
             for group, entries in columns.items()
         }
     if isinstance(measurements, dict) and isinstance(layers, list):
+        indispensable = _indispensable_layers(measurements)
         composed["measurements"] = {
             **measurements,
             "layers": [
@@ -359,6 +365,7 @@ def _compose_shorthand(merged: JsonDict, shape: str, defaults: _TableDefaults) -
                     if shape == "wide"
                     else _prefixed(layer, prefix),
                     defaults.layers,
+                    indispensable,
                 )
                 for layer in layers
             ],
@@ -392,10 +399,31 @@ def _column_defaults(defaults: _TableDefaults, group: object) -> JsonDict:
     return {} if chosen is None else chosen.model_dump()
 
 
-def _layer_with_defaults(layer: object, defaults: _LayerDefaults) -> object:
-    """One layer with each value it states none of taken from the table; a factor has no type."""
+def _indispensable_layers(measurements: JsonDict) -> frozenset[str]:
+    """The layers no table converts without: the primary, the sample and the keep_best ranking."""
+    repeated = measurements.get("repeated_cells")
+    ranking = repeated.get("by") if isinstance(repeated, dict) else None
+    names = (measurements.get("primary_layer"), measurements.get("sample_layer"), ranking)
+    return frozenset(name for name in names if isinstance(name, str))
+
+
+def _layer_with_defaults(
+    layer: object, defaults: _LayerDefaults, indispensable: frozenset[str]
+) -> object:
+    """One layer with each value it states none of taken from the table; a factor has no type.
+
+    An indispensable layer is required, a value with no other choice, so it states none.
+    """
     if not isinstance(layer, dict):
         return layer
+    name = layer.get("name")
+    if name in indispensable:
+        if "required" in layer:
+            raise ValueError(
+                f"layer {name!r} is the level's primary, sample or ranking layer, so it is "
+                "required and states no required"
+            )
+        layer = {**layer, "required": True}
     filled = {"encoding_mode": defaults.encoding_mode, "required": defaults.required, **layer}
     if filled["encoding_mode"] == "numeric":
         filled.setdefault("type", defaults.type)
@@ -412,8 +440,6 @@ def _composed_column(entry: object, prefix: object, level: JsonDict, defaults: J
         return {**defaults, **column}
     if how in {"proforma_sequence", "stripped_sequence"} and "syntax" not in column:
         column["syntax"] = _only_name(level, "sequence_syntax", column)
-    if how == "proforma_sequence" and "modification_map" not in column:
-        column["modification_map"] = _only_name(level, "modification_maps", column)
     return column
 
 
@@ -498,7 +524,6 @@ def _merge_fragments(base: JsonDict, level: JsonDict) -> JsonDict:
         mappings=(
             "axis",
             "sequence_syntax",
-            "modification_maps",
             "fragments",
             "requires_search_parameters",
         ),

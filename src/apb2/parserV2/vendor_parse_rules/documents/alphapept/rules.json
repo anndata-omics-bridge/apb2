@@ -1,6 +1,6 @@
 {
-  "schema_version": "0.10",
-  "file_version": "4",
+  "schema_version": "0.11",
+  "file_version": "5",
   "software_name": "AlphaPept",
   "software_version_pattern": "^0\\.5\\.",
   "hierarchy": "lfq",
@@ -13,91 +13,69 @@
           "var": {"type": "string", "required": true, "per_feature": "first"},
           "obs": {"type": "string", "required": true},
           "layers": {"encoding_mode": "numeric", "type": "number", "required": false}
-        },
-        "axis": {"obs_keys": ["Raw_File"]},
-        "measurements": {"repeated_cells": {"mode": "keep_best", "by": "Score", "best": "highest"}},
-        "columns": {
-          "obs": [
-            {"name": "Raw_File", "source": "shortname"},
-            {"name": "Sample_Group", "source": "sample_group"},
-            {"name": "File_Path", "source": "filename"}
-          ]
-        },
-        "sequence_syntax": {
-          "vendor_sequence": {
-            "parser": "token_regex",
-            "token_pattern": "^(?P<nterm>a)|(?P<residue>[a-z]+)",
-            "token_position": "before_residue",
-            "marker_pattern": "_decoy$"
-          }
-        },
-        "modification_maps": {
-          "basic_modification_map": {"c": "UNIMOD:4", "ox": "UNIMOD:35", "a": "UNIMOD:1"}
         }
       },
       "levels": {
         "peptidoform_ion": {
-          "axis": {"var_keys": ["ProForma_ion"]},
+          "axis": {"obs_keys": ["shortname"], "var_keys": ["ProForma_ion"]},
           "measurements": {
-            "primary_layer": "Intensity",
+            "primary_layer": "ms1_int_sum_apex_dn",
+            "repeated_cells": {"mode": "keep_best", "by": "score", "best": "highest"},
             "layers": [
               {
-                "name": "Intensity",
+                "name": "ms1_int_sum_apex_dn",
                 "source": "ms1_int_sum_apex_dn",
                 "roles": ["abundance"],
                 "missing_values": ["<=0"]
               },
               {
-                "name": "MS1_Int_Sum_Apex",
+                "name": "ms1_int_sum_apex",
                 "source": "ms1_int_sum_apex",
                 "roles": ["abundance"],
                 "missing_values": ["<=0"]
               },
               {
-                "name": "MS1_Int_Sum_Area",
+                "name": "ms1_int_sum_area",
                 "source": "ms1_int_sum_area",
                 "roles": ["abundance"],
                 "missing_values": ["<=0"]
               },
               {
-                "name": "MS1_Int_Max_Apex",
+                "name": "ms1_int_max_apex",
                 "source": "ms1_int_max_apex",
                 "roles": ["abundance"],
                 "missing_values": ["<=0"]
               },
               {
-                "name": "MS1_Int_Max_Area",
+                "name": "ms1_int_max_area",
                 "source": "ms1_int_max_area",
                 "roles": ["abundance"],
                 "missing_values": ["<=0"]
               },
-              {"name": "Score", "source": "score", "required": true},
-              {"name": "Q_Value", "source": "q_value"},
-              {
-                "name": "Retention_Time",
-                "source": "rt",
-                "note": "Equal to rt_apex, the apex of the feature's MS1 peak, which is not kept twice"
-              },
-              {"name": "Retention_Time_Start", "source": "rt_start"},
-              {"name": "Retention_Time_End", "source": "rt_end"},
-              {
-                "name": "Retention_Time_Calibrated",
-                "source": "rt_calib",
-                "note": "The apex after AlphaPept aligns the runs for matching between runs"
-              },
-              {"name": "FWHM", "source": "fwhm"},
-              {"name": "N_Fragments_Matched", "source": "n_fragments_matched"}
+              {"name": "score", "source": "score"},
+              {"name": "q_value", "source": "q_value"},
+              {"name": "rt", "source": "rt"},
+              {"name": "rt_start", "source": "rt_start"},
+              {"name": "rt_end", "source": "rt_end"},
+              {"name": "rt_calib", "source": "rt_calib"},
+              {"name": "fwhm", "source": "fwhm"},
+              {"name": "n_fragments_matched", "source": "n_fragments_matched"}
             ]
           },
           "columns": {
+            "obs": [
+              {"name": "shortname", "source": "shortname"},
+              {"name": "sample_group", "source": "sample_group"},
+              {"name": "filename", "source": "filename"}
+            ],
             "var": [
-              {"name": "Sequence", "source": "sequence"},
-              {"name": "Sequence_Naked", "source": "sequence_naked"},
-              {"name": "Charge", "source": "charge", "type": "integer"},
-              {"name": "Precursor", "source": "precursor"},
-              {"name": "Protein", "source": "protein"},
+              {"name": "sequence", "source": "sequence"},
+              {"name": "sequence_naked", "source": "sequence_naked"},
+              {"name": "charge", "source": "charge", "type": "integer"},
+              {"name": "precursor", "source": "precursor"},
+              {"name": "protein", "source": "protein"},
               {
-                "name": "Protein_Group",
+                "name": "protein_group",
                 "source": "protein_group",
                 "roles": ["protein_assignment", "fasta_accessions"]
               },
@@ -107,24 +85,33 @@
                 "type": "integer",
                 "required": false
               },
-              {"name": "Decoy", "source": "decoy", "type": "boolean"},
+              {"name": "decoy", "source": "decoy", "type": "boolean"},
               {
                 "name": "ProForma_peptidoform",
-                "inputs": ["Sequence"],
+                "inputs": ["sequence"],
                 "how": "proforma_sequence",
                 "case_sensitive": true,
                 "unknown_policy": "preserve"
               },
-              {"name": "ProForma_peptide", "inputs": ["Sequence"], "how": "stripped_sequence"},
+              {"name": "ProForma_peptide", "inputs": ["sequence"], "how": "stripped_sequence"},
               {
                 "name": "ProForma_ion",
-                "inputs": ["ProForma_peptidoform", "Charge"],
+                "inputs": ["ProForma_peptidoform", "charge"],
                 "how": "proforma_ion"
               },
-              {"name": "apb_Decoy", "inputs": ["Decoy"], "how": "decoy", "equals": "true"},
+              {"name": "apb_Decoy", "inputs": ["decoy"], "how": "decoy", "equals": "true"},
               {"name": "apb_Contaminant", "how": "unmarked"}
             ]
-          }
+          },
+          "sequence_syntax": {
+            "vendor_sequence": {
+              "parser": "token_regex",
+              "token_pattern": "^(?P<nterm>a)|(?P<residue>[a-z]+)",
+              "token_position": "before_residue",
+              "marker_pattern": "_decoy$"
+            }
+          },
+          "modification_map": {"c": "UNIMOD:4", "ox": "UNIMOD:35", "a": "UNIMOD:1"}
         }
       }
     }

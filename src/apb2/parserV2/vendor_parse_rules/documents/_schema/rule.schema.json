@@ -738,12 +738,16 @@
           "title": "Sequence Syntax",
           "type": "object"
         },
-        "modification_maps": {
-          "additionalProperties": {
-            "$ref": "#/$defs/ModificationMap"
-          },
-          "title": "Modification Maps",
-          "type": "object"
+        "modification_map": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModificationMap"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "requires_search_parameters": {
           "additionalProperties": {
@@ -1142,7 +1146,7 @@
     },
     "ProformaSequence": {
       "additionalProperties": false,
-      "description": "Normalize all declared logical inputs using named syntax and a token map.",
+      "description": "Normalize all declared logical inputs using named syntax and the level's token map.",
       "properties": {
         "source": {
           "anyOf": [
@@ -1193,10 +1197,6 @@
           "title": "Syntax",
           "type": "string"
         },
-        "modification_map": {
-          "title": "Modification Map",
-          "type": "string"
-        },
         "case_sensitive": {
           "title": "Case Sensitive",
           "type": "boolean"
@@ -1210,7 +1210,6 @@
         "name",
         "inputs",
         "syntax",
-        "modification_map",
         "case_sensitive",
         "unknown_policy"
       ],
@@ -1356,7 +1355,7 @@
       ]
     },
     "SchemaVersion": {
-      "const": "0.10",
+      "const": "0.11",
       "type": "string"
     },
     "SearchParameterField": {
@@ -1553,6 +1552,13 @@
         },
         "per_feature": {
           "$ref": "#/$defs/PerFeature"
+        },
+        "missing_tokens": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Missing Tokens",
+          "type": "array"
         }
       },
       "required": [
@@ -1837,12 +1843,16 @@
           "title": "Sequence Syntax",
           "type": "object"
         },
-        "modification_maps": {
-          "additionalProperties": {
-            "$ref": "#/$defs/ModificationMap"
-          },
-          "title": "Modification Maps",
-          "type": "object"
+        "modification_map": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModificationMap"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "requires_search_parameters": {
           "additionalProperties": {

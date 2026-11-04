@@ -8,19 +8,19 @@
       "observations": 2,
       "variables": 327,
       "layers": [
-        "Intensity",
-        "MS1_Int_Sum_Apex",
-        "MS1_Int_Sum_Area",
-        "MS1_Int_Max_Apex",
-        "MS1_Int_Max_Area",
-        "Score",
-        "Q_Value",
-        "Retention_Time",
-        "Retention_Time_Start",
-        "Retention_Time_End",
-        "Retention_Time_Calibrated",
-        "FWHM",
-        "N_Fragments_Matched"
+        "ms1_int_sum_apex_dn",
+        "ms1_int_sum_apex",
+        "ms1_int_sum_area",
+        "ms1_int_max_apex",
+        "ms1_int_max_area",
+        "score",
+        "q_value",
+        "rt",
+        "rt_start",
+        "rt_end",
+        "rt_calib",
+        "fwhm",
+        "n_fragments_matched"
       ]
     }
   }

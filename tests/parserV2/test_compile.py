@@ -169,7 +169,6 @@ def test_every_executable_duplicate_mode_names_one_policy(mode: DuplicateMode) -
                 name="ProForma_peptidoform",
                 inputs=["Modified_Sequence"],
                 syntax="tokens",
-                modification_map="basic",
                 case_sensitive=False,
                 unknown_policy="preserve",
             ),
@@ -219,7 +218,7 @@ def test_every_computed_column_declaration_names_one_computer(
                     "token_position": "after_residue",
                 },
             },
-            "modification_maps": {"basic": {"ox": "UNIMOD:35"}},
+            "modification_map": {"ox": "UNIMOD:35"},
         },
         levels={"peptidoform_fragment": {}},
     )

@@ -180,6 +180,8 @@ class SelectedAxisColumn:
     name: str
     source: str
     coercer: AxisValueCoercer
+    missing_tokens: tuple[str, ...] = ()
+    """Text read as missing before ``coercer`` sees the value."""
 
 
 @dataclass(frozen=True, slots=True)

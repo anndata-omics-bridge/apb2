@@ -1,6 +1,6 @@
 {
-  "schema_version": "0.10",
-  "file_version": "4",
+  "schema_version": "0.11",
+  "file_version": "5",
   "software_name": "MaxQuant",
   "software_version_pattern": "^(1\\.5|1\\.6|2\\.)",
   "hierarchy": "lfq",
@@ -14,30 +14,20 @@
           "var": {"type": "string", "required": false, "per_feature": "first"},
           "obs": {"type": "string", "required": false},
           "layers": {"encoding_mode": "numeric", "type": "number", "required": false}
-        },
-        "axis": {"obs_keys": ["Raw_File"]},
-        "columns": {
-          "obs": [
-            {"name": "Raw_File", "source": "Raw file", "required": true},
-            {"name": "Experiment", "source": "Experiment"},
-            {"name": "Fraction", "source": "Fraction"}
-          ]
-        },
-        "measurements": {
-          "repeated_cells": {
-            "mode": "keep_best",
-            "by": "PEP",
-            "best": "lowest",
-            "sum": ["Intensity", "MS_MS_Count"]
-          },
-          "primary_layer": "Intensity"
         }
       },
       "levels": {
         "peptidoform_ion": {
           "source_prefix": "evidence.",
-          "axis": {"var_keys": ["ProForma_ion"]},
+          "axis": {"obs_keys": ["Raw_file"], "var_keys": ["ProForma_ion"]},
           "measurements": {
+            "primary_layer": "Intensity",
+            "repeated_cells": {
+              "mode": "keep_best",
+              "by": "PEP",
+              "best": "lowest",
+              "sum": ["Intensity", "MS_MS_count"]
+            },
             "layers": [
               {
                 "name": "Intensity",
@@ -45,24 +35,20 @@
                 "roles": ["abundance"],
                 "missing_values": ["<=0"]
               },
-              {"name": "MS_MS_Count", "source": "MS/MS count", "type": "integer"},
-              {"name": "Retention_Time", "source": "Retention time"},
-              {"name": "Retention_Length", "source": "Retention length"},
+              {"name": "MS_MS_count", "source": "MS/MS count", "type": "integer"},
+              {"name": "Retention_time", "source": "Retention time"},
+              {"name": "Retention_length", "source": "Retention length"},
+              {"name": "Calibrated_retention_time", "source": "Calibrated retention time"},
               {
-                "name": "Calibrated_Retention_Time",
-                "source": "Calibrated retention time",
-                "note": "Retention time after MaxQuant aligns the runs for matching between runs; equal to Retention_Time when no calibration was applied"
-              },
-              {
-                "name": "Calibrated_Retention_Time_Start",
+                "name": "Calibrated_retention_time_start",
                 "source": "Calibrated retention time start"
               },
               {
-                "name": "Calibrated_Retention_Time_Finish",
+                "name": "Calibrated_retention_time_finish",
                 "source": "Calibrated retention time finish"
               },
               {"name": "Score", "source": "Score"},
-              {"name": "PEP", "source": "PEP", "required": true},
+              {"name": "PEP", "source": "PEP"},
               {
                 "name": "Type",
                 "source": "Type",
@@ -76,45 +62,50 @@
                   "MULTI-MATCH": 5,
                   "MULTI-MATCH-MSMS": 6
                 },
-                "note": "How MaxQuant identified the evidence row: MULTI-MATCH by matching between runs, the MSMS kinds by MS/MS. Categories from the MaxQuant output-table documentation, plus MULTI-MATCH-MSMS, which reports write but the documentation omits, and ISO-SECPEP"
+                "note": "MaxQuant writes MULTI-MATCH-MSMS and ISO-SECPEP, which its documentation omits"
               }
             ]
           },
           "columns": {
+            "obs": [
+              {"name": "Raw_file", "source": "Raw file", "required": true},
+              {"name": "Experiment", "source": "Experiment"},
+              {"name": "Fraction", "source": "Fraction"}
+            ],
             "var": [
               {"name": "Sequence", "source": "Sequence", "required": true},
-              {"name": "Modified_Sequence", "source": "Modified sequence", "required": true},
+              {"name": "Modified_sequence", "source": "Modified sequence", "required": true},
               {"name": "Modifications", "source": "Modifications", "required": true},
               {"name": "Charge", "source": "Charge", "type": "integer", "required": true},
               {"name": "Mass", "source": "Mass", "type": "number", "required": true},
               {
                 "name": "Proteins",
                 "source": "Proteins",
-                "roles": ["fasta_accessions"],
-                "inputs": ["Proteins", "Leading_Proteins", "Leading_Proteins_Legacy"],
-                "how": "coalesce"
+                "inputs": ["Proteins", "Leading_proteins", "Leading_Proteins"],
+                "how": "coalesce",
+                "roles": ["fasta_accessions"]
               },
-              {"name": "Leading_Proteins", "source": "Leading proteins"},
-              {"name": "Leading_Razor_Protein", "source": "Leading razor protein"},
-              {"name": "Leading_Proteins_Legacy", "source": "Leading Proteins"},
-              {"name": "Leading_Razor_Protein_Legacy", "source": "Leading Razor Protein"},
-              {"name": "Razor_Protein_Group", "source": "Protein IDs", "source_prefix": "protein."},
+              {"name": "Leading_proteins", "source": "Leading proteins"},
+              {"name": "Leading_razor_protein", "source": "Leading razor protein"},
+              {"name": "Leading_Proteins", "source": "Leading Proteins"},
+              {"name": "Leading_Razor_Protein", "source": "Leading Razor Protein"},
+              {"name": "protein_Protein_IDs", "source": "Protein IDs", "source_prefix": "protein."},
               {
                 "name": "Protein_IDs",
-                "roles": ["protein_assignment"],
-                "inputs": ["Razor_Protein_Group", "Proteins"],
-                "how": "coalesce"
+                "inputs": ["protein_Protein_IDs", "Proteins"],
+                "how": "coalesce",
+                "roles": ["protein_assignment"]
               },
               {
                 "name": "ProForma_peptidoform",
-                "inputs": ["Modified_Sequence"],
+                "inputs": ["Modified_sequence"],
+                "how": "proforma_sequence",
                 "case_sensitive": false,
-                "unknown_policy": "preserve",
-                "how": "proforma_sequence"
+                "unknown_policy": "preserve"
               },
               {
                 "name": "ProForma_peptide",
-                "inputs": ["Modified_Sequence"],
+                "inputs": ["Modified_sequence"],
                 "how": "stripped_sequence"
               },
               {
@@ -124,11 +115,11 @@
               },
               {"name": "Reverse", "source": "Reverse"},
               {"name": "Decoy", "source": "Decoy"},
-              {"name": "Potential_Contaminant", "source": "Potential contaminant"},
+              {"name": "Potential_contaminant", "source": "Potential contaminant"},
               {"name": "apb_Decoy", "inputs": ["Reverse", "Decoy"], "how": "decoy", "equals": "+"},
               {
                 "name": "apb_Contaminant",
-                "inputs": ["Potential_Contaminant"],
+                "inputs": ["Potential_contaminant"],
                 "how": "contaminant",
                 "equals": "+"
               }
@@ -141,14 +132,12 @@
               "token_position": "after_residue"
             }
           },
-          "modification_maps": {
-            "basic_modification_map": {
-              "ac": "UNIMOD:1",
-              "ox": "UNIMOD:35",
-              "Acetyl (Protein N-term)": "UNIMOD:1",
-              "Oxidation (M)": "UNIMOD:35",
-              "Carbamidomethyl (C)": "UNIMOD:4"
-            }
+          "modification_map": {
+            "ac": "UNIMOD:1",
+            "ox": "UNIMOD:35",
+            "Acetyl (Protein N-term)": "UNIMOD:1",
+            "Oxidation (M)": "UNIMOD:35",
+            "Carbamidomethyl (C)": "UNIMOD:4"
           }
         }
       }
@@ -163,20 +152,20 @@
         },
         "sample_pattern": "(?P<sample>.+)",
         "axis": {"obs_keys": ["Experiment"]},
-        "measurements": {"repeated_cells": {"mode": "same"}, "primary_layer": "Intensity"},
+        "measurements": {"repeated_cells": {"mode": "same"}},
         "columns": {
           "var": [
+            {"name": "Score", "source": "Score", "type": "number", "missing_tokens": ["NaN"]},
+            {"name": "Reverse", "source": "Reverse"},
+            {"name": "Decoy", "source": "Decoy"},
+            {"name": "Potential_contaminant", "source": "Potential contaminant"},
             {"name": "apb_Decoy", "inputs": ["Reverse", "Decoy"], "how": "decoy", "equals": "+"},
             {
               "name": "apb_Contaminant",
-              "inputs": ["Potential_Contaminant"],
+              "inputs": ["Potential_contaminant"],
               "how": "contaminant",
               "equals": "+"
-            },
-            {"name": "Score", "source": "Score"},
-            {"name": "Reverse", "source": "Reverse"},
-            {"name": "Decoy", "source": "Decoy"},
-            {"name": "Potential_Contaminant", "source": "Potential contaminant"}
+            }
           ]
         }
       },
@@ -185,6 +174,7 @@
           "source_prefix": "peptidoform.",
           "axis": {"var_keys": ["ProForma_peptidoform_unlocalized"]},
           "measurements": {
+            "primary_layer": "Intensity",
             "layers": [
               {
                 "name": "Intensity",
@@ -193,17 +183,16 @@
                 "missing_values": ["<=0"]
               },
               {
-                "name": "Identification_Type",
+                "name": "Identification_type",
                 "source": "Identification type {sample}",
                 "encoding_mode": "factor",
-                "categories": {"By MS/MS": 0, "By matching": 1},
-                "note": "Whether the feature was identified by MS/MS in this sample or only transferred by matching between runs"
+                "categories": {"By MS/MS": 0, "By matching": 1}
               }
             ]
           },
           "columns": {
             "var": [
-              {"name": "ProForma_peptide", "source": "Sequence", "required": true},
+              {"name": "Sequence", "source": "Sequence", "required": true},
               {"name": "Modifications", "source": "Modifications", "required": true},
               {
                 "name": "Proteins",
@@ -212,14 +201,19 @@
                 "roles": ["protein_assignment", "fasta_accessions"]
               },
               {"name": "Protein_Groups", "source": "Protein Groups"},
-              {"name": "Mass", "source": "Mass"},
-              {"name": "Missed_Cleavages", "source": "Missed cleavages", "type": "integer"},
+              {"name": "Mass", "source": "Mass", "type": "number"},
+              {"name": "Missed_cleavages", "source": "Missed cleavages", "type": "integer"},
               {"name": "Charges", "source": "Charges"},
-              {"name": "PEP", "source": "PEP"},
-              {"name": "Delta_Score", "source": "Delta score"},
-              {"name": "Retention_Time", "source": "Retention time", "type": "number"},
+              {"name": "PEP", "source": "PEP", "type": "number"},
               {
-                "name": "Calibrated_Retention_Time",
+                "name": "Delta_score",
+                "source": "Delta score",
+                "type": "number",
+                "missing_tokens": ["NaN"]
+              },
+              {"name": "Retention_time", "source": "Retention time", "type": "number"},
+              {
+                "name": "Calibrated_retention_time",
                 "source": "Calibrated retention time",
                 "type": "number"
               },
@@ -227,11 +221,17 @@
               {"name": "Unique_Proteins", "source": "Unique (Proteins)"},
               {
                 "name": "ProForma_peptidoform_unlocalized",
-                "inputs": ["ProForma_peptide", "Modifications"],
+                "inputs": ["Sequence", "Modifications"],
+                "how": "proforma_sequence",
                 "case_sensitive": false,
                 "unknown_policy": "preserve",
-                "how": "proforma_sequence",
-                "note": "Modifications names each modification with its count and candidate residues, such as '2 Oxidation (M)', never a position, so positional isomers share a row; this string identifies the row"
+                "syntax": "modification_names"
+              },
+              {
+                "name": "ProForma_peptide",
+                "inputs": ["Sequence"],
+                "how": "stripped_sequence",
+                "syntax": "plain_sequence"
               }
             ]
           },
@@ -241,20 +241,20 @@
               "delimiter": ",",
               "entry_pattern": "^(?:(?P<count>\\d+) )?(?P<token>.+ \\((?P<site>[^()]+)\\))$|^Unmodified$",
               "site_base": 1
-            }
+            },
+            "plain_sequence": {"parser": "plain_sequence"}
           },
-          "modification_maps": {
-            "modification_names_map": {
-              "Acetyl (Protein N-term)": "UNIMOD:1",
-              "Oxidation (M)": "UNIMOD:35",
-              "Carbamidomethyl (C)": "UNIMOD:4"
-            }
+          "modification_map": {
+            "Acetyl (Protein N-term)": "UNIMOD:1",
+            "Oxidation (M)": "UNIMOD:35",
+            "Carbamidomethyl (C)": "UNIMOD:4"
           }
         },
         "peptide": {
           "source_prefix": "peptide.",
           "axis": {"var_keys": ["ProForma_peptide"]},
           "measurements": {
+            "primary_layer": "Intensity",
             "layers": [
               {
                 "name": "Intensity",
@@ -263,23 +263,22 @@
                 "missing_values": ["<=0"]
               },
               {
-                "name": "LFQ_Intensity",
+                "name": "LFQ_intensity",
                 "source": "LFQ intensity {sample}",
                 "roles": ["abundance"],
                 "missing_values": ["<=0"]
               },
               {
-                "name": "Identification_Type",
+                "name": "Identification_type",
                 "source": "Identification type {sample}",
                 "encoding_mode": "factor",
-                "categories": {"By MS/MS": 0, "By matching": 1},
-                "note": "Whether the feature was identified by MS/MS in this sample or only transferred by matching between runs"
+                "categories": {"By MS/MS": 0, "By matching": 1}
               }
             ]
           },
           "columns": {
             "var": [
-              {"name": "ProForma_peptide", "source": "Sequence", "required": true},
+              {"name": "Sequence", "source": "Sequence", "required": true},
               {
                 "name": "Proteins",
                 "source": "Proteins",
@@ -287,40 +286,43 @@
                 "roles": ["fasta_accessions"]
               },
               {
-                "name": "Leading_Razor_Protein",
+                "name": "Leading_razor_protein",
                 "source": "Leading razor protein",
                 "required": true
               },
               {
-                "name": "Razor_Protein_Group",
+                "name": "protein_Protein_IDs",
                 "source": "Protein IDs",
                 "source_prefix": "protein.",
-                "note": "proteinGroups.txt lists only razor evidence, so each peptide joins the one group its leading razor protein belongs to"
+                "note": "The group of the peptide's leading razor protein only"
               },
               {
                 "name": "Protein_IDs",
-                "roles": ["protein_assignment"],
-                "inputs": ["Razor_Protein_Group", "Leading_Razor_Protein"],
-                "how": "coalesce"
+                "inputs": ["protein_Protein_IDs", "Leading_razor_protein"],
+                "how": "coalesce",
+                "roles": ["protein_assignment"]
               },
-              {"name": "Gene_Names", "source": "Gene names"},
-              {"name": "Protein_Names", "source": "Protein names"},
+              {"name": "Gene_names", "source": "Gene names"},
+              {"name": "Protein_names", "source": "Protein names"},
               {"name": "Length", "source": "Length", "type": "integer"},
-              {"name": "Missed_Cleavages", "source": "Missed cleavages", "type": "integer"},
-              {"name": "Mass", "source": "Mass"},
+              {"name": "Missed_cleavages", "source": "Missed cleavages", "type": "integer"},
+              {"name": "Mass", "source": "Mass", "type": "number"},
               {"name": "Charges", "source": "Charges"},
-              {"name": "PEP", "source": "PEP"},
-              {"name": "Start_Position", "source": "Start position"},
-              {"name": "End_Position", "source": "End position"},
+              {"name": "PEP", "source": "PEP", "type": "number"},
+              {"name": "Start_position", "source": "Start position", "type": "integer"},
+              {"name": "End_position", "source": "End position", "type": "integer"},
               {"name": "Unique_Groups", "source": "Unique (Groups)"},
-              {"name": "Unique_Proteins", "source": "Unique (Proteins)"}
+              {"name": "Unique_Proteins", "source": "Unique (Proteins)"},
+              {"name": "ProForma_peptide", "inputs": ["Sequence"], "how": "stripped_sequence"}
             ]
-          }
+          },
+          "sequence_syntax": {"plain_sequence": {"parser": "plain_sequence"}}
         },
         "protein": {
           "source_prefix": "protein.",
           "axis": {"var_keys": ["Protein_IDs"]},
           "measurements": {
+            "primary_layer": "Intensity",
             "layers": [
               {
                 "name": "Intensity",
@@ -329,7 +331,7 @@
                 "missing_values": ["<=0"]
               },
               {
-                "name": "LFQ_Intensity",
+                "name": "LFQ_intensity",
                 "source": "LFQ intensity {sample}",
                 "roles": ["abundance"],
                 "missing_values": ["<=0"]
@@ -341,11 +343,10 @@
                 "missing_values": ["<=0"]
               },
               {
-                "name": "Identification_Type",
+                "name": "Identification_type",
                 "source": "Identification type {sample}",
                 "encoding_mode": "factor",
-                "categories": {"By MS/MS": 0, "By matching": 1},
-                "note": "Whether the feature was identified by MS/MS in this sample or only transferred by matching between runs"
+                "categories": {"By MS/MS": 0, "By matching": 1}
               }
             ]
           },
@@ -357,22 +358,26 @@
                 "required": true,
                 "roles": ["protein_assignment", "fasta_accessions"]
               },
-              {"name": "Majority_Protein_IDs", "source": "Majority protein IDs"},
-              {"name": "Fasta_Headers", "source": "Fasta headers"},
-              {"name": "Gene_Names", "source": "Gene names"},
-              {"name": "Protein_Names", "source": "Protein names"},
-              {"name": "Number_Of_Proteins", "source": "Number of proteins", "type": "integer"},
+              {"name": "Majority_protein_IDs", "source": "Majority protein IDs"},
+              {"name": "Fasta_headers", "source": "Fasta headers"},
+              {"name": "Gene_names", "source": "Gene names"},
+              {"name": "Protein_names", "source": "Protein names"},
+              {"name": "Number_of_proteins", "source": "Number of proteins", "type": "integer"},
               {"name": "Peptides", "source": "Peptides", "type": "integer"},
               {
-                "name": "Razor_Unique_Peptides",
+                "name": "Razor_unique_peptides",
                 "source": "Razor + unique peptides",
                 "type": "integer"
               },
-              {"name": "Unique_Peptides", "source": "Unique peptides", "type": "integer"},
-              {"name": "Sequence_Coverage_Percent", "source": "Sequence coverage [%]"},
-              {"name": "Mol_Weight_kDa", "source": "Mol. weight [kDa]"},
-              {"name": "Q_Value", "source": "Q-value"},
-              {"name": "Only_Identified_By_Site", "source": "Only identified by site"}
+              {"name": "Unique_peptides", "source": "Unique peptides", "type": "integer"},
+              {
+                "name": "Sequence_coverage_percent",
+                "source": "Sequence coverage [%]",
+                "type": "number"
+              },
+              {"name": "Mol_weight_kDa", "source": "Mol. weight [kDa]", "type": "number"},
+              {"name": "Q_value", "source": "Q-value", "type": "number"},
+              {"name": "Only_identified_by_site", "source": "Only identified by site"}
             ]
           }
         }

@@ -9,8 +9,8 @@
       "variables": 250,
       "layers": [
         "Normalized_Area",
-        "Sample_Mz",
-        "Sample_RT_Mean"
+        "m_z",
+        "RT_mean"
       ]
     }
   }

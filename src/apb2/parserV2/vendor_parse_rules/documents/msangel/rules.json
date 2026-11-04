@@ -1,6 +1,6 @@
 {
-  "schema_version": "0.10",
-  "file_version": "5",
+  "schema_version": "0.11",
+  "file_version": "6",
   "software_name": "MSAngel",
   "software_version_pattern": "^2\\..*",
   "hierarchy": "lfq",
@@ -31,12 +31,10 @@
           },
           "plain_sequence": {"parser": "plain_sequence"}
         },
-        "modification_maps": {
-          "basic_modification_map": {
-            "Carbamidomethyl": "UNIMOD:4",
-            "Oxidation": "UNIMOD:35",
-            "Acetyl": "UNIMOD:1"
-          }
+        "modification_map": {
+          "Carbamidomethyl": "UNIMOD:4",
+          "Oxidation": "UNIMOD:35",
+          "Acetyl": "UNIMOD:1"
         }
       },
       "levels": {
@@ -44,80 +42,78 @@
           "source_prefix": "peptidoform_ion.",
           "axis": {"var_keys": ["ProForma_ion"]},
           "measurements": {
-            "primary_layer": "Abundance",
+            "primary_layer": "abundance",
             "repeated_cells": {"mode": "error"},
             "layers": [
               {
-                "name": "Abundance",
+                "name": "abundance",
                 "source": "abundance_{sample}",
                 "roles": ["abundance"],
                 "missing_values": ["<=0"]
               },
               {
-                "name": "Raw_Abundance",
+                "name": "raw_abundance",
                 "source": "raw_abundance_{sample}",
                 "required": true,
                 "roles": ["abundance"],
                 "missing_values": ["<=0"]
               },
-              {"name": "Best_Score", "source": "best_score_{sample}"},
-              {"name": "PSM_Count", "source": "psm_count_{sample}", "type": "integer"},
-              {"name": "Elution_Time", "source": "elution_time_{sample}"},
-              {"name": "Corrected_Time", "source": "corrected_time_{sample}"}
+              {"name": "best_score", "source": "best_score_{sample}"},
+              {"name": "psm_count", "source": "psm_count_{sample}", "type": "integer"},
+              {"name": "elution_time", "source": "elution_time_{sample}"},
+              {"name": "corrected_time", "source": "corrected_time_{sample}"}
             ]
           },
-          "rank_rows": {"by": "Protein_Set_Score", "best": "highest"},
+          "rank_rows": {"by": "protein_set_score", "best": "highest"},
           "columns": {
             "var": [
-              {"name": "Sequence", "source": "sequence"},
-              {"name": "Modifications", "source": "modifications"},
-              {"name": "Charge", "source": "master_quant_peptide_ion_charge", "type": "integer"},
+              {"name": "sequence", "source": "sequence"},
+              {"name": "modifications", "source": "modifications"},
               {
-                "name": "Protein_Set_Score",
+                "name": "master_quant_peptide_ion_charge",
+                "source": "master_quant_peptide_ion_charge",
+                "type": "integer"
+              },
+              {
+                "name": "protein_set_score",
                 "source": "protein_set_score",
                 "type": "number",
-                "per_feature": "max",
-                "note": "Proline's score of the protein set a row lists the ion under; a shared peptide has one row per set, and the ion keeps its best set's score"
+                "per_feature": "max"
               },
               {
-                "name": "Master_Ion_Elution_Time",
+                "name": "master_quant_peptide_ion_elution_time",
                 "source": "master_quant_peptide_ion_elution_time",
                 "type": "number",
-                "required": false,
-                "note": "The master ion's elution time on the aligned time scale, one value per ion: it lies within seconds of the median of the per-run corrected_time values"
+                "required": false
               },
               {
-                "name": "Master_Elution_Time",
+                "name": "master_elution_time",
                 "source": "master_elution_time",
                 "type": "number",
-                "required": false,
-                "note": "One value per ion, minutes from Master_Ion_Elution_Time and close to the earliest run's elution_time; Proline does not document which time it is"
+                "required": false
               },
               {
-                "name": "Same_Set_Proteins",
+                "name": "samesets_accessions",
                 "source": "samesets_accessions",
                 "roles": ["protein_assignment"],
-                "per_feature": "best_row",
-                "note": "The ion's protein set: of the sets a shared peptide is listed under, the one with the highest protein_set_score; the same string identifies the set on every sheet"
+                "per_feature": "best_row"
               },
               {
-                "name": "Subset_Proteins",
+                "name": "subsets_accessions",
                 "source": "subsets_accessions",
                 "required": false,
-                "per_feature": "best_row",
-                "note": "Subset proteins of the ion's protein set that contain this peptide, from the same row; differs between the peptides of one set"
+                "per_feature": "best_row"
               },
               {
                 "name": "Proteins",
-                "inputs": ["Same_Set_Proteins", "Subset_Proteins"],
-                "separator": ";",
+                "inputs": ["samesets_accessions", "subsets_accessions"],
                 "how": "join_nonempty",
-                "roles": ["fasta_accessions"],
-                "note": "Accessions of the ion's protein set that contain this peptide"
+                "separator": ";",
+                "roles": ["fasta_accessions"]
               },
               {
                 "name": "ProForma_peptidoform",
-                "inputs": ["Sequence", "Modifications"],
+                "inputs": ["sequence", "modifications"],
                 "how": "proforma_sequence",
                 "syntax": "vendor_sequence",
                 "case_sensitive": false,
@@ -125,13 +121,13 @@
               },
               {
                 "name": "ProForma_peptide",
-                "inputs": ["Sequence"],
+                "inputs": ["sequence"],
                 "how": "stripped_sequence",
                 "syntax": "plain_sequence"
               },
               {
                 "name": "ProForma_ion",
-                "inputs": ["ProForma_peptidoform", "Charge"],
+                "inputs": ["ProForma_peptidoform", "master_quant_peptide_ion_charge"],
                 "how": "proforma_ion"
               }
             ]
@@ -139,49 +135,47 @@
         },
         "protein": {
           "source_prefix": "protein.",
-          "axis": {"var_keys": ["Same_Set_Proteins"]},
+          "axis": {"var_keys": ["samesets_accessions"]},
           "measurements": {
-            "primary_layer": "Abundance",
+            "primary_layer": "abundance",
             "repeated_cells": {"mode": "same"},
             "layers": [
               {
-                "name": "Abundance",
+                "name": "abundance",
                 "source": "abundance_{sample}",
                 "roles": ["abundance"],
                 "missing_values": ["<=0"]
               },
               {
-                "name": "Raw_Abundance",
+                "name": "raw_abundance",
                 "source": "raw_abundance_{sample}",
                 "roles": ["abundance"],
                 "missing_values": ["<=0"]
               },
-              {"name": "PSM_Count", "source": "psm_count_{sample}", "type": "integer"},
-              {"name": "Peptides_Count", "source": "peptides_count_{sample}", "type": "integer"}
+              {"name": "psm_count", "source": "psm_count_{sample}", "type": "integer"},
+              {"name": "peptides_count", "source": "peptides_count_{sample}", "type": "integer"}
             ]
           },
           "columns": {
             "var": [
               {
-                "name": "Same_Set_Proteins",
+                "name": "samesets_accessions",
                 "source": "samesets_accessions",
-                "roles": ["protein_assignment"],
-                "note": "Identifies the protein set one-to-one; the peptidoform-ion level assigns each ion this string"
+                "roles": ["protein_assignment"]
               },
-              {"name": "Subset_Proteins", "source": "subsets_accessions", "required": false},
+              {"name": "subsets_accessions", "source": "subsets_accessions", "required": false},
               {
                 "name": "Proteins",
-                "inputs": ["Same_Set_Proteins", "Subset_Proteins"],
-                "separator": ";",
+                "inputs": ["samesets_accessions", "subsets_accessions"],
                 "how": "join_nonempty",
-                "roles": ["fasta_accessions"],
-                "note": "Every member of the protein set: its same-set and subset proteins"
+                "separator": ";",
+                "roles": ["fasta_accessions"]
               },
-              {"name": "Protein_Set_Id", "source": "protein_set_id", "type": "integer"},
-              {"name": "Accession", "source": "accession"},
-              {"name": "Gene_Name", "source": "gene_name", "required": false},
-              {"name": "Description", "source": "description", "required": false},
-              {"name": "Protein_Set_Score", "source": "protein_set_score", "type": "number"}
+              {"name": "protein_set_id", "source": "protein_set_id", "type": "integer"},
+              {"name": "accession", "source": "accession"},
+              {"name": "gene_name", "source": "gene_name", "required": false},
+              {"name": "description", "source": "description", "required": false},
+              {"name": "protein_set_score", "source": "protein_set_score", "type": "number"}
             ]
           }
         }

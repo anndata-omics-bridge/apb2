@@ -1,6 +1,6 @@
 {
-  "schema_version": "0.10",
-  "file_version": "3",
+  "schema_version": "0.11",
+  "file_version": "4",
   "software_name": "i2MassChroQ",
   "software_version_pattern": "^1\\..*",
   "hierarchy": "lfq",
@@ -14,45 +14,35 @@
           "var": {"type": "string", "required": true, "per_feature": "first"},
           "obs": {"type": "string", "required": true},
           "layers": {"encoding_mode": "numeric", "type": "number", "required": false}
-        },
-        "axis": {"obs_keys": ["Raw_File"]},
-        "measurements": {"repeated_cells": {"mode": "error"}},
-        "columns": {
-          "obs": [{"name": "Raw_File", "source": "rawfile"}],
-          "var": [
-            {"name": "apb_Decoy", "how": "unmarked"},
-            {"name": "apb_Contaminant", "how": "unmarked"}
-          ]
         }
       },
       "levels": {
         "peptidoform_ion": {
-          "axis": {"var_keys": ["ProForma_ion"]},
+          "axis": {"obs_keys": ["rawfile"], "var_keys": ["ProForma_ion"]},
           "measurements": {
-            "primary_layer": "Intensity",
+            "primary_layer": "area",
+            "repeated_cells": {"mode": "error"},
             "layers": [
-              {
-                "name": "Intensity",
-                "source": "area",
-                "roles": ["abundance"],
-                "missing_values": ["<=0"]
-              }
+              {"name": "area", "source": "area", "roles": ["abundance"], "missing_values": ["<=0"]}
             ]
           },
           "columns": {
+            "obs": [{"name": "rawfile", "source": "rawfile"}],
             "var": [
-              {"name": "Sequence", "source": "sequence"},
-              {"name": "ProForma_peptide", "inputs": ["Sequence"], "how": "stripped_sequence"},
+              {"name": "sequence", "source": "sequence"},
               {"name": "ProForma_peptidoform", "source": "ProForma"},
-              {"name": "Charge", "source": "charge", "type": "integer"},
+              {"name": "charge", "source": "charge", "type": "integer"},
               {
-                "name": "Proteins",
+                "name": "proteins",
                 "source": "proteins",
                 "roles": ["protein_assignment", "fasta_accessions"]
               },
+              {"name": "apb_Decoy", "how": "unmarked"},
+              {"name": "apb_Contaminant", "how": "unmarked"},
+              {"name": "ProForma_peptide", "inputs": ["sequence"], "how": "stripped_sequence"},
               {
                 "name": "ProForma_ion",
-                "inputs": ["ProForma_peptidoform", "Charge"],
+                "inputs": ["ProForma_peptidoform", "charge"],
                 "how": "proforma_ion"
               }
             ]

@@ -6,7 +6,7 @@
       "observations": 1,
       "variables": 500,
       "layers": [
-        "Intensity"
+        "area"
       ]
     }
   }

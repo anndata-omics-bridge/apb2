@@ -228,7 +228,7 @@ def test_the_alphadia_wide_ion_level_resolves_exactly_as_specified() -> None:
     )
     assert resolved.var.keys == AxisKeyPlan(
         raw_key_columns=("sequence", "mods", "mod_sites", "charge"),
-        key_input_columns=("ProForma_peptidoform", "Charge"),
+        key_input_columns=("ProForma_peptidoform", "charge"),
         final_key_columns=("ProForma_ion",),
     )
     # Real exports write "-" or "NA" in a column a rule calls numeric, which an eager numeric
@@ -330,6 +330,7 @@ def test_a_var_column_resolved_by_number_stays_text_and_plain_layers_are_convert
     path = Path("src/apb2/parserV2/vendor_parse_rules/documents/diann/v1_7/rules.json")
     facade = ParseRuleFacade(load_rule_document(path), "protein", _EVIDENCES[0])
     header = (
+        "Run",
         "File.Name",
         "Protein.Group",
         "Protein.Names",
@@ -342,7 +343,7 @@ def test_a_var_column_resolved_by_number_stays_text_and_plain_layers_are_convert
     read = facade.resolve_source(delimited(header)).read
 
     assert read.categorical_sources == frozenset(
-        {"File.Name", "Protein.Group", "Protein.Names", "Genes"}
+        {"Run", "File.Name", "Protein.Group", "Protein.Names", "Genes"}
     )
     assert {"Global.PG.Q.Value", "PG.Normalised", "PG.Quantity"} <= read.text_sources
     assert read.converted_sources == frozenset({"PG.Normalised", "PG.Quantity"})
@@ -482,7 +483,7 @@ def test_a_token_regex_rule_resolves_its_accessions_at_projection() -> None:
     config = column.operation
 
     assert isinstance(config, TokenRegexNormalizer)
-    assert column.inputs == ("Modified_Sequence",)
+    assert column.inputs == ("Modified_sequence",)
     assert {entry.token for entry in config.entries} >= {"ac", "ox"}
     assert all(entry.name for entry in config.entries)
 
@@ -566,7 +567,7 @@ def test_payload_metadata_is_retained_without_becoming_identity() -> None:
 
     assert "genes" not in var.keys.raw_key_columns
     assert "genes" in snapshot(var_strategy)["var"]["source"]["payload_sources"]
-    assert "Genes" in var.outputs
+    assert "genes" in var.outputs
 
 
 # ---------------------------------------------------------------- optional-source pruning
@@ -1350,6 +1351,6 @@ def test_a_proforma_ion_computer_reads_the_peptidoform_and_the_typed_charge() ->
 
     assert computers["ProForma_ion"] == ProformaIonColumn(
         name="ProForma_ion",
-        inputs=("ProForma_peptidoform", "Charge"),
+        inputs=("ProForma_peptidoform", "charge"),
     )
-    assert computers["ProForma_peptidoform"].inputs == ("Peptide",)
+    assert computers["ProForma_peptidoform"].inputs == ("peptide",)

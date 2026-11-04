@@ -8,19 +8,20 @@
       "observations": 1,
       "variables": 500,
       "layers": [
-        "Precursor_Intensity",
-        "QValue",
-        "Proba",
-        "RT_Observed",
-        "RT_Calibrated",
-        "RT_Library"
+        "precursor_intensity",
+        "precursor_qval",
+        "precursor_proba",
+        "precursor_rt_observed",
+        "precursor_rt_calibrated",
+        "precursor_rt_library",
+        "precursor_mz_observed"
       ]
     },
     "protein": {
       "observations": 1,
       "variables": 331,
       "layers": [
-        "PG_Intensity"
+        "pg_intensity"
       ]
     }
   }

@@ -49,6 +49,8 @@ class AxisColumnSelection:
     separator: str | None = None
     duplicates: FeatureDuplicates = "keep_first"
     """On the var axis, how a feature's repeated rows become one value; obs keeps the first."""
+    missing_tokens: tuple[str, ...] = ()
+    """Text the vendor writes for a missing value; read as missing before the value."""
 
 
 # ---------------------------------------------------------------------------- axis identity

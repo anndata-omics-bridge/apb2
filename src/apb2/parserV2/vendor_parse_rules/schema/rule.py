@@ -73,7 +73,8 @@ class _RuleCore(ModelBase):
     axis: Axis
     measurements: Measurements
     sequence_syntax: dict[str, SequenceSyntax] = Field(default_factory=dict)
-    modification_maps: dict[str, ModificationMap] = Field(default_factory=dict)
+    # Each vendor modification token and its Unimod accession; one per level, absent means none.
+    modification_map: ModificationMap | None = None
     requires_search_parameters: dict[SearchParameterField, ConditionValue] = Field(
         default_factory=dict
     )
@@ -345,10 +346,8 @@ def _check_sequence_column(
         raise ValueError(
             f"{syntax.parser} normalization requires {arity} inputs; got {column.inputs!r}"
         )
-    if column.modification_map not in rule.modification_maps:
-        raise ValueError(
-            f"column {column.name!r} references missing map {column.modification_map!r}"
-        )
+    if rule.modification_map is None:
+        raise ValueError(f"column {column.name!r} needs its level's modification_map")
 
 
 def _check_computed_column(

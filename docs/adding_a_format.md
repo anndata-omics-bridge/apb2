@@ -33,7 +33,7 @@ src/apb2/parserV2/vendor_parse_rules/documents/
 
 ```json title="toyquant/v1/rules.json"
 {
-  "schema_version": "0.10",
+  "schema_version": "0.11",
   "file_version": "1",
   "software_name": "ToyQuant",
   "software_version_pattern": "^1\\.",
@@ -54,25 +54,37 @@ src/apb2/parserV2/vendor_parse_rules/documents/
           "var": {"type": "string", "required": true, "per_feature": "first"},
           "obs": {"type": "string", "required": true},
           "layers": {"encoding_mode": "numeric", "type": "number", "required": false}
-        },
-        "axis": {"obs_keys": ["Run"], "var_keys": ["Protein"]},
-        "columns": {
-          "obs": [{"name": "Run", "source": "Run Name"}],
-          "var": [
-            {"name": "Protein", "source": "Protein Accession", "roles": ["protein_assignment", "fasta_accessions"]},
-            {"name": "apb_Decoy", "how": "unmarked"},
-            {"name": "apb_Contaminant", "how": "unmarked"}
-          ]
-        },
-        "measurements": {
-          "primary_layer": "Abundance",
-          "repeated_cells": {"mode": "error"},
-          "layers": [
-            {"name": "Abundance", "source": "Abundance", "roles": ["abundance"], "missing_values": ["<=0"]}
-          ]
         }
       },
-      "levels": {"protein": {}}
+      "levels": {
+        "protein": {
+          "axis": {"obs_keys": ["Run"], "var_keys": ["Protein"]},
+          "measurements": {
+            "primary_layer": "Abundance",
+            "repeated_cells": {"mode": "error"},
+            "layers": [
+              {
+                "name": "Abundance",
+                "source": "Abundance",
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
+              }
+            ]
+          },
+          "columns": {
+            "obs": [{"name": "Run", "source": "Run Name"}],
+            "var": [
+              {
+                "name": "Protein",
+                "source": "Protein Accession",
+                "roles": ["protein_assignment", "fasta_accessions"]
+              },
+              {"name": "apb_Decoy", "how": "unmarked"},
+              {"name": "apb_Contaminant", "how": "unmarked"}
+            ]
+          }
+        }
+      }
     }
   ]
 }

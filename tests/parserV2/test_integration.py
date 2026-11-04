@@ -23,10 +23,12 @@ from apb2.parserV2.detect_document import (
     search_parameter_evidence,
     software_slug,
 )
+from apb2.parserV2.parse_quant.axis_columns import AxisCoercionError
 from apb2.parserV2.parse_quant.data.parsed import ParsedLevel
 from apb2.parserV2.parse_quant.io.parquet_writer import MANIFEST_NAME
 from apb2.parserV2.parse_quant.parameters.source import SingleFile
 from apb2.parserV2.parse_quant.parameters.vendor_file import make_vendor_file
+from apb2.parserV2.parse_quant.parser import Parser
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
 from apb2.parserV2.search_parameters.model import Parameters
 from apb2.parserV2.source_binding import PhysicalTable
@@ -268,4 +270,50 @@ def test_the_provenance_of_a_parsed_level_names_the_rule_it_came_from() -> None:
     rule = json.loads(str(provenance["rule_json"]))
     assert rule["software_name"] == "AlphaPept"
     assert rule["quantification_level"] == "peptidoform_ion"
-    assert rule["schema_version"] == "0.10"
+    assert rule["schema_version"] == "0.11"
+
+
+def _scored_parser(tmp_path: Path, score: dict[str, object]) -> Parser:
+    """A long table whose ``Score`` writes ``NaN`` where a feature has none, as MaxQuant does."""
+    from parserV2 import synthetic
+
+    document = synthetic.document(
+        shape="long",
+        base={
+            "axis": {"obs_keys": ["Run"], "var_keys": ["ID"]},
+            "columns": {
+                "obs": [{"name": "Run", "source": "run"}],
+                "var": synthetic.with_flags([{"name": "ID", "source": "id"}, score]),
+            },
+            "measurements": {
+                "primary_layer": "Quantity",
+                "layers": [{"name": "Quantity", "source": "quantity"}],
+            },
+        },
+        levels={"peptidoform_ion": {}},
+    )
+    data = tmp_path / "input.tsv"
+    pl.DataFrame(
+        {"run": ["A", "A"], "id": ["1", "2"], "Score": ["12.5", "NaN"], "quantity": [1, 2]}
+    ).write_csv(data, separator="\t")
+    return PhysicalTable(make_vendor_file(data)).parser(synthetic.facade(document), "standard")
+
+
+def test_a_var_columns_declared_missing_text_reads_as_missing(tmp_path: Path) -> None:
+    score: dict[str, object] = {
+        "name": "Score",
+        "source": "Score",
+        "type": "number",
+        "missing_tokens": ["NaN"],
+    }
+
+    parsed = _scored_parser(tmp_path, score).parse_with_timings()[0]
+
+    assert parsed.var.frame.sort("ID")["Score"].to_list() == [12.5, None]
+
+
+def test_a_var_column_refuses_missing_text_it_does_not_declare(tmp_path: Path) -> None:
+    parser = _scored_parser(tmp_path, {"name": "Score", "source": "Score", "type": "number"})
+
+    with pytest.raises(AxisCoercionError, match=r"examples=\['NaN'\]"):
+        parser.parse_with_timings()

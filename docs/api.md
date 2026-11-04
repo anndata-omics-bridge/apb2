@@ -67,7 +67,7 @@ parsed_levels = compiler.compile().parse()
 
 `software` is required and names the result producer; for DIA-NN output from a FragPipe workflow, use `software="diann"`. APB2 matches the requested levels against that producer's packaged rules using their source columns and declared version signatures. For DIA-NN 2.x, the declared MS1 columns distinguish DDA from the DIA default without a separate acquisition argument. Ambiguous matches and search settings that columns cannot establish still raise errors. `compiler.detection.version` is `None`, `compiler.parameters` is unavailable, and the normal rule provenance remains in the parsed result. The CLI uses this same constructor for `apb2 convert DATA peptidoform_ion --software DIA-NN` when `--params` is omitted.
 
-A caller-authored schema-0.10 rule file replaces detection:
+A caller-authored schema-0.11 rule file replaces detection:
 
 ```python
 compiler = ParseRuleCompiler.from_rule(

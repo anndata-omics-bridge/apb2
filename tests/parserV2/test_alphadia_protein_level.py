@@ -35,13 +35,13 @@ def test_the_protein_group_q_value_moves_from_peptidoform_ion_to_the_protein_lev
     parsed = read_parsed_levels(target)
     protein = parsed.levels["protein"]
     source = pl.read_parquet(data).select("pg.name", "pg.qval").unique()
-    joined = protein.var.frame.join(source, left_on="Protein_Group", right_on="pg.name")
+    joined = protein.var.frame.join(source, left_on="pg_name", right_on="pg.name")
 
-    assert "Protein_Group_QValue" not in parsed.levels["peptidoform_ion"].var.frame.columns
-    assert protein.primary_layer_name == "PG_Intensity"
+    assert "pg_qval" not in parsed.levels["peptidoform_ion"].var.frame.columns
+    assert protein.primary_layer_name == "pg_intensity"
     assert protein.var.frame.height == source.height
     assert_series_equal(
-        joined.get_column("Protein_Group_QValue"),
+        joined.get_column("pg_qval"),
         joined.get_column("pg.qval"),
         check_names=False,
     )
@@ -65,8 +65,8 @@ def test_ion_and_protein_levels_share_the_protein_identity_column(tmp_path: Path
 
     parsed = read_parsed_levels(target)
     ion, protein = parsed.levels["peptidoform_ion"], parsed.levels["protein"]
-    assert ion.var.roles["protein_assignment"] == "Protein_Group"
-    assert ion.var.roles["fasta_accessions"] == "Proteins"
-    assert protein.var.key_columns == ("Protein_Group",)
-    assigned = set(ion.var.frame.get_column("Protein_Group").to_list())
-    assert assigned <= set(protein.var.frame.get_column("Protein_Group").to_list())
+    assert ion.var.roles["protein_assignment"] == "pg_name"
+    assert ion.var.roles["fasta_accessions"] == "pg_proteins"
+    assert protein.var.key_columns == ("pg_name",)
+    assigned = set(ion.var.frame.get_column("pg_name").to_list())
+    assert assigned <= set(protein.var.frame.get_column("pg_name").to_list())

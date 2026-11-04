@@ -83,13 +83,12 @@ class StrippedSequence(ComputedColumnBase):
 
 
 class ProformaSequence(ComputedColumnBase):
-    """Normalize all declared logical inputs using named syntax and a token map."""
+    """Normalize all declared logical inputs using named syntax and the level's token map."""
 
     how: Literal["proforma_sequence"]
     name: Literal["ProForma_peptidoform", "ProForma_peptidoform_unlocalized"]
     inputs: list[str] = Field(min_length=1, max_length=3)
     syntax: str
-    modification_map: str
     case_sensitive: bool
     unknown_policy: UnknownPolicy
 
@@ -250,12 +249,16 @@ class SourcedVarColumn(SourcedColumn):
     """
 
     per_feature: PerFeature
+    # Text the vendor writes for a missing value, such as MaxQuant's NaN; absent means none.
+    missing_tokens: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _extremes_are_numbers(self) -> SourcedVarColumn:
         mode = self.per_feature
         if mode in {"min", "max"} and self.type not in {"number", "integer"}:
             raise ValueError(f"{self.name}: per_feature {mode!r} needs a numeric column")
+        if any(not token.strip() for token in self.missing_tokens):
+            raise ValueError("missing_tokens declares blank text, which is already missing")
         return self
 
 

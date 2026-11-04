@@ -9,7 +9,7 @@
       "variables": 250,
       "layers": [
         "Intensity",
-        "Identification_Type"
+        "Identification_type"
       ]
     }
   }

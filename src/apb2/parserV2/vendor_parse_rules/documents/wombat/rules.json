@@ -1,6 +1,6 @@
 {
-  "schema_version": "0.10",
-  "file_version": "6",
+  "schema_version": "0.11",
+  "file_version": "7",
   "software_name": "WOMBAT-P",
   "software_version_pattern": "^0\\.9\\.11$",
   "hierarchy": "lfq",
@@ -16,7 +16,19 @@
         },
         "sample_pattern": "(?P<sample>.+)",
         "axis": {"obs_keys": ["sample"]},
-        "measurements": {"repeated_cells": {"mode": "same"}},
+        "measurements": {
+          "primary_layer": "abundance",
+          "repeated_cells": {"mode": "same"},
+          "layers": [
+            {
+              "name": "abundance",
+              "source": "abundance_{sample}",
+              "roles": ["abundance"],
+              "missing_values": ["<=0"],
+              "missing_tokens": ["NA"]
+            }
+          ]
+        },
         "columns": {
           "var": [
             {"name": "modified_peptide", "source": "modified_peptide"},
@@ -28,9 +40,9 @@
             {
               "name": "ProForma_peptidoform",
               "inputs": ["modified_peptide"],
+              "how": "proforma_sequence",
               "case_sensitive": false,
-              "unknown_policy": "preserve",
-              "how": "proforma_sequence"
+              "unknown_policy": "preserve"
             },
             {
               "name": "ProForma_peptide",
@@ -54,29 +66,15 @@
             "token_position": "after_residue"
           }
         },
-        "modification_maps": {
-          "basic_modification_map": {
-            "Acetyl": "UNIMOD:1",
-            "Oxidation": "UNIMOD:35",
-            "Carbamidomethyl": "UNIMOD:4"
-          }
+        "modification_map": {
+          "Acetyl": "UNIMOD:1",
+          "Oxidation": "UNIMOD:35",
+          "Carbamidomethyl": "UNIMOD:4"
         }
       },
       "levels": {
         "peptidoform_ion": {
           "axis": {"var_keys": ["ProForma_ion"]},
-          "measurements": {
-            "primary_layer": "Abundance",
-            "layers": [
-              {
-                "name": "Abundance",
-                "source": "abundance_{sample}",
-                "roles": ["abundance"],
-                "missing_values": ["<=0"],
-                "missing_tokens": ["NA"]
-              }
-            ]
-          },
           "columns": {
             "var": [
               {"name": "charge", "source": "charge", "type": "integer"},
@@ -92,17 +90,9 @@
           "forbidden_columns": ["charge"],
           "axis": {"var_keys": ["ProForma_peptidoform"]},
           "measurements": {
-            "primary_layer": "Abundance",
             "layers": [
               {
-                "name": "Abundance",
-                "source": "abundance_{sample}",
-                "roles": ["abundance"],
-                "missing_values": ["<=0"],
-                "missing_tokens": ["NA"]
-              },
-              {
-                "name": "Number_Of_Psms",
+                "name": "number_of_psms",
                 "source": "number_of_psms_{sample}",
                 "type": "integer",
                 "missing_tokens": ["NA"]

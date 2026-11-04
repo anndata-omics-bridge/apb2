@@ -1,6 +1,6 @@
 {
-  "schema_version": "0.10",
-  "file_version": "3",
+  "schema_version": "0.11",
+  "file_version": "4",
   "software_name": "quantms",
   "software_version_pattern": "^v?1\\..*",
   "hierarchy": "lfq",
@@ -14,37 +14,14 @@
           "var": {"type": "string", "required": true, "per_feature": "first"},
           "obs": {"type": "string", "required": false},
           "layers": {"encoding_mode": "numeric", "type": "number", "required": false}
-        },
-        "axis": {"obs_keys": ["Raw_File"]},
-        "measurements": {"repeated_cells": {"mode": "error"}},
-        "columns": {
-          "obs": [
-            {"name": "Raw_File", "source": "Reference", "required": true},
-            {"name": "Condition", "source": "Condition"},
-            {"name": "Bio_Replicate", "source": "BioReplicate"},
-            {"name": "Run", "source": "Run"}
-          ]
-        },
-        "sequence_syntax": {
-          "vendor_sequence": {
-            "parser": "token_regex",
-            "token_pattern": "^\\((?P<nterm>[^)]+)\\)|\\((?P<residue>[^)]+)\\)",
-            "token_position": "after_residue"
-          }
-        },
-        "modification_maps": {
-          "basic_modification_map": {
-            "Carbamidomethyl": "UNIMOD:4",
-            "Oxidation": "UNIMOD:35",
-            "Acetyl": "UNIMOD:1"
-          }
         }
       },
       "levels": {
         "peptidoform_ion": {
-          "axis": {"var_keys": ["ProForma_ion"]},
+          "axis": {"obs_keys": ["Reference"], "var_keys": ["ProForma_ion"]},
           "measurements": {
             "primary_layer": "Intensity",
+            "repeated_cells": {"mode": "error"},
             "layers": [
               {
                 "name": "Intensity",
@@ -55,40 +32,58 @@
             ]
           },
           "columns": {
+            "obs": [
+              {"name": "Reference", "source": "Reference", "required": true},
+              {"name": "Condition", "source": "Condition"},
+              {"name": "BioReplicate", "source": "BioReplicate"},
+              {"name": "Run", "source": "Run"}
+            ],
             "var": [
-              {"name": "Modified_Sequence", "source": "PeptideSequence"},
-              {"name": "Charge", "source": "PrecursorCharge", "type": "integer"},
+              {"name": "PeptideSequence", "source": "PeptideSequence"},
+              {"name": "PrecursorCharge", "source": "PrecursorCharge", "type": "integer"},
               {
-                "name": "Protein",
+                "name": "ProteinName",
                 "source": "ProteinName",
                 "roles": ["protein_assignment", "fasta_accessions"]
               },
               {
                 "name": "ProForma_peptidoform",
-                "inputs": ["Modified_Sequence"],
+                "inputs": ["PeptideSequence"],
+                "how": "proforma_sequence",
                 "case_sensitive": false,
-                "unknown_policy": "preserve",
-                "how": "proforma_sequence"
+                "unknown_policy": "preserve"
               },
               {
                 "name": "ProForma_peptide",
-                "inputs": ["Modified_Sequence"],
+                "inputs": ["PeptideSequence"],
                 "how": "stripped_sequence"
               },
               {
                 "name": "ProForma_ion",
-                "inputs": ["ProForma_peptidoform", "Charge"],
+                "inputs": ["ProForma_peptidoform", "PrecursorCharge"],
                 "how": "proforma_ion"
               },
               {
                 "name": "apb_Decoy",
-                "inputs": ["Protein"],
+                "inputs": ["ProteinName"],
                 "how": "decoy",
                 "prefix": "DECOY_",
                 "separator": ";"
               },
               {"name": "apb_Contaminant", "how": "unmarked"}
             ]
+          },
+          "sequence_syntax": {
+            "vendor_sequence": {
+              "parser": "token_regex",
+              "token_pattern": "^\\((?P<nterm>[^)]+)\\)|\\((?P<residue>[^)]+)\\)",
+              "token_position": "after_residue"
+            }
+          },
+          "modification_map": {
+            "Carbamidomethyl": "UNIMOD:4",
+            "Oxidation": "UNIMOD:35",
+            "Acetyl": "UNIMOD:1"
           }
         }
       }

@@ -344,8 +344,22 @@ class ParseStrategy:
         """Select from immutable physical values, then compute through logical inputs."""
         result = frame
         if phase.selections:
-            selected = physical.select(
-                column.coercer.coerce(physical, name=column.name, source=column.source)
+            values = physical.with_columns(
+                pl.when(
+                    pl.col(column.source)
+                    .cast(pl.String)
+                    .str.strip_chars()
+                    .is_in(column.missing_tokens)
+                    .fill_null(value=False)
+                )
+                .then(None)
+                .otherwise(pl.col(column.source))
+                .alias(column.source)
+                for column in phase.selections
+                if column.missing_tokens
+            )
+            selected = values.select(
+                column.coercer.coerce(values, name=column.name, source=column.source)
                 for column in phase.selections
             )
             result = result.with_columns(selected)

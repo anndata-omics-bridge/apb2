@@ -9,12 +9,12 @@
       "variables": 266,
       "layers": [
         "Intensity",
-        "MS_MS_Count",
-        "Retention_Time",
-        "Retention_Length",
-        "Calibrated_Retention_Time",
-        "Calibrated_Retention_Time_Start",
-        "Calibrated_Retention_Time_Finish",
+        "MS_MS_count",
+        "Retention_time",
+        "Retention_length",
+        "Calibrated_retention_time",
+        "Calibrated_retention_time_start",
+        "Calibrated_retention_time_finish",
         "Score",
         "PEP",
         "Type"

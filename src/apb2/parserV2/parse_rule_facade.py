@@ -429,6 +429,9 @@ class ParseRuleFacade:
                 else column.type,
                 separator=column.separator if isinstance(column, SourcedColumn) else None,
                 duplicates=ParseRuleFacade._feature_duplicates(column, sources, rank_rows),
+                missing_tokens=tuple(column.missing_tokens)
+                if isinstance(column, SourcedVarColumn)
+                else (),
             )
             for column in group
             if column.source is not None and column.required is required
@@ -567,8 +570,10 @@ class ParseRuleFacade:
     def _project_modifications(
         column: ProformaSequence, rule: LongRule | WideRule
     ) -> SequenceOperation:
-        """Resolve only the explicitly referenced map of a normalization operation."""
+        """Resolve the level's modification map for one normalization operation."""
         syntax = rule.sequence_syntax[column.syntax]
+        modification_map = rule.modification_map
+        assert modification_map is not None, "validate_rule refuses a ProForma column without one"
         entries = tuple(
             ModificationMapEntry(
                 token=token,
@@ -580,7 +585,7 @@ class ParseRuleFacade:
             )
             for token, record in (
                 (token, UNIMOD_REGISTRY.resolve(accession))
-                for token, accession in rule.modification_maps[column.modification_map].items()
+                for token, accession in modification_map.items()
             )
         )
         if isinstance(syntax, SiteListSyntax):

@@ -24,9 +24,30 @@ _INDENT = 2
 type Json = bool | int | float | str | list[Json] | dict[str, Json] | None
 
 
+_COMPUTED_FIRST = ("name", "source", "inputs", "how")
+"""A computed entry's leading keys: what it is, what it reads, and the operation."""
+_COMPUTED_LAST = ("roles", "note")
+"""A computed entry's trailing keys; the operation's own settings sit between."""
+
+
 def format_rule(document: Json) -> str:
     """A rule document as its file holds it."""
-    return _render(document, 0, 0) + "\n"
+    return _render(_ordered(document), 0, 0) + "\n"
+
+
+def _ordered(value: Json) -> Json:
+    """``value`` with every computed entry's keys in one order: the operation, then its settings."""
+    if isinstance(value, list):
+        return [_ordered(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    items = {key: _ordered(item) for key, item in value.items()}
+    if "name" not in items or "how" not in items:
+        return items
+    edges = (*_COMPUTED_FIRST, *_COMPUTED_LAST)
+    middle = [key for key in items if key not in edges]
+    order = [*_COMPUTED_FIRST, *middle, *_COMPUTED_LAST]
+    return {key: items[key] for key in order if key in items}
 
 
 def _render(value: Json, indent: int, start: int) -> str:

@@ -1,6 +1,6 @@
 {
-  "schema_version": "0.10",
-  "file_version": "4",
+  "schema_version": "0.11",
+  "file_version": "5",
   "software_name": "DIA-NN",
   "software_version_pattern": "^1\\.[0-7](\\.|$)",
   "hierarchy": "lfq",
@@ -24,10 +24,7 @@
         },
         "axis": {"obs_keys": ["Run"]},
         "columns": {
-          "obs": [
-            {"name": "Run", "source": "File.Name"},
-            {"name": "Run_Name", "source": "Run", "required": false}
-          ],
+          "obs": [{"name": "Run", "source": "Run"}, {"name": "File_Name", "source": "File.Name"}],
           "var": [
             {"name": "Decoy", "source": "Decoy", "type": "boolean", "required": false},
             {"name": "apb_Decoy", "inputs": ["Decoy"], "how": "decoy", "equals": "true"},
@@ -41,14 +38,12 @@
             "token_position": "after_residue"
           }
         },
-        "modification_maps": {
-          "basic_modification_map": {
-            "UniMod:1": "UNIMOD:1",
-            "UniMod:4": "UNIMOD:4",
-            "UniMod:35": "UNIMOD:35",
-            "UniMod:21": "UNIMOD:21",
-            "UniMod:121": "UNIMOD:121"
-          }
+        "modification_map": {
+          "UniMod:1": "UNIMOD:1",
+          "UniMod:4": "UNIMOD:4",
+          "UniMod:35": "UNIMOD:35",
+          "UniMod:21": "UNIMOD:21",
+          "UniMod:121": "UNIMOD:121"
         }
       },
       "levels": {
@@ -91,13 +86,13 @@
               {
                 "name": "Predicted_IM",
                 "source": "Predicted.IM",
-                "note": "Calibrated per run: differs across runs on timsTOF data, so a layer; constant without ion mobility."
+                "note": "A layer: calibrated per run, so it differs across runs on timsTOF"
               },
               {"name": "Predicted_RT", "source": "Predicted.RT"},
               {
                 "name": "Predicted_iIM",
                 "source": "Predicted.iIM",
-                "note": "Differs across runs on timsTOF data, like Predicted_IM, so a layer."
+                "note": "A layer: differs across runs on timsTOF, like Predicted_IM"
               },
               {"name": "Predicted_iRT", "source": "Predicted.iRT"},
               {"name": "Protein_Q_Value", "source": "Protein.Q.Value"},
@@ -129,9 +124,9 @@
               {
                 "name": "ProForma_peptidoform",
                 "inputs": ["Modified_Sequence"],
+                "how": "proforma_sequence",
                 "case_sensitive": false,
-                "unknown_policy": "preserve",
-                "how": "proforma_sequence"
+                "unknown_policy": "preserve"
               },
               {
                 "name": "ProForma_peptide",
@@ -143,19 +138,12 @@
                 "inputs": ["ProForma_peptidoform", "Precursor_Charge"],
                 "how": "proforma_ion"
               },
-              {
-                "name": "Lib_Q_Value",
-                "source": "Lib.Q.Value",
-                "type": "number",
-                "required": false,
-                "note": "Spectral-library q-value, one per precursor, repeated in every run row"
-              },
+              {"name": "Lib_Q_Value", "source": "Lib.Q.Value", "type": "number", "required": false},
               {
                 "name": "Global_Q_Value",
                 "source": "Global.Q.Value",
                 "type": "number",
-                "required": false,
-                "note": "Experiment-wide q-value, one per precursor, repeated in every run row"
+                "required": false
               }
             ]
           }
@@ -188,9 +176,9 @@
               {
                 "name": "ProForma_peptidoform",
                 "inputs": ["Modified_Sequence"],
+                "how": "proforma_sequence",
                 "case_sensitive": false,
-                "unknown_policy": "preserve",
-                "how": "proforma_sequence"
+                "unknown_policy": "preserve"
               },
               {
                 "name": "ProForma_peptide",
@@ -261,8 +249,7 @@
               {
                 "name": "Protein_Group",
                 "source": "Protein.Group",
-                "roles": ["protein_assignment", "fasta_accessions"],
-                "note": "The group's members are its FASTA accessions. Protein.Ids describes each precursor and differs within a group, so the protein level leaves it out."
+                "roles": ["protein_assignment", "fasta_accessions"]
               },
               {"name": "Protein_Names", "source": "Protein.Names"},
               {"name": "Genes", "source": "Genes"},
@@ -277,7 +264,7 @@
                 "type": "number",
                 "required": false,
                 "per_feature": "min",
-                "note": "Experiment-wide protein-group q-value, one per group. DIA-NN writes 1.0 into the rows of precursors without a global q-value, so the group's value is the smallest."
+                "note": "DIA-NN writes 1.0 into the rows of precursors without a global q-value, so a group takes its smallest"
               }
             ]
           }

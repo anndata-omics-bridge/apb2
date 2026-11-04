@@ -8,8 +8,8 @@
       "observations": 6,
       "variables": 250,
       "layers": [
-        "Abundance",
-        "Number_Of_Psms"
+        "abundance",
+        "number_of_psms"
       ]
     }
   }

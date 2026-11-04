@@ -40,7 +40,7 @@ def _factor_layer(
 def test_each_identification_type_label_becomes_its_category_code(tmp_path: Path) -> None:
     """Every ``By MS/MS`` and ``By matching`` cell of peptides.txt keeps its label as a code."""
     cells, categories = _factor_layer(
-        "maxquant_peptides", "peptide", "Identification_Type", tmp_path
+        "maxquant_peptides", "peptide", "Identification_type", tmp_path
     )
     data = committed_sample("maxquant_peptides")
     assert data is not None

@@ -1,6 +1,6 @@
 {
-  "schema_version": "0.10",
-  "file_version": "4",
+  "schema_version": "0.11",
+  "file_version": "5",
   "software_name": "Sage",
   "software_version_pattern": "^0\\.",
   "hierarchy": "lfq",
@@ -27,26 +27,26 @@
         },
         "columns": {
           "var": [
-            {"name": "Peptide", "source": "peptide"},
+            {"name": "peptide", "source": "peptide"},
             {
-              "name": "Proteins",
+              "name": "proteins",
               "source": "proteins",
               "roles": ["protein_assignment", "fasta_accessions"]
             },
-            {"name": "Q_Value", "source": "q_value", "type": "number"},
-            {"name": "Score", "source": "score", "type": "number"},
-            {"name": "Spectral_Angle", "source": "spectral_angle", "type": "number"},
+            {"name": "q_value", "source": "q_value", "type": "number"},
+            {"name": "score", "source": "score", "type": "number"},
+            {"name": "spectral_angle", "source": "spectral_angle", "type": "number"},
             {
               "name": "ProForma_peptidoform",
-              "inputs": ["Peptide"],
+              "inputs": ["peptide"],
+              "how": "proforma_sequence",
               "case_sensitive": false,
-              "unknown_policy": "preserve",
-              "how": "proforma_sequence"
+              "unknown_policy": "preserve"
             },
-            {"name": "ProForma_peptide", "inputs": ["Peptide"], "how": "stripped_sequence"},
+            {"name": "ProForma_peptide", "inputs": ["peptide"], "how": "stripped_sequence"},
             {
               "name": "apb_Decoy",
-              "inputs": ["Proteins"],
+              "inputs": ["proteins"],
               "how": "decoy",
               "prefix": "rev_",
               "separator": ";"
@@ -61,13 +61,11 @@
             "token_position": "after_residue"
           }
         },
-        "modification_maps": {
-          "basic_modification_map": {
-            "+57.021465": "UNIMOD:4",
-            "+15.994915": "UNIMOD:35",
-            "+42.010567": "UNIMOD:1",
-            "+42": "UNIMOD:1"
-          }
+        "modification_map": {
+          "+57.021465": "UNIMOD:4",
+          "+15.994915": "UNIMOD:35",
+          "+42.010567": "UNIMOD:1",
+          "+42": "UNIMOD:1"
         }
       },
       "levels": {
@@ -77,10 +75,10 @@
           "measurements": {"primary_layer": "Intensity"},
           "columns": {
             "var": [
-              {"name": "Charge", "source": "charge", "type": "integer"},
+              {"name": "charge", "source": "charge", "type": "integer"},
               {
                 "name": "ProForma_ion",
-                "inputs": ["ProForma_peptidoform", "Charge"],
+                "inputs": ["ProForma_peptidoform", "charge"],
                 "how": "proforma_ion"
               }
             ]

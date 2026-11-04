@@ -442,7 +442,7 @@ def test_primary_layer_is_required_even_without_an_authored_required_flag() -> N
         synthetic.long_document(
             obs_select={"sample": "run"},
             var_select={"Feature": "feature"},
-            layers=[{"name": "Quantity", "source": "Quantity", "required": False}],
+            layers=[{"name": "Quantity", "source": "Quantity"}],
         )
     )
     measurements = facade.working_parameters.measurements

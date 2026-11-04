@@ -1,6 +1,6 @@
 {
-  "schema_version": "0.10",
-  "file_version": "4",
+  "schema_version": "0.11",
+  "file_version": "5",
   "software_name": "PEAKS",
   "software_version_pattern": "^13(?:\\.|\\s|$)",
   "hierarchy": "lfq",
@@ -22,39 +22,15 @@
           "var": {"type": "number", "required": true, "per_feature": "first"},
           "layers": {"encoding_mode": "numeric", "type": "number", "required": false}
         },
-        "sample_pattern": "(?P<sample>.+?)(?:\\.raw|_raw)?",
-        "axis": {"obs_keys": ["sample"]},
-        "measurements": {"repeated_cells": {"mode": "error"}},
-        "sequence_syntax": {
-          "vendor_sequence": {
-            "parser": "token_regex",
-            "token_pattern": "(?:(?<=^[A-Z])|(?<=^C\\(\\+57\\.02\\)))\\((?P<nterm>\\+42\\.01|\\+42\\.0106)\\)|\\((?P<residue>[^()]+)\\)",
-            "token_position": "after_residue"
-          }
-        },
-        "modification_maps": {
-          "basic_modification_map": {
-            "+15.99": "UNIMOD:35",
-            "+57.02": "UNIMOD:4",
-            "+42.01": "UNIMOD:1",
-            "+15.9949": "UNIMOD:35",
-            "+57.02146": "UNIMOD:4",
-            "+42.0106": "UNIMOD:1"
-          }
-        },
-        "columns": {
-          "var": [
-            {"name": "apb_Decoy", "how": "unmarked"},
-            {"name": "apb_Contaminant", "how": "unmarked"}
-          ]
-        }
+        "sample_pattern": "(?P<sample>.+?)(?:\\.raw|_raw)?"
       },
       "levels": {
         "peptidoform_ion": {
-          "axis": {"var_keys": ["ProForma_ion"]},
+          "axis": {"obs_keys": ["sample"], "var_keys": ["ProForma_ion"]},
           "measurements": {
             "primary_layer": "Normalized_Area",
-            "sample_layer": "Sample_Mz",
+            "sample_layer": "m_z",
+            "repeated_cells": {"mode": "error"},
             "layers": [
               {
                 "name": "Normalized_Area",
@@ -62,8 +38,8 @@
                 "roles": ["abundance"],
                 "missing_values": ["<=0"]
               },
-              {"name": "Sample_Mz", "source": "{sample} m/z", "missing_tokens": ["-"]},
-              {"name": "Sample_RT_Mean", "source": "{sample} RT mean", "missing_tokens": ["-"]},
+              {"name": "m_z", "source": "{sample} m/z", "missing_tokens": ["-"]},
+              {"name": "RT_mean", "source": "{sample} RT mean", "missing_tokens": ["-"]},
               {
                 "name": "AScore",
                 "source": "{sample} AScore",
@@ -74,18 +50,18 @@
           "columns": {
             "var": [
               {"name": "Peptide", "source": "Peptide", "type": "string"},
-              {"name": "Charge", "source": "z", "type": "integer"},
-              {"name": "Mz", "source": "m/z"},
+              {"name": "z", "source": "z", "type": "integer"},
+              {"name": "m_z", "source": "m/z"},
               {
-                "name": "RT_Mean",
+                "name": "RT_mean",
                 "source": "RT mean",
                 "required": false,
-                "note": "The feature's retention time across all samples, one value per feature; the per-sample values are the Sample_RT_Mean layer"
+                "note": "Across all samples; the layer of the same name holds each sample's value"
               },
-              {"name": "RT_Range", "source": "RT range", "type": "string"},
+              {"name": "RT_range", "source": "RT range", "type": "string"},
               {"name": "Quality", "source": "Quality"},
               {"name": "Significance", "source": "Significance"},
-              {"name": "Minus_10LgP", "source": "-10LgP"},
+              {"name": "neg10LgP", "source": "-10LgP"},
               {"name": "Avg_Area", "source": "Avg. Area"},
               {
                 "name": "Accession",
@@ -94,20 +70,37 @@
                 "roles": ["protein_assignment", "fasta_accessions"],
                 "separator": ":"
               },
+              {"name": "apb_Decoy", "how": "unmarked"},
+              {"name": "apb_Contaminant", "how": "unmarked"},
               {
                 "name": "ProForma_peptidoform",
                 "inputs": ["Peptide"],
+                "how": "proforma_sequence",
                 "case_sensitive": false,
-                "unknown_policy": "preserve",
-                "how": "proforma_sequence"
+                "unknown_policy": "preserve"
               },
               {"name": "ProForma_peptide", "inputs": ["Peptide"], "how": "stripped_sequence"},
               {
                 "name": "ProForma_ion",
-                "inputs": ["ProForma_peptidoform", "Charge"],
+                "inputs": ["ProForma_peptidoform", "z"],
                 "how": "proforma_ion"
               }
             ]
+          },
+          "sequence_syntax": {
+            "vendor_sequence": {
+              "parser": "token_regex",
+              "token_pattern": "(?:(?<=^[A-Z])|(?<=^C\\(\\+57\\.02\\)))\\((?P<nterm>\\+42\\.01|\\+42\\.0106)\\)|\\((?P<residue>[^()]+)\\)",
+              "token_position": "after_residue"
+            }
+          },
+          "modification_map": {
+            "+15.99": "UNIMOD:35",
+            "+57.02": "UNIMOD:4",
+            "+42.01": "UNIMOD:1",
+            "+15.9949": "UNIMOD:35",
+            "+57.02146": "UNIMOD:4",
+            "+42.0106": "UNIMOD:1"
           }
         }
       }

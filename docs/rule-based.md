@@ -2,7 +2,7 @@
 
 APB2 keeps vendor-table knowledge in one declarative `rules.json` document per software/version. Each document contains a nonempty `tables` list; every table declares its physical input, observation and variable identity, sourced or computed axis columns, measurement layers, semantic roles, and supported quantification levels. Supporting another layout normally means adding a table declaration rather than another Python reader.
 
-The current rule format is schema `0.10`. The generated [document schema](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/_schema/document.schema.json) describes the authored shell and physical inputs. Table-local base/level composition is then validated against the [effective-rule schema](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/_schema/rule.schema.json). Older documents must be migrated; there is no compatibility model.
+The current rule format is schema `0.11`. The generated [document schema](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/_schema/document.schema.json) describes the authored shell and physical inputs. Table-local base/level composition is then validated against the [effective-rule schema](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/documents/_schema/rule.schema.json). Older documents must be migrated; there is no compatibility model.
 
 ## One software, multiple input tables
 
@@ -17,7 +17,7 @@ MaxQuant's [document](https://github.com/anndata-omics-bridge/apb2/blob/main/src
 | `peptides.txt` | wide | peptide |
 | `proteinGroups.txt` | wide | protein |
 
-`join_wide` in [joins/maxquant.py](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/joins/maxquant.py) accepts any nonempty subset of the three higher-level exports and resolves their foreign keys through shared evidence-ID references. It keeps every table wide: one row per related feature-ID tuple with each table's per-experiment columns side by side, so rows grow with relationships rather than features × experiments, and it reads only the columns its rules declare plus `id` and `Evidence IDs`; its wide layers capture `Experiment` from headers such as `peptide.Intensity <experiment>`. Namespaced source columns preserve each table's measurements; each level names its namespace once, `"source_prefix": "peptide."`, so its sources read as MaxQuant writes them, and an entry from another table names its own. Repeated cells are resolved by the rule's `repeated_cells` mode `keep_best`, ranked by `Intensity`. All three higher-level rules inherit `Experiment` observations from their table's `base`. Evidence never enters that join. Its own preparation, `join_evidence`, keeps every evidence row and adds the `Protein IDs` of the group, among those in `Protein group IDs`, that holds the row's leading razor protein, MaxQuant's own assignment of shared peptides; the ion rule names it `Protein_IDs`, like the protein level's key. The evidence rule inherits `Raw_File` observations and retains `Experiment` and `Fraction` metadata. All 15 nonempty input combinations remain supported.
+`join_wide` in [joins/maxquant.py](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/joins/maxquant.py) accepts any nonempty subset of the three higher-level exports and resolves their foreign keys through shared evidence-ID references. It keeps every table wide: one row per related feature-ID tuple with each table's per-experiment columns side by side, so rows grow with relationships rather than features × experiments, and it reads only the columns its rules declare plus `id` and `Evidence IDs`; its wide layers capture `Experiment` from headers such as `peptide.Intensity <experiment>`. Namespaced source columns preserve each table's measurements; each level names its namespace once, `"source_prefix": "peptide."`, so its sources read as MaxQuant writes them, and an entry from another table names its own. A feature repeated across relationships repeats identical cells, which the rule's `repeated_cells` mode `same` keeps once and refuses where they differ; `keep_best`, ranked by `PEP`, is the evidence table's. All three higher-level rules inherit `Experiment` observations from their table's `base`. Evidence never enters that join. Its own preparation, `join_evidence`, keeps every evidence row and adds the `Protein IDs` of the group, among those in `Protein group IDs`, that holds the row's leading razor protein, MaxQuant's own assignment of shared peptides; the ion rule names it `Protein_IDs`, like the protein level's key. The evidence rule declares `Raw_file` observations and retains `Experiment` and `Fraction` metadata. All 15 nonempty input combinations remain supported.
 
 The function in [joins/alphadia.py](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/joins/alphadia.py) enriches AlphaDIA 1.12 matrix intensities with precursor metadata and returns long rows. Parent composition prepares once per requested group. Each level projects from that group's shared frame, excluding wholly absent identities before ordinary decomposition. Tool modules import neither schemas nor parser orchestration. After parsing, explicit bijective observation mappings permit alignment; incompatible resolutions are [written separately](conversion.md#output-naming).
 
@@ -25,7 +25,7 @@ The function in [joins/metamorpheus.py](https://github.com/anndata-omics-bridge/
 
 The function in [joins/wombat.py](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/joins/wombat.py) drops WOMBAT-P rows whose `modified_peptide` names several peptides (`SEQA|SEQB`, FlashLFQ's ambiguous peak) and logs how many; such a row is no single ion. Prepared delimited tables are read with a comma for a `.csv` file and a tab otherwise; a preparation that names workbook sheets reads those sheets instead.
 
-The function in [joins/msangel.py](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/joins/msangel.py) joins MSAngel's "Protein sets" sheet onto its "Quantified peptide ions" sheet by `protein_set_id`. A preparation names the workbook sheets it reads, and the preparation reads only those, as text; it declares no `sheet_name`. The ion sheet lists a shared peptide once per protein set, so every joined row is one ion in one protein set: the ion level keeps the best-scoring set's row (`"rank_rows": {"by": "Protein_Set_Score", "best": "highest"}`, its columns `"per_feature": "best_row"`), so its quantities and `Same_Set_Proteins`, its `protein_assignment`, come from that row; `Proteins` keeps only the `fasta_accessions` role. The protein level, keyed by the same `Same_Set_Proteins` (`samesets_accessions`), reads each set's own columns. Without a "Protein sets" sheet only the ions convert.
+The function in [joins/msangel.py](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/joins/msangel.py) joins MSAngel's "Protein sets" sheet onto its "Quantified peptide ions" sheet by `protein_set_id`. A preparation names the workbook sheets it reads, and the preparation reads only those, as text; it declares no `sheet_name`. The ion sheet lists a shared peptide once per protein set, so every joined row is one ion in one protein set: the ion level keeps the best-scoring set's row (`"rank_rows": {"by": "protein_set_score", "best": "highest"}`, its columns `"per_feature": "best_row"`), so its quantities and `samesets_accessions`, its `protein_assignment`, come from that row; `Proteins` keeps only the `fasta_accessions` role. The protein level, keyed by the same `samesets_accessions`, reads each set's own columns. Without a "Protein sets" sheet only the ions convert.
 
 ## Column evidence without a parameter file
 
@@ -67,7 +67,7 @@ P2	b	21
 
 ```json title="rules.json"
 {
-  "schema_version": "0.10",
+  "schema_version": "0.11",
   "file_version": "1",
   "software_name": "MinimalLongExample",
   "software_version_pattern": "^1$",
@@ -75,62 +75,35 @@ P2	b	21
   "parameter_file": "required",
   "tables": [
     {
-      "input": {
-        "shape": "long",
-        "extensions": [
-          ".tsv"
-        ]
-      },
+      "input": {"shape": "long", "extensions": [".tsv"]},
       "base": {
         "defaults": {
           "var": {"type": "string", "required": true, "per_feature": "first"},
           "obs": {"type": "string", "required": true},
           "layers": {"encoding_mode": "numeric", "type": "number", "required": false}
-        },
-        "axis": {
-          "obs_keys": [
-            "sample"
-          ],
-          "var_keys": [
-            "protein"
-          ]
-        },
-        "columns": {
-          "obs": [
-            {
-              "name": "sample",
-              "source": "sample"
-            }
-          ],
-          "var": [
-            {
-              "name": "protein",
-              "source": "protein",
-              "roles": [
-                "protein_assignment",
-                "fasta_accessions"
-              ]
-            },
-            {"name": "apb_Decoy", "how": "unmarked"},
-            {"name": "apb_Contaminant", "how": "unmarked"}
-          ]
-        },
-        "measurements": {
-          "primary_layer": "Intensity",
-          "repeated_cells": {"mode": "error"},
-          "layers": [
-            {
-              "name": "Intensity",
-              "source": "Intensity",
-              "roles": [
-                "abundance"
-              ]
-            }
-          ]
         }
       },
       "levels": {
-        "protein": {}
+        "protein": {
+          "axis": {"obs_keys": ["sample"], "var_keys": ["protein"]},
+          "measurements": {
+            "primary_layer": "Intensity",
+            "repeated_cells": {"mode": "error"},
+            "layers": [{"name": "Intensity", "source": "Intensity", "roles": ["abundance"]}]
+          },
+          "columns": {
+            "obs": [{"name": "sample", "source": "sample"}],
+            "var": [
+              {
+                "name": "protein",
+                "source": "protein",
+                "roles": ["protein_assignment", "fasta_accessions"]
+              },
+              {"name": "apb_Decoy", "how": "unmarked"},
+              {"name": "apb_Contaminant", "how": "unmarked"}
+            ]
+          }
+        }
       }
     }
   ]
@@ -157,7 +130,7 @@ P2	20	21
 
 ```json title="rules.json"
 {
-  "schema_version": "0.10",
+  "schema_version": "0.11",
   "file_version": "1",
   "software_name": "MinimalWideExample",
   "software_version_pattern": "^1$",
@@ -165,56 +138,36 @@ P2	20	21
   "parameter_file": "required",
   "tables": [
     {
-      "input": {
-        "shape": "wide",
-        "extensions": [
-          ".tsv"
-        ]
-      },
+      "input": {"shape": "wide", "extensions": [".tsv"]},
       "base": {
         "defaults": {
           "var": {"type": "string", "required": true, "per_feature": "first"},
           "layers": {"encoding_mode": "numeric", "type": "number", "required": false}
         },
-        "sample_pattern": "(?P<sample>.+)",
-        "axis": {
-          "obs_keys": [
-            "sample"
-          ],
-          "var_keys": [
-            "protein"
-          ]
-        },
-        "columns": {
-          "var": [
-            {
-              "name": "protein",
-              "source": "protein",
-              "roles": [
-                "protein_assignment",
-                "fasta_accessions"
-              ]
-            },
-            {"name": "apb_Decoy", "how": "unmarked"},
-            {"name": "apb_Contaminant", "how": "unmarked"}
-          ]
-        },
-        "measurements": {
-          "primary_layer": "Intensity",
-          "repeated_cells": {"mode": "error"},
-          "layers": [
-            {
-              "name": "Intensity",
-              "source": "Intensity_{sample}",
-              "roles": [
-                "abundance"
-              ]
-            }
-          ]
-        }
+        "sample_pattern": "(?P<sample>.+)"
       },
       "levels": {
-        "protein": {}
+        "protein": {
+          "axis": {"obs_keys": ["sample"], "var_keys": ["protein"]},
+          "measurements": {
+            "primary_layer": "Intensity",
+            "repeated_cells": {"mode": "error"},
+            "layers": [
+              {"name": "Intensity", "source": "Intensity_{sample}", "roles": ["abundance"]}
+            ]
+          },
+          "columns": {
+            "var": [
+              {
+                "name": "protein",
+                "source": "protein",
+                "roles": ["protein_assignment", "fasta_accessions"]
+              },
+              {"name": "apb_Decoy", "how": "unmarked"},
+              {"name": "apb_Contaminant", "how": "unmarked"}
+            ]
+          }
+        }
       }
     }
   ]
@@ -231,7 +184,7 @@ The text around `{sample}` matches literally, `source_prefix` first. `{sample}` 
 
 A source without `{sample}` is a regular expression itself, starting with `^` and with the `sample` group, for a header no fixed text describes, such as Sage's file-name columns. The stored `rule_json` holds every source as the regular expression it matches.
 
-By default the primary layer's captures are the sample names, and every other layer keeps only columns whose capture is one of them. When the primary layer's header shape is shared by non-sample columns, `measurements.sample_layer` names the layer whose captures are the sample names instead. PEAKS sets it to `Sample_Mz`: only runs have `<run> m/z` columns, so group averages such as `A Normalized Area` are not samples. The sample layer is required, and long rules reject the field because their observations come from `columns.obs`.
+By default the primary layer's captures are the sample names, and every other layer keeps only columns whose capture is one of them. When the primary layer's header shape is shared by non-sample columns, `measurements.sample_layer` names the layer whose captures are the sample names instead. PEAKS sets it to its per-run `m_z` layer: only runs have `<run> m/z` columns, so group averages such as `A Normalized Area` are not samples. The sample layer is required, and long rules reject the field because their observations come from `columns.obs`.
 
 ## Table defaults
 
@@ -249,7 +202,9 @@ Each table's `base` opens with `defaults`: the values its column entries and lay
 - The base declares it; a level does not
 - Each table chooses its own values: MaxQuant's protein table makes var columns optional, as most of its columns are
 - An entry writes a value only where it differs from its table's, such as `"required": false` on an optional column
+- A var column that reads a vendor's text for a missing value declares it, as MaxQuant's `Score` writes `"missing_tokens": ["NaN"]`; the text reads as missing before the value, as in a layer
 - A factor layer takes `encoding_mode` and `required`; it has no `type`
+- The primary layer, the sample layer and a `keep_best` ranking layer are required, and state no `required`: apb2 converts no table without them, so composition writes `true`. A search-parameter override's primary layer is the required one under that evidence
 - Computed entries take none: they declare no `type` or `required`
 - The stored `rule_json` states every value on every entry and keeps no `defaults`
 
@@ -325,9 +280,7 @@ Map vendor columns to logical names first. A sequence computation consumes exact
       "token_position": "after_residue"
     }
   },
-  "modification_maps": {
-    "basic_modification_map": {"57.0215": "UNIMOD:4"}
-  },
+  "modification_map": {"57.0215": "UNIMOD:4"},
   "columns": {
     "var": [
       {"name": "Modified_Sequence", "source": "Modified Sequence"},
@@ -346,7 +299,7 @@ Map vendor columns to logical names first. A sequence computation consumes exact
 }
 ```
 
-`vendor_sequence` is an arbitrary local grammar name, not an input column. Syntax definitions contain no source or output names. Both registries merge base-to-level by name, replacing each same-named definition wholesale; references are validated after composition. A sequence column that names no `syntax` or `modification_map` takes the level's only one; where a level declares several, as AlphaDIA's plain and vendor syntaxes, each column names its own. A modification map gives each vendor token its Unimod accession.
+`vendor_sequence` is an arbitrary local grammar name, not an input column. Syntax definitions contain no source or output names. Syntaxes merge base-to-level by name, replacing each same-named definition wholesale; references are validated after composition. A sequence column that names no `syntax` takes the level's only one; where a level declares several, as AlphaDIA's plain and vendor syntaxes, each column names its own. A level has one `modification_map`, which gives each vendor token its Unimod accession; a level's own replaces its base's whole.
 
 | Syntax parser | Normalization inputs | Settings |
 | --- | --- | --- |
@@ -360,7 +313,7 @@ Every character that is not part of a declared token must be a residue letter (P
 
 A tool that names modifications but not their positions writes `ProForma_peptidoform_unlocalized` instead of `ProForma_peptidoform`: a `proforma_sequence` column of that name, which requires `embedded_site_list` syntax. Its sites may name residues only, as MaxQuant's `Oxidation (M)` does, and such a modification goes to ProForma's unknown-position group, `[UNIMOD:35]?PEPTMIDEMK`; a terminal site keeps its terminus. An optional `count` group in `entry_pattern` repeats the modification, `[UNIMOD:35][UNIMOD:35]?…` for `2 Oxidation (M)`, and an entry the pattern matches without a `token` group, such as `Unmodified`, adds none. `ProForma_peptidoform` refuses a site without a position.
 
-Stripping takes one logical sequence input and either token-regex syntax or `{"parser": "plain_sequence"}` for a bare sequence. It needs no modification map, Unimod lookup, or normalization operation. Normalization alone takes `modification_map`, `case_sensitive` (`true` or `false`), and `unknown_policy` (`preserve`, `drop`, or `error`), each written on the column. Unknown tokens are diagnostic metadata, not intermediate columns. Each operation memoizes its own distinct inputs.
+Stripping takes one logical sequence input and either token-regex syntax or `{"parser": "plain_sequence"}` for a bare sequence. It needs no modification map, Unimod lookup, or normalization operation. Normalization alone reads the level's `modification_map` and takes `case_sensitive` (`true` or `false`) and `unknown_policy` (`preserve`, `drop`, or `error`), each written on the column. Unknown tokens are diagnostic metadata, not intermediate columns. Each operation memoizes its own distinct inputs.
 
 When migrating from `0.7`, replace the global `modifications` block with named syntax/map definitions, add references to computations, and declare all site-list inputs through logical columns. Remove `source_column`, `sequence_column`, `modification_column`, `site_column`, and `output_column` from configuration definitions; column entries now own those dependencies and outputs. Schema `0.7` conversion rules are rejected, while previously written result artifacts remain readable without rewriting their provenance.
 
@@ -386,7 +339,7 @@ A numeric layer takes its logical `type`, `number` or `integer`, from the table'
   "repeated_cells": {"mode": "error"},
   "layers": [
     {"name": "Intensity", "source": "Intensity", "roles": ["abundance"], "missing_values": ["<=0"]},
-    {"name": "LFQ_Intensity", "source": "LFQ intensity", "roles": ["abundance"], "missing_values": ["<=0"]}
+    {"name": "LFQ_intensity", "source": "LFQ intensity", "roles": ["abundance"], "missing_values": ["<=0"]}
   ]
 }
 ```
@@ -401,7 +354,7 @@ Semantic rule roles are distinct from the result model's structural `Measurement
 
 ## Authoring and verification
 
-Each table places shared declarations under `base` and level-specific declarations under `levels.<level>`. Composition produces one effective rule using that table's input and validates all references at that boundary. Search-parameter overrides may replace `measurements.primary_layer` without changing the authored layer inventory.
+Each table places shared declarations under `base` and level-specific declarations under `levels.<level>`. A table with one level shares nothing, so its `base` holds only `defaults` and `sample_pattern` and the level holds the rest. A layer sits in `base` only where one file reports one level or the other, never both: Sage's `lfq.tsv` reports ions or peptidoforms, as `combine_charge_states` decides, and a WOMBAT-P export one of the two, as its `charge` column tells. Levels one joined table carries side by side, as MaxQuant's, each declare their own layers and `primary_layer`. Composition produces one effective rule using that table's input and validates all references at that boundary. Search-parameter overrides may replace `measurements.primary_layer` without changing the authored layer inventory.
 
 Run `make check` in the APB2 repository after changing rules. A rule migration also requires the conversion corpus described in the workspace instructions because schema validation alone cannot prove real vendor files still bind and convert.
 

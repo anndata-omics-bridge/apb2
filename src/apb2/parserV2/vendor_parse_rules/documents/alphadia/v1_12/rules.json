@@ -1,6 +1,6 @@
 {
-  "schema_version": "0.10",
-  "file_version": "5",
+  "schema_version": "0.11",
+  "file_version": "6",
   "software_name": "AlphaDIA",
   "software_version_pattern": "^1\\.12(?:\\.|-|$)",
   "hierarchy": "lfq",
@@ -14,79 +14,59 @@
           "var": {"type": "string", "required": true, "per_feature": "first"},
           "obs": {"type": "string", "required": true},
           "layers": {"encoding_mode": "numeric", "type": "number", "required": false}
-        },
-        "axis": {"obs_keys": ["run"]},
-        "measurements": {"repeated_cells": {"mode": "error"}},
-        "columns": {"obs": [{"name": "run", "source": "run"}]},
-        "sequence_syntax": {
-          "vendor_sequence": {"parser": "site_list", "delimiter": ";", "site_base": 1},
-          "plain_sequence": {"parser": "plain_sequence"}
-        },
-        "modification_maps": {
-          "basic_modification_map": {
-            "Carbamidomethyl@C": "UNIMOD:4",
-            "Oxidation@M": "UNIMOD:35",
-            "Acetyl@Protein_N-term": "UNIMOD:1"
-          }
         }
       },
       "levels": {
         "peptidoform_ion": {
-          "axis": {"var_keys": ["ProForma_ion"]},
+          "axis": {"obs_keys": ["run"], "var_keys": ["ProForma_ion"]},
           "measurements": {
-            "primary_layer": "Intensity",
+            "primary_layer": "intensity",
+            "repeated_cells": {"mode": "error"},
             "layers": [
               {
-                "name": "Intensity",
+                "name": "intensity",
                 "source": "intensity",
                 "roles": ["abundance"],
                 "missing_values": ["<=0"]
               },
-              {"name": "QValue", "source": "qval"},
-              {"name": "Proba", "source": "proba"},
-              {"name": "RT_Observed", "source": "rt_observed"},
+              {"name": "qval", "source": "qval"},
+              {"name": "proba", "source": "proba"},
+              {"name": "rt_observed", "source": "rt_observed"},
               {
-                "name": "RT_Calibrated",
+                "name": "rt_calibrated",
                 "source": "rt_calibrated",
-                "note": "The library RT calibrated into this run: where AlphaDIA expects the precursor to elute, not where it was observed"
+                "note": "Where AlphaDIA expects the precursor to elute in this run, not where it was observed"
               },
               {
-                "name": "RT_Library",
+                "name": "rt_library",
                 "source": "rt_library",
-                "note": "The spectral library RT; a layer because AlphaDIA writes it with run-to-run differences of up to 0.03 s"
+                "note": "A layer: AlphaDIA writes the library RT with run-to-run differences of up to 0.03 s"
               },
-              {
-                "name": "Cycle_FWHM",
-                "source": "cycle_fwhm",
-                "note": "Peak width at half maximum, counted in DIA cycles rather than time"
-              },
-              {
-                "name": "Mz_Observed",
-                "source": "mz_observed",
-                "note": "Measured in each run: differs across runs, unlike mz_library, so a layer."
-              },
-              {"name": "Mobility_Observed", "source": "mobility_observed"}
+              {"name": "cycle_fwhm", "source": "cycle_fwhm"},
+              {"name": "mz_observed", "source": "mz_observed"},
+              {"name": "mobility_observed", "source": "mobility_observed"}
             ]
           },
           "columns": {
+            "obs": [{"name": "run", "source": "run"}],
             "var": [
-              {"name": "Sequence", "source": "sequence"},
-              {"name": "Charge", "source": "charge", "type": "integer"},
-              {"name": "Mods", "source": "mods"},
-              {"name": "Mod_Sites", "source": "mod_sites"},
-              {"name": "Genes", "source": "genes"},
+              {"name": "sequence", "source": "sequence"},
+              {"name": "charge", "source": "charge", "type": "integer"},
+              {"name": "mods", "source": "mods"},
+              {"name": "mod_sites", "source": "mod_sites"},
+              {"name": "genes", "source": "genes"},
               {
-                "name": "Proteins",
+                "name": "proteins",
                 "source": "proteins",
                 "roles": ["protein_assignment", "fasta_accessions"]
               },
-              {"name": "Protein_Group", "source": "pg"},
-              {"name": "Protein_Group_Master", "source": "pg_master"},
-              {"name": "Decoy", "source": "decoy", "type": "boolean"},
-              {"name": "Channel", "source": "channel", "required": false},
+              {"name": "pg", "source": "pg"},
+              {"name": "pg_master", "source": "pg_master"},
+              {"name": "decoy", "source": "decoy", "type": "boolean"},
+              {"name": "channel", "source": "channel", "required": false},
               {
                 "name": "ProForma_peptidoform",
-                "inputs": ["Sequence", "Mods", "Mod_Sites"],
+                "inputs": ["sequence", "mods", "mod_sites"],
                 "how": "proforma_sequence",
                 "syntax": "vendor_sequence",
                 "case_sensitive": false,
@@ -94,18 +74,27 @@
               },
               {
                 "name": "ProForma_peptide",
-                "inputs": ["Sequence"],
+                "inputs": ["sequence"],
                 "how": "stripped_sequence",
                 "syntax": "plain_sequence"
               },
               {
                 "name": "ProForma_ion",
-                "inputs": ["ProForma_peptidoform", "Charge"],
+                "inputs": ["ProForma_peptidoform", "charge"],
                 "how": "proforma_ion"
               },
-              {"name": "apb_Decoy", "inputs": ["Decoy"], "how": "decoy", "equals": "true"},
+              {"name": "apb_Decoy", "inputs": ["decoy"], "how": "decoy", "equals": "true"},
               {"name": "apb_Contaminant", "how": "unmarked"}
             ]
+          },
+          "sequence_syntax": {
+            "vendor_sequence": {"parser": "site_list", "delimiter": ";", "site_base": 1},
+            "plain_sequence": {"parser": "plain_sequence"}
+          },
+          "modification_map": {
+            "Carbamidomethyl@C": "UNIMOD:4",
+            "Oxidation@M": "UNIMOD:35",
+            "Acetyl@Protein_N-term": "UNIMOD:1"
           }
         }
       }

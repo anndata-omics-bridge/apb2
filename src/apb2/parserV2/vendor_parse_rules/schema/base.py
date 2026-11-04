@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from apb2.parserV2.vendor_parse_rules.schema.hierarchy import HIERARCHIES
 
 type TableShape = Literal["long", "wide"]
-type SchemaVersion = Literal["0.10"]
+type SchemaVersion = Literal["0.11"]
 type QuantificationLevel = str
 type AxisColumnType = Literal["string", "integer", "number", "boolean"]
 type DuplicateMode = Literal["error", "same", "sum", "keep_best"]
@@ -19,7 +19,7 @@ type TokenPosition = Literal[
 ]
 type UnknownPolicy = Literal["preserve", "drop", "error"]
 
-SCHEMA_VERSION: SchemaVersion = "0.10"
+SCHEMA_VERSION: SchemaVersion = "0.11"
 
 LEVELS: tuple[QuantificationLevel, ...] = tuple(
     dict.fromkeys(level for identities in HIERARCHIES.values() for level, _identity in identities)

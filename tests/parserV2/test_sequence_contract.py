@@ -48,7 +48,6 @@ NORMALIZE: dict[str, Any] = {
     "how": "proforma_sequence",
     "inputs": ["Modified_Sequence"],
     "syntax": "vendor_sequence",
-    "modification_map": "basic_modification_map",
     "case_sensitive": False,
     "unknown_policy": "preserve",
 }
@@ -68,7 +67,7 @@ def base(operations: list[dict[str, Any]]) -> dict[str, Any]:
             ],
         },
         "sequence_syntax": {"vendor_sequence": deepcopy(INLINE)},
-        "modification_maps": {"basic_modification_map": {"ox": "UNIMOD:35"}},
+        "modification_map": {"ox": "UNIMOD:35"},
         "measurements": {
             "primary_layer": "Quantity",
             "layers": [{"name": "Quantity", "source": "quantity"}],
@@ -150,7 +149,7 @@ def test_stripping_needs_neither_normalization_nor_a_map_or_unimod(
 
     monkeypatch.setattr(type(UNIMOD_REGISTRY), "resolve", refuse_lookup)
     declaration = base([STRIP])
-    del declaration["modification_maps"]
+    del declaration["modification_map"]
     parsed = parse(tmp_path, document(declaration))
     assert parsed.var.frame["ProForma_peptide"].to_list() == ["ACMK"]
     assert "ProForma_peptidoform" not in parsed.var.frame
@@ -282,7 +281,6 @@ def test_diagnostics_and_errors_include_rows_discarded_after_identity_validation
         ("inputs", ["physical-only"], "undeclared"),
         ("inputs", ["Modified_Sequence", "Alternative"], "requires 1 inputs"),
         ("syntax", "missing", "missing syntax"),
-        ("modification_map", "missing", "missing map"),
         ("name", "ProForma_peptidoform_unlocalized", "requires embedded_site_list"),
     ],
 )
@@ -294,6 +292,13 @@ def test_invalid_dependencies_and_references_fail_before_reading(
     declaration = base([NORMALIZE])
     declaration["columns"]["var"][-1][field] = value
     with pytest.raises(ValidationError, match=match):
+        document(declaration).declared("peptidoform_ion")
+
+
+def test_a_proforma_column_needs_its_levels_modification_map() -> None:
+    declaration = base([NORMALIZE])
+    del declaration["modification_map"]
+    with pytest.raises(ValidationError, match="needs its level's modification_map"):
         document(declaration).declared("peptidoform_ion")
 
 
@@ -327,11 +332,11 @@ def test_named_definitions_are_replaced_whole_after_base_composition(tmp_path: P
                 "token_position": "after_residue",
             }
         },
-        "modification_maps": {"basic_modification_map": {"new": "UNIMOD:35"}},
+        "modification_map": {"new": "UNIMOD:35"},
     }
     built = document(declaration, level)
     effective = built.declared("peptidoform_ion").declaration
-    assert effective.modification_maps["basic_modification_map"] == {"new": "UNIMOD:35"}
+    assert effective.modification_map == {"new": "UNIMOD:35"}
     values = frame().with_columns(pl.lit("ACM[new]K").alias("vendor sequence"))
     assert parse(tmp_path, built, values).var.frame["ProForma_peptidoform"].to_list() == [
         "ACM[UNIMOD:35]K"
@@ -461,7 +466,7 @@ def test_declared_markers_are_removed_before_tokenizing() -> None:
     assert computer.transform(("PEP[x]TIDE_decoy",)).value == "PEPTIDE"
 
 
-@pytest.mark.parametrize("field", ["modification_map", "case_sensitive", "unknown_policy"])
+@pytest.mark.parametrize("field", ["case_sensitive", "unknown_policy"])
 def test_stripping_does_not_accept_normalization_only_fields(field: str) -> None:
     declaration = base([STRIP])
     declaration["columns"]["var"][-1][field] = NORMALIZE.get(field, False)

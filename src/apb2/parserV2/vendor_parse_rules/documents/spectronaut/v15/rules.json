@@ -1,6 +1,6 @@
 {
-  "schema_version": "0.10",
-  "file_version": "4",
+  "schema_version": "0.11",
+  "file_version": "5",
   "software_name": "Spectronaut",
   "software_version_pattern": "^15\\..*",
   "hierarchy": "lfq",
@@ -55,13 +55,11 @@
             "token_position": "after_residue"
           }
         },
-        "modification_maps": {
-          "basic_modification_map": {
-            "Acetyl (Protein N-term)": "UNIMOD:1",
-            "Oxidation (M)": "UNIMOD:35",
-            "Carbamidomethyl (C)": "UNIMOD:4",
-            "Deamidation (NQ)": "UNIMOD:7"
-          }
+        "modification_map": {
+          "Acetyl (Protein N-term)": "UNIMOD:1",
+          "Oxidation (M)": "UNIMOD:35",
+          "Carbamidomethyl (C)": "UNIMOD:4",
+          "Deamidation (NQ)": "UNIMOD:7"
         }
       },
       "levels": {
@@ -92,7 +90,7 @@
               {
                 "name": "EG_MeanApexRT",
                 "source": "EG.MeanApexRT",
-                "note": "Differs between runs for the same precursor, so a layer; equal to EG.ApexRT in most rows"
+                "note": "A layer: differs between runs for the same precursor"
               },
               {"name": "EG_iRTEmpirical", "source": "EG.iRTEmpirical"},
               {"name": "EG_RTPredicted", "source": "EG.RTPredicted"},
@@ -143,12 +141,7 @@
                 "type": "boolean"
               },
               {"name": "PEP_NrOfMissedCleavages", "source": "PEP.NrOfMissedCleavages"},
-              {
-                "name": "EG_iRTPredicted",
-                "source": "EG.iRTPredicted",
-                "type": "number",
-                "note": "The spectral library's iRT, the same in every run, so a var column"
-              },
+              {"name": "EG_iRTPredicted", "source": "EG.iRTPredicted", "type": "number"},
               {"name": "EG_AvgProfileQvalue", "source": "EG.AvgProfileQvalue", "type": "number"},
               {"name": "EG_MaxProfileQvalue", "source": "EG.MaxProfileQvalue", "type": "number"},
               {"name": "EG_MinProfileQvalue", "source": "EG.MinProfileQvalue", "type": "number"},
@@ -159,9 +152,9 @@
               {
                 "name": "ProForma_peptidoform",
                 "inputs": ["EG_ModifiedSequence"],
+                "how": "proforma_sequence",
                 "case_sensitive": false,
-                "unknown_policy": "preserve",
-                "how": "proforma_sequence"
+                "unknown_policy": "preserve"
               },
               {
                 "name": "ProForma_peptide",
@@ -211,9 +204,9 @@
               {
                 "name": "ProForma_peptidoform",
                 "inputs": ["EG_ModifiedSequence"],
+                "how": "proforma_sequence",
                 "case_sensitive": false,
-                "unknown_policy": "preserve",
-                "how": "proforma_sequence"
+                "unknown_policy": "preserve"
               },
               {
                 "name": "ProForma_peptide",
