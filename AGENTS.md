@@ -88,20 +88,20 @@ Parser V2 layers stay long until they are widened, last. A layer row names its c
 
 ## Dependency rules
 
-### MUST
+### Required
 
 - Declare every imported runtime dependency directly in `[project.dependencies]`.
 - Put tests, linting, typing, building, and documentation tools in dependency
   groups; optional user-facing capabilities belong in extras.
 - Update `pyproject.toml` and run `make check`; the repository commits no `uv.lock`.
 
-### SHOULD
+### Recommended
 
 - Prefer the standard library, then an existing direct dependency, then a small,
   maintained, typed dependency.
 - Keep source independent of test, build, documentation, and CLI-only packages.
 
-### MUST NOT
+### Forbidden
 
 - Depend on unpinned branches or undeclared transitive dependencies.
 - Add parallel manifests, lockfiles, formatters, type checkers, or test runners.
