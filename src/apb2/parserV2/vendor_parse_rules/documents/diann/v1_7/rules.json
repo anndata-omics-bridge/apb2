@@ -1,6 +1,6 @@
 {
   "schema_version": "0.11",
-  "file_version": "5",
+  "file_version": "6",
   "software_name": "DIA-NN",
   "software_version_pattern": "^1\\.[0-7](\\.|$)",
   "hierarchy": "lfq",
@@ -25,11 +25,7 @@
         "axis": {"obs_keys": ["Run"]},
         "columns": {
           "obs": [{"name": "Run", "source": "Run"}, {"name": "File_Name", "source": "File.Name"}],
-          "var": [
-            {"name": "Decoy", "source": "Decoy", "type": "boolean", "required": false},
-            {"name": "apb_Decoy", "inputs": ["Decoy"], "how": "decoy", "equals": "true"},
-            {"name": "apb_Contaminant", "how": "unmarked"}
-          ]
+          "var": [{"name": "apb_Contaminant", "how": "unmarked"}]
         },
         "sequence_syntax": {
           "vendor_sequence": {
@@ -77,7 +73,6 @@
               {"name": "Decoy_CScore", "source": "Decoy.CScore"},
               {"name": "Decoy_Evidence", "source": "Decoy.Evidence"},
               {"name": "Evidence", "source": "Evidence"},
-              {"name": "GG_Q_Value", "source": "GG.Q.Value"},
               {"name": "IM", "source": "IM"},
               {"name": "MS2_Scan", "source": "MS2.Scan"},
               {"name": "Mass_Evidence", "source": "Mass.Evidence"},
@@ -105,6 +100,8 @@
           },
           "columns": {
             "var": [
+              {"name": "Decoy", "source": "Decoy", "type": "boolean", "required": false},
+              {"name": "apb_Decoy", "inputs": ["Decoy"], "how": "decoy", "equals": "true"},
               {"name": "Modified_Sequence", "source": "Modified.Sequence"},
               {"name": "Stripped_Sequence", "source": "Stripped.Sequence"},
               {"name": "Precursor_Charge", "source": "Precursor.Charge", "type": "integer"},
@@ -112,7 +109,7 @@
               {"name": "Protein_Group", "source": "Protein.Group", "roles": ["protein_assignment"]},
               {"name": "Protein_Ids", "source": "Protein.Ids", "roles": ["fasta_accessions"]},
               {"name": "Protein_Names", "source": "Protein.Names"},
-              {"name": "Genes", "source": "Genes"},
+              {"name": "Genes", "source": "Genes", "roles": ["gene_assignment"]},
               {
                 "name": "Proteotypic",
                 "source": "Proteotypic",
@@ -166,6 +163,8 @@
           },
           "columns": {
             "var": [
+              {"name": "Decoy", "source": "Decoy", "type": "boolean", "required": false},
+              {"name": "apb_Decoy", "inputs": ["Decoy"], "how": "decoy", "equals": "true"},
               {"name": "Modified_Sequence", "source": "Modified.Sequence"},
               {"name": "Precursor_Charge", "source": "Precursor.Charge", "type": "integer"},
               {
@@ -226,16 +225,7 @@
                 "roles": ["abundance"],
                 "missing_values": ["<=0"]
               },
-              {
-                "name": "Genes_MaxLFQ",
-                "source": "Genes.MaxLFQ",
-                "roles": ["abundance"],
-                "missing_values": ["<=0"]
-              },
               {"name": "PG_Q_Value", "source": "PG.Q.Value"},
-              {"name": "Genes_MaxLFQ_Unique", "source": "Genes.MaxLFQ.Unique"},
-              {"name": "Genes_Normalised", "source": "Genes.Normalised"},
-              {"name": "Genes_Quantity", "source": "Genes.Quantity"},
               {
                 "name": "PG_MaxLFQ",
                 "source": "PG.MaxLFQ",
@@ -246,13 +236,15 @@
           },
           "columns": {
             "var": [
+              {"name": "Decoy", "source": "Decoy", "type": "boolean", "required": false},
+              {"name": "apb_Decoy", "inputs": ["Decoy"], "how": "decoy", "equals": "true"},
               {
                 "name": "Protein_Group",
                 "source": "Protein.Group",
                 "roles": ["protein_assignment", "fasta_accessions"]
               },
               {"name": "Protein_Names", "source": "Protein.Names"},
-              {"name": "Genes", "source": "Genes"},
+              {"name": "Genes", "source": "Genes", "roles": ["gene_assignment"]},
               {
                 "name": "First_Protein_Description",
                 "source": "First.Protein.Description",
@@ -266,6 +258,46 @@
                 "per_feature": "min",
                 "note": "DIA-NN writes 1.0 into the rows of precursors without a global q-value, so a group takes its smallest"
               }
+            ]
+          }
+        },
+        "gene": {
+          "axis": {"var_keys": ["Genes"]},
+          "measurements": {
+            "primary_layer": "Genes_Normalised",
+            "repeated_cells": {"mode": "same"},
+            "layers": [
+              {
+                "name": "Genes_MaxLFQ",
+                "source": "Genes.MaxLFQ",
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
+              },
+              {"name": "GG_Q_Value", "source": "GG.Q.Value"},
+              {
+                "name": "Genes_MaxLFQ_Unique",
+                "source": "Genes.MaxLFQ.Unique",
+                "missing_values": ["<=0"],
+                "note": "DIA-NN writes 0 on the rows of precursors that are not gene-unique"
+              },
+              {
+                "name": "Genes_Normalised",
+                "source": "Genes.Normalised",
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
+              },
+              {
+                "name": "Genes_Quantity",
+                "source": "Genes.Quantity",
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
+              }
+            ]
+          },
+          "columns": {
+            "var": [
+              {"name": "Genes", "source": "Genes", "roles": ["gene_assignment"]},
+              {"name": "apb_Decoy", "how": "unmarked"}
             ]
           }
         }

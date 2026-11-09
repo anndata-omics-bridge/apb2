@@ -1,6 +1,6 @@
 {
   "schema_version": "0.11",
-  "file_version": "9",
+  "file_version": "10",
   "software_name": "DIA-NN",
   "software_version_pattern": "^2\\..*",
   "hierarchy": "lfq",
@@ -32,11 +32,8 @@
             {"name": "Run_Index", "source": "Run.Index", "type": "integer", "required": false}
           ],
           "var": [
-            {"name": "Decoy", "source": "Decoy", "type": "boolean"},
-            {"name": "apb_Decoy", "inputs": ["Decoy"], "how": "decoy", "equals": "true"},
             {"name": "apb_Contaminant", "how": "unmarked"},
-            {"name": "Protein_Names", "source": "Protein.Names", "required": true},
-            {"name": "Genes", "source": "Genes", "required": true}
+            {"name": "Genes", "source": "Genes", "required": true, "roles": ["gene_assignment"]}
           ]
         },
         "sequence_syntax": {
@@ -96,7 +93,6 @@
               {"name": "Empirical_Quality", "source": "Empirical.Quality"},
               {"name": "Evidence", "source": "Evidence"},
               {"name": "FWHM", "source": "FWHM"},
-              {"name": "GG_Q_Value", "source": "GG.Q.Value"},
               {"name": "IM", "source": "IM"},
               {"name": "Mass_Evidence", "source": "Mass.Evidence"},
               {"name": "Ms1_Apex_Area", "source": "Ms1.Apex.Area"},
@@ -139,6 +135,9 @@
           ],
           "columns": {
             "var": [
+              {"name": "Decoy", "source": "Decoy", "type": "boolean"},
+              {"name": "apb_Decoy", "inputs": ["Decoy"], "how": "decoy", "equals": "true"},
+              {"name": "Protein_Names", "source": "Protein.Names", "required": true},
               {"name": "Modified_Sequence", "source": "Modified.Sequence", "required": true},
               {"name": "Stripped_Sequence", "source": "Stripped.Sequence", "required": true},
               {
@@ -219,36 +218,8 @@
                 "roles": ["abundance"],
                 "missing_values": ["<=0"]
               },
-              {
-                "name": "Genes_MaxLFQ",
-                "source": "Genes.MaxLFQ",
-                "roles": ["abundance"],
-                "missing_values": ["<=0"]
-              },
               {"name": "PG_Q_Value", "source": "PG.Q.Value"},
               {"name": "PG_PEP", "source": "PG.PEP"},
-              {
-                "name": "Genes_MaxLFQ_Empirical_Quality",
-                "source": "Genes.MaxLFQ.Empirical.Quality"
-              },
-              {
-                "name": "Genes_MaxLFQ_Empirical_Unique_Quality",
-                "source": "Genes.MaxLFQ.Empirical.Unique.Quality"
-              },
-              {"name": "Genes_MaxLFQ_Quality", "source": "Genes.MaxLFQ.Quality"},
-              {
-                "name": "Genes_MaxLFQ_Unique",
-                "source": "Genes.MaxLFQ.Unique",
-                "missing_values": ["<=0"],
-                "note": "DIA-NN writes 0 on a protein group's rows that are not gene-unique"
-              },
-              {
-                "name": "Genes_MaxLFQ_Unique_Quality",
-                "source": "Genes.MaxLFQ.Unique.Quality",
-                "missing_values": ["<=0"],
-                "note": "As for Genes_MaxLFQ_Unique"
-              },
-              {"name": "Genes_TopN", "source": "Genes.TopN"},
               {"name": "PG_MaxLFQ_Empirical_Quality", "source": "PG.MaxLFQ.Empirical.Quality"},
               {"name": "PG_MaxLFQ_Quality", "source": "PG.MaxLFQ.Quality"},
               {"name": "PG_TopN", "source": "PG.TopN"}
@@ -256,6 +227,9 @@
           },
           "columns": {
             "var": [
+              {"name": "Decoy", "source": "Decoy", "type": "boolean"},
+              {"name": "apb_Decoy", "inputs": ["Decoy"], "how": "decoy", "equals": "true"},
+              {"name": "Protein_Names", "source": "Protein.Names", "required": true},
               {
                 "name": "Protein_Group",
                 "source": "Protein.Group",
@@ -278,6 +252,45 @@
               }
             ]
           }
+        },
+        "gene": {
+          "axis": {"var_keys": ["Genes"]},
+          "measurements": {
+            "primary_layer": "Genes_MaxLFQ",
+            "repeated_cells": {"mode": "same"},
+            "layers": [
+              {
+                "name": "Genes_MaxLFQ",
+                "source": "Genes.MaxLFQ",
+                "roles": ["abundance"],
+                "missing_values": ["<=0"]
+              },
+              {"name": "GG_Q_Value", "source": "GG.Q.Value"},
+              {
+                "name": "Genes_MaxLFQ_Empirical_Quality",
+                "source": "Genes.MaxLFQ.Empirical.Quality"
+              },
+              {
+                "name": "Genes_MaxLFQ_Empirical_Unique_Quality",
+                "source": "Genes.MaxLFQ.Empirical.Unique.Quality"
+              },
+              {"name": "Genes_MaxLFQ_Quality", "source": "Genes.MaxLFQ.Quality"},
+              {
+                "name": "Genes_MaxLFQ_Unique",
+                "source": "Genes.MaxLFQ.Unique",
+                "missing_values": ["<=0"],
+                "note": "DIA-NN writes 0 on the rows of precursors that are not gene-unique"
+              },
+              {
+                "name": "Genes_MaxLFQ_Unique_Quality",
+                "source": "Genes.MaxLFQ.Unique.Quality",
+                "missing_values": ["<=0"],
+                "note": "As for Genes_MaxLFQ_Unique"
+              },
+              {"name": "Genes_TopN", "source": "Genes.TopN"}
+            ]
+          },
+          "columns": {"var": [{"name": "apb_Decoy", "how": "unmarked"}]}
         }
       }
     }

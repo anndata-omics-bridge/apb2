@@ -136,23 +136,31 @@ class ParserCollection:
         """Parse once while measuring each bound read and strategy execution.
 
         Each level's layer cells are parked once it is parsed, so the next level's parse
-        reuses their memory; see ``data/parking.py``.
+        reuses their memory; see ``data/parking.py``. A level whose rows all lack a key, as
+        DIA-NN's gene level of a report without gene names, has no feature: it is left out,
+        and the root ``levels_without_features`` names it.
         """
         levels: dict[QuantificationLevel, ParsedLevel] = {}
+        featureless: list[JsonValue] = []
         timings: list[LevelParseTimings] = []
         tables: dict[Path, InputTable] = {}
         for parser in self._parsers:
             parsed_level, timing, read = parser.parse_with_timings()
-            with logged_step("parse.park", level=parser.level):
-                self._parking.park(parsed_level)
-            levels[parser.level] = parsed_level
             timings.append(timing)
             for table in read:
                 tables.setdefault(table.file.path, table)
+            if parsed_level.var.frame.is_empty():
+                featureless.append(parser.level)
+                continue
+            with logged_step("parse.park", level=parser.level):
+                self._parking.park(parsed_level)
+            levels[parser.level] = parsed_level
         input_files = [*self._read, *(table.record() for table in tables.values())]
         uns: dict[str, JsonValue] = {
             "provenance": {**self._provenance, "input_files": cast(JsonValue, input_files)}
         }
+        if featureless:
+            uns["levels_without_features"] = featureless
         parsed = ParsedLevels(levels=levels, uns=uns, hierarchy=self._hierarchy)
         return parsed, tuple(timings)
 

@@ -2,6 +2,7 @@
   "obs": [],
   "var": [
     "fasta_accessions",
+    "gene_assignment",
     "protein_assignment"
   ],
   "layer": [

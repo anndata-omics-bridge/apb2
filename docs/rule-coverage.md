@@ -42,7 +42,7 @@ A rule document and the standard reader handle everything listed here. A prepara
 - Repeated cells: `error` (any second row stops), `same` (the rows are copies of one value, such as a protein value on each precursor row; an empty row gives way, differing values stop), `sum` (all rows added up), or `keep_best` (one row per cell by a ranking layer, with optional summed layers); none takes one layer from one row and another from a row holding a different value; another reduction is a new mode here, never hook work
 - `sum` leaves a cell null when nothing is present; it adds up every layer of the level, so it suits only levels whose layers are all additive
 - Primary layer, swapped by `search_parameter_overrides`
-- Semantic roles: `abundance`, `protein_assignment`, `fasta_accessions`
+- Semantic roles: `abundance`, `protein_assignment`, `fasta_accessions`, `gene_assignment`
 
 ## Not covered: hook territory
 

@@ -56,6 +56,7 @@ LEVEL_VAR_PREFIXES: Mapping[ParsedLevelName, str] = {
     "peptidoform": "pfm:",
     "peptide": "pep:",
     "protein": "prt:",
+    "gene": "gen:",
     "peptidoform_fragment": "pff:",
 }
 

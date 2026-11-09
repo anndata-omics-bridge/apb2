@@ -278,6 +278,81 @@ def test_packaged_conversion_without_a_level_writes_every_compatible_modality(
     assert [level["name"] for level in representation["levels"]] == list(stored.mod)
 
 
+def _diann_v2_with_gene_names(target: Path) -> tuple[Path, list[str]]:
+    """The committed DIA-NN 2 sample with synthetic gene names and per-gene values.
+
+    The first two protein groups share ``GENEA``, the last five and the rows without a protein
+    group carry no gene name, and every other group has a gene of its own; each run and gene
+    gets one value, as DIA-NN writes.
+    """
+    sample = pl.read_parquet(_diann_v2().required_data_path())
+    groups = sorted(group for group in sample.get_column("Protein.Group").unique() if group)
+    genes = ["GENEA", "GENEA", *(f"GENE{index}" for index in range(len(groups) - 7)), *[""] * 5]
+    named = pl.col("Genes") != ""
+    value = (pl.col("Run").rank("dense") * 1000 + pl.col("Genes").rank("dense")).cast(pl.Float32)
+    sample = (
+        sample.drop("Genes")
+        .join(
+            pl.DataFrame({"Protein.Group": groups, "Genes": genes}),
+            on="Protein.Group",
+            how="left",
+            maintain_order="left",
+        )
+        .with_columns(pl.col("Genes").fill_null(""))
+        .with_columns(
+            pl.when(named).then(value).otherwise(0.0).cast(pl.Float32).alias(column)
+            for column in ("Genes.MaxLFQ", "Genes.TopN")
+        )
+        .with_columns(
+            pl.when(named & (pl.col("Precursor.Charge") == 2))
+            .then(pl.col("Genes.MaxLFQ"))
+            .otherwise(0.0)
+            .cast(pl.Float32)
+            .alias("Genes.MaxLFQ.Unique"),
+            pl.when(named).then(value / 1e6).otherwise(1.0).cast(pl.Float32).alias("GG.Q.Value"),
+        )
+    )
+    data = target / "report.parquet"
+    sample.write_parquet(data)
+    return data, sorted({gene for gene in genes if gene})
+
+
+def test_a_diann_report_with_gene_names_converts_a_gene_level(tmp_path: Path) -> None:
+    data, genes = _diann_v2_with_gene_names(tmp_path)
+
+    parsed = ParseRuleCompiler.detect(data, _parameter_file(_diann_v2())).compile().parse()
+
+    assert list(parsed.levels) == ["peptidoform_ion", "protein", "gene"]
+    assert parsed.hierarchy is not None
+    assert parsed.hierarchy.level_names[-2:] == ("protein", "gene")
+    gene, protein, ion = (parsed.levels[level] for level in ("gene", "protein", "peptidoform_ion"))
+    assert gene.var.key_columns == ("Genes",)
+    assert sorted(gene.var.frame.get_column("Genes").to_list()) == genes
+    assert "Decoy" not in gene.var.frame.columns
+    assert gene.primary_layer_name == "Genes_MaxLFQ"
+    assert {"Genes_MaxLFQ", "Genes_MaxLFQ_Unique", "GG_Q_Value"} <= set(gene.layers)
+    assert not any(name.startswith("Genes_") for name in protein.layers)
+    assert "GG_Q_Value" not in ion.layers
+    assert protein.var.roles["gene_assignment"] == "Genes"
+    assert ion.var.roles["gene_assignment"] == "Genes"
+    shared = protein.var.frame.filter(pl.col("Genes") == "GENEA")
+    assert shared.height == 2
+    assert "levels_without_features" not in parsed.uns
+
+
+def test_a_diann_report_without_gene_names_has_no_gene_level(tmp_path: Path) -> None:
+    pair = _diann_v2()
+    target = tmp_path / "all.parquet"
+
+    parsed = (
+        ParseRuleCompiler.detect(pair.required_data_path(), _parameter_file(pair)).compile().parse()
+    )
+    formats.write_parsed_levels(parsed, target)
+
+    assert list(parsed.levels) == ["peptidoform_ion", "protein"]
+    assert formats.read_parsed_levels(target).uns["levels_without_features"] == ["gene"]
+
+
 @pytest.mark.parametrize(
     "suffix",
     (".h5mu", ".parquet", ".duckdb"),

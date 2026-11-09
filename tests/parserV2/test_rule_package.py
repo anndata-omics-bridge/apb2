@@ -89,11 +89,12 @@ _NON_PRIMARY_ABUNDANCE: dict[tuple[str, QuantificationLevel], tuple[str, ...]] =
         "ms1_int_max_area",
     ),
     ("diann/v1_8", "peptidoform_ion"): ("Ms1_Normalised", "Precursor_Quantity", "Ms1_Area"),
-    ("diann/v1_8", "protein"): ("PG_Normalised", "PG_Quantity", "Genes_MaxLFQ"),
+    ("diann/v1_8", "protein"): ("PG_Normalised", "PG_Quantity"),
+    ("diann/v1_8", "gene"): ("Genes_Normalised", "Genes_Quantity"),
     ("diann/v1_7", "peptidoform_ion"): ("Precursor_Quantity", "Ms1_Area"),
-    ("diann/v1_7", "protein"): ("PG_Quantity", "PG_MaxLFQ", "Genes_MaxLFQ"),
+    ("diann/v1_7", "protein"): ("PG_Quantity", "PG_MaxLFQ"),
+    ("diann/v1_7", "gene"): ("Genes_MaxLFQ", "Genes_Quantity"),
     ("diann/v2", "peptidoform_ion"): ("Ms1_Normalised", "Precursor_Quantity", "Ms1_Area"),
-    ("diann/v2", "protein"): ("Genes_MaxLFQ",),
     ("maxquant_wide", "peptide"): ("LFQ_intensity",),
     ("maxquant_wide", "protein"): ("LFQ_intensity", "iBAQ"),
     ("msangel", "peptidoform_ion"): ("raw_abundance",),
@@ -167,7 +168,7 @@ def test_entry_shaped_columns_project_roles_and_runtime_selections(tmp_path: Pat
 def test_role_configuration_owns_the_role_vocabulary() -> None:
     assert {
         "obs": frozenset(),
-        "var": frozenset({"fasta_accessions", "protein_assignment"}),
+        "var": frozenset({"fasta_accessions", "gene_assignment", "protein_assignment"}),
         "layer": frozenset({"abundance"}),
     } == ROLE_CONFIG
 
@@ -583,8 +584,9 @@ def test_protein_assignment_names_the_group_not_its_accessions(
     pair = next(candidate for candidate in document_pairs() if candidate.key == document_key)
     document = load_rule_document(pair.parser_v2_path)
     roles = ParseRuleFacade(document, level, NO_EVIDENCE).working_parameters.column_roles
+    protein_roles = {role: name for role, name in roles.items() if role != "gene_assignment"}
 
-    assert roles == {
+    assert protein_roles == {
         "protein_assignment": protein_assignment,
         "fasta_accessions": fasta_accessions,
     }
@@ -1772,11 +1774,11 @@ def test_both_rule_shapes_are_represented_by_the_packaged_generation() -> None:
         for pair, level in level_pairs()
     ]
 
-    assert sum(isinstance(rule, LongRule) for rule in shapes) == 25
+    assert sum(isinstance(rule, LongRule) for rule in shapes) == 28
     assert sum(isinstance(rule, WideRule) for rule in shapes) == 14
     modes = [rule.measurements.repeated_cells.mode for rule in shapes]
     assert modes.count("error") == 21
-    assert modes.count("same") == 15
+    assert modes.count("same") == 18
     assert modes.count("keep_best") == 3
     assert modes.count("sum") == 0
     assert sum(isinstance(rule.fragments, ColumnLabeledFragments) for rule in shapes) == 1
@@ -1797,7 +1799,14 @@ def test_packaged_levels_declare_reachable_hierarchy_identities(
     assert level in hierarchy
     roles = {role: column.name for column in rule.columns.var for role in column.roles}
     available = {*rule.axis.var_keys, *(column.name for column in rule.columns.var)}
-    coarser = list(hierarchy)[list(hierarchy).index(level) + 1 :]
+    # Every packaged level reaches protein; a gene identity only where the document has a gene
+    # level, as DIA-NN's has.
+    levels = load_rule_document(pair.parser_v2_path).levels
+    coarser = [
+        name
+        for name in list(hierarchy)[list(hierarchy).index(level) + 1 :]
+        if name != "gene" or "gene" in levels
+    ]
     assert not coarser or any(
         roles.get(hierarchy[name], hierarchy[name]) in available for name in coarser
     )

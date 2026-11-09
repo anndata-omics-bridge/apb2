@@ -110,7 +110,7 @@ P2	b	21
 }
 ```
 
-`hierarchy` names a level hierarchy from [hierarchies.json](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/schema/hierarchies.json), and every level the document declares must belong to it. Quantification tables use `lfq`, which runs from `peptidoform_fragment` to `protein` and identifies a `protein` feature by its `protein_assignment` column; `psm` and `ptm_site` cover PSM and modification-site tables.
+`hierarchy` names a level hierarchy from [hierarchies.json](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/schema/hierarchies.json), and every level the document declares must belong to it. Quantification tables use `lfq`, which runs from `peptidoform_fragment` to `protein` and then `gene`, and identifies a `protein` feature by its `protein_assignment` column and a `gene` feature by its `gene_assignment` column; `psm` and `ptm_site` cover PSM and modification-site tables.
 
 Convert it with:
 
@@ -324,10 +324,10 @@ Roles state what a column or layer means; apart from the protein-list format bel
 | Owner | Allowed roles |
 | --- | --- |
 | `obs` | none |
-| `var` | `fasta_accessions`, `protein_assignment` |
+| `var` | `fasta_accessions`, `gene_assignment`, `protein_assignment` |
 | `layer` | `abundance` |
 
-A var role identifies one logical column. Both var roles name a protein list, so conversion writes their column `;`-separated whatever the vendor used: `A, B` and `A,B` become `A;B`, and a column declaring `"separator": ":"`, as PEAKS does, splits on `:` too. A layer role may occur on several layers because raw, normalized, MS1, MS2, LFQ, iBAQ, peak-area, and other abundance measurements can coexist.
+A var role identifies one logical column. `gene_assignment` names a level's gene group, as DIA-NN's `Genes`, so an ion or protein links to its gene as it links to its protein. The two protein roles name a protein list, so conversion writes their column `;`-separated whatever the vendor used: `A, B` and `A,B` become `A;B`, and a column declaring `"separator": ":"`, as PEAKS does, splits on `:` too. A layer role may occur on several layers because raw, normalized, MS1, MS2, LFQ, iBAQ, peak-area, and other abundance measurements can coexist.
 
 `measurements.primary_layer` is separate: it names the one layer projected to AnnData `X` and makes that source required. It does not imply that sibling abundance layers are auxiliary or semantically unclassified.
 

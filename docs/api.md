@@ -27,7 +27,7 @@ The initial categories are `DDA` and `DIA`; a rule can belong to both. Each vari
 from apb2.api import FIXED_COLUMNS, VAR_ROLES
 ```
 
-`FIXED_COLUMNS` names the columns APB2 writes under the same name for every vendor: `ProForma_peptide`, `ProForma_peptidoform`, `ProForma_peptidoform_unlocalized`, `ProForma_ion`, `ProForma_fragment`, `apb_Decoy` and `apb_Contaminant`. Which of them a level carries depends on its rule. `VAR_ROLES` is the set of roles a rule may give a var column (`fasta_accessions`, `protein_assignment`). apb-catalog's `apb` set gives each of them a kind and checks that none lacks one.
+`FIXED_COLUMNS` names the columns APB2 writes under the same name for every vendor: `ProForma_peptide`, `ProForma_peptidoform`, `ProForma_peptidoform_unlocalized`, `ProForma_ion`, `ProForma_fragment`, `apb_Decoy` and `apb_Contaminant`. Which of them a level carries depends on its rule. `VAR_ROLES` is the set of roles a rule may give a var column (`fasta_accessions`, `gene_assignment`, `protein_assignment`). apb-catalog's `apb` set gives each of them a kind and checks that none lacks one.
 
 ## Convert vendor results
 
@@ -238,4 +238,4 @@ been moved into this user reference.
 
 ## Level hierarchies
 
-Packaged rules name a hierarchy from `hierarchies.json`: `lfq` (peptidoform_fragment, peptidoform_ion, peptidoform, peptide, protein), `psm` (psm, peptidoform_ion, peptidoform, peptide, protein), or `ptm_site` (peptidoform, multisite, site). Level names are open and validated against the declared hierarchy. The collection persists its hierarchy name and complete ordered identities under `uns["apb"]["hierarchy"]`; custom results remain interpretable without the packaged rule configuration. Parser output aligns explicitly declared sample keys to their ordered union, retaining missing cells; readers and writers reject differing observation axes. Parquet uses format version 9 and DuckDB version 8.
+Packaged rules name a hierarchy from `hierarchies.json`: `lfq` (peptidoform_fragment, peptidoform_ion, peptidoform, peptide, protein, gene), `psm` (psm, peptidoform_ion, peptidoform, peptide, protein), or `ptm_site` (peptidoform, multisite, site). Level names are open and validated against the declared hierarchy. The collection persists its hierarchy name and complete ordered identities under `uns["apb"]["hierarchy"]`; custom results remain interpretable without the packaged rule configuration. Parser output aligns explicitly declared sample keys to their ordered union, retaining missing cells; readers and writers reject differing observation axes. Parquet uses format version 9 and DuckDB version 8.

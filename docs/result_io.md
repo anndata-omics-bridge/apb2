@@ -78,7 +78,7 @@ An h5ad writer requires exactly one level. An h5mu writer accepts one or more le
 
 ### Semantic rule roles
 
-Rules may assign semantic `roles` directly to var-column and measurement-layer entries. The packaged [role policy](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/schema/role_policy.json) owns both the vocabulary and its permitted declaration owners: `fasta_accessions` and `protein_assignment` belong to `var`, while `abundance` belongs to `layer`.
+Rules may assign semantic `roles` directly to var-column and measurement-layer entries. The packaged [role policy](https://github.com/anndata-omics-bridge/apb2/blob/main/src/apb2/parserV2/vendor_parse_rules/schema/role_policy.json) owns both the vocabulary and its permitted declaration owners: `fasta_accessions`, `gene_assignment` and `protein_assignment` belong to `var`, while `abundance` belongs to `layer`.
 
 Conversion assigns these declarations to each level's var columns and layers. `columns` maps each semantic role to one var-column name. `layers` maps each semantic role to the ordered names of all retained layers carrying it; several raw, normalized, MS1, MS2, LFQ, iBAQ, or peak-based layers may therefore share `abundance`. Absent optional layers and pruned columns carry no role.
 

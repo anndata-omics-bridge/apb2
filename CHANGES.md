@@ -1,5 +1,11 @@
 # Changes
 
+## 2026-11-09
+
+- **Breaking:** DIA-NN 1.7, 1.8 and 2 convert a `gene` level, one feature per `Genes` string, the gene group DIA-NN quantifies. It holds the `Genes.*` layers, which leave the protein level, and `GG.Q.Value`, which leaves the ion level; its primary layer is `Genes_MaxLFQ`, `Genes_Normalised` in 1.7. The `lfq` hierarchy ends `protein`, `gene`, and the var role `gene_assignment` on `Genes` links each ion and protein to its gene. In DIA-NN 2, `Protein_Names`, `Decoy` and `apb_Decoy` move from `base` into the ion and protein levels; the gene level marks no decoys. An h5mu names gene features `gen:<Genes>`
+- `Genes_MaxLFQ_Unique` in 1.7 and 1.8 reads `<=0` as missing, as 2 does: DIA-NN 1.8 writes 0 on the rows of precursors that are not gene-unique (TPCPA: 33,923 run and gene cells with a 0 beside a value). `Genes_Normalised` and `Genes_Quantity` carry `abundance` and `<=0`, as their `PG_*` counterparts do
+- A level whose rows all lack a complete key has no feature: it is left out, and the root parse record's `levels_without_features` names it. A DIA-NN report without gene names converts without a `gene` level
+
 ## 2026-11-04
 
 - **Breaking**, rule schema `0.11`: a level has one unnamed `modification_map`, the token-to-Unimod object, where `0.10` wrote `modification_maps: {"<name>": {...}}`; a `proforma_sequence` entry names no map and reads its level's, and a level's own map replaces its base's whole. Every packaged rule moves to `0.11`, its `file_version` raised
