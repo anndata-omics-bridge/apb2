@@ -86,6 +86,7 @@ def test_the_serialization_covers_every_source_decision_without_provenance() -> 
         "duplicate_ranking",
         "var_duplicates",
         "layer_values",
+        "layer_versions",
         "layer_contract",
     }
     assert set(decoded["read"]) == {field.name for field in dataclasses.fields(plan.read)}

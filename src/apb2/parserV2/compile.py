@@ -194,6 +194,7 @@ class ParseRuleCompiler:
                 software_slug(document.software_name if software is None else software),
             )
         )
+        version = None if parameter_file is None else parameter_file.parameters.software_version
         try:
             selections = ExplicitRuleCompiler(
                 document,
@@ -202,13 +203,14 @@ class ParseRuleCompiler:
                 UNKNOWN_SEARCH_PARAMETERS
                 if parameter_file is None
                 else search_parameter_evidence(parameter_file.parameters),
+                version,
                 checks=checks,
             ).selections
         except RuleNotApplicable as error:
             raise ConversionError(str(error)) from error
         detection = DetectedRuleSet(
             software=software_slug(document.software_name),
-            version=None if parameter_file is None else parameter_file.parameters.software_version,
+            version=version,
             levels=selections,
         )
         return cls(detection, parameter_file)
@@ -241,12 +243,17 @@ class ExplicitRuleCompiler:
         source: InputSource,
         requested_levels: Iterable[QuantificationLevel],
         parameter_evidence: SearchParameterEvidence,
+        software_version: str | None = None,
         *,
         checks: ValidationChecks = "standard",
     ) -> None:
         levels = _validated_levels(requested_levels)
         selections = select_document_levels(
-            document, source, levels, KnownParameters(parameter_evidence), checks=checks
+            document,
+            source,
+            levels,
+            KnownParameters(parameter_evidence, software_version),
+            checks=checks,
         )
         if not selections:
             names = {

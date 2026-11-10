@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
-from typing import Literal
+from typing import Literal, Protocol
 
 import polars as pl
 
@@ -117,11 +117,67 @@ class _ResolvedLayers:
         )
 
 
+class _VersionedSource(Protocol):
+    """An axis selection or a long layer: one name read from one source by some versions."""
+
+    @property
+    def name(self) -> str: ...
+
+    @property
+    def source(self) -> str: ...
+
+    @property
+    def version(self) -> str | None: ...
+
+
 @dataclass(frozen=True, slots=True)
 class SourcePlanResolver:
-    """Bind one working configuration without depending on vendor-rule storage."""
+    """Bind one working configuration without depending on vendor-rule storage.
+
+    ``_software_version``, from a parameter file, is the version the entries a header picks
+    must admit; ``None`` admits every one.
+    """
 
     _configuration: WorkingParseConfiguration
+    _software_version: str | None = None
+
+    def _carried[T: _VersionedSource](
+        self, entries: Iterable[T], present: frozenset[str]
+    ) -> tuple[T, ...]:
+        """The entries whose source this header carries: one per name, of the known version.
+
+        Entries of one name, each with a ``version``, read one column the vendor spells
+        differently across versions, so a header carrying two of their sources is refused,
+        and so is one carrying a source the known software version never writes.
+        """
+        carried = tuple(entry for entry in entries if entry.source in present)
+        sources: dict[str, list[str]] = {}
+        for entry in carried:
+            sources.setdefault(entry.name, []).append(entry.source)
+        repeated = {name: found for name, found in sources.items() if len(found) > 1}
+        if repeated:
+            raise IncompatibleSourceError(
+                f"{self._label()} reads one source per name; this source carries {repeated}"
+            )
+        version = self._software_version
+        refused = [
+            f"{entry.source!r}, written by versions {entry.version}"
+            for entry in carried
+            if version is not None
+            and entry.version is not None
+            and re.search(entry.version, version) is None
+        ]
+        if refused:
+            raise IncompatibleSourceError(
+                f"{self._label()}: this source carries {'; '.join(refused)}, which software "
+                f"version {version} does not write"
+            )
+        return carried
+
+    @staticmethod
+    def _versions(entries: Iterable[_VersionedSource]) -> dict[str, str]:
+        """The version of each picked entry that has one: what the header says of the version."""
+        return {entry.name: entry.version for entry in entries if entry.version is not None}
 
     # -------------------------------------------------------------------- source resolution
 
@@ -176,6 +232,7 @@ class SourcePlanResolver:
                 "layer_values": [
                     {"layer_name": layer.name, "value": layer.value} for layer in layers.retained
                 ],
+                "layer_versions": self._versions(layers.retained),
                 "layer_contract": {
                     "primary_layer_name": validator.primary_layer_name,
                     "required_names": validator.required_names,
@@ -262,16 +319,13 @@ class SourcePlanResolver:
             )
         selections = (
             *declaration.required_selections,
-            *(
-                selection
-                for selection in declaration.optional_selections
-                if selection.source in present
-            ),
+            *self._carried(declaration.optional_selections, present),
         )
+        picked = {selection.name for selection in selections}
         skipped = {
             selection.name
             for selection in declaration.optional_selections
-            if selection.source not in present
+            if selection.name not in picked
         }
         raw_sources, computers = self._materializable(
             declaration.computed, selections, synthesized, skipped
@@ -311,6 +365,7 @@ class SourcePlanResolver:
                 "output_phase": output_json,
                 "outputs": outputs,
                 "skipped": frozenset(skipped),
+                "versions": self._versions(selections),
             },
         )
 
@@ -397,7 +452,7 @@ class SourcePlanResolver:
                 f"{self._label()} requires layer source column(s) {missing} that this source "
                 "does not carry"
             )
-        retained = tuple(layer for layer in measurements.layers if layer.source in present)
+        retained = self._carried(measurements.layers, present)
         return _ResolvedLayers(
             retained=retained,
             required_names=tuple(layer.name for layer in retained if layer.name in required),

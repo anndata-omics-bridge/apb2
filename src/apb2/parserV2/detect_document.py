@@ -50,6 +50,11 @@ class TableSource(Protocol):
     @property
     def path(self) -> Path: ...
 
+    def named_files(self, declared_name: str | None) -> tuple[Path, ...]:
+        """The files of this source its document names, which a level that refuses them makes
+        invalid input rather than an unavailable level."""
+        ...
+
     def header(self, working: WorkingParseConfiguration) -> tuple[str, ...]: ...
 
     def parser(self, facade: ParseRuleFacade, checks: Literal["standard", "strict"]) -> Parser: ...
@@ -62,12 +67,18 @@ class LevelEvidence(Protocol):
         self, document: RuleDocument, level: QuantificationLevel, source: TableSource
     ) -> SearchParameterEvidence: ...
 
+    @property
+    def software_version(self) -> str | None:
+        """The version a parameter file names, which each entry a header picks must admit."""
+        ...
+
 
 @dataclass(frozen=True, slots=True)
 class KnownParameters:
     """Evidence from a parameter file, or the unknown evidence of a parameter-free rule."""
 
     evidence: SearchParameterEvidence
+    software_version: str | None = None
 
     def for_level(
         self, document: RuleDocument, level: QuantificationLevel, source: TableSource
@@ -78,6 +89,11 @@ class KnownParameters:
 
 class ColumnSignature:
     """Evidence a known producer's table columns imply when no parameter file exists."""
+
+    @property
+    def software_version(self) -> None:
+        """No parameter file names a version; the header's own entries say what it can."""
+        return None
 
     def for_level(
         self, document: RuleDocument, level: QuantificationLevel, source: TableSource
@@ -214,7 +230,7 @@ def detect_rule_documents(
                 if name is not None:
                     expected_names[level].add(name)
         for selection in select_document_levels(
-            document, source, requested, KnownParameters(evidence), checks=checks
+            document, source, requested, KnownParameters(evidence, version), checks=checks
         ):
             matches[selection.level].append(selection)
 
@@ -396,11 +412,14 @@ def _detect_table_levels(
     for level in requested:
         if level not in document.levels:
             continue
-        declared_name = document.table_input(level).file_name
-        if declared_name is not None and make_vendor_file(source.path).name == declared_name:
-            named_tables.add(source.path)
+        named_tables.update(source.named_files(document.table_input(level).file_name))
         try:
-            facade = ParseRuleFacade(document, level, evidence.for_level(document, level, source))
+            facade = ParseRuleFacade(
+                document,
+                level,
+                evidence.for_level(document, level, source),
+                evidence.software_version,
+            )
             parser = source.parser(facade, checks)
         except RuleNotApplicable:
             continue

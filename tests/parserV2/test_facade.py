@@ -1292,7 +1292,7 @@ def test_the_facade_exposes_only_resolution_and_header_only_construction() -> No
 
     assert public == {"from_declared_rule", "resolve_source"}
     assert isinstance(ParseRuleFacade.working_parameters, property)
-    assert ParseRuleFacade.__slots__ == ("_configuration",)
+    assert ParseRuleFacade.__slots__ == ("_configuration", "_software_version")
 
 
 def test_the_facade_retains_no_rule_model_after_construction() -> None:
@@ -1303,7 +1303,7 @@ def test_the_facade_retains_no_rule_model_after_construction() -> None:
 
     assert not _contains_model(facade.working_parameters)
     assert not _contains_model(facade.resolve_source(delimited(pair.header())))
-    assert vars(ParseRuleFacade).get("__slots__") == ("_configuration",)
+    assert vars(ParseRuleFacade).get("__slots__") == ("_configuration", "_software_version")
 
 
 def test_a_resolved_plan_carries_every_field_the_compiler_destructures() -> None:

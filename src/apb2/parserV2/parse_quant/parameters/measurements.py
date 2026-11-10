@@ -77,6 +77,8 @@ class WorkingMeasurementLayer:
     source: str
     value: LayerValueDeclaration
     roles: tuple[str, ...] = ()
+    version: str | None = None
+    """The software versions whose files carry ``source``, as on an axis selection."""
 
 
 @dataclass(frozen=True, slots=True)

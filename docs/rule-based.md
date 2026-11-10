@@ -222,6 +222,7 @@ Every other value with a real choice is written where it applies: `hierarchy` an
 - `type`: `string`, `integer`, `number`, or `boolean`; from the table's `defaults` unless written
 - `roles`: semantic meanings owned by this entry
 - `note`: why the entry is placed or read as it is; parsing ignores it. Layers and computed entries take one too
+- `version`: the software versions whose files carry `source`, a regex searched in the version as `software_version_pattern` is; absent means every version. A long table's layers take one too. See [Columns that differ by version](#columns-that-differ-by-version)
 - `per_feature` (var only; from the table's `defaults` unless written): how a feature's repeated rows become one value. `first` keeps the first nonblank value and reports features whose rows disagree as `var_disagreements`; `min` and `max` keep the smallest or largest number, for a tool that writes a placeholder into some rows; `best_row` takes the value from the row the level's `rank_rows` keeps
 
 `rank_rows`, written once per level beside its `columns`, names the required numeric var column that ranks a feature's repeated rows, `by`, and which value wins, `best` (`highest` or `lowest`). The level keeps that row before the feature table and the layers are built, so its `best_row` columns and every layer describe the same row, such as the protein set a shared peptide is assigned to; a long table keeps the best row's rows in every run.
@@ -249,7 +250,23 @@ Computed entries replace `source` with `how` and `inputs`, and declare no `type`
 ]
 ```
 
-Supported computations are `coalesce`, `join_nonempty`, `stripped_sequence`, `proforma_sequence`, `proforma_ion`, `proforma_fragment`, `decoy`, `contaminant`, and `unmarked`. Entry names must be unique within each axis group, final axis keys must name required materialized entries, and computed dependencies must be available in declaration order.
+Supported computations are `coalesce`, `join_nonempty`, `stripped_sequence`, `proforma_sequence`, `proforma_ion`, `proforma_fragment`, `decoy`, `contaminant`, and `unmarked`. Entry names must be unique within each axis group and among the layers, ignoring case, as DuckDB's column names are, except for entries tagged with `version` below; final axis keys must name required materialized entries, and computed dependencies must be available in declaration order.
+
+## Columns that differ by version
+
+One rule covers several versions of a tool. Where a version renames a column, or alone writes one, its entries carry `version`. MaxQuant 1.5.2.8 writes `Leading Proteins`, later versions `Leading proteins`; both read into one column:
+
+```json
+{"name": "Leading_proteins", "source": "Leading Proteins", "version": "^1\\.5\\.[0-2](\\.|$)"},
+{"name": "Leading_proteins", "source": "Leading proteins", "version": "^(1\\.5\\.([3-9]|\\d{2,})|1\\.6|2\\.)"}
+```
+
+- Entries of one name each carry `version`, share the exact name and agree on everything but `source`, `version` and `note`; names equal ignoring case are otherwise refused
+- A tagged entry is optional; keys and the primary, sample and ranking layers are never tagged
+- A file reads the tagged entry whose source its header carries; a header carrying two sources of one name is refused
+- With a parameter file, the picked entry's `version` must admit the version it names, or the level is refused; without one, the plan records the picked entries' versions, which is what the header says of the version
+- A column only some versions write is one tagged entry, as an untagged optional one would hide which versions carry it
+- The stored `rule_json` keeps every tagged entry; `plan_json` names the picked ones (`obs.versions`, `var.versions`, `layer_versions`)
 
 ## Decoys and contaminants
 

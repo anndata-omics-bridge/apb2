@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Iterable, Sequence
 from typing import Annotated, Literal
@@ -13,6 +14,7 @@ from apb2.parserV2.vendor_parse_rules.schema.axis import (
     FLAG_COLUMNS,
     Axis,
     Coalesce,
+    ColumnEntry,
     ColumnGroup,
     ComputedColumn,
     JoinNonempty,
@@ -21,6 +23,7 @@ from apb2.parserV2.vendor_parse_rules.schema.axis import (
     ProformaIon,
     ProformaSequence,
     RankRows,
+    SourcedColumn,
     SourcedVarColumn,
     StrippedSequence,
     VarEntry,
@@ -44,7 +47,12 @@ from apb2.parserV2.vendor_parse_rules.schema.base_modifications import (
 )
 from apb2.parserV2.vendor_parse_rules.schema.fragments import Fragments
 from apb2.parserV2.vendor_parse_rules.schema.hierarchy import HIERARCHIES
-from apb2.parserV2.vendor_parse_rules.schema.measurements import Measurements
+from apb2.parserV2.vendor_parse_rules.schema.measurements import (
+    FactorLayer,
+    Layer,
+    Measurements,
+    NumericLayer,
+)
 from apb2.parserV2.vendor_parse_rules.schema.parameters import (
     ConditionValue,
     SearchParameterField,
@@ -90,9 +98,8 @@ class _RuleCore(ModelBase):
             raise ValueError(
                 f"level {self.quantification_level!r} is absent from hierarchy {self.hierarchy!r}"
             )
+        _check_names("measurement layer names", self.measurements.layers)
         names = [layer.name for layer in self.measurements.layers]
-        if len(names) != len(set(names)):
-            raise ValueError("measurement layer names must be unique")
         if self.measurements.primary_layer not in set(names):
             raise ValueError(
                 f"measurements.primary_layer={self.measurements.primary_layer!r} matches no "
@@ -175,6 +182,8 @@ class WideRule(_RuleCore):
     @model_validator(mode="after")
     def _column_consistency(self) -> WideRule:
         for layer in self.measurements.layers:
+            if layer.version is not None:
+                raise ValueError(f"Layer {layer.name!r}: a wide layer carries no version")
             try:
                 pattern = re.compile(layer.source)
             except re.error as error:
@@ -220,10 +229,44 @@ def _check_forbidden_columns(forbidden: Sequence[str], sources: Iterable[str]) -
         raise ValueError(f"forbidden_columns {read} are sources the level reads")
 
 
+def _check_names(kind: str, entries: Sequence[ColumnEntry] | Sequence[Layer]) -> None:
+    """Names are unique ignoring case, as DuckDB's column names are.
+
+    The exception is a column the vendor spells differently across versions: entries of one
+    exact name, each with a ``version``, which a file picks by the source its header carries.
+    They agree on all but ``source``, ``version`` and ``note``, and are optional, as no file of
+    other versions carries their source.
+    """
+    by_name: dict[str, list[ColumnEntry | Layer]] = {}
+    for entry in entries:
+        if _version(entry) is not None and entry.required:
+            raise ValueError(f"{entry.name!r}: an entry with a version is not required")
+        by_name.setdefault(entry.name.casefold(), []).append(entry)
+    for clash in (group for group in by_name.values() if len(group) > 1):
+        names = sorted({entry.name for entry in clash})
+        if len(names) > 1 or any(_version(entry) is None for entry in clash):
+            raise ValueError(
+                f"{kind} must be unique ignoring case, unless every entry of one name "
+                f"carries a version: {names}"
+            )
+        shared = {
+            json.dumps(entry.model_dump(exclude={"source", "version", "note"}), sort_keys=True)
+            for entry in clash
+        }
+        if len(shared) > 1:
+            raise ValueError(
+                f"entries named {names[0]!r} differ in more than source, version and note"
+            )
+
+
+def _version(entry: ColumnEntry | Layer) -> str | None:
+    """The versions an entry's source is written by; ``None`` for all, and on computed ones."""
+    return entry.version if isinstance(entry, SourcedColumn | NumericLayer | FactorLayer) else None
+
+
 def _check_column_group(keys: list[str], group: ColumnGroup, owner: RoleOwner) -> None:
+    _check_names("column entry names", group)
     names = [entry.name for entry in group]
-    if len(set(names)) != len(names):
-        raise ValueError("column entry names must be unique")
     declared = set(names)
     missing = [key for key in keys if key not in declared]
     if missing:
@@ -234,9 +277,9 @@ def _check_column_group(keys: list[str], group: ColumnGroup, owner: RoleOwner) -
     optional = [key for key in keys if key in optional_names]
     if optional:
         raise ValueError(f"axis.{owner}_keys must not be optional: {optional}")
-    role_columns: list[tuple[SemanticRole, str]] = [
-        (role, entry.name) for entry in group for role in entry.roles
-    ]
+    role_columns: list[tuple[SemanticRole, str]] = list(
+        dict.fromkeys((role, entry.name) for entry in group for role in entry.roles)
+    )
     if owner == "var" and any(entry.roles and entry.type != "string" for entry in group):
         raise ValueError("every var role requires a string-typed column")
     _check_role_owners(owner, (role for role, _name in role_columns))

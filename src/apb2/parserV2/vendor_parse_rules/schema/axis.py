@@ -13,6 +13,7 @@ from apb2.parserV2.vendor_parse_rules.schema.base import (
     Note,
     PerFeature,
     UnknownPolicy,
+    VersionPattern,
 )
 from apb2.parserV2.vendor_parse_rules.schema.roles import SemanticRole
 
@@ -222,6 +223,7 @@ class SourcedColumn(ModelBase):
 
     name: str
     source: str
+    version: VersionPattern = None
     type: AxisColumnType
     required: bool
     roles: list[SemanticRole] = Field(default_factory=list)

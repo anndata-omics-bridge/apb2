@@ -145,16 +145,20 @@ from apb2.parserV2.vendor_parse_rules.schema.rule import LongRule, WideRule
 class ParseRuleFacade:
     """One simplified interface over rule composition, projection, and source resolution."""
 
-    __slots__ = ("_configuration",)
+    __slots__ = ("_configuration", "_software_version")
 
     def __init__(
         self,
         document: RuleDocument,
         level: QuantificationLevel,
         parameter_evidence: SearchParameterEvidence,
+        software_version: str | None = None,
     ) -> None:
+        """``software_version``, from a parameter file, is checked against the ``version`` of
+        each entry a source's header picks; ``None`` checks nothing."""
         effective = document.rule(level, parameter_evidence)
         self._configuration = self._project_effective_rule(effective)
+        self._software_version = software_version
 
     @classmethod
     def from_declared_rule(
@@ -165,6 +169,7 @@ class ParseRuleFacade:
         """Construct the header-only recognition view, without a gate or override."""
         facade = cls.__new__(cls)
         facade._configuration = cls._project_effective_rule(document.declared(level))
+        facade._software_version = None
         return facade
 
     @property
@@ -412,7 +417,7 @@ class ParseRuleFacade:
                 ParseRuleFacade._project_computed(column, rule)
                 for column in computed_columns(group)
             ),
-            declared_order=tuple(column.name for column in group),
+            declared_order=tuple(dict.fromkeys(column.name for column in group)),
         )
 
     @staticmethod
@@ -432,6 +437,7 @@ class ParseRuleFacade:
                 missing_tokens=tuple(column.missing_tokens)
                 if isinstance(column, SourcedVarColumn)
                 else (),
+                version=column.version if isinstance(column, SourcedColumn) else None,
             )
             for column in group
             if column.source is not None and column.required is required
@@ -529,6 +535,7 @@ class ParseRuleFacade:
             source=layer.source,
             value=ParseRuleFacade._project_layer_value(layer),
             roles=tuple(layer.roles),
+            version=layer.version,
         )
 
     @staticmethod
@@ -631,4 +638,6 @@ class ParseRuleFacade:
         self, evidence: SourceEvidence, *, checks: Literal["standard", "strict"] = "standard"
     ) -> ParseStrategy:
         """Resolve this declaration against one observed physical source."""
-        return SourcePlanResolver(self._configuration).resolve(evidence, checks=checks)
+        return SourcePlanResolver(self._configuration, self._software_version).resolve(
+            evidence, checks=checks
+        )

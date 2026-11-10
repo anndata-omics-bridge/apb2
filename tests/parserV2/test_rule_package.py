@@ -310,11 +310,13 @@ def test_the_primary_layer_names_exactly_one_layer_and_is_required(
 ) -> None:
     rule = load_rule_document(pair.parser_v2_path).declared(level).declaration
     names = [layer.name for layer in rule.measurements.layers]
+    untagged = [layer.name for layer in rule.measurements.layers if layer.version is None]
     primary = [
         layer for layer in rule.measurements.layers if layer.name == rule.measurements.primary_layer
     ]
 
-    assert len(names) == len(set(names))
+    # Only layers with a version share a name: one column spelled per version.
+    assert len(untagged) == len(set(untagged))
     assert len(primary) == 1
     assert layer_required(rule.measurements, primary[0])
     assert "abundance" in primary[0].roles

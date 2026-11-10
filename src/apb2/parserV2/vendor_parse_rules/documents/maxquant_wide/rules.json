@@ -1,6 +1,6 @@
 {
   "schema_version": "0.11",
-  "file_version": "5",
+  "file_version": "6",
   "software_name": "MaxQuant",
   "software_version_pattern": "^(1\\.5|1\\.6|2\\.)",
   "hierarchy": "lfq",
@@ -35,7 +35,18 @@
                 "roles": ["abundance"],
                 "missing_values": ["<=0"]
               },
-              {"name": "MS_MS_count", "source": "MS/MS count", "type": "integer"},
+              {
+                "name": "MS_MS_count",
+                "source": "MS/MS Count",
+                "version": "^1\\.5\\.[0-7](\\.|$)",
+                "type": "integer"
+              },
+              {
+                "name": "MS_MS_count",
+                "source": "MS/MS count",
+                "version": "^(1\\.5\\.([89]|\\d{2,})|1\\.6|2\\.)",
+                "type": "integer"
+              },
               {"name": "Retention_time", "source": "Retention time"},
               {"name": "Retention_length", "source": "Retention length"},
               {"name": "Calibrated_retention_time", "source": "Calibrated retention time"},
@@ -81,14 +92,35 @@
               {
                 "name": "Proteins",
                 "source": "Proteins",
-                "inputs": ["Proteins", "Leading_proteins", "Leading_Proteins"],
+                "inputs": ["Proteins", "Leading_proteins"],
                 "how": "coalesce",
                 "roles": ["fasta_accessions"]
               },
-              {"name": "Leading_proteins", "source": "Leading proteins"},
-              {"name": "Leading_razor_protein", "source": "Leading razor protein"},
-              {"name": "Leading_Proteins", "source": "Leading Proteins"},
-              {"name": "Leading_Razor_Protein", "source": "Leading Razor Protein"},
+              {
+                "name": "Leading_proteins",
+                "source": "Leading Proteins",
+                "version": "^1\\.5\\.[0-2](\\.|$)"
+              },
+              {
+                "name": "Leading_proteins",
+                "source": "Leading proteins",
+                "version": "^(1\\.5\\.([3-9]|\\d{2,})|1\\.6|2\\.)"
+              },
+              {
+                "name": "Leading_razor_protein",
+                "source": "Leading Razor Protein",
+                "version": "^1\\.5\\.[0-2](\\.|$)"
+              },
+              {
+                "name": "Leading_razor_protein",
+                "source": "Leading razor protein",
+                "version": "^(1\\.5\\.([3-9]|\\d{2,})|1\\.6|2\\.[0-7](\\.|$))"
+              },
+              {
+                "name": "Leading_razor_protein",
+                "source": "Leading razor proteins",
+                "version": "^2\\.([89]|\\d{2,})(\\.|$)"
+              },
               {"name": "protein_Protein_IDs", "source": "Protein IDs", "source_prefix": "protein."},
               {
                 "name": "Protein_IDs",
@@ -113,10 +145,10 @@
                 "inputs": ["ProForma_peptidoform", "Charge"],
                 "how": "proforma_ion"
               },
-              {"name": "Reverse", "source": "Reverse"},
-              {"name": "Decoy", "source": "Decoy"},
+              {"name": "Reverse", "source": "Reverse", "version": "^(1\\.|2\\.[0-7](\\.|$))"},
+              {"name": "Reverse", "source": "Decoy", "version": "^2\\.([89]|\\d{2,})(\\.|$)"},
               {"name": "Potential_contaminant", "source": "Potential contaminant"},
-              {"name": "apb_Decoy", "inputs": ["Reverse", "Decoy"], "how": "decoy", "equals": "+"},
+              {"name": "apb_Decoy", "inputs": ["Reverse"], "how": "decoy", "equals": "+"},
               {
                 "name": "apb_Contaminant",
                 "inputs": ["Potential_contaminant"],
@@ -156,10 +188,10 @@
         "columns": {
           "var": [
             {"name": "Score", "source": "Score", "type": "number", "missing_tokens": ["NaN"]},
-            {"name": "Reverse", "source": "Reverse"},
-            {"name": "Decoy", "source": "Decoy"},
+            {"name": "Reverse", "source": "Reverse", "version": "^(1\\.|2\\.[0-7](\\.|$))"},
+            {"name": "Reverse", "source": "Decoy", "version": "^2\\.([89]|\\d{2,})(\\.|$)"},
             {"name": "Potential_contaminant", "source": "Potential contaminant"},
-            {"name": "apb_Decoy", "inputs": ["Reverse", "Decoy"], "how": "decoy", "equals": "+"},
+            {"name": "apb_Decoy", "inputs": ["Reverse"], "how": "decoy", "equals": "+"},
             {
               "name": "apb_Contaminant",
               "inputs": ["Potential_contaminant"],

@@ -51,6 +51,12 @@ class AxisColumnSelection:
     """On the var axis, how a feature's repeated rows become one value; obs keeps the first."""
     missing_tokens: tuple[str, ...] = ()
     """Text the vendor writes for a missing value; read as missing before the value."""
+    version: str | None = None
+    """The software versions whose files carry ``source``, a regex; ``None`` for every version.
+
+    Selections of one name, each with a version, read one column the vendor spells
+    differently across versions; a source picks the one whose ``source`` it carries.
+    """
 
 
 # ---------------------------------------------------------------------------- axis identity

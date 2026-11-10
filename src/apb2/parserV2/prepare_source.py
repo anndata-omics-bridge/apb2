@@ -77,6 +77,10 @@ class PreparedTable:
     input_tables: tuple[InputTable, ...]
     duration_seconds: float
 
+    def named_files(self, declared_name: str | None) -> tuple[Path, ...]:
+        """Every input the preparation identified, whatever its file is called."""
+        return tuple(table.file.path for table in self.input_tables)
+
     def header(self, working: WorkingParseConfiguration) -> tuple[str, ...]:
         """The joined columns; a level's own predicate decides whether it can use them."""
         return tuple(self.frame.columns)

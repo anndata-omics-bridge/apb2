@@ -123,6 +123,10 @@ class PhysicalTable:
         """The table file on disk."""
         return self.file.path
 
+    def named_files(self, declared_name: str | None) -> tuple[Path, ...]:
+        """This file, when it carries the name its document declares for the table."""
+        return (self.path,) if declared_name is not None and self.file.name == declared_name else ()
+
     def header(self, working: WorkingParseConfiguration) -> tuple[str, ...]:
         """The header the level accepts, read without inspecting data rows."""
         return BoundTable(self.file, working.input).header(working.accepts_header)

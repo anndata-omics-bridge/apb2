@@ -1,5 +1,12 @@
 # Changes
 
+## 2026-11-10
+
+- **Breaking:** a prepared input, such as a MaxQuant or AlphaDIA folder, whose tables no requested level of the group accepts is invalid input, as a named table file already was: `RuleUnavailableError` says "declared table(s) … are present but incompatible" and gives each level's reason. It had read "requested level … is unavailable", and with other groups converting, that group's levels were left out
+- A sourced column entry, and a long table's layer, may carry `version`, the software versions whose files carry its source. Entries of one name, each tagged, read one column a vendor spells differently across versions: a file reads the one whose source its header carries, a header with two is refused, and with a parameter file the picked entry must admit its version. `plan_json` records the picked versions (`obs.versions`, `var.versions`, `layer_versions`); every stored `rule_json` entry gains `"version"`, `null` where untagged
+- Names in a level's column groups and layers must be unique ignoring case, as DuckDB's column names are, unless every entry of the name carries `version`. MaxQuant's evidence level declared `Leading_proteins` and `Leading_Proteins`, one column in two versions' spelling, and a result holding both could not be read back from DuckDB
+- **Breaking**, MaxQuant (`file_version` 6): `Leading_proteins` reads `Leading Proteins` (1.5.2.8) or `Leading proteins`; `Leading_Proteins` is gone. `Leading_razor_protein` reads `Leading Razor Protein`, `Leading razor protein` or 2.8's `Leading razor proteins`; `Leading_Razor_Protein` is gone. `MS_MS_count` reads `MS/MS Count` (1.5 up to 1.5.7) too. `Reverse` reads 2.8's `Decoy`, in evidence and the wide tables, and `Decoy` is gone; `apb_Decoy` reads `Reverse` alone
+
 ## 2026-11-09
 
 - **Breaking:** DIA-NN 1.7, 1.8 and 2 convert a `gene` level, one feature per `Genes` string, the gene group DIA-NN quantifies. It holds the `Genes.*` layers, which leave the protein level, and `GG.Q.Value`, which leaves the ion level; its primary layer is `Genes_MaxLFQ`, `Genes_Normalised` in 1.7. The `lfq` hierarchy ends `protein`, `gene`, and the var role `gene_assignment` on `Genes` links each ion and protein to its gene. In DIA-NN 2, `Protein_Names`, `Decoy` and `apb_Decoy` move from `base` into the ion and protein levels; the gene level marks no decoys. An h5mu names gene features `gen:<Genes>`

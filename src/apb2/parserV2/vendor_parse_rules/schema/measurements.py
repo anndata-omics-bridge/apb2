@@ -7,7 +7,12 @@ from typing import Annotated, Literal
 
 from pydantic import Field, model_validator
 
-from apb2.parserV2.vendor_parse_rules.schema.base import DuplicateMode, ModelBase, Note
+from apb2.parserV2.vendor_parse_rules.schema.base import (
+    DuplicateMode,
+    ModelBase,
+    Note,
+    VersionPattern,
+)
 from apb2.parserV2.vendor_parse_rules.schema.roles import SemanticRole
 
 _MISSING_BOUND = r"^<=\s*(-?\d+(?:\.\d+)?)$"
@@ -97,6 +102,7 @@ class NumericLayer(ModelBase):
     type: Literal["number", "integer"]
     name: str
     source: str
+    version: VersionPattern = None
     missing_values: list[float | MissingBound] = Field(default_factory=list)
     missing_tokens: list[str] = Field(default_factory=list)
     """Text the vendor writes for a missing value, such as ``-`` or ``NA``; such cells are
@@ -135,6 +141,7 @@ class FactorLayer(ModelBase):
     encoding_mode: Literal["factor"]
     name: str
     source: str
+    version: VersionPattern = None
     categories: dict[str, int] = Field(min_length=1)
     required: bool
     roles: list[SemanticRole] = Field(default_factory=list)

@@ -491,6 +491,10 @@
           "title": "Source",
           "type": "string"
         },
+        "version": {
+          "$ref": "#/$defs/VersionPattern",
+          "default": null
+        },
         "categories": {
           "additionalProperties": {
             "type": "integer"
@@ -924,6 +928,10 @@
         "source": {
           "title": "Source",
           "type": "string"
+        },
+        "version": {
+          "$ref": "#/$defs/VersionPattern",
+          "default": null
         },
         "missing_values": {
           "items": {
@@ -1467,6 +1475,10 @@
           "title": "Source",
           "type": "string"
         },
+        "version": {
+          "$ref": "#/$defs/VersionPattern",
+          "default": null
+        },
         "type": {
           "$ref": "#/$defs/AxisColumnType"
         },
@@ -1519,6 +1531,10 @@
         "source": {
           "title": "Source",
           "type": "string"
+        },
+        "version": {
+          "$ref": "#/$defs/VersionPattern",
+          "default": null
         },
         "type": {
           "$ref": "#/$defs/AxisColumnType"
@@ -1779,6 +1795,18 @@
           "$ref": "#/$defs/ComputedColumn"
         }
       ]
+    },
+    "VersionPattern": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "The software versions whose files carry the entry's source, a regex searched in the version as software_version_pattern is; entries of one name, each with a version, read one column the vendor spells differently across versions"
     },
     "WideColumns": {
       "additionalProperties": false,

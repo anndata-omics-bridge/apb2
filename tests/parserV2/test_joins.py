@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from io import StringIO
 from itertools import combinations
 from pathlib import Path
@@ -25,6 +26,7 @@ from apb2.parserV2 import prepare_source as preparation_module
 from apb2.parserV2.detect_document import (
     UNKNOWN_SEARCH_PARAMETERS,
     KnownParameters,
+    RuleUnavailableError,
     detect_rule_documents,
     select_document_levels,
 )
@@ -597,11 +599,14 @@ def test_a_forbidden_column_survives_a_preparations_column_selection(tmp_path: P
     ion["forbidden_columns"] = ["evidence.Mod. peptide ID"]
     document = make_rule_document(tmp_path / "rules.json", payload)
 
-    selected = select_document_levels(
-        document, Folder(inputs), ("peptidoform_ion",), KnownParameters(UNKNOWN_SEARCH_PARAMETERS)
-    )
-
-    assert selected == ()
+    # The prepared evidence names the column, so the only requested level refuses it.
+    with pytest.raises(RuleUnavailableError, match=re.escape("['evidence.Mod. peptide ID']")):
+        select_document_levels(
+            document,
+            Folder(inputs),
+            ("peptidoform_ion",),
+            KnownParameters(UNKNOWN_SEARCH_PARAMETERS),
+        )
 
 
 def test_each_preparation_reads_each_of_its_inputs_once(
