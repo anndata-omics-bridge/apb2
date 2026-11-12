@@ -260,7 +260,7 @@ Every set under [apb-catalog's `data/sources/`](https://github.com/anndata-omics
 
 - Variant: `software_name` + `software_version_pattern` + `level`, each equal to the rule's
 - `entries`: only fields the set's consumer reads ([Maintaining](https://anndata-omics-bridge.github.io/apb-catalog/maintaining/))
-- `docs/catalogues.md`: a `none relevant` row per set
+- `docs/sets.md`: a `none relevant` row per set
 - apb-catalog installs `../apb2`; a missing set fails its `make check`:
 
 ```text

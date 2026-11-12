@@ -1,5 +1,9 @@
 # Changes
 
+## 2026-11-11
+
+- **Breaking**, DIA-NN 1.7 (`file_version` 7): samples are keyed by `File_Name` from `File.Name`, which every 1.7 report writes; `Run` is optional. Reports without `Run`, such as TPCPA's, had matched no rule since 2026-11-04
+
 ## 2026-11-10
 
 - **Breaking:** a prepared input, such as a MaxQuant or AlphaDIA folder, whose tables no requested level of the group accepts is invalid input, as a named table file already was: `RuleUnavailableError` says "declared table(s) … are present but incompatible" and gives each level's reason. It had read "requested level … is unavailable", and with other groups converting, that group's levels were left out

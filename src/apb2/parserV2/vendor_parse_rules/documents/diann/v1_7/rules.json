@@ -1,6 +1,6 @@
 {
   "schema_version": "0.11",
-  "file_version": "6",
+  "file_version": "7",
   "software_name": "DIA-NN",
   "software_version_pattern": "^1\\.[0-7](\\.|$)",
   "hierarchy": "lfq",
@@ -22,9 +22,12 @@
           "obs": {"type": "string", "required": true},
           "layers": {"encoding_mode": "numeric", "type": "number", "required": false}
         },
-        "axis": {"obs_keys": ["Run"]},
+        "axis": {"obs_keys": ["File_Name"]},
         "columns": {
-          "obs": [{"name": "Run", "source": "Run"}, {"name": "File_Name", "source": "File.Name"}],
+          "obs": [
+            {"name": "File_Name", "source": "File.Name"},
+            {"name": "Run", "source": "Run", "required": false}
+          ],
           "var": [{"name": "apb_Contaminant", "how": "unmarked"}]
         },
         "sequence_syntax": {
