@@ -12,12 +12,19 @@ input format can usually be supported by adding or updating a rule instead of wr
 reader. The [rules-driven conversion guide](rule-based.md) shows this with equivalent long- and
 wide-format examples.
 
+Try it online:
+
+- [Rules viewer](https://fgcz-ms.uzh.ch/public/apb-rules/): every vendor table's parse rules, as apb2 packages them
+- [Catalog viewer](https://fgcz-ms.uzh.ch/public/apb-catalog/): every catalog set with its entries and coverage
+- [APB Studio](https://fgcz-ms.uzh.ch/public/apb-studio/): APB's corpus runs over the test vendor files
+- [APB Export](https://apps-dev.bfabric.org/apb-export/): convert a vendor table for a downstream tool in the browser
+
 APB2 was discussed and started during the Copenhagen ProteoBench Hackathon, 13–17 April 2026, as
 part of the work to improve the backend of the
 [ProteoBench platform](https://proteobench.cubimed.rub.de/).
 
 Existing vendor-specific readers for differential expression/abundance analysis provided a second motivation. They are maintained behind
-[`prolfquapp::preprocess_software()`](https://github.com/prolfqua/prolfquapp/blob/master/R/preprocess_software.R#L137)
+[`prolfquapp::preprocess_software()`](https://prolfqua.github.io/prolfquapp/man/preprocess_software.html)
 and in
 [`prolfquappPTMreaders`](https://github.com/prolfqua/prolfquappPTMreaders). We plan to move their
 [remaining input variants and PTM/site-level formats](supported_software.md#planned-prolfquapp-migrations)
