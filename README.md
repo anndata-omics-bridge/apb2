@@ -18,6 +18,8 @@ Read the rendered [APB2 documentation](https://anndata-omics-bridge.github.io/ap
 every packaged software version, quantification level, vendor input type, table shape, and
 parameter parser.
 
+The [rules viewer](https://fgcz-ms.uzh.ch/public/apb-rules/) shows every packaged rule document and each level's effective declarations in the browser.
+
 Choose the documentation for your interface:
 
 - [CLI reference](https://anndata-omics-bridge.github.io/apb2/cli/) and [command-line guides](https://anndata-omics-bridge.github.io/apb2/conversion/)
