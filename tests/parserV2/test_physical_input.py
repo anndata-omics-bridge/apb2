@@ -35,7 +35,7 @@ from apb2.parserV2.parse_quant.parameters.source import (
 )
 from apb2.parserV2.parse_quant.parameters.vendor_file import make_vendor_file
 from apb2.parserV2.parse_rule_facade import ParseRuleFacade
-from apb2.parserV2.prepare_source import PreparationInputs
+from apb2.parserV2.prepare_source import InputPreparationError, PreparationInputs
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from parserV2 import synthetic
 from parserV2.fixtures import PackagedDocument, document_pairs
@@ -836,3 +836,55 @@ def test_every_cached_vendor_export_resolves_to_one_unambiguous_reading(
     else:
         assert isinstance(bound.format, DelimitedFormatContract)
         assert evidence.number_format in bound.format.number_format_candidates
+
+
+def _mztab(path: Path, *rows: tuple[str, ...]) -> Path:
+    path.write_text("".join("\t".join(row) + "\n" for row in rows), encoding="utf-8")
+    return path
+
+
+def test_an_mztab_file_is_bound_and_read_as_its_stacked_long_tables(tmp_path: Path) -> None:
+    path = _mztab(
+        tmp_path / "result.mzTab",
+        ("COM", "comments may come first"),
+        ("MTD", "mzTab-version", "1.0.0"),
+        ("MTD", "ms_run[1]-location", "file://a.mzML"),
+        ("MTD", "assay[1]-ms_run_ref", "ms_run[1]"),
+        ("PRH", "accession", "protein_abundance_assay[1]"),
+        ("PRT", "P1", "10"),
+    )
+
+    inputs = PreparationInputs.identify(SingleFile(path), "mztab")
+    prepared = inputs.prepare(path)
+
+    assert list(inputs.tables) == ["mztab"]
+    assert prepared.frame.rows(named=True) == [
+        {
+            "PRT.accession": "P1",
+            "assay": "assay[1]",
+            "PRT.protein_abundance": "10",
+            "assay:ms_run_ref": "ms_run[1]",
+            "ms_run:key": "ms_run[1]",
+            "ms_run:location": "file://a.mzML",
+        }
+    ]
+    assert prepared.input_tables[0].file.format == "mztab"
+    assert prepared.input_tables[0].columns == ("PRH", "accession", "protein_abundance_assay[1]")
+
+
+def test_a_pre_1_0_mztab_file_is_refused(tmp_path: Path) -> None:
+    path = _mztab(
+        tmp_path / "legacy.mzTab",
+        ("MTD", "PRIDE_1-title", "an old file"),
+        ("PRH", "accession", "unit_id", "protein_abundance_sub[1]"),
+        ("PRT", "P1", "PRIDE_1", "10"),
+    )
+
+    with pytest.raises(InputPreparationError, match=r"pre-1\.0 mzTab"):
+        PreparationInputs.identify(SingleFile(path), "mztab")
+
+
+def test_a_delimited_table_is_not_bound_as_mztab(tmp_path: Path) -> None:
+    path = _mztab(tmp_path / "report.tsv", ("Protein", "Intensity"), ("P1", "10"))
+
+    assert not PreparationInputs.identify(SingleFile(path), "mztab").tables

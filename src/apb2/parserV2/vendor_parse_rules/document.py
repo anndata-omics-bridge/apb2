@@ -85,7 +85,13 @@ class _PreparationSchema(ModelBase):
     """Select a registered function; the level rules describe its output."""
 
     how: Literal[
-        "alphadia", "maxquant_wide", "maxquant_evidence", "metamorpheus", "msangel", "wombat"
+        "alphadia",
+        "maxquant_wide",
+        "maxquant_evidence",
+        "metamorpheus",
+        "msangel",
+        "mztab",
+        "wombat",
     ]
 
 

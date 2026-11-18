@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import tempfile
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -12,7 +13,7 @@ from typing import Literal, Self
 import polars as pl
 from loguru import logger
 
-from apb2.parserV2.joins import alphadia, maxquant, metamorpheus, msangel, wombat
+from apb2.parserV2.joins import alphadia, maxquant, metamorpheus, msangel, mztab, wombat
 from apb2.parserV2.parse_quant.data.errors import ConversionError
 from apb2.parserV2.parse_quant.data.step_log import logged_step
 from apb2.parserV2.parse_quant.errors import IncompatibleSourceError
@@ -49,6 +50,37 @@ class _Preparation:
     """
     sheets: tuple[str, ...] = ()
     """The workbook sheets the join reads; a join naming none reads delimited text files."""
+    table: Callable[[VendorFile], _Table] | None = None
+    """How the join reads a file apb2 cannot read as one table, such as an mzTab file."""
+
+
+@dataclass(frozen=True, slots=True)
+class _MzTabTable:
+    """An mzTab file: metadata and several sections, which its reader stacks into one table."""
+
+    file: VendorFile
+
+    @property
+    def name(self) -> str:
+        return self.file.name
+
+    @property
+    def path(self) -> Path:
+        return self.file.path
+
+    @property
+    def format(self) -> str:
+        return "mztab"
+
+    def header(self) -> tuple[str, ...]:
+        """The first section header, read no further than that."""
+        with self.file.open_text("utf-8-sig") as handle:
+            return mztab.first_section_header(handle)
+
+    def read(self, columns: list[str] | None) -> pl.DataFrame:
+        """Every long table of the file, stacked; the reader reads every column."""
+        with tempfile.TemporaryDirectory(prefix="apb2-mztab-") as workdir:
+            return mztab.write_long_tables(self.path, Path(workdir)).stacked().collect()
 
 
 _PREPARATIONS: dict[str, _Preparation] = {
@@ -59,6 +91,7 @@ _PREPARATIONS: dict[str, _Preparation] = {
     ),
     "metamorpheus": _Preparation(metamorpheus.identify, metamorpheus.join),
     "msangel": _Preparation(msangel.identify, msangel.join, msangel.KEY_COLUMNS, msangel.SHEETS),
+    "mztab": _Preparation(mztab.identify, mztab.join, table=_MzTabTable),
     "wombat": _Preparation(wombat.identify, wombat.join),
 }
 
@@ -164,16 +197,19 @@ class _WorkbookSheet:
         return read_sheet(self.path, self.name, columns)
 
 
-type _Table = _DelimitedTable | _WorkbookSheet
+type _Table = _DelimitedTable | _WorkbookSheet | _MzTabTable
 
 
-def _tables(source: SingleFile | Folder, sheets: tuple[str, ...]) -> dict[str, _Table]:
+def _tables(source: SingleFile | Folder, preparation: _Preparation) -> dict[str, _Table]:
     """Each candidate table keyed by its name: a delimited file, or a named workbook sheet.
 
-    A preparation that names sheets reads only workbooks, and only those sheets; every other
-    preparation reads delimited text.
+    A preparation that names sheets reads only workbooks, and only those sheets; one with its
+    own table reader wraps every file in it; every other preparation reads delimited text.
     """
     files = source.tables(None)
+    if preparation.table is not None:
+        return {file.name: preparation.table(file) for file in files}
+    sheets = preparation.sheets
     if not sheets:
         return {file.name: _DelimitedTable(file) for file in files if file.suffix in _DELIMITED}
     tables: dict[str, _Table] = {}
@@ -210,7 +246,7 @@ class PreparationInputs:
         """Bind this preparation's tables from bounded headers, without reading quantities."""
         preparation = _PREPARATIONS[how]
         try:
-            tables = _tables(source, preparation.sheets)
+            tables = _tables(source, preparation)
             headers = {name: table.header() for name, table in tables.items()}
             roles = preparation.identify(headers)
         except (UnicodeError, csv.Error, IncompatibleSourceError):

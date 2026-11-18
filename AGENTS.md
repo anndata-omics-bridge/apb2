@@ -64,9 +64,12 @@ Parser V2 layers stay long until they are widened, last. A layer row names its c
 
 - Join and preparation hooks are allowed in two cases: one conversion consumes several physical tables, files or sheets of one workbook, or a single file's rows are not any hierarchy level, so no rule can declare them as one. MSAngel's workbook is an example of the first: its protein-set sheet joins its peptide-ion sheet. MetaMorpheus FlashLFQ `AllQuantifiedPeaks.tsv` is one of the second: its rows are peaks, not ions.
 - A hook only combines tables; `prepare_source.py` reads them, delimited files or the workbook sheets the hook names, so column selection, logging and input records stay in one place.
+- A file apb2 cannot read as one table is read by its hook's own table reader, registered in `prepare_source.py`: an mzTab file, metadata and several sections, becomes one stacked long table, each section's columns prefixed by its name.
 - A hook contains only the work that brings rows to a hierarchy level. Everything a rule document covers stays in the rule; [docs/rule-coverage.md](docs/rule-coverage.md) lists what that is.
 - Any other single-file input must use the rule document and standard input reader; never add vendor-specific preprocessing for it.
 - Do not use preparation hooks to repair duplicate rows, normalize columns, or otherwise transform a table whose rows already are a hierarchy level.
+- A hook may fold rows a format repeats for one feature, one per protein, into one row: mzTab writes a PSM, and a PEP row, once per protein. Values the rows disagree on are listed, never chosen.
+- A hook's output is obs × var for each level: one row per feature key and sample. Rows that repeat a feature may remain; the rule resolves them (`repeated_cells`, `rank_rows`). obs × var × factor must not remain: where a column splits one feature into kinds of rows, the hook moves each kind's values into columns of their own on the feature's one row. OpenMS writes an mzTab protein as a `single_protein` or `indistinguishable_protein_group` row and again as a `protein_details` row; the `protein_details` values become columns of the protein's row.
 - Multi-file vendor inputs use their canonical directory as the source. Do not
   add per-file companion options to the CLI or conversion facade.
 
@@ -133,3 +136,7 @@ Parser V2 layers stay long until they are widened, last. A layer row names its c
 - Pydantic is a boundary technology. Pydantic models validate persisted configuration. Runtime algorithms consume validated dataclasses and behavior objects, not Pydantic storage models.
 
 - No utility classes, mixins, service locators, runtime monkey-patching, implicit global state, or deep inheritance hierarchies.
+
+## Output style
+
+Every reply must follow the output style that `outputStyle` selects in [settings.json](/Users/wolski/.claude/settings.json), currently [Answer-first](/Users/wolski/.claude/output-styles/answer-first.md). Read that file if your harness does not load it. No exceptions for long, investigative or follow-up replies.
