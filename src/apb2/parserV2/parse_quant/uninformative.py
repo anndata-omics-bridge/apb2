@@ -1,8 +1,8 @@
 """Columns and layers that carry no information are not created; a finding records them.
 
-A single-valued field holds one value in every filled cell, as the ion-mobility layer of runs
-without ion mobility does; it is judged from two filled cells on, so a one-run result keeps
-its obs columns. An empty column or layer has no filled cell at all, and an effectively empty
+A single-valued field holds one value in every cell, as the ion-mobility layer of runs without
+ion mobility does; a field that also has empty cells keeps them, so it is kept. It is judged
+from two cells on, so a one-run result keeps its obs columns. An empty column or layer has no filled cell at all, and an effectively empty
 layer is the layer validator's verdict. Each is left out of the parsed level; its finding keeps
 what it held: the one value, or the filled count and a summary of the values.
 
@@ -35,14 +35,17 @@ _SINGLE_FROM = 2
 
 @dataclass(frozen=True, slots=True)
 class _Values:
-    """What one field's filled cells hold: how many, and their distinct extreme values."""
+    """What one field's cells hold: how many there are, how many are filled, and the distinct
+    extreme values of the filled ones."""
 
+    cells: int
     filled: int
     extremes: frozenset[JsonScalar]
 
     @property
     def single(self) -> bool:
-        return self.filled >= _SINGLE_FROM and len(self.extremes) == 1
+        """One value in every cell; an empty cell is information, so its field stays."""
+        return self.filled >= _SINGLE_FROM and self.filled == self.cells and len(self.extremes) == 1
 
     @property
     def value(self) -> JsonScalar:
@@ -76,10 +79,11 @@ class UninformativeFields:
                     empty[location][name] = {"filled": 0}
                 elif values.single:
                     single[location][name] = {"value": values.value}
+        grid = obs.frame.height * var.frame.height
         for name, layer in layers.items():
             if name in self.retained_layers:
                 continue
-            values = _layer_values(layer)
+            values = _layer_values(layer, grid)
             if name in effectively_empty:
                 verdict = effectively_empty[name]
                 assert isinstance(verdict, dict)
@@ -135,18 +139,23 @@ def _column_values(frame: pl.DataFrame, retained: frozenset[str]) -> dict[str, _
         ),
     ).row(0, named=True)
     return {
-        name: _Values(int(row[f"n{index}"]), frozenset({row[f"lo{index}"], row[f"hi{index}"]}))
+        name: _Values(
+            frame.height,
+            int(row[f"n{index}"]),
+            frozenset({row[f"lo{index}"], row[f"hi{index}"]}),
+        )
         for index, name in enumerate(judged)
     }
 
 
-def _layer_values(layer: FinalLayerTable) -> _Values:
-    """The filled count and extreme values of one layer across all its runs, as labels.
+def _layer_values(layer: FinalLayerTable, grid: int) -> _Values:
+    """The cell, filled count and extreme values of one layer across all its runs, as labels.
 
-    Read from the stored cells: a cell no row names holds the fill, which is never filled.
+    Read from the stored cells: a cell no row names holds the fill, which is never filled, so
+    the layer has ``grid`` cells, its level's samples times features.
     """
     values = _column_values(layer.semantics.decode(layer.cells.select(VALUE)), frozenset())[VALUE]
-    return _Values(values.filled, values.extremes if values.filled else frozenset())
+    return _Values(grid, values.filled, values.extremes if values.filled else frozenset())
 
 
 def _summary(layer: FinalLayerTable) -> dict[str, JsonValue]:

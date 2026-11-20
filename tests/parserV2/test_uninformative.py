@@ -54,7 +54,7 @@ def test_a_single_valued_column_and_layer_are_left_out_with_their_value() -> Non
         var(Lib_Q_Value=[0.0, 0.0], Global_Q_Value=[0.01, 0.02]),
         {
             "Intensity": INTENSITY,
-            "IM": layer("IM", [[0.0, 0.0, None], [0.0, 0.0, 0.0]]),
+            "IM": layer("IM", [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]),
             "RT": layer("RT", [[10.0, 11.0, 12.0], [20.0, 21.0, 22.0]]),
         },
         {},
@@ -69,6 +69,20 @@ def test_a_single_valued_column_and_layer_are_left_out_with_their_value() -> Non
         "layers": {"IM": {"value": 0.0}},
     }
     assert pruned.effectively_empty == {"obs": {}, "var": {}, "layers": {}}
+
+
+def test_one_value_with_empty_cells_is_kept() -> None:
+    """Where the empty cells are is information: a column or layer set on some cells stays."""
+    pruned = PRUNER.prune(
+        obs(Batch=["b1", None, "b1"]),
+        var(),
+        {"Intensity": INTENSITY, "IM": layer("IM", [[0.0, 0.0, None], [0.0, 0.0, 0.0]])},
+        {},
+    )
+
+    assert pruned.obs.frame.columns == ["Run", "Batch"]
+    assert list(pruned.layers) == ["Intensity", "IM"]
+    assert pruned.single_valued == {"obs": {}, "var": {}, "layers": {}}
 
 
 def test_one_filled_cell_is_a_measurement_not_a_single_value() -> None:
@@ -152,7 +166,7 @@ def test_retained_fields_stay_whatever_they_hold() -> None:
 def test_a_single_valued_factor_layer_reports_its_label() -> None:
     status = FinalLayerTable.from_wide(
         "Status",
-        pl.DataFrame({"c0": [1, 1], "c1": [1, -1], "c2": [1, 1]}),
+        pl.DataFrame({"c0": [1, 1], "c1": [1, 1], "c2": [1, 1]}),
         role=AuxiliaryLayerRole(),
         semantics=CategoricalLayerSemantics(categories=(("identified", 1), ("matched", 2))),
     )

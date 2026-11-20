@@ -35,10 +35,12 @@
         "Predicted_RT",
         "Predicted_iIM",
         "Predicted_iRT",
+        "Protein_Q_Value",
         "Quantity_Quality",
         "RT_Start",
         "RT_Stop",
-        "Spectrum_Similarity"
+        "Spectrum_Similarity",
+        "Translated_Q_Value"
       ]
     },
     "protein": {

@@ -110,7 +110,7 @@ Explicit rules support the same directory bundles as packaged detection. Each ta
 
 A column or layer that carries no information is not created; each level's `parse` record lists it under `result.uninformative_fields` and counts it in the summary entries `single_valued_fields` and `effectively_empty_fields`:
 
-- Single-valued: every filled cell holds one value, judged from two filled cells on; the finding keeps the value. An Astral run's ion-mobility layers, all 0, are one case
+- Single-valued: every cell holds one value, judged from two cells on; the finding keeps the value. A field that also has empty cells is kept, since which cells are empty is information. An Astral run's ion-mobility layers, all 0, are one case
 - Empty: no filled cell; the finding keeps the filled count, 0
 - Effectively empty: a measurement layer under 0.1% filled while another is at least half filled; the finding adds the occupancy and a six-number summary of its values
 - Kept whatever they hold: axis keys, columns a role names, computed columns, the inputs of `apb_Decoy` and `apb_Contaminant`, the primary and sample layers. An empty primary layer is an error

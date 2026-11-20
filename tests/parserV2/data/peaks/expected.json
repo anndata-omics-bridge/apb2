@@ -10,7 +10,8 @@
       "layers": [
         "Normalized_Area",
         "m_z",
-        "RT_mean"
+        "RT_mean",
+        "AScore"
       ]
     }
   }
