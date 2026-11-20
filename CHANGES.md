@@ -1,5 +1,9 @@
 # Changes
 
+## 2026-11-20, release 0.1.2
+
+- A column or layer with one value and empty cells is kept: where the cells are empty is information. Only a fully filled, single-valued field is left out, its value recorded under `uns["result"]["uninformative_fields"]["single_valued"]`. DIA-NN, AlphaDIA, PEAKS and Spectronaut results gain layers that had been dropped, such as sparse constant ion mobility
+
 ## 2026-11-11
 
 - **Breaking**, DIA-NN 1.7 (`file_version` 7): samples are keyed by `File_Name` from `File.Name`, which every 1.7 report writes; `Run` is optional. Reports without `Run`, such as TPCPA's, had matched no rule since 2026-11-04
