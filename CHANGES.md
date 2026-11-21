@@ -1,5 +1,10 @@
 # Changes
 
+## 2026-11-21, release 0.1.3
+
+- The quantms parameter parser reads both files a run writes, the nf-core versions YAML and the Nextflow `params` JSON, in either order, and records enzyme, missed cleavages, both mass tolerances, fixed and variable modifications, PSM and protein FDR, charge and peptide-length bounds, maximum modifications, protein inference, quantification method and acquisition method; before, it read the versions YAML only
+- A conversion takes several parameter files: `apb2 convert --params` repeats, and `ParseRuleCompiler.detect` and `from_rule` accept `Path | tuple[Path, ...] | None`. Each file is recorded in `input_files`. MetaMorpheus's TOML and version report now reach their parser through a conversion too
+
 ## 2026-11-20, release 0.1.2
 
 - A column or layer with one value and empty cells is kept: where the cells are empty is information. Only a fully filled, single-valued field is left out, its value recorded under `uns["result"]["uninformative_fields"]["single_valued"]`. DIA-NN, AlphaDIA, PEAKS and Spectronaut results gain layers that had been dropped, such as sparse constant ion mobility
