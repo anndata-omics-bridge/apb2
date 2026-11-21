@@ -5,11 +5,15 @@ from __future__ import annotations
 from io import StringIO
 from pathlib import Path
 
+import pytest
+
 from apb2.parserV2.search_parameters.model import MassTolerance
 from apb2.parserV2.vendor_params.parsers.i2masschroq import extract_params
+from apb2.parserV2.vendor_params.parsers.shared.errors import ParamsError
 from apb2.parserV2.vendor_params.registry import parse_params
 
 DATA = Path(__file__).resolve().parents[1] / "data"
+QUANTMS_PAIR = (DATA / "quantms" / "param_0..yml", DATA / "quantms" / "param_1..yml")
 
 
 def test_i2masschroq_parameters_are_typed() -> None:
@@ -41,12 +45,35 @@ def test_i2masschroq_xtandem_fragment_tolerance_reads_its_own_unit() -> None:
     assert result.fragment_mass_tolerance == MassTolerance(mode="absolute", value=0.5, unit="Da")
 
 
-def test_quantms_versions_identify_the_workflow_and_engine() -> None:
-    result = parse_params(DATA / "quantms" / "param_0..yml", "quantms")
+def test_quantms_reads_the_versions_and_the_settings_file() -> None:
+    result = parse_params(QUANTMS_PAIR, "quantms")
 
     assert result.software_version == "v1.3.1dev-g70337bc"
     assert result.search_engine == "comet"
     assert result.search_engine_version == "2023.01 rev. 2"
+    assert result.acquisition_method == "DDA"
+    assert result.enzyme == "Trypsin"
+    assert result.allowed_miscleavages == 2
+    assert result.precursor_mass_tolerance == MassTolerance(mode="absolute", value=5, unit="ppm")
+    assert result.fragment_mass_tolerance == MassTolerance(mode="absolute", value=0.03, unit="Da")
+    assert [mod.name for mod in result.fixed_mods] == ["C[Carbamidomethyl]"]
+    assert [mod.name for mod in result.variable_mods] == ["M[Oxidation]"]
+    assert (result.ident_fdr_psm, result.ident_fdr_protein) == (0.01, 0.01)
+    assert (result.min_precursor_charge, result.max_precursor_charge) == (2, 4)
+    assert (result.min_peptide_length, result.max_peptide_length, result.max_mods) == (6, 40, 3)
+    assert result.protein_inference == "aggregation"
+    assert result.quantification_method == "feature_intensity"
+
+
+def test_quantms_pair_is_order_insensitive() -> None:
+    reversed_pair = (QUANTMS_PAIR[1], QUANTMS_PAIR[0])
+
+    assert parse_params(reversed_pair, "quantms") == parse_params(QUANTMS_PAIR, "quantms")
+
+
+def test_quantms_requires_both_files() -> None:
+    with pytest.raises(ParamsError, match="exactly 2"):
+        parse_params(QUANTMS_PAIR[0], "quantms")
 
 
 def test_prolinestudio_reads_parameter_sheets_from_its_workbook() -> None:

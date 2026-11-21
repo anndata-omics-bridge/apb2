@@ -21,7 +21,7 @@ app = App(name="apb2", help="Rules-driven vendor-result conversion", help_on_err
 class ConvertCliOptions:
     """Flat Cyclopts option group for ``apb2 convert``."""
 
-    params: Path | None = None
+    params: tuple[Path, ...] = ()
     rule_config: Path | None = None
     software: Annotated[
         str | None,
@@ -54,8 +54,9 @@ def convert(
     A directory supplies a multi-file vendor result together. Levels with incompatible
     observation identities are written separately with observation-key suffixes; one-to-one
     aliases are aligned.
-    --params is the vendor parameter file. Without it, --software selects a packaged
-    result-producer rule from file columns when the evidence is unambiguous.
+    --params is the vendor parameter file; repeat it for a tool that writes two (MetaMorpheus,
+    quantms). Without it, --software selects a packaged result-producer rule from file
+    columns when the evidence is unambiguous.
     --software selects the parameter parser and limits result rules to that vendor and
     its declared quantification software. --rule-config selects an
     explicit schema-0.10 document. --format selects hdf5, parquet, or duckdb. --output is a
@@ -85,6 +86,7 @@ def convert(
         logger.error("timing output already exists: {}", options.timings_output)
         return 2
     checks = "strict" if options.strict else "standard"
+    parameters_path = options.params or None
     try:
         if options.rule_config is not None:
             if level is None:
@@ -92,7 +94,7 @@ def convert(
                     data=data,
                     output=output,
                     rule_config=options.rule_config,
-                    parameters_path=options.params,
+                    parameters_path=parameters_path,
                     software=options.software,
                     checks=checks,
                 )
@@ -102,19 +104,19 @@ def convert(
                     level=level,
                     output=output,
                     rule_config=options.rule_config,
-                    parameters_path=options.params,
+                    parameters_path=parameters_path,
                     software=options.software,
                     checks=checks,
                 )
         else:
-            if options.params is None and options.software is None:
+            if parameters_path is None and options.software is None:
                 logger.error("pass --params, --software, or --rule-config")
                 return 1
             if level is None:
                 result = conversion.convert_all_from_packaged_rules(
                     data=data,
                     output=output,
-                    parameters_path=options.params,
+                    parameters_path=parameters_path,
                     software=options.software,
                     checks=checks,
                 )
@@ -123,7 +125,7 @@ def convert(
                     data=data,
                     level=level,
                     output=output,
-                    parameters_path=options.params,
+                    parameters_path=parameters_path,
                     software=options.software,
                     checks=checks,
                 )

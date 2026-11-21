@@ -1,6 +1,6 @@
 {
   "sample": "sample.txt",
-  "params": "param_0..json",
+  "params": ["param_0..json"],
   "levels": {
     "peptidoform_ion": {
       "observations": 2,

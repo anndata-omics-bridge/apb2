@@ -26,7 +26,7 @@ from apb2.parserV2.parse_quant.parameters.vendor_file import (
     PlainFile,
     make_vendor_file,
 )
-from parserV2.fixtures import committed_dir, level_pairs
+from parserV2.fixtures import committed_dir, committed_params, level_pairs
 from parserV2.join_fixtures import maxquant_tables
 
 RULES = Path("src/apb2/parserV2/vendor_parse_rules/documents")
@@ -125,13 +125,12 @@ def test_every_gzipped_committed_sample_converts_without_decompression(
         data.mkdir()
         for stored in (folder / str(record["sample"]), *companions):
             shutil.copy(stored, data / stored.name)
-    params = record["params"]
 
     summary = convert_all_from_rule_config(
         data=data,
         output=tmp_path / "converted.h5mu",
         rule_config=_rule_config(key),
-        parameters_path=folder / str(params) if params is not None else None,
+        parameters_path=committed_params(key),
         software=None,
         checks="standard",
     )
@@ -188,7 +187,7 @@ def test_detection_finds_a_gzipped_table_in_a_folder(tmp_path: Path) -> None:
     record = _record("diann/v1_8")
     shutil.copy(folder / str(record["sample"]), tmp_path / "report.txt.gz")
 
-    parsed = ParseRuleCompiler.detect(tmp_path, folder / str(record["params"])).compile().parse()
+    parsed = ParseRuleCompiler.detect(tmp_path, committed_params("diann/v1_8")).compile().parse()
 
     expected = cast("dict[str, dict[str, object]]", record["levels"])
     assert sorted(parsed.levels) == sorted(expected)

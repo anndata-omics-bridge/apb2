@@ -112,7 +112,7 @@ def convert_from_rule_config(
     level: QuantificationLevel,
     output: Path,
     rule_config: Path,
-    parameters_path: Path | None,
+    parameters_path: Path | tuple[Path, ...] | None,
     software: str | None,
     checks: AnnDataChecks,
 ) -> ConversionSummary:
@@ -130,7 +130,7 @@ def convert_all_from_rule_config(
     data: Path,
     output: Path,
     rule_config: Path,
-    parameters_path: Path | None,
+    parameters_path: Path | tuple[Path, ...] | None,
     software: str | None,
     checks: AnnDataChecks,
 ) -> ConversionSummary:
@@ -148,7 +148,7 @@ def convert_from_packaged_rules(
     data: Path,
     level: QuantificationLevel,
     output: Path,
-    parameters_path: Path | None,
+    parameters_path: Path | tuple[Path, ...] | None,
     software: str | None,
     checks: AnnDataChecks,
 ) -> ConversionSummary:
@@ -162,7 +162,7 @@ def convert_all_from_packaged_rules(
     *,
     data: Path,
     output: Path,
-    parameters_path: Path | None,
+    parameters_path: Path | tuple[Path, ...] | None,
     software: str | None,
     checks: AnnDataChecks,
 ) -> ConversionSummary:
@@ -174,7 +174,7 @@ def convert_all_from_packaged_rules(
 
 def _packaged_compiler(
     data: Path,
-    parameters_path: Path | None,
+    parameters_path: Path | tuple[Path, ...] | None,
     software: str | None,
     requested_levels: tuple[QuantificationLevel, ...] | None,
     checks: AnnDataChecks,

@@ -181,7 +181,7 @@ ValueError: rule catalogue differs from packaged rules: missing=['toyquant/v1/ru
 ```json title="tests/parserV2/data/toyquant/v1/expected.json"
 {
   "sample": "sample.tsv",
-  "params": null,
+  "params": [],
   "levels": {
     "protein": {"observations": 2, "variables": 2, "layers": ["Abundance"]}
   }

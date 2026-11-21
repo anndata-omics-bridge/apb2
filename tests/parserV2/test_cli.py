@@ -20,7 +20,12 @@ from apb2.parserV2.parse_quant.io.metadata import (
     PARSE_NAMESPACE,
 )
 from parserV2 import synthetic
-from parserV2.fixtures import committed_sample
+from parserV2.fixtures import (
+    committed_params,
+    committed_sample,
+    input_files,
+    search_parameters_record,
+)
 
 _DOCUMENT = {
     "schema_version": "0.11",
@@ -272,6 +277,38 @@ def test_convert_without_a_level_keeps_one_compatible_level_in_mudata(tmp_path: 
     assert list(mudata.read_h5mu(tmp_path / "out.h5mu").mod) == ["peptidoform_ion"]
 
 
+def test_convert_reads_every_repeated_params_file(tmp_path: Path) -> None:
+    """quantms writes its settings and its versions to two files; both reach the parser."""
+    sample = committed_sample("quantms")
+    params = committed_params("quantms")
+    assert sample is not None and params is not None
+    output = tmp_path / "out"
+
+    exit_code = app(
+        [
+            "convert",
+            str(sample),
+            *[argument for path in params for argument in ("--params", str(path))],
+            "--software",
+            "quantms",
+            "--output",
+            str(output),
+        ],
+        exit_on_error=False,
+        result_action="return_value",
+    )
+
+    assert exit_code == 0
+    uns = read_parsed_levels(output.with_suffix(".h5mu")).uns
+    recorded = [
+        record["file_name"] for record in input_files(uns) if record["role"] == "parameter_file"
+    ]
+    assert recorded == [path.name for path in params]
+    parameters = search_parameters_record(uns)["parameters"]
+    assert isinstance(parameters, dict)
+    assert parameters["enzyme"] == "Trypsin"
+
+
 def test_convert_with_rule_config_does_not_embed_the_parameter_record(tmp_path: Path) -> None:
     report = tmp_path / "report.tsv"
     report.write_text(_TSV, encoding="utf-8")
@@ -283,7 +320,7 @@ def test_convert_with_rule_config_does_not_embed_the_parameter_record(tmp_path: 
         report,
         "peptidoform_ion",
         ConvertCliOptions(
-            params=parameters,
+            params=(parameters,),
             software="WOMBAT-P",
             rule_config=rule_config,
             output=tmp_path / "out",
@@ -383,7 +420,7 @@ def test_convert_invalid_parameters_fail(tmp_path: Path) -> None:
         report,
         "peptidoform_ion",
         ConvertCliOptions(
-            params=parameters,
+            params=(parameters,),
             software="wombatp",
             rule_config=rule_config,
             output=tmp_path / "out",

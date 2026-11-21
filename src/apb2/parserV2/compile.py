@@ -52,27 +52,34 @@ type ValidationChecks = Literal["standard", "strict"]
 
 @dataclass(frozen=True, slots=True)
 class ParameterFile:
-    """A vendor parameter file: its ``input_files`` record and its typed parameters."""
+    """Vendor parameter files: one ``input_files`` record each and their typed parameters."""
 
-    record: InputFileRecord
+    records: tuple[InputFileRecord, ...]
     parameters: Parameters
 
     @classmethod
-    def read(cls, path: Path, software: str) -> Self:
-        """Parse the file in ``software``'s parameter grammar and record the file.
+    def read(cls, paths: Path | tuple[Path, ...], software: str) -> Self:
+        """Parse the files together in ``software``'s parameter grammar and record each file.
 
         Raises:
             ConversionError: The bytes do not parse in ``software``'s parameter grammar.
         """
+        files = paths if isinstance(paths, tuple) else (paths,)
         try:
-            parameters = parse_params(io.BytesIO(path.read_bytes()), software=software)
+            parameters = parse_params(
+                tuple(io.BytesIO(path.read_bytes()) for path in files), software=software
+            )
         except (ParamsError, json.JSONDecodeError, ValidationError) as error:
+            names = ", ".join(str(path) for path in files)
             raise ConversionError(
-                f"cannot parse {path} as {software}: {error}; "
+                f"cannot parse {names} as {software}: {error}; "
                 "use --software (software= in Python) to select the parameter-file grammar"
             ) from error
-        file_format = path.suffix.removeprefix(".").lower()
-        return cls(InputFile(path, "parameter_file", file_format).record(), parameters)
+        records = tuple(
+            InputFile(path, "parameter_file", path.suffix.removeprefix(".").lower()).record()
+            for path in files
+        )
+        return cls(records, parameters)
 
     def provenance(self) -> dict[str, JsonValue]:
         """The root parse provenance that records the typed parameters."""
@@ -90,7 +97,7 @@ class ParseRuleCompiler:
     def detect(
         cls,
         data: Path,
-        parameters_path: Path | None,
+        parameters_path: Path | tuple[Path, ...] | None,
         requested_levels: Iterable[QuantificationLevel] | None = None,
         checks: ValidationChecks = "standard",
         software: str | None = None,
@@ -99,8 +106,9 @@ class ParseRuleCompiler:
 
         Args:
             data: Vendor result table or canonical multi-file result directory.
-            parameters_path: Vendor search-parameter file, or ``None`` for a packaged
-                parameter-free rule selected by ``software``.
+            parameters_path: Vendor search-parameter file, the files of a tool that writes
+                two (MetaMorpheus, quantms), or ``None`` for a packaged parameter-free rule
+                selected by ``software``.
             requested_levels: Quantification levels to compile.
             checks: Canonical layer validation level applied during parsing.
             software: Parameter-file software, or the parameter-free rule to select;
@@ -167,16 +175,16 @@ class ParseRuleCompiler:
         cls,
         data: Path,
         rule: Path,
-        parameters_path: Path | None = None,
+        parameters_path: Path | tuple[Path, ...] | None = None,
         requested_levels: Iterable[QuantificationLevel] | None = None,
         software: str | None = None,
         checks: ValidationChecks = "standard",
     ) -> Self:
         """Compile a caller's schema-0.10 rule file instead of a detected packaged one.
 
-        ``requested_levels`` defaults to every level the rule declares. A parameter file adds
-        search-parameter evidence and the detected version; ``software`` selects its grammar
-        when the rule's software name does not.
+        ``requested_levels`` defaults to every level the rule declares. A parameter file, or
+        the files of a tool that writes two, adds search-parameter evidence and the detected
+        version; ``software`` selects its grammar when the rule's software name does not.
 
         Raises:
             ConversionError: The rule or parameter file is unreadable, or the source offers
@@ -228,7 +236,7 @@ class ParseRuleCompiler:
         if self.parameter_file is None:
             return ParserCollection(parsers, {})
         return ParserCollection(
-            parsers, self.parameter_file.provenance(), (self.parameter_file.record,)
+            parsers, self.parameter_file.provenance(), self.parameter_file.records
         )
 
 

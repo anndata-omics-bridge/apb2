@@ -79,6 +79,16 @@ def _parse_metamorpheus(value: ParameterInput, /) -> Parameters:
     return _metamorpheus_extract(file_a, file_b)
 
 
+def _parse_quantms(value: ParameterInput, /) -> Parameters:
+    """Adapt quantms's explicit versions-YAML + params-JSON pair."""
+    file_a, file_b = _require_source_count(
+        value,
+        software="quantms",
+        expected=2,
+    )
+    return _quantms_extract(file_a, file_b)
+
+
 _alphadia_parse = _single_source("AlphaDIA", _alphadia_extract)
 _alphapept_parse = _single_source("AlphaPept", _alphapept_extract)
 _diann_parse = _single_source("DIA-NN", _diann_extract)
@@ -88,7 +98,6 @@ _maxquant_parse = _single_source("MaxQuant", _maxquant_extract)
 _msangel_parse = _single_source("MSAngel", _msangel_extract)
 _peaks_parse = _single_source("PEAKS", _peaks_extract)
 _prolinestudio_parse = _single_source("ProlineStudio", _prolinestudio_extract)
-_quantms_parse = _single_source("quantms", _quantms_extract)
 _sage_parse = _single_source("Sage", _sage_extract)
 _spectronaut_parse = _single_source("Spectronaut", _spectronaut_extract)
 _wombat_parse = _single_source("WOMBAT-P", _wombat_extract)
@@ -105,7 +114,7 @@ _REGISTRY: dict[str, ParseFn] = {
     "msangel": _msangel_parse,
     "peaks": _peaks_parse,
     "prolinestudio": _prolinestudio_parse,
-    "quantms": _quantms_parse,
+    "quantms": _parse_quantms,
     "sage": _sage_parse,
     "spectronaut": _spectronaut_parse,
     "wombat-p": _wombat_parse,

@@ -18,7 +18,14 @@ import pytest
 from apb2.cli.conversion import convert_all_from_rule_config
 from apb2.parserV2.parse_quant.data.parsed import JsonValue
 from apb2.parserV2.parse_quant.io.formats import read_parsed_levels
-from parserV2.fixtures import DATA_DIR, committed_dir, committed_sample, level_pairs, parse_section
+from parserV2.fixtures import (
+    DATA_DIR,
+    committed_dir,
+    committed_params,
+    committed_sample,
+    level_pairs,
+    parse_section,
+)
 
 _KEYS = tuple(sorted({pair.sample_key for pair, _level in level_pairs()}))
 
@@ -36,13 +43,12 @@ def test_committed_sample_converts_to_the_recorded_expectations(key: str, tmp_pa
     record = json.loads((folder / "expected.json").read_text(encoding="utf-8"))
     sample = committed_sample(key)
     assert sample is not None
-    params = record["params"]
 
     summary = convert_all_from_rule_config(
         data=sample,
         output=tmp_path / "converted.h5mu",
         rule_config=_rule_config(key),
-        parameters_path=folder / str(params) if params is not None else None,
+        parameters_path=committed_params(key),
         software=None,
         checks="standard",
     )

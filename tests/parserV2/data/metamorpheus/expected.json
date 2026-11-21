@@ -1,7 +1,7 @@
 {
   "source": "AllQuantifiedPeaks.tsv",
   "sample": "sample.tsv.gz",
-  "params": null,
+  "params": [],
   "sample_rows": 240,
   "levels": {
     "peptidoform_ion": {

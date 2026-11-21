@@ -14808,28 +14808,48 @@
   "quantms/d01e87b997b84c985868204b1ed26749902fd7f9": {
     "abundance_normalization_ions": null,
     "acquisition_method": "DDA",
-    "allowed_miscleavages": null,
+    "allowed_miscleavages": 2,
     "combine_charge_states": null,
     "enable_match_between_runs": null,
-    "enzyme": null,
-    "fixed_mods": [],
-    "fragment_mass_tolerance": null,
+    "enzyme": "Trypsin",
+    "fixed_mods": [
+      {
+        "accession": "UNIMOD:4",
+        "mass_delta": 57.021464,
+        "mod_type": "fixed",
+        "name": "C[Carbamidomethyl]",
+        "position": "Anywhere",
+        "source": "C[Carbamidomethyl]",
+        "target": null
+      }
+    ],
+    "fragment_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "Da",
+      "value": 0.03
+    },
     "ident_fdr_peptide": null,
-    "ident_fdr_protein": null,
-    "ident_fdr_psm": null,
+    "ident_fdr_protein": 0.01,
+    "ident_fdr_psm": 0.01,
     "max_fragment_mz": null,
-    "max_mods": null,
-    "max_peptide_length": null,
-    "max_precursor_charge": null,
+    "max_mods": 3,
+    "max_peptide_length": 40,
+    "max_precursor_charge": 4,
     "max_precursor_mz": null,
     "min_fragment_mz": null,
-    "min_peptide_length": null,
-    "min_precursor_charge": null,
+    "min_peptide_length": 6,
+    "min_precursor_charge": 2,
     "min_precursor_mz": null,
-    "precursor_mass_tolerance": null,
+    "precursor_mass_tolerance": {
+      "label": null,
+      "mode": "absolute",
+      "unit": "ppm",
+      "value": 5.0
+    },
     "predictors_library": null,
-    "protein_inference": null,
-    "quantification_method": null,
+    "protein_inference": "aggregation",
+    "quantification_method": "feature_intensity",
     "quantification_software": "quantms",
     "quantification_software_version": "v1.3.1dev-g70337bc",
     "scan_window": null,
@@ -14838,7 +14858,17 @@
     "semi_enzymatic": null,
     "software_name": "quantms",
     "software_version": "v1.3.1dev-g70337bc",
-    "variable_mods": []
+    "variable_mods": [
+      {
+        "accession": "UNIMOD:35",
+        "mass_delta": 15.994915,
+        "mod_type": "variable",
+        "name": "M[Oxidation]",
+        "position": "Anywhere",
+        "source": "M[Oxidation]",
+        "target": null
+      }
+    ]
   },
   "sage/05906d50cf20634dc684bda319e3954b8cc2bf5b": {
     "abundance_normalization_ions": null,

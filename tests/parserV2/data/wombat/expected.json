@@ -1,7 +1,7 @@
 {
   "source": "input_file.csv",
   "sample": "sample.csv.gz",
-  "params": "param_0..yml",
+  "params": ["param_0..yml"],
   "sample_rows": 250,
   "levels": {
     "peptidoform": {

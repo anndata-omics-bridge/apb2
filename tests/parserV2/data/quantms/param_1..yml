@@ -1,0 +1,21 @@
+{
+    "acquisition_method": "dda",
+    "enzyme": "Trypsin",
+    "allowed_missed_cleavages": 2,
+    "precursor_mass_tolerance": 5,
+    "precursor_mass_tolerance_unit": "ppm",
+    "fragment_mass_tolerance": 0.03,
+    "fragment_mass_tolerance_unit": "Da",
+    "fixed_mods": "Carbamidomethyl (C)",
+    "variable_mods": "Oxidation (M)",
+    "psm_level_fdr_cutoff": 0.01,
+    "protein_level_fdr_cutoff": 0.01,
+    "min_precursor_charge": 2,
+    "max_precursor_charge": 4,
+    "min_peptide_length": 6,
+    "max_peptide_length": 40,
+    "max_mods": 3,
+    "protein_inference_method": "aggregation",
+    "quantification_method": "feature_intensity",
+    "search_engines": "comet"
+}

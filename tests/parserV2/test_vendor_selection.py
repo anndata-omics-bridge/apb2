@@ -22,17 +22,16 @@ from apb2.parserV2.vendor_params.registry import parse_params
 from apb2.parserV2.vendor_parse_rules.document import RuleDocument
 from apb2.parserV2.vendor_parse_rules.loader import load_rule_document
 from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
-from parserV2.fixtures import committed_dir, committed_sample, document_pairs
+from parserV2.fixtures import committed_params, committed_sample, document_pairs
 
 PARAMS = Path(__file__).parent / "vendor_params" / "params"
 
 
-def inputs(key: str) -> tuple[Path, Path]:
-    folder = committed_dir(key)
+def inputs(key: str) -> tuple[Path, tuple[Path, ...]]:
     source = committed_sample(key)
-    assert folder is not None and source is not None
-    record = json.loads((folder / "expected.json").read_text())
-    return source, folder / record["params"]
+    params = committed_params(key)
+    assert source is not None and params is not None
+    return source, params
 
 
 def test_wombat_peptidoform_without_optional_psm_counts(tmp_path: Path) -> None:

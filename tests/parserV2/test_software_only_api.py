@@ -36,9 +36,10 @@ def test_software_only_api_preserves_parsed_values_and_rule_provenance() -> None
     folder = committed_dir("fragpipe")
     assert folder is not None
     record = json.loads((folder / "expected.json").read_text())
+    (params,) = record["params"]
     with_parameters = ParseRuleCompiler.detect(
         source,
-        folder / record["params"],
+        folder / params,
         software="fragpipe",
         requested_levels=("peptidoform_ion",),
     )
@@ -48,7 +49,7 @@ def test_software_only_api_preserves_parsed_values_and_rule_provenance() -> None
 
     expected_result = with_parameters.compile().parse()
     actual_result = without_parameters.compile().parse()
-    assert input_files(expected_result.uns)[0]["file_name"] == record["params"]
+    assert input_files(expected_result.uns)[0]["file_name"] == params
     assert [file["role"] for file in input_files(actual_result.uns)] == ["table"]
     assert "search_parameters" not in parse_section(actual_result.uns, "provenance")
     expected = expected_result.levels["peptidoform_ion"]

@@ -173,7 +173,9 @@ def companion_text(companion: Path, sample: bytes) -> bytes | None:
     return header_line + b"".join(kept)
 
 
-def expectations(sample: Path, rule_config: Path, params: Path | None) -> dict[str, object]:
+def expectations(
+    sample: Path, rule_config: Path, params: tuple[Path, ...] | None
+) -> dict[str, object]:
     """Convert the sample for real and record every produced level's dimensions."""
     with tempfile.TemporaryDirectory() as scratch:
         summary = convert_all_from_rule_config(
@@ -229,21 +231,19 @@ def write_artifacts(key: str, export: Path, rule_config: Path, output: Path) -> 
         if companions:
             sample_for_convert = Path(scratch.name)
 
-    params = next(iter(sorted(export.parent.glob("param_0.*"))), None)
-    params_copy: Path | None = None
-    if params is not None:
-        params_copy = target / params.name
-        params_copy.write_bytes(params.read_bytes())
+    params_copies = tuple(target / params.name for params in sorted(export.parent.glob("param_*")))
+    for params_copy in params_copies:
+        params_copy.write_bytes((export.parent / params_copy.name).read_bytes())
 
     try:
-        levels = expectations(sample_for_convert, rule_config, params_copy)
+        levels = expectations(sample_for_convert, rule_config, params_copies or None)
     finally:
         if scratch is not None:
             scratch.cleanup()
     record = {
         "source": export.name,
         "sample": sample_name,
-        "params": params_copy.name if params_copy is not None else None,
+        "params": [params_copy.name for params_copy in params_copies],
         "sample_rows": rows,
         **({"companions": companions} if companions else {}),
         "levels": levels,

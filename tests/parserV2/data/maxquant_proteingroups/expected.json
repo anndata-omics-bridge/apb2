@@ -1,7 +1,7 @@
 {
   "source": "proteinGroups.txt",
   "sample": "sample.txt.gz",
-  "params": null,
+  "params": [],
   "sample_rows": 250,
   "levels": {
     "protein": {

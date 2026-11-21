@@ -1,6 +1,6 @@
 {
   "sample": "sample.csv.gz",
-  "params": "param_0..yml",
+  "params": ["param_0..yml", "param_1..yml"],
   "levels": {
     "peptidoform_ion": {
       "observations": 6,

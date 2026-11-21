@@ -68,6 +68,14 @@ def committed_dir(key: str) -> Path | None:
     return found if (found / "expected.json").exists() else None
 
 
+def committed_params(key: str) -> tuple[Path, ...] | None:
+    """The parameter files one rule key's ``expected.json`` names; ``None`` when it names none."""
+    folder = committed_dir(key)
+    assert folder is not None
+    record = json.loads((folder / "expected.json").read_text(encoding="utf-8"))
+    return tuple(folder / name for name in cast("list[str]", record["params"])) or None
+
+
 def _committed_header(key: str) -> tuple[str, ...] | None:
     """The committed header snapshot of one rule key: one column name per line."""
     folder = committed_dir(key)

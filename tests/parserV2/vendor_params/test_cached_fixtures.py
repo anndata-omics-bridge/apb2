@@ -40,10 +40,17 @@ def cached_cases() -> list[tuple[str, str, ParameterInput]]:
     with (_ROOT / "downloads.csv").open(encoding="utf-8", newline="") as handle:
         for row in csv.DictReader(handle):
             slug = _slug(row["software_name"])
-            source = _ROOT / row["vendor_parameter_file_path"]
-            if row.get("status") != "ok" or not _has_parser(slug) or not source.is_file():
+            # ``;``-separated: quantms and MetaMorpheus write two parameter files.
+            names = [name for name in row["vendor_parameter_file_paths"].split(";") if name]
+            sources = tuple(_ROOT / name for name in names)
+            if (
+                row.get("status") != "ok"
+                or not _has_parser(slug)
+                or not sources
+                or not all(source.is_file() for source in sources)
+            ):
                 continue
-            cases.append((f"{slug}/{row['intermediate_hash']}", slug, source))
+            cases.append((f"{slug}/{row['intermediate_hash']}", slug, sources))
     return sorted(cases)
 
 

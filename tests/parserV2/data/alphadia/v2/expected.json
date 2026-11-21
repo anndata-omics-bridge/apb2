@@ -1,7 +1,7 @@
 {
   "source": "input_file.parquet",
   "sample": "sample.parquet",
-  "params": "param_0..txt",
+  "params": ["param_0..txt"],
   "sample_rows": 500,
   "levels": {
     "peptidoform_ion": {

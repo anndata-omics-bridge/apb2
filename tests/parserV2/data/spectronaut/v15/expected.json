@@ -1,7 +1,7 @@
 {
   "source": "20210210_154121_S209-S-1-240min_Report.tsv",
   "sample": "sample.tsv.gz",
-  "params": null,
+  "params": [],
   "sample_rows": 250,
   "levels": {
     "peptidoform_fragment": {

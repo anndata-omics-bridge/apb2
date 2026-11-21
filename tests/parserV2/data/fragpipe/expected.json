@@ -1,7 +1,7 @@
 {
   "source": "input_file.tsv",
   "sample": "sample.tsv.gz",
-  "params": "param_0..workflow",
+  "params": ["param_0..workflow"],
   "sample_rows": 250,
   "levels": {
     "peptidoform_ion": {

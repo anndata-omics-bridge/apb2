@@ -1,6 +1,6 @@
 {
   "sample": "CustomFormat_DDA_quant_ions_test.txt",
-  "params": null,
+  "params": [],
   "levels": {
     "peptidoform_ion": {
       "observations": 6,
