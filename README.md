@@ -38,6 +38,12 @@ APB2 requires Python 3.13 or later.
 pip install apb2
 ```
 
+The base install reads and writes HDF5 and Parquet results. Add `apb2[duckdb]` for DuckDB results or `apb2[excel]` for MSAngel and ProlineStudio workbooks.
+
+```bash
+pip install 'apb2[duckdb,excel]'
+```
+
 To install only the `apb2` command, use `uv tool install apb2`.
 
 ## Motivation and origin
@@ -142,7 +148,7 @@ The controlling designs and dependency boundaries are documented in
 ## Development
 
 ```bash
-uv sync --group dev
+uv sync --group dev --all-extras
 make check
 make docs
 ```

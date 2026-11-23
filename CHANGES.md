@@ -1,5 +1,9 @@
 # Changes
 
+## 2026-11-23, release 0.1.4
+
+- Install `apb2[duckdb]` for DuckDB results and `apb2[excel]` for MSAngel or ProlineStudio workbooks. APB2 loads these backends on demand. HDF5 and Parquet stay available in the base install.
+
 ## 2026-11-21, release 0.1.3
 
 - The quantms parameter parser reads both files a run writes, the nf-core versions YAML and the Nextflow `params` JSON, in either order, and records enzyme, missed cleavages, both mass tolerances, fixed and variable modifications, PSM and protein FDR, charge and peptide-length bounds, maximum modifications, protein inference, quantification method and acquisition method; before, it read the versions YAML only

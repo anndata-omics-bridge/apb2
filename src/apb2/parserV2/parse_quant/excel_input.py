@@ -9,14 +9,14 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from importlib.util import find_spec
 from pathlib import Path
 from zipfile import is_zipfile
 
-import fastexcel
 import polars as pl
 import polars.selectors as cs
-from fastexcel import FastExcelError
 
+from apb2.parserV2.parse_quant.data.errors import ConversionError
 from apb2.parserV2.parse_quant.errors import IncompatibleSourceError
 from apb2.parserV2.parse_quant.parameters.source import (
     ExcelFormatContract,
@@ -31,10 +31,18 @@ from apb2.parserV2.parse_quant.parameters.source import (
 _DOT = NumericTextFormat(decimal_mark=".", thousands_marks=())
 
 
+def _require_excel_reader() -> None:
+    if find_spec("fastexcel") is None:
+        raise ConversionError("Excel workbook reading requires pip install 'apb2[excel]'")
+
+
 def sheet_header(path: Path, sheet_name: str) -> tuple[str, ...]:
     """Inspect the named sheet without materializing its data rows in Python."""
     if not is_zipfile(path):
         raise IncompatibleSourceError(f"{path}: not a ZIP-based Excel workbook")
+    _require_excel_reader()
+    from fastexcel import FastExcelError
+
     try:
         frame = pl.read_excel(
             path,
@@ -56,8 +64,11 @@ def sheet_names(path: Path) -> tuple[str, ...]:
     """The sheets of a ZIP-based workbook in file order; none for any other file."""
     if not is_zipfile(path):
         return ()
+    _require_excel_reader()
+    from fastexcel import FastExcelError, read_excel
+
     try:
-        return tuple(fastexcel.read_excel(path).sheet_names)
+        return tuple(read_excel(path).sheet_names)
     except (FastExcelError, OSError) as error:
         raise IncompatibleSourceError(f"{path}: cannot read workbook: {error}") from error
 
@@ -67,6 +78,7 @@ def read_sheet(path: Path, sheet_name: str, columns: Sequence[str] | None) -> pl
 
     ``columns`` limits the read to the named columns; ``None`` reads all of them.
     """
+    _require_excel_reader()
     return pl.read_excel(
         path,
         sheet_name=sheet_name,
@@ -106,6 +118,7 @@ class ExcelInputReader:
 
     def read(self) -> LevelSourceTable:
         """Read only projected columns and apply the already resolved dtypes."""
+        _require_excel_reader()
         projected = pl.read_excel(
             self.path,
             sheet_name=self.evidence.sheet_name,

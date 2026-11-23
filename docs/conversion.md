@@ -2,6 +2,8 @@
 
 `apb2 convert` reads one supported vendor table or a directory of vendor-result tables, selects or loads its rules, parses one or more quantification levels, and writes the selected APB2 storage format.
 
+Use `pip install 'apb2[excel]'` for MSAngel and ProlineStudio workbooks, including workbooks saved with a `.txt` suffix.
+
 ## Packaged rules
 
 The normal route uses the vendor parameter file and source header to select a packaged rule:

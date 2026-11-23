@@ -28,7 +28,7 @@ jobs:
           cache-dependency-glob: "**/pyproject.toml"
 
       - name: Synchronize environment
-        run: uv sync --group dev
+        run: uv sync --group dev --all-extras
 
       - name: Run quality gates
         run: make check

@@ -16,7 +16,7 @@ help:  ## Show developer commands
 		| awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
 sync:  ## Synchronize the locked development environment
-	uv sync --group dev
+	uv sync --group dev --all-extras
 
 format:  ## Format and autofix source and tests; lay out the packaged rules.json files
 	$(VENV_BIN)/ruff format src tests scripts

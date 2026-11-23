@@ -10,7 +10,6 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import cast
 
-import duckdb
 import polars as pl
 
 from apb2.parserV2.parse_quant.data.layer_blocks import READ_BLOCK_BYTES, LayerBlocks
@@ -26,7 +25,7 @@ from apb2.parserV2.parse_quant.data.parsed import (
     ParsedLevels,
     VarFinal,
 )
-from apb2.parserV2.parse_quant.io.errors import InvalidResultError
+from apb2.parserV2.parse_quant.io.errors import InvalidResultError, ResultIOError
 from apb2.parserV2.parse_quant.io.metadata import (
     json_object,
     layer_role_from_metadata,
@@ -46,6 +45,13 @@ from apb2.parserV2.parse_quant.io.metadata import (
     unpack_shared_scope,
 )
 from apb2.parserV2.parse_quant.io.validation import validate_parsed_levels
+
+try:
+    import duckdb
+except ModuleNotFoundError as error:
+    if error.name != "duckdb":
+        raise
+    raise ResultIOError("DuckDB result I/O requires pip install 'apb2[duckdb]'") from error
 
 FORMAT = "apb2-parsed-levels-duckdb"
 FORMAT_VERSION = "8"

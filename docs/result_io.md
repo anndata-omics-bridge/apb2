@@ -5,6 +5,8 @@ that value and passes it to another writer; there is no DuckDB-to-Parquet or oth
 
 The [APB metadata specification](metadata_specification.md) is the normative contract for namespace ownership, H5AD composition, tool operations and persisted versions. This page describes result-I/O usage and physical fidelity.
 
+Use `pip install 'apb2[duckdb]'` to enable DuckDB result reading and writing. The base install supports HDF5 and Parquet.
+
 ## Reformat from the CLI
 
 ```bash
