@@ -14,11 +14,8 @@ from apb2.parserV2.parse_quant.data.parsed import (
 from apb2.parserV2.parse_quant.data.step_log import logged_step
 from apb2.parserV2.parse_quant.io.anndata_reader import H5adReader, H5muReader
 from apb2.parserV2.parse_quant.io.anndata_writer import H5adWriter, H5muWriter
-from apb2.parserV2.parse_quant.io.duckdb import DuckDBReader, DuckDBWriter
 from apb2.parserV2.parse_quant.io.errors import UnsupportedResultFormatError
 from apb2.parserV2.parse_quant.io.json_representation import write_result_with_representation
-from apb2.parserV2.parse_quant.io.parquet_reader import ParquetReader
-from apb2.parserV2.parse_quant.io.parquet_writer import ParquetLevelsWriter
 
 
 class ParsedLevelsReader(Protocol):
@@ -43,15 +40,11 @@ class ResultFormat(StrEnum):
 _READERS: dict[ResultFormat, ParsedLevelsReader] = {
     ResultFormat.H5AD: H5adReader(),
     ResultFormat.H5MU: H5muReader(),
-    ResultFormat.PARQUET: ParquetReader(),
-    ResultFormat.DUCKDB: DuckDBReader(),
 }
 
 _WRITERS: dict[ResultFormat, ParsedLevelsWriter] = {
     ResultFormat.H5AD: H5adWriter(),
     ResultFormat.H5MU: H5muWriter(),
-    ResultFormat.PARQUET: ParquetLevelsWriter(),
-    ResultFormat.DUCKDB: DuckDBWriter(),
 }
 
 _FORMATS_BY_SUFFIX: dict[str, ResultFormat] = {
@@ -64,11 +57,27 @@ _FORMATS_BY_SUFFIX: dict[str, ResultFormat] = {
 
 def reader_for(result_format: ResultFormat, /) -> ParsedLevelsReader:
     """Select the immutable reader registered for one explicit format."""
+    if result_format == ResultFormat.DUCKDB:
+        from apb2.parserV2.parse_quant.io.duckdb import DuckDBReader
+
+        return DuckDBReader()
+    if result_format == ResultFormat.PARQUET:
+        from apb2.parserV2.parse_quant.io.parquet_reader import ParquetReader
+
+        return ParquetReader()
     return _READERS[result_format]
 
 
 def writer_for(result_format: ResultFormat, /) -> ParsedLevelsWriter:
     """Select the immutable writer registered for one explicit format."""
+    if result_format == ResultFormat.DUCKDB:
+        from apb2.parserV2.parse_quant.io.duckdb import DuckDBWriter
+
+        return DuckDBWriter()
+    if result_format == ResultFormat.PARQUET:
+        from apb2.parserV2.parse_quant.io.parquet_writer import ParquetLevelsWriter
+
+        return ParquetLevelsWriter()
     return _WRITERS[result_format]
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from importlib.util import find_spec
 from pathlib import Path
 from typing import IO, Any, cast
 
@@ -34,6 +35,8 @@ def _mods(value: object, mod_type: ModType) -> list[SearchedModification]:
 
 def extract_params(source: Path | IO[bytes] | IO[str]) -> Parameters:
     """Parse ProlineStudio's parameter sheets from its result workbook."""
+    if find_spec("python_calamine") is None:
+        raise ParamsError("ProlineStudio parameter reading requires pip install 'apb2[excel]'")
     try:
         search = pd.read_excel(
             source,
